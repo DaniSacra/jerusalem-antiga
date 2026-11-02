@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepMonth, taxFactor } from '../src/core';
+import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepMonth, taxFactor } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
@@ -164,3 +164,21 @@ describe('happiness on screen (core data)', () => {
     expect(balloonNeed(s, b)).toBe('sad'); // also at the top level
   });
 });
+
+describe('happiness before the garden', () => {
+  it('is off until the garden is unlocked: content, no reasons, plain tax and families', () => {
+    const s = emptyGame({ famine: true });
+    s.unlocked = s.unlocked.filter((k) => k !== 'garden');
+    expect(happinessOn(s)).toBe(false);
+    const b = put(s, 'house', ROADSIDE, 40, 1); // famine and idle: would be sad
+    expect(houseHappiness(s, b, 1)).toEqual({ value: H.base, mood: 'neutral', parts: [] });
+    const e = computeEconomy(s);
+    expect(e.taxes).toBe(HOUSE_LEVELS[1].tax);
+    expect(familyFactor(e.happiness)).toBe(1);
+    expect(balloonNeed(s, b)).not.toBe('sad');
+    s.unlocked.push('garden');
+    expect(happinessOn(s)).toBe(true);
+    expect(houseHappiness(s, b, 1).mood).toBe('sad');
+  });
+});
+

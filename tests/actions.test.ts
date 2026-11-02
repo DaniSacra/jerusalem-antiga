@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPlace, clearCell, indexOf, place, RULES, templeSpots } from '../src/core';
+import { checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('placing buildings', () => {
@@ -91,6 +91,21 @@ describe('temple placement', () => {
     const s = emptyGame();
     s.feature = s.feature.map(() => 'rock');
     expect(templeSpots(s)).toEqual([]);
+  });
+
+  it('lists house spots (tutorial) only on free land touching the connected network', () => {
+    const s = emptyGame({ silver: 0 });
+    const spots = placeSpots(s, 'house');
+    expect(spots.length).toBeGreaterThan(0);
+    expect(spots).toContainEqual({ x: ROADSIDE, y: 30 });
+    expect(spots).not.toContainEqual({ x: ROADSIDE - 1, y: 30 }); // one cell away from the road
+    const { w, h } = dimsOf('house');
+    s.silver = 1e6;
+    for (const o of spots) {
+      expect(checkPlace(s, 'house', o.x, o.y)).toEqual({ ok: true });
+      const touches = [...Array(w + 2)].some((_, dx) => [...Array(h + 2)].some((_, dy) => s.network[indexOf(s, o.x - 1 + dx, o.y - 1 + dy)]));
+      expect(touches).toBe(true);
+    }
   });
 });
 

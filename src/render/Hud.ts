@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { alerts, currentGoal, goalProgress, moodOf, type Alert, type Economy, type GameState } from '../core';
+import { alerts, currentGoal, goalProgress, happinessOn, moodOf, type Alert, type Economy, type GameState } from '../core';
 import { ALERT_Y, BANNER_MAX_W, GAME_W, GOAL_H, GOAL_Y, inRect, PLAQUE, plaqueSlot, SPEED, SPEED_BTN, speedButton, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
@@ -44,6 +44,8 @@ export class Hud {
   /** Sun, dusk or moon right after the month number. */
   private phase: Phaser.GameObjects.Image;
   private face!: Phaser.GameObjects.Image;
+  /** Tap target of the happiness slot (off, like the face, until the garden is unlocked). */
+  private faceZone!: Phaser.GameObjects.Zone;
   private speedButtons: [Speed, RailButton][] = [];
   /** Blinking values (food during famine, silver in debt). */
   private blinks = new Map<Phaser.GameObjects.Text, Phaser.Tweens.Tween>();
@@ -96,7 +98,9 @@ export class Hud {
       };
       // Tapping the silver shows where it comes from and where it goes; the face, what moves the mood.
       const onTap = key === 'silver' ? h.onSilver : key === 'happiness' ? h.onHappiness : null;
-      if (onTap) scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', onTap);
+      if (!onTap) return;
+      const zone = scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', onTap);
+      if (key === 'happiness') this.faceZone = zone;
     });
 
     this.phase = scene.add.image(0, ROW_Y, TEX.icon('sun')).setScale(0.62);
@@ -210,6 +214,10 @@ export class Hud {
     this.set(food, String(Math.floor(state.food)), signed(eco.foodDelta) + T.perMonth, eco.foodDelta < 0 ? CSS.bad : CSS.good);
     this.tone(food.value, state.famine ? CSS.bad : CSS.ink, state.famine);
     this.set(residents, String(eco.residents));
+    // The face and its number only exist once the garden is unlocked (before it everyone is content).
+    const on = happinessOn(state);
+    for (const o of [this.face, happiness.value, happiness.sub]) o.setVisible(on);
+    if (this.faceZone.input) this.faceZone.input.enabled = on;
     const mood = moodOf(eco.happiness);
     const face = TEX.mood(mood);
     if (this.face.texture.key !== face) this.face.setTexture(face);

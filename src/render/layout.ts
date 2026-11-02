@@ -20,24 +20,25 @@ export const inRect = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + 
 export const PAD = 6;
 /** Rail buttons: 72 game px is ~48 screen px on a 844 x 390 phone (minimum touch target 44). */
 export const BTN = 72;
+/** Rail button width on both rails: wide enough for the name and cost under the icon. */
+export const TOOL_W = 112;
 export const BTN_GAP = 6;
 
-/** Speed buttons (pause, 1x, 3x) in a row, top left: 68 game px is ~45 screen px on the phone. */
-export const SPEED_BTN = 68;
+/** Speed buttons (pause, 1x, 3x) in a row, top left: 72 game px is ~45 screen px on a 800 x 360 phone. */
+export const SPEED_BTN = 72;
 export const SPEED: Rect = { x: PAD, y: PAD, w: 3 * SPEED_BTN + 2 * BTN_GAP + 2 * PAD, h: SPEED_BTN + 2 * PAD };
 
 /** Gap between the tools (Ver, Rua, Jardim, Limpar) and the turn arrows. */
-export const DIVIDER = 16;
-const LEFT_Y = SPEED.y + SPEED.h + 10;
-/** Left rail button height: full size when it fits, a little shorter on very wide screens. */
+export const DIVIDER = 10;
+const LEFT_Y = SPEED.y + SPEED.h + 4;
+/** Left rail button height: full size when it fits, a little shorter on very wide screens (71 on 800 x 360, ~44 screen px). */
 export const LEFT_BTN = Math.min(BTN, Math.floor((GAME_H - PAD - LEFT_Y - 2 * PAD - DIVIDER - 4 * BTN_GAP) / 6));
 /** Left rail, under the speed: 4 tools, a divider and the 2 turn arrows. */
-export const LEFT_RAIL: Rect = { x: PAD, y: LEFT_Y, w: BTN + 2 * PAD, h: 6 * LEFT_BTN + 4 * BTN_GAP + DIVIDER + 2 * PAD };
+export const LEFT_RAIL: Rect = { x: PAD, y: LEFT_Y, w: TOOL_W + 2 * PAD, h: 6 * LEFT_BTN + 4 * BTN_GAP + DIVIDER + 2 * PAD };
 
-/** Right rail: the 6 buildings, wider buttons for the thumbnails, centered vertically under the options button. */
-export const BUILD_W = 88;
+/** Right rail: the 6 buildings, centered vertically under the options button. */
 const RIGHT_H = 6 * BTN + 5 * BTN_GAP + 2 * PAD;
-const RIGHT_W = BUILD_W + 2 * PAD;
+const RIGHT_W = TOOL_W + 2 * PAD;
 const OPT_SIZE = SPEED_BTN + 2 * PAD;
 const RIGHT_Y = Math.min(GAME_H - PAD - RIGHT_H, Math.max(Math.round((GAME_H - RIGHT_H) / 2), PAD + OPT_SIZE + 8));
 export const RIGHT_RAIL: Rect = { x: GAME_W - PAD - RIGHT_W, y: RIGHT_Y, w: RIGHT_W, h: RIGHT_H };
@@ -47,11 +48,11 @@ export const OPTIONS: Rect =
     ? { x: GAME_W - PAD - OPT_SIZE, y: PAD, w: OPT_SIZE, h: OPT_SIZE }
     : { x: RIGHT_RAIL.x - 8 - OPT_SIZE, y: PAD, w: OPT_SIZE, h: OPT_SIZE };
 
-/** Top-center plaque: city name, then month, silver, food, residents, happiness and work. */
-export const PLAQUE_W = 810;
+/** Top-center plaque: city name, then month, silver, food, residents, happiness and work (clear of the speed buttons). */
+export const PLAQUE_W = 786;
 export const PLAQUE: Rect = { x: (GAME_W - PLAQUE_W) / 2, y: 0, w: PLAQUE_W, h: 66 };
 /** Widths of the plaque slots (month, silver, food, residents, happiness, work), fixed so numbers never push each other. */
-const SLOT_W = [96, 176, 156, 92, 84, 196];
+const SLOT_W = [88, 172, 148, 92, 80, 196];
 const SLOT_X0 = PLAQUE.x + (PLAQUE_W - SLOT_W.reduce((a, b) => a + b, 0)) / 2;
 /** Slot k of the plaque, full plaque height (the silver and happiness slots are tap targets for their breakdowns). */
 export const plaqueSlot = (k: number): Rect => ({ x: SLOT_X0 + SLOT_W.slice(0, k).reduce((a, b) => a + b, 0), y: 0, w: SLOT_W[k], h: PLAQUE.h });

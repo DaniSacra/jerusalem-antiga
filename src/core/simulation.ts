@@ -77,9 +77,10 @@ export function stepMonth(s: GameState, rng: Rng): GameEvent[] {
 
   s.silver = round2(s.silver + eco.silverDelta);
 
+  // New families set out and walk in the same month, so the first tent comes quickly.
+  dispatchFamilies(s, rng);
   moveFamilies(s, events, rng);
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
-  dispatchFamilies(s, rng);
 
   s.month++;
   s.peakPopulation = Math.max(s.peakPopulation, computeEconomy(s).residents);

@@ -1,4 +1,4 @@
-import { createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
+import { RULES, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
@@ -12,6 +12,7 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
   s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+  s.goalIndex = RULES.upkeepStartsAfterGoal; // upkeep is charged (tests of the first goals set goalIndex)
   Object.assign(s, overrides);
   refreshCity(s);
   return s;

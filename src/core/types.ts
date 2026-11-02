@@ -109,6 +109,10 @@ export interface Rules {
   startFood: number;
   startUnlocked: Placeable[];
   monthSeconds: number;
+  /** The guaranteed first families walk this many times faster. */
+  earlyFamilySpeedMultiplier: number;
+  /** Upkeep is charged only once this many goals are done (the first goals are free of it). */
+  upkeepStartsAfterGoal: number;
   workerShare: number;
   /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
   unemploymentAlert: number;
@@ -189,6 +193,8 @@ export interface Family {
   path: Cell[];
   /** Cells walked along the path. */
   step: number;
+  /** One of the guaranteed first families: walks faster so the start has no dead time. */
+  fast?: boolean;
 }
 
 export type Coverage = Record<ServiceKind, boolean[]>;
@@ -234,6 +240,8 @@ export type GameEvent =
   | { type: 'victory'; month: number; residents: number }
   /** A family abandoned its tent during famine and walks out of the city from (x, y). */
   | { type: 'familyLeft'; x: number; y: number }
+  /** Upkeep starts being charged (once, right after goal `upkeepStartsAfterGoal`). */
+  | { type: 'upkeepStart' }
   | { type: 'debtStart' }
   | { type: 'debtEnd' }
   | { type: 'defeat'; month: number; peak: number };

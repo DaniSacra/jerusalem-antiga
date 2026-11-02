@@ -1,4 +1,4 @@
-import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type HappinessPart, type Mood, type NeedKind, type Placeable } from '../core';
+import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type HappinessPart, type Mood, type NeedKind, type Placeable, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -17,6 +17,8 @@ export const T = {
     miniature: (on: boolean) => `Efeito maquete: ${on ? 'ligado' : 'desligado'}`,
     miniatureSlow: 'Efeito maquete: desligado (aparelho lento)',
   },
+  /** Name under the turn arrows. */
+  turn: 'Girar',
   speed: (v: number) => (v === 0 ? '❚❚' : `${v}x`),
   perMonth: '/mês',
   noJobs: '—',
@@ -75,6 +77,29 @@ export const T = {
     ].join('  ·  ');
   },
   upkeep: (n: number) => `manutenção ${fmt(n)}/mês`,
+  /** Before goal 2 no upkeep is charged yet. */
+  upkeepLater: (n: number) => `manutenção ${fmt(n)}/mês depois da Meta ${RULES.upkeepStartsAfterGoal}`,
+  upkeepStart: 'A partir de agora, poços, campos, mercados e oficinas custam prata por mês. Fique de olho no saldo.',
+  /** Preview of a well, market or garden: houses with a family inside its radius. */
+  serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
+  tutorial: {
+    step: {
+      road: 'Puxe uma rua saindo do altar, pelo caminho marcado',
+      houses: 'Construa 3 casas encostadas na rua, nos lugares verdes',
+      family: 'Uma família está chegando!',
+      field: 'Construa um campo para o povo comer',
+      well: 'Construa um poço perto das tendas',
+      grow: 'Veja: as tendas perto do poço viram casas de barro',
+      upkeep: 'A partir de agora, poços, campos, mercados e oficinas custam prata por mês. Fique de olho no saldo.',
+      market: 'Casas de barro com mercado perto viram casas de pedra',
+    } satisfies Record<TutorialStepId, string>,
+    pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
+    skip: 'Pular tutorial',
+    ok: 'Entendi',
+    again: 'Ver tutorial de novo',
+    done: 'Muito bem! Agora siga as metas no alto da tela',
+    locked: 'Siga o tutorial, ou toque em Pular tutorial',
+  },
   mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
   happinessPart: {
     sacred: 'Altar',
@@ -109,11 +134,14 @@ export const T = {
     `A cidade ficou ${RULES.debtMonthsToLose} meses em dívida. Você jogou ${months(monthsPlayed)} e chegou a ${peak} moradores.`,
   retry: 'Tentar de novo',
   lockedCost: (n: number) => `Meta ${n}`,
-  lockedHint: (kind: Placeable) => `${toolName(kind)}: liberado ao cumprir a Meta ${unlockingGoal(kind)}.`,
+  lockedHint: (kind: Placeable) => `${toolName(kind)}: ${FEMININE.has(kind) ? 'liberada' : 'liberado'} ao cumprir a Meta ${unlockingGoal(kind)}.`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira' } satisfies Record<Feature, string>,
   need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo', garden: 'Jardim' } satisfies Record<NeedKind, string>,
 };
+
+/** Tools with a feminine name (for "liberada"). */
+const FEMININE: ReadonlySet<Placeable> = new Set<Placeable>(['road', 'house', 'workshop']);
 
 const months = (n: number) => `${n} ${n === 1 ? 'mês' : 'meses'}`;
 
@@ -126,12 +154,13 @@ export function fmt(n: number): string {
 export const signed = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n));
 
 /** Title of the info line when a tool is picked: name, cost and upkeep. */
-export function toolHead(tool: Tool): string {
+export function toolHead(tool: Tool, upkeepOn = true): string {
   if (tool === 'view') return 'Ver';
   if (tool === 'clear') return `Limpar · árvore ${RULES.treeClearCost} prata`;
   if (tool === 'road') return `Rua · ${RULES.roadCost} prata por célula`;
   const d = BUILDINGS[tool];
-  return `${d.name} · ${d.cost} prata${d.upkeep ? ` · ${d.upkeep}/mês` : ''}`;
+  if (!d.upkeep) return `${d.name} · ${d.cost} prata`;
+  return `${d.name} · ${d.cost} prata · ${upkeepOn ? `${d.upkeep}/mês` : T.upkeepLater(d.upkeep)}`;
 }
 
 /** What the tool does, after its title in the info line. */

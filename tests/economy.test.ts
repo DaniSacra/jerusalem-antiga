@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, computeEconomy, costliestUpkeep, HOUSE_LEVELS, RULES, unemployed, unemploymentAlert } from '../src/core';
+import { BUILDINGS, checkGoal, computeEconomy, costliestUpkeep, HOUSE_LEVELS, RULES, stepMonth, unemployed, unemploymentAlert, upkeepCharged, type GameEvent } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('economy', () => {
@@ -172,3 +172,34 @@ describe('unemployment', () => {
     expect(unemploymentAlert(s)).toBe(0);
   });
 });
+
+describe('upkeep starts after goal 2', () => {
+  it('charges no upkeep, no deficit and no debt before it', () => {
+    const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0 });
+    put(s, 'well', ROADSIDE, 29);
+    put(s, 'field', EAST, 27);
+    expect(upkeepCharged(s)).toBe(false);
+    const e = computeEconomy(s);
+    expect(e.upkeep).toEqual({});
+    expect(e.silverDelta).toBeGreaterThanOrEqual(0);
+    stepMonth(s, () => 0.99);
+    expect(s.silver).toBeGreaterThanOrEqual(0);
+    expect(s.debtMonths).toBe(0);
+  });
+
+  it('charges it from the first month after the goal, and announces it once', () => {
+    expect(RULES.upkeepStartsAfterGoal).toBe(2);
+    const s = emptyGame({ goalIndex: 1, silver: 0 });
+    put(s, 'well', ROADSIDE, 29);
+    for (let y = 31; y <= 43; y += 2) put(s, 'house', ROADSIDE, y, 1); // 21 residents: goal 2 done
+    const events: GameEvent[] = [];
+    checkGoal(s, events);
+    expect(events.filter((e) => e.type === 'upkeepStart')).toHaveLength(1);
+    expect(computeEconomy(s).upkeep).toEqual({ well: BUILDINGS.well.upkeep });
+    const later: GameEvent[] = [];
+    s.goalIndex = 3;
+    checkGoal(s, later); // other goals never announce it again
+    expect(later.some((e) => e.type === 'upkeepStart')).toBe(false);
+  });
+});
+

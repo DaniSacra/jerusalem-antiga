@@ -49,6 +49,11 @@
     "tiltBand": 0.5,
     "tiltBlur": 3.5
   },
+  "tutorial": {
+    "followSeconds": 2,
+    "arrowScale": 1,
+    "arrowBob": 12
+  },
   "perf": {
     "minFps": 40,
     "sampleSeconds": 4

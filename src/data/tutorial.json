@@ -1,0 +1,15 @@
+{
+  "ghostLength": 6,
+  "steps": [
+    { "id": "road", "tool": "road", "target": 4 },
+    { "id": "houses", "tool": "house", "target": 3 },
+    { "id": "family", "tool": null, "target": 1 },
+    { "id": "field", "tool": "field", "target": 1 },
+    { "id": "well", "tool": "well", "target": 1 },
+    { "id": "grow", "tool": null, "target": 1 }
+  ],
+  "extras": [
+    { "id": "upkeep", "tool": null, "target": 1 },
+    { "id": "market", "tool": "market", "target": 1 }
+  ]
+}

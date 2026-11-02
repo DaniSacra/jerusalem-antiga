@@ -6,14 +6,18 @@ import {
   computeEconomy,
   createGame,
   createRng,
+  dimsOf,
   currentGoal,
+  ghostRoad,
   GOALS,
   goalProgress,
   indexOf,
   place,
+  placeSpots,
   RULES,
   stepMonth,
   templeSpots,
+  upkeepCharged,
   type ActionResult,
   type Cell,
   type Economy,
@@ -28,8 +32,10 @@ import { Effects } from '../render/Effects';
 import { SPEEDS, type Speed } from '../render/Hud';
 import { describeCell, hintSegments, toolSegments } from '../render/info';
 import { footCenter, getRotation, gridToWorld, setRotation, worldToCell, worldToGrid } from '../render/iso';
-import { VIEW_CY } from '../render/layout';
-import { MapView, originFor } from '../render/MapView';
+import { PLAQUE, plaqueSlot, VIEW_CY } from '../render/layout';
+import { MapView, originFor, type OverlayGuide } from '../render/MapView';
+import { TutorialGuide, tutorialSeen, type TutorialTarget } from '../render/Tutorial';
+import VISUAL from '../data/visual.json';
 import { RoadWear } from '../render/RoadWear';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
@@ -98,6 +104,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private selected: Cell | null = null;
   /** The info line shows the silver breakdown or the whole goal (after tapping them), kept up to date. */
   private infoMode: 'silver' | 'happiness' | 'goal' | null = null;
+  /** First-game tutorial (null when seen before or skipped). */
+  private guide: TutorialGuide | null = null;
+  /** The road the tutorial suggests (chosen once per game). */
+  private ghost: Cell[] = [];
+  /** A free house spot for the tutorial arrow (houses step). */
+  private houseHint: Cell | null = null;
+  /** The camera follows the first family for a moment (family step). */
+  private follow: { id: number; until: number } | null = null;
+  private followed = false;
   private gesture: Gesture | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
@@ -111,10 +126,16 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return SPEEDS[this.speedIndex];
   }
 
-  create() {
+  /** `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once. */
+  create(data?: { tutorial?: boolean }) {
     generateTextures(this);
     this.rng = createRng((Math.random() * 2 ** 32) >>> 0);
     this.state = createGame(this.rng);
+    this.guide = data?.tutorial || !tutorialSeen() ? new TutorialGuide(this.state) : null;
+    this.ghost = this.guide ? ghostRoad(this.state) : [];
+    this.houseHint = null;
+    this.follow = null;
+    this.followed = false;
     this.eco = computeEconomy(this.state);
     this.tool = 'view';
     this.rotated = false;
@@ -167,6 +188,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
     this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night);
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers);
+    if (this.guide) this.updateTutorial(delta);
     this.ui?.setDayPhase(phaseIcon(light.phase), this.dayNight.degraded);
   }
 
@@ -176,8 +198,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.eco = computeEconomy(this.state);
     this.map.sync(this.state, this.eco.efficiency);
     this.ambient.sync(this.state);
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
-    this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
+    this.checkTutorial();
+    this.drawOverlay();
+    this.ui?.refresh(this.state, this.eco, this.speed, this.tool, this.guide?.allowed() ?? null);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
     else if (this.tool === 'view' && this.infoMode === 'silver') this.ui?.setInfo(hintSegments(T.silverBreakdown(this.eco)));
     else if (this.tool === 'view' && this.infoMode === 'happiness') this.ui?.setInfo(hintSegments(T.happinessBreakdown(this.eco)));
@@ -228,6 +251,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
         case 'defeat':
           this.ui?.showDefeat(e.month, e.peak);
           break;
+        case 'upkeepStart':
+          if (!this.guide?.upkeepStarted()) this.ui?.toast(T.upkeepStart, 'info');
+          break;
       }
     }
   }
@@ -240,6 +266,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.rotate();
       return;
     }
+    const allowed = this.guide?.allowed();
+    if (allowed && !allowed.has(tool)) {
+      this.ui?.setInfo(hintSegments(T.tutorial.locked));
+      return;
+    }
     if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
       this.ui?.setInfo(hintSegments(T.lockedHint(tool)));
       return;
@@ -247,7 +278,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.tool = tool;
     this.selected = null;
     this.infoMode = null;
-    this.ui?.setInfo(toolSegments(tool));
+    this.ui?.setInfo(toolSegments(tool, upkeepCharged(this.state)));
     if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.setInfo([{ text: T.noTempleSpot, color: CSS.badLight }]);
     this.refresh();
   }
@@ -256,7 +287,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   rotate() {
     if (!isPlaceTool(this.tool) || this.tool === 'road' || !canRotate(this.tool)) return;
     this.rotated = !this.rotated;
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
+    this.drawOverlay();
   }
 
   /** Turns the view a quarter turn (1 = clockwise, -1 = counterclockwise), keeping the same spot centered. */
@@ -297,12 +328,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
-  /** New map, new seed: back to the start of the game. */
   /** The player changed the display options (day and night, miniature blur). */
   applySettings() {
     this.dayNight.applySettings();
   }
 
+  /** New map, new seed: back to the start of the game. */
   restart() {
     this.scene.stop('ui');
     this.scene.restart();
@@ -316,6 +347,98 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.ui?.modalOpen) return;
     this.speedIndex = SPEEDS.indexOf(v);
     this.refresh();
+  }
+
+  // ---------- tutorial ----------
+
+  skipTutorial() {
+    if (!this.guide) return;
+    if (this.guide.skip()) this.ui?.toast(T.upkeepStart, 'info');
+    this.guide = null;
+    this.ui?.setTutorial(null);
+    this.refresh();
+  }
+
+  tutorialOk() {
+    this.guide?.tap(this.state);
+    this.refresh();
+  }
+
+  private drawOverlay() {
+    const id = this.guide?.step?.id;
+    const guide: OverlayGuide | null = id === 'road' || id === 'houses' ? { ghost: id === 'road' ? this.ghost : [], houseSpots: id === 'houses' } : null;
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated, guide);
+  }
+
+  /** Moves the tutorial past finished steps and shows the current one. */
+  private checkTutorial() {
+    const guide = this.guide;
+    if (!guide) return;
+    const change = guide.update(this.state);
+    if (change === 'done') this.ui?.toast(T.tutorial.done, 'good');
+    const step = guide.step;
+    if (!step) {
+      this.ui?.setTutorial(null);
+      return;
+    }
+    // A tool the step does not allow goes back to Ver (after the drag, so a long road is not cut).
+    const allowed = guide.allowed();
+    if (!this.gesture && allowed && !allowed.has(this.tool)) {
+      this.tool = 'view';
+      this.ui?.setInfo([]);
+    }
+    if (step.id === 'houses') {
+      const a = RULES.map.altar;
+      const d = (c: Cell) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
+      this.houseHint = placeSpots(this.state, 'house').reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
+    }
+    this.ui?.setTutorial(T.tutorial.step[step.id], step.id === 'upkeep');
+  }
+
+  /** Per frame: the arrow follows the map under the camera, and the camera follows the first family. */
+  private updateTutorial(delta: number) {
+    const step = this.guide!.step;
+    if (step?.id === 'family' && !this.followed && this.state.families.length) {
+      this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
+      this.followed = true;
+    }
+    if (this.follow) {
+      const p = this.walkers.familyPos(this.follow.id);
+      if (!p || this.time.now > this.follow.until) this.follow = null;
+      else {
+        const cam = this.cameras.main;
+        const c = this.rig.toWorld(cam.width / 2, VIEW_CY);
+        const k = Math.min(1, (delta / 1000) * 4);
+        this.rig.centerAt(c.x + (p.x - c.x) * k, c.y + (p.y - c.y) * k, cam.width / 2, VIEW_CY);
+      }
+    }
+    this.ui?.pointTutorial(step ? this.tutorialTarget() : null);
+  }
+
+  /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
+  private tutorialTarget(): TutorialTarget | null {
+    const step = this.guide!.step!;
+    if (step.id === 'upkeep') {
+      const r = plaqueSlot(1);
+      return { x: r.x + 24, y: PLAQUE.h + 2, dir: 'up' };
+    }
+    if (step.tool && this.tool !== step.tool) {
+      const b = this.ui?.buttonOf(step.tool);
+      if (!b) return null;
+      return b.side === 'right' ? { x: b.x - b.w / 2 + 4, y: b.y, dir: 'right' } : { x: b.x + b.w / 2 - 4, y: b.y, dir: 'left' };
+    }
+    const cell = step.id === 'road' ? this.ghost.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]) : step.id === 'houses' ? this.houseHint : null;
+    if (!cell) return null;
+    const { w, h } = step.id === 'houses' ? dimsOf('house') : { w: 1, h: 1 };
+    const p = footCenter(cell.x, cell.y, w, h);
+    return { ...this.toScreen(p.x, p.y), dir: 'down' };
+  }
+
+  private toScreen(wx: number, wy: number) {
+    const cam = this.cameras.main;
+    const cx = cam.width / 2;
+    const cy = cam.height / 2;
+    return { x: (wx - cam.scrollX - cx) * cam.zoom + cx, y: (wy - cam.scrollY - cy) * cam.zoom + cy };
   }
 
   // ---------- input ----------
@@ -340,7 +463,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private setHover(cell: Cell | null) {
     if (sameCell(cell, this.hover) || (!cell && !this.hover)) return;
     this.hover = cell;
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
+    this.drawOverlay();
   }
 
   private setupInput() {
@@ -464,6 +587,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.warnLooseRoads(g.roads);
     }
     if (p.wasTouch) this.setHover(null);
+    const allowed = this.guide?.allowed();
+    if (allowed && !allowed.has(this.tool)) this.refresh(); // a step ended during the drag
   }
 
   /** Warns once if any road just built is not connected to the altar. */

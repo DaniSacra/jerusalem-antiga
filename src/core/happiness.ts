@@ -19,6 +19,9 @@ export interface Happiness {
 
 const covered = (s: GameState, b: Building, k: ServiceKind) => cellsOf(b).some((c) => s.coverage[k][indexOf(s, c.x, c.y)]);
 
+/** Happiness is shown and has effects only once the garden is unlocked. */
+export const happinessOn = (s: GameState) => s.unlocked.includes('garden');
+
 export const moodOf = (value: number): Mood => (value >= H.happy ? 'happy' : value < H.sad ? 'sad' : 'neutral');
 
 /**
@@ -27,6 +30,8 @@ export const moodOf = (value: number): Mood => (value >= H.happy ? 'happy' : val
  */
 export function houseHappiness(s: GameState, b: Building, idleShare: number): Happiness {
   const parts: HappinessPart[] = [];
+  // Happiness only counts once the garden (the way to raise it) is unlocked: content until then.
+  if (!happinessOn(s)) return { value: H.base, mood: moodOf(H.base), parts };
   for (const k of ['sacred', 'garden', 'well', 'market'] as const) if (covered(s, b, k)) parts.push({ kind: k, value: H[k] });
   if (s.famine) parts.push({ kind: 'famine', value: H.famine });
   const idle = Math.round(Math.min(H.idleMax, idleShare * H.idleScale));

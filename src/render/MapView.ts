@@ -10,7 +10,8 @@ import {
   placeSize,
   roadMask,
   serviceOf,
-  templeSpots,
+  placeSpots,
+  servedHouses,
   type Building,
   type BuildingKind,
   type Cell,
@@ -22,7 +23,9 @@ import {
   type Dims,
   type Rect,
 } from '../core';
-import { C, shade } from './palette';
+import { C, CSS, shade } from './palette';
+import { T } from './strings';
+import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
 import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, scaffoldTexture, setTex } from './textures';
@@ -30,6 +33,12 @@ import type { RoadWear } from './RoadWear';
 import { isPlaceTool, type Tool } from './tools';
 import { FieldCrew } from './Fieldhands';
 import { Lights } from './Lights';
+
+/** Tutorial hints on the tool overlay. */
+export interface OverlayGuide {
+  ghost: Cell[];
+  houseSpots: boolean;
+}
 
 interface BuildingView {
   kind: BuildingKind;
@@ -98,6 +107,8 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
+  /** "Atende N casas" above the preview of a well, market or garden. */
+  private serves: Phaser.GameObjects.Text;
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
@@ -122,6 +133,7 @@ export class MapView {
     this.trails = scene.add.graphics().setDepth(DEPTH.road - 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
+    this.serves = text(scene, 0, 0, '', 18, CSS.light, true).setOrigin(0.5, 1).setStroke(CSS.ink, 5).setDepth(DEPTH.preview + 1).setVisible(false);
     this.lights = new Lights(scene);
     this.dust = scene.add
       .particles(0, 0, TEX.soft, {
@@ -187,7 +199,7 @@ export class MapView {
     for (const r of this.roads.values()) r.destroy();
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
-    [this.water, this.looseRoads, this.trails, this.overlay, this.preview].forEach((o) => o.destroy());
+    [this.water, this.looseRoads, this.trails, this.overlay, this.preview, this.serves].forEach((o) => o.destroy());
     this.lights.destroyAll();
     this.dust.destroy();
   }
@@ -442,11 +454,11 @@ export class MapView {
     for (const c of cells) g.fillPoints(rectCorners(c.x, c.y, 1, 1), true);
   }
 
-  /** Cells covered by any position where the temple fits. */
-  private templeArea(s: GameState): Cell[] {
+  /** Cells covered by every spot where a building of this kind fits next to the network. */
+  private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
     const seen = new Set<number>();
-    const { w, h } = dimsOf('temple');
-    for (const o of templeSpots(s)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
+    const { w, h } = dimsOf(kind);
+    for (const o of placeSpots(s, kind)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
   }
 
@@ -456,10 +468,21 @@ export class MapView {
     return out;
   }
 
-  showOverlay(s: GameState, tool: Tool, hover: Cell | null, selected: Cell | null, rotated = false) {
+  /**
+   * Draws the tool overlay. `guide` (tutorial) adds a suggested road and, for houses, the free spots
+   * next to the network in green.
+   */
+  showOverlay(s: GameState, tool: Tool, hover: Cell | null, selected: Cell | null, rotated = false, guide: OverlayGuide | null = null) {
     const g = this.overlay;
     g.clear();
     this.preview.setVisible(false);
+    this.serves.setVisible(false);
+    if (guide?.ghost.length) {
+      const ghost = guide.ghost.filter((c) => !s.roads[indexOf(s, c.x, c.y)]);
+      this.fillCells(ghost, C.ui.goldLight, 0.45);
+      g.lineStyle(2, C.ui.goldDark, 0.9);
+      for (const c of ghost) g.strokePoints(rectCorners(c.x, c.y, 1, 1), true, true);
+    }
 
     if (tool === 'view') {
       if (selected) {
@@ -487,7 +510,8 @@ export class MapView {
     if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.sacred), C.gold, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
-    if (tool === 'temple') this.fillCells(this.templeArea(s), C.fits, 0.4);
+    if (tool === 'temple') this.fillCells(this.spotsArea(s, 'temple'), C.fits, 0.4);
+    if (tool === 'house' && guide?.houseSpots) this.fillCells(this.spotsArea(s, 'house'), C.fits, 0.4);
 
     if (!hover) return;
     const o = originFor(tool, hover, rotated);
@@ -503,6 +527,15 @@ export class MapView {
       g.fillPoints(area, true);
       g.lineStyle(3, C.need[service], 0.9);
       g.strokePoints(area, true, true);
+      // The houses it would serve, outlined, and how many above the preview.
+      const served = servedHouses(s, tool, o.x, o.y, rotated);
+      g.lineStyle(3, C.need[service], 1);
+      for (const b of served) g.strokePoints(rectCorners(b.x, b.y, b.w, b.h), true, true);
+      const top = footCenter(o.x, o.y, w, h);
+      this.serves
+        .setText(T.serves(served.length))
+        .setPosition(top.x, top.y - (HEIGHT[keyOf({ kind: tool, ...o, w, h })] ?? 40) - 6)
+        .setVisible(true);
     }
     const ok = (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
     const color = ok ? 0xfff3b0 : C.famine;
@@ -527,6 +560,7 @@ export class MapView {
     const t = time / 1000;
     this.work += workDt;
     const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
+    this.serves.setScale(balloonScale);
     this.drawWater(t);
     this.lights.update(t, night);
     for (const f of this.features.values()) if (f.sway) f.img.setAngle(Math.sin(t * 1.3 + f.img.x * 0.03) * f.sway);
@@ -553,7 +587,7 @@ export class MapView {
     for (const { x, y } of this.riverCells) {
       const h = cellHash(x, y);
       const o = (t * 0.35 + (h % 100) / 100) % 1;
-      const gx = x + 0.25 + ((h >> 8) % 50) / 100;
+      const gx = x + 0.25 + ((h >>> 8) % 50) / 100;
       const a = gridToWorld(gx, y + o);
       const b = gridToWorld(gx, y + Math.min(1, o + 0.22));
       g.lineStyle(1.6, C.waterLight, 0.75 * Math.sin(o * Math.PI));

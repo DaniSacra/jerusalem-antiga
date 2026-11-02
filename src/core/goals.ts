@@ -1,4 +1,4 @@
-import { GOALS } from './data';
+import { GOALS, RULES } from './data';
 import { computeEconomy } from './economy';
 import { countHousesAtLeast } from './houses';
 import type { GameEvent, GameState, GoalDef, Placeable } from './types';
@@ -30,4 +30,5 @@ export function checkGoal(s: GameState, events: GameEvent[]): void {
   } else {
     events.push({ type: 'goal', index, reward: goal.reward, unlock: goal.unlock });
   }
+  if (s.goalIndex === RULES.upkeepStartsAfterGoal) events.push({ type: 'upkeepStart' });
 }

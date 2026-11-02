@@ -33,6 +33,8 @@ interface Mover {
   phase: number;
   /** Doves: seconds left in the air (0 = sitting). */
   flying: number;
+  /** Boats: the river center of each row, so the boat stays on the water where the river bends. */
+  lane?: Map<number, number>;
 }
 
 interface Group {
@@ -92,16 +94,20 @@ export class Ambient {
     const altar = s.buildings.find((b) => b.kind === 'altar');
     const nearCity = (x: number, y: number) => !altar || Math.max(Math.abs(x - altar.x), Math.abs(y - altar.y)) <= A.nearCity;
     const room = () => this.animals < A.maxAnimals;
+    // Groups already shown stay even when the cap is reached (so they never blink in and out).
+    const keepIfRoom = (key: string, make: () => Group) => {
+      if (this.groups.has(key) || room()) keep(key, make);
+    };
 
     for (const b of s.buildings) {
       const h = cellHash(b.x, b.y);
-      if (b.kind === 'house' && b.level === 1 && room()) {
+      if (b.kind === 'house' && b.level === 1) {
         const c = this.freeNeighbour(b, free);
-        if (c) keep(`t${b.id}`, () => this.yard(c.x + 0.5, c.y + 0.5, h));
+        if (c) keepIfRoom(`t${b.id}-${c.x},${c.y}`, () => this.yard(c.x + 0.5, c.y + 0.5, h));
       }
-      if (b.kind === 'market' && room()) {
+      if (b.kind === 'market') {
         const c = this.freeNeighbour(b, free);
-        if (c) keep(`m${b.id}`, () => ({ ...empty(), movers: [this.mover('donkey', 0, 'still', c.x + 0.5, c.y + 0.5, 0)] }));
+        if (c) keepIfRoom(`m${b.id}`, () => ({ ...empty(), movers: [this.mover('donkey', 0, 'still', c.x + 0.5, c.y + 0.5, 0)] }));
       }
       if (b.kind === 'house' && b.level >= 2 && h % A.laundryEvery === 0) keep(`l${b.id}-${b.level}`, () => this.laundry(b));
       if (b.kind === 'altar') keep(`d${b.id}`, () => this.doves(b));
@@ -122,7 +128,8 @@ export class Ambient {
     }
 
     // Washerwomen on the free banks closest to the city, a few cells apart.
-    const dist = (x: number, y: number) => (altar ? Math.max(Math.abs(x - altar.x), Math.abs(y - altar.y)) : 0);
+    // Measured from the altar's center, as the crow flies.
+    const dist = (x: number, y: number) => (altar ? Math.hypot(x + 0.5 - (altar.x + altar.w / 2), y + 0.5 - (altar.y + altar.h / 2)) : 0);
     const banks: { x: number; y: number; dx: number; dy: number }[] = [];
     for (let y = 0; y < s.rows; y++) {
       for (let x = 0; x < s.cols; x++) {
@@ -137,7 +144,12 @@ export class Ambient {
       if (picked.length >= A.washers) break;
       if (picked.some((o) => Math.abs(o.x - c.x) + Math.abs(o.y - c.y) < 4)) continue;
       picked.push(c);
-      keep(`w${c.x},${c.y}`, () => ({ ...empty(), movers: [this.mover('washer', 0, 'scrub', c.x + 0.5 + c.dx * 0.38, c.y + 0.5 + c.dy * 0.38, 0)] }));
+      keep(`w${c.x},${c.y}`, () => {
+        const m = this.mover('washer', 0, 'scrub', c.x + 0.5 + c.dx * 0.38, c.y + 0.5 + c.dy * 0.38, 0);
+        // The washing stone is on her right in the sprite: mirror her when the river is to the left on screen.
+        m.img.setFlipX(gridToWorld(c.x + c.dx, c.y + c.dy).x < gridToWorld(c.x, c.y).x);
+        return { ...empty(), movers: [m] };
+      });
     }
     for (let k = 0; k < A.boats; k++) keep(`b${k}`, () => this.boat(s, k, dist));
 
@@ -210,7 +222,7 @@ export class Ambient {
       case 'boat': {
         m.gy += m.speed * dt;
         if (m.gy > m.hy + m.r || m.gy < m.hy - m.r) m.speed = -m.speed;
-        m.gx = m.tx; // river center for this boat
+        m.gx += ((m.lane?.get(Math.floor(m.gy)) ?? m.tx) - m.gx) * Math.min(1, dt * 2); // river center of the current row
         bob = Math.sin(t * 1.6 + m.phase) * 1.2;
         dx = 0;
         break;
@@ -279,8 +291,8 @@ export class Ambient {
 
   /** A goat and two chickens (or just chickens) in a free cell next to a tent. */
   private yard(x: number, y: number, h: number): Group {
-    const movers = [this.mover('chicken', h % 2, 'wander', x, y, 0.4, 0.5), this.mover('chicken', (h >> 1) % 2, 'wander', x, y, 0.4, 0.5)];
-    if (h % 3) movers.push(this.mover('goat', (h >> 2) % 2, 'wander', x, y, 0.35, 0.25));
+    const movers = [this.mover('chicken', h % 2, 'wander', x, y, 0.4, 0.5), this.mover('chicken', (h >>> 1) % 2, 'wander', x, y, 0.4, 0.5)];
+    if (h % 3) movers.push(this.mover('goat', (h >>> 2) % 2, 'wander', x, y, 0.35, 0.25));
     return { ...empty(), movers };
   }
 
@@ -311,6 +323,7 @@ export class Ambient {
     const m = this.mover('boat', 0, 'boat', row.x, row.y + 0.5, 2.5, 0.12 * (k % 2 ? -1 : 1));
     m.tx = row.x;
     m.gx = row.x;
+    m.lane = new Map(rows.map((r) => [r.y, r.x]));
     m.gy = m.hy;
     return { ...empty(), movers: [m] };
   }

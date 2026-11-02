@@ -4,6 +4,7 @@ import { cellHash, HH, HW } from '../render/iso';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, ORIGIN, TEX, VARIANTS, cropImages } from '../render/textures';
+import { tutorialSeen } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';
 
 export class TitleScene extends Phaser.Scene {
@@ -56,7 +57,10 @@ export class TitleScene extends Phaser.Scene {
       y += t.height + 18;
     });
     text(this, GAME_W / 2, y + 8, T.controls, 21, CSS.muted, true).setOrigin(0.5, 0).setWordWrapWidth(w - 80);
-    button(this, GAME_W / 2, py + h - 62, 300, 84, T.start, 32, () => this.scene.start('game'));
+    // Once the tutorial was seen, a second button starts a new game with it again.
+    const again = tutorialSeen();
+    button(this, GAME_W / 2 - (again ? 160 : 0), py + h - 62, 300, 84, T.start, 32, () => this.scene.start('game'));
+    if (again) button(this, GAME_W / 2 + 170, py + h - 62, 280, 84, T.tutorial.again, 22, () => this.scene.start('game', { tutorial: true }));
     this.input.keyboard?.once('keydown-ENTER', () => this.scene.start('game'));
   }
 }

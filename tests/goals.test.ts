@@ -4,7 +4,7 @@ import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('goals', () => {
   it('first goal: 6 houses connected to the road (tents or better)', () => {
-    const s = emptyGame({ silver: 0, unlocked: ['road', 'house', 'field', 'well'] });
+    const s = emptyGame({ silver: 0, goalIndex: 0, unlocked: ['road', 'house', 'field', 'well'] });
     for (let y = 27; y <= 35; y += 2) put(s, 'house', ROADSIDE, y, 1);
     put(s, 'house', 1, 1, 1); // not connected: does not count
     put(s, 'house', ROADSIDE, 37); // empty plot: does not count
@@ -23,7 +23,7 @@ describe('goals', () => {
     for (let y = 27; y <= 39; y += 2) put(s, 'house', ROADSIDE, y, 1); // 21 residents
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events).toEqual([{ type: 'goal', index: 1, reward: 30, unlock: 'market' }]);
+    expect(events).toEqual([{ type: 'goal', index: 1, reward: 30, unlock: 'market' }, { type: 'upkeepStart' }]);
     expect(s.unlocked).toContain('market');
   });
 

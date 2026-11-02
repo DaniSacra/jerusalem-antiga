@@ -22,21 +22,22 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 | `map.test.ts` | mapa 48 x 48, rio na borda leste, contagem de rochas e árvores, área livre do altar e da rua, estado inicial (altar, rua, entrada, prata, liberações), anel de rua em volta do altar (20 células livres, ligadas e alcançáveis da entrada, sem custo) |
 | `network.test.ts` | rede de ruas ligada a qualquer lado do altar 4 x 4, caminhos que não atravessam o altar, desconexão ao demolir, custo e validação de rua, caminhos por busca em largura, máscara de junções (anel, cantos e T com a rua sul; o altar não conta), exigência de rua para cada tipo de construção |
 | `coverage.test.ts` | raio quadrado a partir de qualquer célula, sem cobertura quando desconectado, área sagrada do altar 4 x 4, raio do templo 6 x 6, áreas não quadradas |
-| `economy.test.ts` | eficiência, produção, construções desconectadas não produzem nem contam vagas, vagas do templo, manutenção (inclusive de desconectadas; rua, casa e altar grátis), saldo exibido = impostos + oficinas − manutenção, maior custo, consumo de comida por nível, pessoas sem trabalho e limite do aviso de desemprego (só com a Oficina liberada) |
-| `actions.test.ts` | custos e locais inválidos, tamanhos das construções, mercado girado, posicionamento do templo (6 x 6, bloqueios, exige rua, lista de posições possíveis), limpar, proteção do altar e do templo |
+| `economy.test.ts` | eficiência, produção, construções desconectadas não produzem nem contam vagas, vagas do templo, manutenção (inclusive de desconectadas; rua, casa e altar grátis; só cobrada depois da Meta 2, com o evento `upkeepStart` uma vez), saldo exibido = impostos + oficinas − manutenção, maior custo, consumo de comida por nível, pessoas sem trabalho e limite do aviso de desemprego (só com a Oficina liberada) |
+| `actions.test.ts` | custos e locais inválidos, tamanhos das construções, mercado girado, posicionamento do templo (6 x 6, bloqueios, exige rua, lista de posições possíveis), lugares de casa encostados na rede (`placeSpots`, tutorial), limpar, proteção do altar e do templo |
 | `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), atendimento por qualquer célula da casa, fome (casas caem; tendas abandonadas com `famineLeaveChance` e evento de família saindo; sem fome nunca), informações e balões (incluindo "sem trabalhadores") |
-| `families.test.ts` | chegada de famílias, 3 primeiras garantidas, chance de 35%, uma por terreno, desconexão e fome, desvio de rota, saída pelo altar |
-| `happiness.test.ts` | felicidade da casa (base, altar/templo, jardim só conectado e no raio, poço, mercado, fome, desemprego com teto, limites 0–100), três humores, fator do imposto e das famílias (1 enquanto contente, extremos), imposto da casa feliz e triste, média da cidade (50 sem famílias), parte sem vaga, famílias mais rápidas na cidade feliz, contagem por humor, informação da casa com felicidade e imposto real, balão de casa triste |
+| `families.test.ts` | chegada de famílias, 3 primeiras garantidas e 3x mais rápidas (as outras na velocidade normal), primeira tenda em até 2 meses, chance de 35%, uma por terreno, desconexão e fome, desvio de rota, saída pelo altar |
+| `happiness.test.ts` | felicidade desligada antes do Jardim (contente, sem motivos, imposto e famílias iguais aos de uma cidade sem felicidade); felicidade da casa (base, altar/templo, jardim só conectado e no raio, poço, mercado, fome, desemprego com teto, limites 0–100), três humores, fator do imposto e das famílias (1 enquanto contente, extremos), imposto da casa feliz e triste, média da cidade (50 sem famílias), parte sem vaga, famílias mais rápidas na cidade feliz, contagem por humor, informação da casa com felicidade e imposto real, balão de casa triste |
 | `debt.test.ts` | manutenção levando a prata abaixo de 0, construir e cortar bloqueados em dívida (demolir não; prata 0 não é dívida), contagem da dívida (início, zera com prata ≥ 0, recomeça), derrota exatamente no mês 24 e simulação parada depois, maior população, ordem dos avisos (dívida, saldo negativo com maior custo, desemprego) |
-| `goals.test.ts` | as 9 metas (incluindo "construa 2 oficinas", só ligadas, que libera o Jardim), recompensas, liberações, contagem só de casas conectadas, vitória com o templo |
-| `simulation.test.ts` | comida, prata, mês, fome e relógio |
+| `goals.test.ts` | as 9 metas (incluindo "construa 2 oficinas", só ligadas, que libera o Jardim), recompensas, liberações, evento `upkeepStart` ao cumprir a Meta 2, contagem só de casas conectadas, vitória com o templo |
+| `simulation.test.ts` | comida, prata, mês, fome e relógio (1 mês a cada 2 s em 1x) |
+| `tutorial.test.ts` | passos do tutorial e mini passos (dados), condição de cada passo (ruas novas na rede, casas ligadas, primeiro morador, campo, poço, casa de barro, mercado; o do saldo só por toque), caminho fantasma de 6 células livre em 100 seeds e por outro lado quando o oeste está ocupado, casas atendidas por um serviço ("Atende N casas") |
 | `looks.test.ts` | aparência das casas: semente determinística, variante dentro do número do nível, espelhamento, vizinhas do mesmo nível com variantes diferentes, novo sorteio ao mudar de nível; plantação do campo diferente da do campo vizinho; construções de uma só aparência ficam na variante 0; ofício da oficina (sorteio determinístico, vizinhas diferentes, guardado na variante) |
 | `walkers.test.ts` | tipos de morador: só aparecem quando a construção existe e está ligada, destino pelo tipo (poço, campo, mercado, oficina, altar/templo, ruas principais, borda), carregador campo → mercado e volta, destino aleatório de reserva, destino do artesão aponta a oficina e o ofício |
 
 ### Utilitários (`tests/helpers.ts`)
 
-- `emptyGame(overrides)` — jogo sem rochas/árvores, areia em tudo (exceto o rio), muita prata e
-  tudo liberado. Altar 4 x 4 em x, y = 22..25, anel de rua em volta (contorno de x, y = 21..26) e
+- `emptyGame(overrides)` — jogo sem rochas/árvores, areia em tudo (exceto o rio), muita prata,
+  tudo liberado e já na Meta 3 (`goalIndex` = `upkeepStartsAfterGoal`, então a manutenção é cobrada). Altar 4 x 4 em x, y = 22..25, anel de rua em volta (contorno de x, y = 21..26) e
   rua inicial em x = 24, de y = 26 a 47. Construções ao lado da rua inicial ficam em y >= 27 para
   não cair no anel.
 - `put(state, kind, x, y, level, rotated)` — coloca uma construção sem cobrar e já no nível desejado.
@@ -54,11 +55,15 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 
 | Cenário | O que faz e verifica | Screenshots |
 |---|---|---|
-| `title` | tela inicial | `title` |
+| `title` | tela inicial; depois de ver o tutorial, com "Ver tutorial de novo" | `title`, `title-again` |
+| `tutorial` | celular 844 x 390, primeira partida: os 6 passos com a seta (no botão, depois no mapa), só a ferramenta do passo liberada, caminho fantasma arrastado com o dedo, lugares verdes, câmera seguindo a família, prévia do poço com "Atende N casas", casa de barro; depois o saldo na Meta 2 ("Entendi") e o mercado; tutorial gravado como feito | `tutorial-step-1` … `tutorial-step-6`, `tutorial-saldo`, `tutorial-market` |
+| `tutorial-pc` | o mesmo no PC 1366 x 768, com o mouse | as mesmas, com `-pc` no fim |
+| `tutorial-skip` | "Pular tutorial" encerra e fica gravado; as ferramentas voltam; com o `localStorage` bloqueado o tutorial roda e pular funciona sem erro | — |
+| `options` | um clique no título do painel de Opções não muda a ferramenta nem seleciona nada, e o painel continua aberto | — |
 | `build-with-mouse` | rua e casas arrastando, campo e poço clicando; conta ruas e construções | `build-with-mouse` |
 | `families-arrive` | terrenos ao lado da rua em 3x; espera família andando e tenda pronta | `families-walking`, `families-arrived` |
 | `happiness` | pausado, cidade de `buildTown` com jardim e comida: carinha da placa segue o humor; toque na carinha mostra o detalhe; casa ao lado do jardim (motivos na linha de informação); fome deixa a carinha triste e põe balões tristes; prévia do Jardim com raio | `happiness-breakdown`, `happiness-house`, `happiness-sad`, `overlay-garden` |
-| `ambient` | cidade de `buildTown` de manhã: galinhas, jumentos, pombas, barcos, lavadeiras, ovelhas e varais existem; zoom no rio perto do primeiro barco | `ambient-town`, `ambient-river` |
+| `ambient` | cidade de `buildTown` de manhã: galinhas, jumentos, pombas, barcos, lavadeiras, ovelhas e varais existem, nenhum bicho com textura faltando (`__MISSING`); zoom no rio perto do primeiro barco | `ambient-town`, `ambient-river` |
 | `town-art` | monta uma cidade com todos os níveis e prédios (inclui jardim); templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
 | `day-night` | PC: cidade de `buildTown` pausada em manhã, tarde dourada, pôr do sol e noite (ícone certo ao lado do mês, metade dos moradores e luzes acesas à noite); painel de opções e ciclo desligado (sempre dia) | `day-night-morning`, `day-night-golden`, `day-night-sunset`, `day-night-night`, `day-night-options`, `day-night-off` |
 | `scaffold-roads` | ruas com passos de moradores (uma gasta, uma calçada, uma comum); oficina nova com andaime que some depois | `roads-wear`, `scaffold`, `scaffold-done` |
@@ -66,6 +71,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
 | `touch` | celular deitado com toque real: toque no botão Rua do trilho esquerdo; um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
 | `hud-phone` | celular deitado 844 x 390 (jogo 1280 x 591), pausado com avisos de saldo negativo e desemprego: botões dos trilhos ≥ 44 px de tela; toque no Poço do trilho direito; prévia mirada acima do dedo; deslizar até o trilho e soltar cancela; sem prévia nem construção quando o ponto mirado cai sob a interface; X fecha o aviso (aparece o próximo); toque na meta mostra a meta inteira | `hud-phone`, `hud-phone-preview`, `hud-phone-goal` |
+| `hud-small-phone` | celular 800 x 360: botões dos dois trilhos e de velocidade ≥ 44 px de tela; a placa não encosta na velocidade | `hud-small-phone` |
 | `hud-pc` | PC 1366 x 768 (jogo 1280 x 720), mesma cidade: clique no Mercado do trilho direito e prévia seguindo o mouse; botões 3x e pausa; arrastar rua começando na placa não constrói; X fecha o aviso e ele continua escondido; clique na prata (detalhe) e na meta; aviso de dívida sem X | `hud-pc`, `hud-pc-silver`, `hud-pc-goal`, `hud-pc-debt` |
 | `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na placa; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
 | `turn-map` | mercado, casa e poço; clica ↻ no trilho esquerdo (6º botão, depois de Ver, Rua, Jardim, Limpar e ↺) (não constrói nada), arrasta rua no mapa girado e confere as células; E/E e Q | `turn-0`, `turn-1`, `turn-3`, `turn-2` |
@@ -84,8 +90,10 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.iso` — projeção e giro do mapa (`iso.gridToWorld`, `iso.getRotation()`); o
   `cellToScreen` do script já usa o giro atual;
 - `window.layout` — posições da interface (`src/render/layout.ts`): `speedButton(k)` (0 pausa,
-  1 1x, 2 3x), `leftButton(k)` (0 Ver, 1 Rua, 2 Limpar, 3 ↺, 4 ↻), `buildButton(k)` (0 Casa …
-  5 Templo), `plaqueSlot(k)` (0 mês, 1 prata, 2 comida, 3 moradores, 4 trabalho), `GOAL_Y`, `BTN`.
+  1 1x, 2 3x), `leftButton(k)` (0 Ver, 1 Rua, 2 Jardim, 3 Limpar, 4 ↺, 5 ↻), `buildButton(k)` (0 Casa …
+  5 Templo), `plaqueSlot(k)` (0 mês, 1 prata, 2 comida, 3 moradores, 4 felicidade, 5 trabalho), `OPTIONS`, `GOAL_Y`, `BTN`.
+  `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
+  fantasma e `window.game.ui.tutorial` o balão (`skipBtn`, `okBtn`).
   `window.game.ui.isOverUi(x, y)` diz se um ponto está sob a interface; `window.game.ui.hud.shown`
   é o aviso mostrado e `hud.closeRect` o X dele.
 
@@ -99,7 +107,8 @@ Adicione uma entrada em `scenarios` no `run.mjs`:
 
 ```js
 async 'meu-cenario'(page) {
-  await startGame(page);              // abre o jogo e passa da tela inicial
+  await startGame(page);              // abre o jogo e passa da tela inicial (tutorial pulado;
+                                      // startGame(page, { tutorial: true }) para jogar com ele)
   await tool(page, 2);                // escolhe a ferramenta pela posição (1 = Ver, 2 = Rua...)
   await mouseDrag(page, [[17, 16], [20, 16]]);   // arrasta entre células da grade
   const s = await stats(page);        // ruas, construções, níveis, zoom, vitória
@@ -122,6 +131,8 @@ async 'meu-cenario'(page) {
   "out" do Phaser); mova duas vezes antes de conferir a prévia.
 - `shot(page, nome)` espera as construções novas terminarem de subir (andaime) antes da captura;
   use `{ scaffolds: true }` para fotografar o andaime. `buildTown(page)` monta a cidade de exemplo.
+- `startGame` marca o tutorial como visto (`jerusalem.tutorialDone` no `localStorage`) antes de abrir
+  a página, salvo com `{ tutorial: true }`.
 - `startGame` desliga o controle de quadros por segundo (`game.dayNight.fpsGuard = false`), para o
   acabamento não sumir no navegador lento. Ganchos: `game.dayNight.setTime(t)` (0..1, 0,76 = noite),
   `game.dayNight.current`, `game.wear.step(state, x, y)` e `game.wear.level(state, x, y)`.

@@ -44,8 +44,13 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Templo | 800 | 10/mês | 6 x 6 | 2 | – | 12 | liberado pela Meta 8; não pode ser demolido |
 | Altar | – | – | 4 x 4 | – | – | 3 | fixo no início |
 
-- **Manutenção** (`upkeep` em `buildings.json`) é cobrada todo mês de toda construção, **mesmo
-  desconectada**, e também depois da vitória.
+- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois da Meta 2**
+  (`upkeepStartsAfterGoal` em `rules.json`). Antes disso nada é cobrado: o "+X/mês" não a desconta
+  e não há aviso de saldo nem dívida por ela; a dica e a linha de informação dizem "manutenção N/mês
+  depois da Meta 2". Ao cumprir a Meta 2 aparece, uma vez, "A partir de agora, poços, campos,
+  mercados e oficinas custam prata por mês. Fique de olho no saldo." (passo do tutorial ou toast).
+  A partir daí é cobrada todo mês de toda construção, **mesmo desconectada**, e também depois da
+  vitória.
 
 - Tamanho é largura (x) por altura (y) em células. O **Mercado** é o único que gira: tocar de novo
   no botão Mercado (ou a tecla R no PC) alterna entre 2 x 4 e 4 x 2; a escolha vale para as
@@ -87,6 +92,10 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 
 ## Felicidade
 
+A felicidade só existe **depois que o Jardim é liberado** (Meta 4). Antes disso toda casa fica
+contente (50, sem motivos), o imposto e a chance de família não mudam, a carinha não aparece na
+placa e não há balão de casa triste.
+
 Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json`, código em
 `src/core/happiness.ts`), calculada todo mês:
 
@@ -118,13 +127,15 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
   receber uma família (vezes o fator da felicidade da cidade, veja Felicidade). **Exceção:** enquanto (tendas ou melhores + famílias a caminho) for menor
   que 3, a chance é 100%, para o começo não ter tempo morto.
 - A família sai da **entrada da cidade** e anda pelas ruas (caminho por busca em largura) até a
-  casa, **4 células por mês**. Ao chegar, o terreno vira tenda.
+  casa, **4 células por mês**. As famílias da exceção acima (as 3 primeiras) andam **3x mais
+  rápido** (`earlyFamilySpeedMultiplier`), então a primeira tenda é ocupada em até 2 meses. Ao
+  chegar, o terreno vira tenda.
 - Se a rua do caminho for cortada, a família recalcula a rota; se não houver rota, ou a casa for
   demolida ou desconectada, a família desiste.
 - Se a entrada for desligada da rede, as famílias passam a sair do altar (para a cidade nunca
   travar sem explicação).
 
-## Simulação (1 mês = 1,2 s em 1x)
+## Simulação (1 mês = 2,0 s em 1x)
 
 A cada mês, nesta ordem (`simulation.ts`):
 
@@ -135,18 +146,18 @@ A cada mês, nesta ordem (`simulation.ts`):
 3. Comida += campos × 3 × eficiência − consumo. Cada morador come conforme o nível da casa
    (`food` em `houses.json`): tenda 0,2, barro 0,2, pedra 0,25, casa grande 0,3. Se a comida chega
    a 0 com saldo negativo: **fome**. A comida nunca fica negativa.
-4. Prata += impostos (cada casa com o fator da sua felicidade) + (oficinas × 5 + campos × 1) × eficiência − manutenção. A prata **pode ficar negativa**
+4. Prata += impostos (cada casa com o fator da sua felicidade) + (oficinas × 5 + campos × 1) × eficiência − manutenção (só depois da Meta 2). A prata **pode ficar negativa**
    (dívida). Esse saldo é o "+X/mês" da barra.
-5. Famílias andam; as que chegam transformam o terreno em tenda.
+5. Novas famílias são enviadas para terrenos elegíveis; depois todas andam (as novas já no mesmo
+   mês), e as que chegam transformam o terreno em tenda.
 6. Para cada casa de nível 1 ou mais:
    - se falta uma exigência do nível atual: após 3 meses seguidos, cai um nível;
    - com fome: não evolui; casas acima de tenda têm 12% de chance de cair um nível; cada tenda tem
      20% de chance (`famineLeaveChance`) de ser **abandonada**: vira terreno vazio e a família vai
      embora andando até a entrada (só aparência);
    - se tem as exigências do próximo nível: após 3 meses seguidos, sobe de nível.
-7. Novas famílias são enviadas para terrenos elegíveis.
-8. Guardar a maior população (`peakPopulation`) e verificar a meta atual.
-9. **Dívida:** se a prata terminou o mês negativa, conta mais um mês em dívida; com prata ≥ 0 a
+7. Guardar a maior população (`peakPopulation`) e verificar a meta atual.
+8. **Dívida:** se a prata terminou o mês negativa, conta mais um mês em dívida; com prata ≥ 0 a
    contagem zera. Após **24 meses seguidos** (`debtMonthsToLose`), derrota.
 
 Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derrota está aberta.
@@ -219,9 +230,9 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 
 - **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (com
   sol, entardecer ou lua ao lado, conforme a hora do dia),
-  Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores, Felicidade (carinha
-  verde sorrindo, amarela séria ou vermelha triste, conforme o humor da média, e o número, verde
-  quando feliz e vermelho quando triste) e Trabalho
+  Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores, Felicidade (só
+  depois de liberar o Jardim: carinha verde sorrindo, amarela séria ou vermelha triste, conforme o
+  humor da média, e o número, verde quando feliz e vermelho quando triste) e Trabalho
   (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%; "+N sem vaga" em laranja
   quando sobra gente). O valor da prata fica normal com saldo ≥ 0, laranja com saldo do mês
   negativo e vermelho piscando em dívida. Durante a fome, o valor da Comida fica vermelho e pisca.
@@ -241,16 +252,18 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   aviso, que fica escondido até sumir e voltar (aparece o próximo da lista, se houver). O aviso
   de dívida não tem X.
 - **Velocidade** (canto superior esquerdo): 3 botões ❚❚, 1x e 3x; o ativo fica dourado.
+- **Nomes nas ferramentas:** todo botão dos dois trilhos tem o **nome embaixo do ícone** (16 px do
+  jogo), e os que custam prata têm ao lado a moeda e o custo. O nome nunca é cortado.
 - **Trilho esquerdo** (abaixo da velocidade): Ver (lupa), Rua (com o custo 2), Jardim (miniatura e
   custo, como os botões do trilho direito), Limpar (picareta), uma divisória dourada e as setas ↺ ↻
-  de girar o mapa. A ferramenta ativa fica dourada. Em telas muito largas (altura do jogo < 591)
-  os botões desse trilho ficam um pouco mais baixos para caber.
+  ("Girar") de girar o mapa. A ferramenta ativa fica dourada. Em telas muito largas (altura do
+  jogo < 591) os botões desse trilho ficam um pouco mais baixos para caber.
 - **Trilho direito:** Casa, Campo, Poço, Mercado, Oficina e Templo, cada um com a miniatura da
-  própria construção e o custo pequeno embaixo (moeda + número). Sem prata suficiente: botão e
+  própria construção e, embaixo, o nome e o custo (moeda + número). Sem prata suficiente: botão e
   miniatura acinzentados e custo em vermelho. Bloqueada: apagada, com "Meta N" no lugar do custo.
   Tocar de novo no Mercado gira a prévia.
-- **Tamanhos:** botões dos trilhos 72 px do jogo (≈ 48 px de tela no celular 844 x 390; o mínimo
-  de toque é 44), botões de velocidade 68 px (≈ 45 px de tela).
+- **Tamanhos:** botões dos trilhos 112 x 72 px do jogo (a altura ≈ 48 px de tela no celular
+  844 x 390 e ≈ 44 px no 800 x 360, o mínimo de toque), botões de velocidade 72 px.
 - **Linha de informação:** placa escura e compacta no centro de baixo, só aparece quando tem
   texto (encolhe para caber entre os trilhos). Ao escolher uma ferramenta mostra o nome, o custo e a
   manutenção em dourado e depois a dica (ex.: "Campo · 15 prata · 1/mês · Ocupa 2x2 · 2 vagas ·
@@ -269,7 +282,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   (carinha vermelha, em qualquer nível). Com zoom
   afastado os balões crescem (escala máx(1, 1,2 / zoom)) para continuar legíveis.
 - **Com ferramenta de construção:** linhas da grade, prévia translúcida (vermelha se inválida ou
-  sem prata), quadrado do raio e área já coberta pelo mesmo serviço. Com Casa, destaque dourado da
+  sem prata), quadrado do raio e área já coberta pelo mesmo serviço. Poço, Mercado e Jardim
+  contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia. Com Casa, destaque dourado da
   área do altar e do templo (onde casas grandes são possíveis). O Templo mostra as 6 x 6 células
   e destaca em verde todas as posições onde cabe (6 x 6 livre encostado em rua conectada, sem
   olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o templo: abra
@@ -279,7 +293,41 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - Durante a fome, leve tom avermelhado sobre o mapa.
 - Tela inicial com 3 passos numerados (casas e campos ao lado das ruas do altar, campos dão comida e trabalho; poço, mercado e altar
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
-  botão "Começar" (84 px de altura).
+  botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
+  "Ver tutorial de novo", que começa um jogo novo com o tutorial.
+
+## Tutorial (primeira partida)
+
+Roda na primeira partida até ser concluído ou pulado (fica gravado no navegador em
+`jerusalem.tutorialDone`; se o armazenamento estiver bloqueado, ele volta na próxima partida e
+pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
+`src/core/tutorial.ts`, tela em `src/render/Tutorial.ts`.
+
+- Um balão com **uma frase** fica acima da linha de informação, com o botão "Pular tutorial".
+  Uma **seta dourada** que balança aponta onde tocar: o botão da ferramenta do passo até ela ser
+  escolhida, depois o lugar no mapa.
+- Durante os 6 passos só a ferramenta do passo (e Ver) fica liberada; as outras ficam cinza, sem
+  "Meta N". Câmera, girar e velocidade continuam livres. Uma ferramenta que o passo não permite
+  volta para Ver ao fim do arraste (uma rua longa não é cortada).
+- Passos (cada um só avança com a sua ação):
+  1. "Puxe uma rua saindo do altar, pelo caminho marcado": um caminho fantasma de 6 células sai do
+     anel em linha reta (oeste, norte ou leste, o primeiro livre). Conclui com +4 ruas ligadas ao
+     altar, em qualquer lugar.
+  2. "Construa 3 casas encostadas na rua, nos lugares verdes": os terrenos livres encostados na
+     rede ficam verdes. Conclui com 3 casas ligadas.
+  3. "Uma família está chegando!": a câmera acompanha a primeira família por 2 s
+     (`tutorial.followSeconds` em `visual.json`). Conclui com o primeiro morador.
+  4. "Construa um campo para o povo comer". Conclui com 1 campo ligado.
+  5. "Construa um poço perto das tendas": a prévia mostra o raio e "Atende N casas". Conclui com 1
+     poço ligado.
+  6. "Veja: as tendas perto do poço viram casas de barro". Conclui com 1 casa de nível 2; aparece
+     "Muito bem! Agora siga as metas no alto da tela" e todas as ferramentas liberadas voltam.
+- Mini passos (só para quem não pulou), sem travar ferramentas:
+  - Ao cumprir a Meta 2: a seta aponta a prata e o balão traz a mensagem da manutenção com o botão
+    "Entendi".
+  - Depois: "Casas de barro com mercado perto viram casas de pedra", com a seta no Mercado.
+    Conclui com 1 mercado ligado.
+- Quem pula (ou já viu o tutorial) recebe a mensagem da manutenção como toast.
 
 ## Câmera e controles (estilo Pocket City)
 

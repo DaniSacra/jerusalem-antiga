@@ -34,7 +34,9 @@ export class Options {
     const bg = scene.add.graphics();
     stonePanel(bg, 0, 0, w, h);
     const title = text(scene, w / 2, PAD + TITLE_H / 2 + 2, T.options.title, 20, CSS.ink, true).setOrigin(0.5);
-    this.panel = scene.add.container(x, y, [bg, title]).setDepth(50).setVisible(false);
+    // A zone the size of the panel under the rows, so a tap on its title or edges stays in the panel.
+    const block = scene.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
+    this.panel = scene.add.container(x, y, [block, bg, title]).setDepth(50).setVisible(false);
     (['dayNight', 'miniature'] as const).forEach((key, k) => {
       const label = text(scene, 0, -2, '', 19, CSS.ink, true).setOrigin(0.5);
       const btn = new RailButton(scene, w / 2, PAD + TITLE_H + ROW_H / 2 + k * (ROW_H + GAP), ROW_W, ROW_H, [label], () => {

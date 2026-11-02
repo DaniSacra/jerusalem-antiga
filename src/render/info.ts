@@ -1,4 +1,4 @@
-import { BUILDINGS, computeEconomy, craftOf, houseInfo, indexOf, RULES, type GameState } from '../core';
+import { BUILDINGS, computeEconomy, craftOf, houseInfo, indexOf, RULES, upkeepCharged, type GameState } from '../core';
 import { CSS } from './palette';
 import { fmt, T, toolHead, toolHint } from './strings';
 import type { Tool } from './tools';
@@ -57,7 +57,7 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
   const segs: Segment[] = [title(craft ? `${def.name} (${T.craft[craft]})` : def.name)];
   if (b.kind === 'altar') return [...segs, SEP, { text: `raio ${def.radius}` }, SEP, { text: 'centro da cidade, onde as ruas começam' }];
   segs.push(SEP, ok(b.connected, b.connected ? 'ligado à rua' : 'sem rua'));
-  if (def.upkeep) segs.push(SEP, { text: T.upkeep(def.upkeep) });
+  if (def.upkeep) segs.push(SEP, { text: upkeepCharged(s) ? T.upkeep(def.upkeep) : T.upkeepLater(def.upkeep) });
   if (!b.connected) return [...segs, SEP, bad(def.radius ? 'não atende ninguém, mas paga manutenção' : 'não funciona, mas paga manutenção')];
   if (def.jobs) segs.push(SEP, { text: `${def.jobs} vagas` });
   if (def.food) segs.push(SEP, { text: `${fmt(def.food * eff)} de comida${T.perMonth}` });
@@ -70,5 +70,5 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
 
 export const hintSegments = (hint: string): Segment[] => [{ text: hint, color: CSS.light }];
 
-/** Info line when a tool is picked: name, cost and upkeep in gold, then what it does. */
-export const toolSegments = (tool: Tool): Segment[] => [title(toolHead(tool)), SEP, { text: toolHint(tool) }];
+/** Info line when a tool is picked: name, cost and upkeep in gold (upkeep "after goal 2" before it is charged), then what it does. */
+export const toolSegments = (tool: Tool, upkeepOn = true): Segment[] => [title(toolHead(tool, upkeepOn)), SEP, { text: toolHint(tool) }];

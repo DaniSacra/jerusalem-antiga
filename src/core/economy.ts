@@ -22,10 +22,14 @@ export interface Economy {
   moods: Record<Mood, number>;
 }
 
+/** Upkeep is only charged after the first goals, so a new city cannot sink before it has people. */
+export const upkeepCharged = (s: GameState) => s.goalIndex >= RULES.upkeepStartsAfterGoal;
+
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep.
+ * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep
+ * (once upkeep is charged, see `upkeepCharged`).
  * Houses always count residents, food and taxes; each house's tax is scaled by its happiness.
  */
 export function computeEconomy(s: GameState): Economy {
@@ -39,6 +43,7 @@ export function computeEconomy(s: GameState): Economy {
   let foodProd = 0;
   const silverProd: Partial<Record<BuildingKind, number>> = {};
   const upkeep: Partial<Record<BuildingKind, number>> = {};
+  const charged = upkeepCharged(s);
   for (const b of s.buildings) {
     if (b.kind === 'house') {
       const lvl = HOUSE_LEVELS[b.level];
@@ -47,7 +52,7 @@ export function computeEconomy(s: GameState): Economy {
       continue;
     }
     const def = BUILDINGS[b.kind];
-    if (def.upkeep) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
+    if (def.upkeep && charged) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
     if (!b.connected) continue;
     jobs += def.jobs;
     foodProd += def.food ?? 0;

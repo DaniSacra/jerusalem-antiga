@@ -104,7 +104,30 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 - fun-critic (2026-11-02): diversão 7, sempre algo a fazer 6, curva 5,
   recompensas 7, clareza das metas 5, cidade viva 8, vontade de jogar de novo 6
 
-## Em andamento: pacote "Avisos a tempo" (aprovado 2026-11-02, não implementado)
+## Em andamento: Pacote 1 "Primeira partida sem ajuda" (aprovado 2026-11-02)
+Escopo completo em `docs/revisoes/2026-11-02/plano.md`, seção 4. Nenhuma
+mecânica nova. Fortalece os pilares 1 e 5.
+- Tutorial guiado na primeira partida: 6 passos (rua, 3 casas, família
+  chegando, campo, poço, casa de barro) e 2 mini passos na meta 2 (saldo,
+  depois Mercado); 1 frase e seta por passo; "Pular tutorial";
+  `jerusalem.tutorialDone` no `localStorage`; condições no core
+  (`src/core/tutorial.ts`, `src/data/tutorial.json`)
+- "Atende N casas" na prévia de Poço, Mercado e Jardim
+- Nome embaixo do ícone em todos os botões dos trilhos (custo nas
+  construções); nome ≥ 16 px do jogo, toque ≥ 44 px de tela
+- Manutenção só depois da meta 2 (`upkeepStartsAfterGoal` 2, `rules.json`):
+  antes, sem cobrança, dívida nem aviso de saldo
+- Ritmo: `monthSeconds` 1,2 → 2,0; `earlyFamilySpeedMultiplier` 3 para as
+  famílias garantidas
+- Felicidade só com o Jardim liberado: antes, sem carinha, sem balão triste,
+  fatores 1. Fórmula atual mantida (altar continua até o P3)
+- Bugs pequenos do Ambient, do rio, das Opções e do GameScene
+- Aceite: novato chega à meta 3 sem perder e sem explicação; nenhuma derrota
+  antes da meta 2; Eficiente vence sem dívida; clareza do fun-critic ≥ 8
+
+## Absorvido: pacote "Avisos a tempo" (itens repartidos no P1, P2 e P3)
+Aprovado antes da revisão de 2026-11-02; "Atende N casas" foi para o P1, os
+avisos de saldo e comida para o P2, a tela de derrota com causa para o P3.
 Sem mecânica nova: avisos, prévia, tela de derrota e números medidos.
 - Aviso de comida antes da fome: comida caindo e durando menos de
   `foodAlertMonths` (8, `rules.json`) meses → "Comida acaba em N meses:
@@ -124,7 +147,7 @@ Sem mecânica nova: avisos, prévia, tela de derrota e números medidos.
   limites das metas 5 e 7 (hoje se cumprem sozinhas logo depois da meta 4).
   Confirmar também se falta lugar para o templo ao liberar (fun-critic: 16/18)
 
-## Próximo: pacote "Campo é trabalho" (pedido do usuário, aprovado 2026-11-02)
+## Feito: pacote "Campo é trabalho" (pedido do usuário, aprovado 2026-11-02)
 Sem mecânica nova: um número novo no campo, texto e arte. Ordem dos pacotes
 pendentes: este, depois "Interface nova", depois "Avisos a tempo" (assim a
 etiqueta única de aviso já nasce no lugar novo).
@@ -150,7 +173,8 @@ etiqueta única de aviso já nasce no lugar novo).
   testar campo `silver` 0,5; se o desemprego travar o Comum antes da Oficina,
   testar oficina `jobs` 4. O game-director aprova os números finais
 
-## Depois: pacote "Interface nova" (pedido do usuário, aprovado 2026-11-02)
+## Feito: pacote "Interface nova" (pedido do usuário, aprovado 2026-11-02)
+(Os botões ganham nome embaixo do ícone no P1; ver Decisões.)
 Só interface: troca as barras de largura total por placa no topo e dois
 trilhos laterais, para o mapa ocupar quase a tela toda no celular deitado.
 Layout inspirado em Pharaoh: A New Era; arte própria desenhada em código,
@@ -186,9 +210,10 @@ pedra clara com detalhes dourados. Nenhum arquivo de imagem, nada copiado.
 - `isOverUi` passa a cobrir placa, faixas, trilhos e linha de informação;
   cenários visuais novos nos dois tamanhos em `docs/TESTING.md`
 
-## Depois: pacote "Cidade densa" (aprovado pelo usuário 2026-11-02, escopo 2026-11-02)
+## Pacote 5: "Cidade densa" (aprovado pelo usuário 2026-11-02, escopo 2026-11-02)
 Só aparência e geração do mapa. Nenhuma regra, custo ou número de economia
-muda. Entra depois de "Avisos a tempo". Dividido em duas entregas, cada uma
+muda. Entra depois do P4, junto com a vitória com resumo; soma os itens de
+mapa e arte da revisão de 2026-11-02 e deixa a praça do templo livre. Dividido em duas entregas, cada uma
 com seus testes e revisão; a B só começa com a A aprovada nas capturas.
 Visual inspirado no aspecto orgânico de Banished, em 2D isométrico desenhado
 em código e com tema de Jerusalém. Sem câmera 3D, sem arquivo de imagem, nada
@@ -264,6 +289,38 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-02 — Revisão de 2026-11-02 (`docs/revisoes/2026-11-02/plano.md`):
+  o usuário respondeu "sim" às 7 perguntas e aprovou o Pacote 1 "Primeira
+  partida sem ajuda". Motivo: o playtest real mostrou que quem nunca jogou
+  não joga sozinho (pilar 1); a lista do usuário vem antes da Felicidade.
+- 2026-11-02 — Nome embaixo do ícone em todas as ferramentas, com o custo nas
+  construções; substitui "Ferramentas só com ícone". Motivo: no celular não
+  existe passar o mouse, e o tutorial aponta para botões que precisam de nome.
+- 2026-11-02 — Manutenção só depois da meta 2 (`upkeepStartsAfterGoal` 2) e
+  mês 1,2 → 2,0 s com famílias garantidas 3x mais rápidas; substitui "valores
+  baixos mantêm o começo leve" e "mês lento vira tempo morto". Motivo: o
+  Distraído perdia em ~1 min 20 s e o novato precisa de tempo para ler.
+- 2026-11-02 — Carinha escondida e felicidade neutra até o Jardim, no P1.
+  Motivo: carinha vermelha sem remédio fere os pilares 1 e 5.
+- 2026-11-02 — Altar e templo saem da felicidade no P3 (o Jardim é o que
+  deixa a casa feliz). Até lá, a fórmula atual fica.
+- 2026-11-02 — Duração: alvo intermediário nos P1 e P2, simulação ≥ 4 min e
+  sessão humana ≥ 10 min; 15–25 min vêm do conteúdo, depois do P3 e do P4.
+- 2026-11-02 — Distraído: ~60% de derrota, nenhuma antes de 5 min (mês 150
+  com 2,0 s); fecha no P2.
+- 2026-11-02 — Meta 7 → 250 moradores e meta 8 → 8 casas grandes no P2; a
+  meta 8 cai para 6 se alguma partida ficar presa > 100 meses (500 seeds).
+- 2026-11-02 — Festa na praça é a próxima mecânica nova (P4), depois de a
+  felicidade pesar (P3).
+- 2026-11-02 — Fora: alongar só com mês mais lento ou metas gigantes; templo
+  obrigatório na praça (a praça é reservada a ele, mas ele vai a qualquer
+  lugar válido); câmera seguindo famílias além do passo 3 do tutorial;
+  tutorial com mais de uma frase por passo; incêndio; mais de um altar ou
+  templo e lazer além do Jardim; campo `silver` 0,5, `startFood` 40/45,
+  `famineLeaveChance` 0,12, `happiness.famine` −15, `startSilver` 230 (medidos,
+  não ajudam); `taxMax` 1,4 e `familyMax` 2,0 na reta (viram degrau no P3);
+  recorde de menos meses; telhados com gente, terraços, colinas e lua antes
+  de "Cidade densa"; `@vitest/coverage-v8` sem ordem do usuário.
 - 2026-11-02 — Escopo de "Cidade densa": duas entregas (A chão e árvores com
   geração do mapa; B construções e vida), só aparência. Motivo: pacote pequeno
   e verificável; a parte que mexe no core (bosques) fica isolada e medida.
@@ -292,7 +349,8 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
 - 2026-11-02 — Usuário aprovou: ordem campo → interface → avisos, campo com
   2 vagas e 1 prata, nome "Jerusalém" na placa do topo e "Cidade densa" como
   pacote depois de "Avisos a tempo".
-- 2026-11-02 — Ferramentas só com ícone; nome, custo e dica vão para a linha
+- 2026-11-02 — (Substituída no mesmo dia pelo nome embaixo do ícone, P1.)
+  Ferramentas só com ícone; nome, custo e dica vão para a linha
   de informação ao escolher, custo pequeno no botão. Motivo: botões grandes
   com texto não cabem no trilho; o custo continua visível para decidir.
 - 2026-11-02 — Pacote "Avisos a tempo" a partir do fun-critic. Motivo: a
@@ -425,21 +483,31 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   humor (pilares 2 e 3). Falta medir com o sim-tester (duração e Distraído).
 
 ## Próximos candidatos
-Em ordem, um pacote por vez.
-1. Felicidade, parte 2: oficina perto de casa entristece (em espera, pedido
-   do usuário); talvez casa muito triste ser abandonada; fonte
-2. Pedidos dos moradores (missões curtas, futura porta de entrada da
+Em ordem, um pacote por vez (detalhes em `docs/revisoes/2026-11-02/plano.md`).
+- P2 "Ver antes de construir" (sem mecânica nova): conexão visível, áreas de
+  poço e mercado com a ferramenta Casa, "aqui: até Casa de barro", menos
+  balões, saldo e comida antes do problema, praça do templo reservada, metas
+  7 = 250 e 8 = 8 (ou 6), economia uma vez por sync
+- P3 "Felicidade que se sente" + acabamento (sem mecânica nova): degrau,
+  altar/templo fora, meta 5 vira "8 casas felizes", placa e textos, tela de
+  derrota com causa
+- P4 "Festa na praça" (mecânica nova): prata e comida por felicidade
+  temporária, liberada por meta
+- P5 "Cidade densa" + vitória com resumo (só aparência e mapa)
+
+Depois, em ordem:
+1. Destino para a prata, parte 2 (só se a Festa não bastar)
+2. Personalização: nome da cidade, decorações livres, modo foto
+3. Pedidos dos moradores (missões curtas, futura porta de entrada da
    história)
-3. Eventos leves (seca, festa, caravana) e celeiro
-4. Pasto, só se for diferente do campo (mais espaço e menos trabalhadores,
-   produto próprio ou ligação com o altar)
-5. História de Esdras e Neemias, versículos na versão ARA
-6. Nível da cidade = metas cumpridas + 1
-7. Painel de estatísticas com prata, comida, casas por nível, trabalho,
-   gráficos e principais problemas (inclui fome como primeiro problema com
-   dica "construa campos"). Absorve a lista de avisos do core e o detalhe da
-   prata (impostos, oficinas, manutenção por tipo, saldo) do pacote
-   "Manutenção e falência"
+4. Eventos leves (seca, caravana) e celeiro
+5. Felicidade, parte 2: oficina perto de casa entristece (em espera, pedido
+   do usuário)
+6. Pasto, só se for diferente do campo
+7. História de Esdras e Neemias (ARA), só depois do playtest aprovar
+8. Nível da cidade = metas cumpridas + 1
+9. Painel de estatísticas (absorve a lista de avisos do core e o detalhe da
+   prata)
 
 Ajustes de equilíbrio em espera (dependem do sim-tester): oficina 8 de prata,
 imposto menor de pedra/casa grande.
@@ -451,7 +519,7 @@ implementada em 2026-11-02, a pedido do usuário (animais, rio, nuvens, chão,
 varais, árvores balançando, trilhas entre casas). Absorve parte da "Cidade
 densa" (trilhas, mais vida na rua).
 
-Visual aprovado pelo usuário (2026-11-02), depois de "Avisos a tempo":
+Visual aprovado pelo usuário (2026-11-02), agora como P5:
 "Cidade densa", inspirado no visual orgânico de Banished, em 2D isométrico
 desenhado em código e com tema de Jerusalém: grupos de árvores, grama
 variada, trilhas de terra gastas, sombras no chão, textura de telhado e

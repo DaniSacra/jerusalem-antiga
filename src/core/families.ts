@@ -4,7 +4,7 @@ import { familyFactor } from './happiness';
 import { indexOf } from './grid';
 import { rollLook } from './looks';
 import { doorsOf, findPath } from './network';
-import type { Building, Cell, GameEvent, GameState, Rng } from './types';
+import type { Building, Cell, Family, GameEvent, GameState, Rng } from './types';
 
 /** Families start at the city entrance; if it was cut off, at a road next to the altar. */
 function startCell(s: GameState): Cell | null {
@@ -37,9 +37,12 @@ export function dispatchFamilies(s: GameState, rng: Rng): void {
     const guaranteed = settledOrComing(s) < RULES.guaranteedFamilies;
     if (!guaranteed && rng() >= chance) continue;
     const path = pathTo(s, startCell(s), b);
-    if (path) s.families.push({ id: s.nextId++, houseId: b.id, path, step: 0 });
+    if (path) s.families.push({ id: s.nextId++, houseId: b.id, path, step: 0, ...(guaranteed ? { fast: true } : {}) });
   }
 }
+
+/** Cells a family walks per month (the guaranteed first families walk faster). */
+export const familySpeed = (f: Family) => RULES.familyCellsPerMonth * (f.fast ? RULES.earlyFamilySpeedMultiplier : 1);
 
 /** Remaining road cells (excluding the house cell) are still part of the network. */
 function routeIntact(s: GameState, path: Cell[], from: number): boolean {
@@ -58,7 +61,7 @@ export function moveFamilies(s: GameState, events: GameEvent[], rng: Rng): void 
       f.path = path;
       f.step = 0;
     }
-    f.step += RULES.familyCellsPerMonth;
+    f.step += familySpeed(f);
     if (f.step < f.path.length - 1) return true;
     house.level = 1;
     house.upStreak = 0;

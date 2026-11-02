@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceClock, stepMonth } from '../src/core';
+import { advanceClock, RULES, stepMonth } from '../src/core';
 import { constRng, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
@@ -37,12 +37,13 @@ describe('stepMonth: field silver', () => {
 });
 
 describe('clock', () => {
-  it('advances one month every 1.2s at 1x, faster at 3x, never when paused', () => {
-    let r = advanceClock(0, 1.0, 1);
+  it('advances one month every 2s at 1x, faster at 3x, never when paused', () => {
+    expect(RULES.monthSeconds).toBe(2);
+    let r = advanceClock(0, 1.9, 1);
     expect(r.steps).toBe(0);
-    r = advanceClock(r.acc, 0.3, 1);
+    r = advanceClock(r.acc, 0.2, 1);
     expect(r.steps).toBe(1);
-    expect(advanceClock(0, 1.25, 3).steps).toBe(3);
+    expect(advanceClock(0, 2.05, 3).steps).toBe(3);
     expect(advanceClock(0, 10, 0)).toEqual({ acc: 0, steps: 0 });
     expect(advanceClock(0, 100, 3).steps).toBe(5);
   });

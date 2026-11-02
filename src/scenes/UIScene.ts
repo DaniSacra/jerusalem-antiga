@@ -10,6 +10,7 @@ import { T } from '../render/strings';
 import { Toasts, type Tone } from '../render/Toasts';
 import { Toolbar } from '../render/Toolbar';
 import type { Tool } from '../render/tools';
+import { TutorialView, type TutorialTarget } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';
 
 export interface UiHost {
@@ -20,6 +21,8 @@ export interface UiHost {
   showGoal(): void;
   applySettings(): void;
   restart(): void;
+  skipTutorial(): void;
+  tutorialOk(): void;
   attachUi(ui: UIScene): void;
 }
 
@@ -30,6 +33,7 @@ export class UIScene extends Phaser.Scene {
   private info!: InfoLine;
   private toasts!: Toasts;
   private options!: Options;
+  private tutorial!: TutorialView;
   private famineTint!: Phaser.GameObjects.Rectangle;
   private famine = false;
   private modal: Phaser.GameObjects.Container | null = null;
@@ -54,13 +58,29 @@ export class UIScene extends Phaser.Scene {
     this.info = new InfoLine(this);
     this.toasts = new Toasts(this);
     this.options = new Options(this, () => host.applySettings());
+    this.tutorial = new TutorialView(this, () => host.skipTutorial(), () => host.tutorialOk());
     host.attachUi(this);
   }
 
-  refresh(state: GameState, eco: Economy, speed: Speed, tool: Tool) {
+  /** `allowed`: the tools the tutorial leaves enabled (null: all). */
+  refresh(state: GameState, eco: Economy, speed: Speed, tool: Tool, allowed: ReadonlySet<Tool> | null = null) {
     this.hud.refresh(state, eco, speed);
-    this.toolbar.refresh(state, tool);
+    this.toolbar.refresh(state, tool, allowed);
     this.setFamine(state.famine);
+  }
+
+  /** The tutorial sentence (null hides it); `ok` adds the "Entendi" button. */
+  setTutorial(sentence: string | null, ok = false) {
+    this.tutorial.set(sentence, ok);
+  }
+
+  pointTutorial(target: TutorialTarget | null) {
+    this.tutorial.point(target);
+  }
+
+  /** Screen center of a tool's rail button. */
+  buttonOf(tool: Tool) {
+    return this.toolbar.buttonOf(tool);
   }
 
   /** Empty segments hide the info line. */
@@ -70,7 +90,7 @@ export class UIScene extends Phaser.Scene {
 
   /** True if a screen point is over the plaque, the banners, the rails, the speed or the info line. */
   isOverUi(x: number, y: number) {
-    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y) || this.options.contains(x, y);
+    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y) || this.options.contains(x, y) || this.tutorial.contains(x, y);
   }
 
   /** Sun, dusk or moon next to the month; `slow` greys out the miniature option. */

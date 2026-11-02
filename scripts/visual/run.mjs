@@ -85,8 +85,10 @@ async function setSpeed(page, speed) {
   throw new Error(`setSpeed: could not reach ${speed}x`);
 }
 
-/** Opens the game, leaves the title screen and waits for the UI to be attached. */
-async function startGame(page) {
+/** Opens the game, leaves the title screen and waits for the UI to be attached. The first-game
+ * tutorial is skipped (marked as seen) unless `tutorial` is set. */
+async function startGame(page, { tutorial = false } = {}) {
+  if (!tutorial) await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
   await page.goto(URL);
   await page.waitForFunction(() => document.querySelector('canvas'));
   await page.waitForTimeout(800);
@@ -142,6 +144,7 @@ async function setupHudCity(page) {
     core.place(s, 'field', 25, 27);
     for (let k = 0; k < 6 && core.computeEconomy(s).silverDelta >= 0; k++) core.place(s, 'well', 4 + 3 * k, 4); // off the road
     s.silver = 180;
+    s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
     window.game.setSpeed(0);
     core.refreshCity(s);
     window.game.refresh();
@@ -201,6 +204,136 @@ async function shot(page, name, { scaffolds = false } = {}) {
   await page.screenshot({ path: `${OUT}/${name}.png` });
 }
 
+/** Presses a button of the tutorial bubble ('skipBtn' or 'okBtn'). */
+async function clickTutorial(page, which) {
+  const [x, y] = await page.evaluate((k) => {
+    const v = window.game.ui.tutorial;
+    const c = k === 'skipBtn' ? v.skipBtn.root : v.okBtn.container;
+    return [c.x, c.y];
+  }, which);
+  await page.mouse.click(...(await gameToPage(page, x, y)));
+  await page.waitForTimeout(200);
+}
+
+/** Builds a kind at the free spot next to the network closest to a cell (default: the altar). */
+const placeNear = (page, kind, near) =>
+  page.evaluate(([kind, near]) => {
+    const { state: s, core } = window;
+    const to = near ?? core.RULES.map.altar;
+    const spots = core.placeSpots(s, kind).sort((a, b) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y)));
+    const r = core.place(s, kind, spots[0].x, spots[0].y);
+    if (!r.ok) throw new Error(`placeNear ${kind}: ${r.reason}`);
+    window.game.refresh();
+    return spots[0];
+  }, [kind, near ?? null]);
+
+const tutorialStep = (page) => page.evaluate(() => window.game.guide?.step?.id ?? null);
+
+/** Taps (phone) or clicks (PC) a game point. */
+async function press(page, x, y) {
+  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
+    const { tap } = await touchInput(page);
+    await tap([x, y]);
+  } else await page.mouse.click(...(await gameToPage(page, x, y)));
+  await page.waitForTimeout(150);
+}
+
+/** Drags through grid cells with one finger (phone) or the mouse (PC). */
+async function dragCells(page, cells) {
+  if (!(await page.evaluate(() => navigator.maxTouchPoints > 0))) return mouseDrag(page, cells);
+  const { touch } = await touchInput(page);
+  const pts = await Promise.all(cells.map((c) => cellToScreen(page, ...c)));
+  await touch('touchStart', [pts[0]]);
+  await page.waitForTimeout(220); // a touch drag builds only after a short hold
+  for (const p of pts.slice(1)) {
+    await touch('touchMove', [p]);
+    await page.waitForTimeout(40);
+  }
+  await touch('touchEnd', []);
+  await page.waitForTimeout(200);
+}
+
+/** Plays the whole tutorial as a new player would, with a screenshot of each step. */
+async function playTutorial(page, suffix) {
+  await startGame(page, { tutorial: true });
+  const shotStep = (name) => shot(page, `tutorial-${name}${suffix}`);
+  const pressTool = async (name, k) => press(page, ...(await uiPoint(page, name, k)));
+
+  // 1. Road: the arrow points at Rua, then along the marked road.
+  assert((await tutorialStep(page)) === 'road', 'the tutorial starts with the road');
+  await page.evaluate(() => window.game.setSpeed(0));
+  await shotStep('step-1');
+  await tool(page, 4); // Campo is locked during the step
+  assert(await page.evaluate(() => window.game.tool === 'view'), 'only the step tool can be picked');
+  await pressTool('leftButton', 1); // Rua
+  assert(await page.evaluate(() => window.game.tool === 'road'), 'the Rua button picks the road');
+  const ghost = await page.evaluate(() => window.game.ghost.map((c) => [c.x, c.y]));
+  assert(ghost.length === 6, `a marked road of 6 cells (${ghost.length})`);
+  await dragCells(page, ghost);
+  assert((await tutorialStep(page)) === 'houses', 'dragging the marked road ends step 1');
+
+  // 2. Houses: green spots next to the road.
+  await pressTool('buildButton', 0); // Casa
+  await page.waitForTimeout(200);
+  await shotStep('step-2');
+  for (let k = 0; k < 3; k++) await placeNear(page, 'house');
+  assert((await tutorialStep(page)) === 'family', '3 houses end step 2');
+
+  // 3. A family arrives; the camera follows it.
+  await page.evaluate(() => window.game.setSpeed(1));
+  await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 20000 });
+  await page.waitForTimeout(700);
+  await shotStep('step-3');
+  await page.waitForFunction(() => window.game.guide?.step?.id === 'field', null, { timeout: 30000 });
+
+  // 4. Field.
+  await page.evaluate(() => window.game.setSpeed(0));
+  await shotStep('step-4');
+  await placeNear(page, 'field');
+  assert((await tutorialStep(page)) === 'well', 'a field ends step 4');
+
+  // 5. Well: the preview shows its radius and the houses it serves.
+  await pressTool('buildButton', 2); // Poço
+  const house = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'house' && b.level >= 1));
+  const spot = await page.evaluate(([x, y]) => {
+    const { state: s, core } = window;
+    return core.placeSpots(s, 'well').sort((a, b) => Math.abs(a.x - x) + Math.abs(a.y - y) - (Math.abs(b.x - x) + Math.abs(b.y - y)))[0];
+  }, [house.x, house.y]);
+  await page.mouse.move(...(await cellToPage(page, spot.x + 1, spot.y + 1)));
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x + 1, spot.y + 1]);
+  await page.waitForTimeout(200);
+  const serves = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
+  assert(serves && serves.startsWith('Atende'), `the well preview says how many houses it serves (${serves})`);
+  await shotStep('step-5');
+  await page.evaluate(([x, y]) => {
+    window.core.place(window.state, 'well', x, y);
+    window.game.refresh();
+  }, [spot.x, spot.y]);
+  assert((await tutorialStep(page)) === 'grow', 'a well ends step 5');
+
+  // 6. Watch a tent become a mud house; then every unlocked tool is free.
+  await shotStep('step-6');
+  await page.evaluate(() => window.game.setSpeed(3));
+  await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
+  assert(await page.evaluate(() => window.game.guide.allowed() === null), 'tools are free after step 6');
+
+  // Goal 2: the balance message, then the market.
+  await page.evaluate(() => {
+    window.game.setSpeed(0);
+    window.state.unlocked.push('market');
+    window.game.handleEvents([{ type: 'upkeepStart' }]);
+    window.game.refresh();
+  });
+  assert((await tutorialStep(page)) === 'upkeep', 'goal 2 shows the balance message');
+  await shotStep('saldo');
+  await clickTutorial(page, 'okBtn');
+  assert((await tutorialStep(page)) === 'market', '"Entendi" moves on to the market');
+  await shotStep('market');
+  await placeNear(page, 'market');
+  assert((await tutorialStep(page)) === null, 'a market ends the tutorial');
+  assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
+}
+
 // ---------- scenarios ----------
 
 const scenarios = {
@@ -208,6 +341,60 @@ const scenarios = {
     await page.goto(URL);
     await page.waitForTimeout(1200);
     await shot(page, 'title');
+    // Once the tutorial was seen, the title offers it again.
+    await page.evaluate(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
+    await page.reload();
+    await page.waitForTimeout(1200);
+    await shot(page, 'title-again');
+  },
+
+  /** First game on a phone: the six tutorial steps, then the balance and the market. */
+  tutorial: { context: PHONE, run: (page) => playTutorial(page, '') },
+  'tutorial-pc': { context: PC, run: (page) => playTutorial(page, '-pc') },
+
+  /** Skipping ends the tutorial for good; with the storage blocked the game still runs. */
+  async 'tutorial-skip'(page) {
+    await startGame(page, { tutorial: true });
+    assert(await page.evaluate(() => window.game.guide?.step?.id === 'road'), 'a first game starts the tutorial');
+    await clickTutorial(page, 'skipBtn');
+    assert(await page.evaluate(() => window.game.guide === null), 'Pular tutorial ends it');
+    assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'skipping is remembered');
+    await tool(page, 4); // Campo is free again
+    assert(await page.evaluate(() => window.game.tool === 'field'), 'every unlocked tool is free after skipping');
+
+    const blocked = await page.context().newPage();
+    const errors = [];
+    blocked.on('pageerror', (e) => errors.push(String(e)));
+    await blocked.addInitScript(() => {
+      const no = () => {
+        throw new Error('storage blocked');
+      };
+      Object.defineProperty(window, 'localStorage', { get: no });
+    });
+    await startGame(blocked, { tutorial: true });
+    assert(await blocked.evaluate(() => window.game.guide !== null), 'with blocked storage the tutorial runs');
+    await clickTutorial(blocked, 'skipBtn');
+    assert(await blocked.evaluate(() => window.game.guide === null), 'and skipping still works');
+    assert(errors.length === 0, `no errors with blocked storage (${errors})`);
+    await blocked.close();
+  },
+
+  /** A tap on the options panel (title or edges) never reaches the map or the tools. */
+  async options(page) {
+    await startGame(page);
+    const gear = await page.evaluate(() => [window.layout.OPTIONS.x + window.layout.OPTIONS.w / 2, window.layout.OPTIONS.y + window.layout.OPTIONS.h / 2]);
+    await page.mouse.click(...(await gameToPage(page, ...gear)));
+    await page.waitForTimeout(150);
+    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'the gear opens the options');
+    const t0 = await page.evaluate(() => window.game.tool);
+    const [x, y] = await page.evaluate(() => {
+      const r = window.game.ui.options.rect;
+      return [r.x + r.w / 2, r.y + 12];
+    });
+    await page.mouse.click(...(await gameToPage(page, x, y)));
+    await page.waitForTimeout(150);
+    assert(await page.evaluate((t) => window.game.tool === t && !window.game.selected, t0), 'tapping the panel title changes nothing on the map');
+    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'and the panel stays open');
   },
 
   async 'build-with-mouse'(page) {
@@ -333,6 +520,10 @@ const scenarios = {
     for (const k of ['chicken', 'donkey', 'dove', 'boat', 'washer', 'sheep'])
       assert(kinds[k] > 0, `${k} around the city (${JSON.stringify(kinds)})`);
     assert(kinds.laundry > 0, 'laundry lines on some houses');
+    const missing = await page.evaluate(() =>
+      [...window.game.ambient.groups.values()].flatMap((g) => g.movers).filter((m) => m.img.texture.key === '__MISSING').map((m) => m.kind),
+    );
+    assert(missing.length === 0, `every animal has a texture (missing: ${missing})`);
     await shot(page, 'ambient-town');
     // Zoom on the river near the first boat.
     await page.evaluate(() => {
@@ -508,13 +699,15 @@ const scenarios = {
       // Same rule as src/render/layout.ts: the game height follows the screen shape (1280 x 591 here).
       const phoneH = Math.round(Math.min(720, Math.max(560, (GAME_W * 390) / 844)));
 
+      await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
       await page.goto(URL);
       await page.waitForTimeout(1200);
       await shot(page, 'touch-title');
       await page.waitForFunction(() => document.querySelector('canvas'));
-      // Começar (title panel 520 tall, button 62 above its bottom); the game is not running yet, so map by hand.
+      // Começar (title panel 520 tall, button 62 above its bottom, 160 left of center once the tutorial
+      // was seen); the game is not running yet, so map by hand.
       const scale = 390 / phoneH;
-      await cdpTapPage(page, (844 - GAME_W * scale) / 2 + 640 * scale, ((phoneH - 520) / 2 + 520 - 62) * scale);
+      await cdpTapPage(page, (844 - GAME_W * scale) / 2 + (640 - 160) * scale, ((phoneH - 520) / 2 + 520 - 62) * scale);
       await page.waitForFunction(() => window.game?.ui && window.state && window.layout, null, { timeout: 15000 });
       await page.waitForTimeout(500);
 
@@ -605,6 +798,23 @@ const scenarios = {
       await tap(await page.evaluate(() => [640, window.layout.GOAL_Y + window.layout.GOAL_H / 2]));
       assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'tapping the goal shows it in the info line');
       await shot(page, 'hud-phone-goal');
+    },
+  },
+
+  /** The smallest phone in landscape (800 x 360): every rail and speed button is still a 44 px target. */
+  'hud-small-phone': {
+    context: { ...PHONE, viewport: { width: 800, height: 360 } },
+    async run(page) {
+      await startGame(page);
+      const px = await page.evaluate(() => {
+        const k = document.querySelector('canvas').getBoundingClientRect().height / window.game.scale.height;
+        const { LEFT_BTN, BTN, SPEED_BTN, TOOL_W } = window.layout;
+        return { left: LEFT_BTN * k, right: BTN * k, speed: SPEED_BTN * k, width: TOOL_W * k };
+      });
+      for (const [name, v] of Object.entries(px)) assert(v >= 44, `${name} buttons are at least 44 screen px (got ${v.toFixed(1)})`);
+      const plaque = await page.evaluate(() => [window.layout.PLAQUE.x, window.layout.SPEED.x + window.layout.SPEED.w]);
+      assert(plaque[0] > plaque[1], `the plaque clears the speed buttons (${plaque})`);
+      await shot(page, 'hud-small-phone');
     },
   },
 
@@ -778,6 +988,7 @@ const scenarios = {
         s.grid[y * s.cols + 22].level = 1;
       }
       s.silver = -5;
+      s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
       s.debtMonths = 20;
       s.famine = true;
       s.food = 0;

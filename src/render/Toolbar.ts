@@ -1,41 +1,94 @@
 import Phaser from 'phaser';
-import { costOf, RULES, unlockingGoal, type GameState } from '../core';
-import { BTN, BTN_GAP, BUILD_W, buildButton, DIVIDER, inRect, LEFT_BTN, LEFT_RAIL, leftButton, RIGHT_RAIL } from './layout';
+import { costOf, unlockingGoal, type GameState } from '../core';
+import { BTN, BTN_GAP, buildButton, DIVIDER, inRect, LEFT_BTN, LEFT_RAIL, leftButton, RIGHT_RAIL, TOOL_W } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
 import { cropImages, ORIGIN, TEX } from './textures';
-import { BUILD_TOOLS, RAIL_TOOLS, type BuildTool, type Tool } from './tools';
+import { BUILD_TOOLS, RAIL_TOOLS, toolName, type BuildTool, type Tool } from './tools';
 import { RailButton, stonePanel, text } from './ui';
 
 /** Shown on a building button when there is not enough silver. */
 const SHORT_TINT = 0x8c8c8c;
+/** Height of the name row at the bottom of every rail button. */
+const ROW_H = 22;
+const NAME_SIZE = 16;
+const COST_SIZE = 15;
+/** How far a locked building's thumbnail moves left for its "Meta N". */
+const GOAL_SHIFT = 26;
 
-interface BuildButton {
-  kind: BuildTool;
-  btn: RailButton;
-  thumb: Phaser.GameObjects.Image[];
-  coin: Phaser.GameObjects.Image;
-  cost: Phaser.GameObjects.Text;
+/** The name row: the tool name, then (optional) a coin and the cost, centered at the bottom of a button. */
+class NameRow {
+  readonly name: Phaser.GameObjects.Text;
+  readonly coin: Phaser.GameObjects.Image | null;
+  readonly cost: Phaser.GameObjects.Text | null;
+
+  constructor(scene: Phaser.Scene, label: string, h: number, withCost: boolean) {
+    const y = h / 2 - ROW_H / 2 - 4;
+    this.name = text(scene, 0, y, label, NAME_SIZE, CSS.ink, true).setOrigin(0, 0.5);
+    this.coin = withCost ? scene.add.image(0, y, TEX.icon('silver')).setScale(0.36) : null;
+    this.cost = withCost ? text(scene, 0, y, '', COST_SIZE, CSS.ink, true).setOrigin(0, 0.5) : null;
+    this.layout();
+  }
+
+  get objects(): Phaser.GameObjects.GameObject[] {
+    return [this.name, ...(this.coin ? [this.coin] : []), ...(this.cost ? [this.cost] : [])];
+  }
+
+  /** Sets the cost and its color; null hides the coin and the cost (only the name stays). */
+  setCost(label: string | null, color: string) {
+    if (!this.cost || !this.coin) return;
+    if (this.cost.text !== (label ?? '') || this.coin.visible !== (label !== null)) {
+      this.cost.setText(label ?? '');
+      this.coin.setVisible(label !== null);
+      this.layout();
+    }
+    if (this.cost.style.color !== color) this.cost.setColor(color);
+  }
+
+  private layout() {
+    const coinW = this.coin?.visible ? 16 : 0;
+    const costW = this.cost?.text ? 5 + coinW + this.cost.width : 0;
+    let x = -(this.name.width + costW) / 2;
+    this.name.setX(x);
+    x += this.name.width + 5;
+    this.coin?.setX(x + 7);
+    this.cost?.setX(x + coinW);
+  }
 }
 
-/** Building texture shrunk to fit a w x h button above the cost (fields get their crops on top). */
+interface ToolButton {
+  tool: Tool;
+  btn: RailButton;
+  row: NameRow;
+  /** Building thumbnail (greyed when the silver is short). */
+  thumb: Phaser.GameObjects.Image[];
+  /** "Meta N" on the right of a locked building, the thumbnail moved left to make room. */
+  goal: Phaser.GameObjects.Text;
+  shifted: boolean;
+}
+
+/** Building texture shrunk to fit above the name row of a w x h button (fields get their crops on top). */
 function thumbnail(scene: Phaser.Scene, kind: BuildTool, w: number, h: number): Phaser.GameObjects.Image[] {
   const key = TEX.building(kind, kind === 'house' ? 3 : 0);
-  const thumbH = h - 28;
+  const thumbH = h - ROW_H - 10;
   const bottom = -h / 2 + 4 + thumbH;
   const img = scene.add.image(0, bottom, key).setOrigin(0.5, 1);
-  const k = Math.min((w - 10) / img.width, thumbH / img.height);
+  const k = Math.min((w - 16) / img.width, thumbH / img.height);
   img.setScale(k);
   if (kind !== 'field') return [img];
   const [, oy] = ORIGIN[key];
   return [img, ...cropImages(scene, 0, bottom - img.height * (1 - oy) * k, k)];
 }
 
-/** The two side rails: Ver, Rua, Jardim, Limpar and the turn arrows on the left; the 6 buildings on the right. */
+/** Icon centered in the space above the name row. */
+const ICON_Y = -ROW_H / 2 - 3;
+
+/**
+ * The two side rails, every button with its name under the icon: Ver, Rua, Jardim, Limpar and the
+ * turn arrows on the left; the 6 buildings (with their cost) on the right.
+ */
 export class Toolbar {
-  private tools = new Map<Tool, RailButton>();
-  private builds: BuildButton[] = [];
-  private roadCost!: Phaser.GameObjects.Text;
+  private buttons: ToolButton[] = [];
 
   constructor(scene: Phaser.Scene, onSelect: (t: Tool) => void, onTurn: (dir: 1 | -1) => void) {
     const g = scene.add.graphics();
@@ -44,79 +97,71 @@ export class Toolbar {
 
     RAIL_TOOLS.forEach((tool, k) => {
       const { x, y } = leftButton(k);
-      if (tool === 'garden') {
-        this.addBuild(scene, tool, x, y, BTN, LEFT_BTN, onSelect);
-        return;
-      }
-      const content: Phaser.GameObjects.GameObject[] = [];
-      if (tool === 'road') {
-        content.push(scene.add.image(0, -8, TEX.icon(tool)).setScale(1.1));
-        const row = this.costRow(scene, String(RULES.roadCost), CSS.ink);
-        this.roadCost = row[1];
-        content.push(...row);
-      } else content.push(scene.add.image(0, -2, TEX.icon(tool)).setScale(1.2));
-      this.tools.set(tool, new RailButton(scene, x, y, BTN, LEFT_BTN, content, () => onSelect(tool), true));
+      const icon = tool === 'garden' ? thumbnail(scene, tool, TOOL_W, LEFT_BTN) : [scene.add.image(0, ICON_Y, TEX.icon(tool))];
+      this.add(scene, tool, x, y, LEFT_BTN, icon, onSelect);
     });
     // Divider: a gold line between the tools and the turn arrows.
     const { x: lx, y: dy } = leftButton(RAIL_TOOLS.length);
+    const lineY = dy - LEFT_BTN / 2 - (BTN_GAP + DIVIDER) / 2;
     g.lineStyle(2, C.gold, 1);
-    g.lineBetween(lx - BTN / 2 + 8, dy - LEFT_BTN / 2 - (BTN_GAP + DIVIDER) / 2, lx + BTN / 2 - 8, dy - LEFT_BTN / 2 - (BTN_GAP + DIVIDER) / 2);
+    g.lineBetween(lx - TOOL_W / 2 + 8, lineY, lx + TOOL_W / 2 - 8, lineY);
     (['↺', '↻'] as const).forEach((label, k) => {
       const { x, y } = leftButton(RAIL_TOOLS.length + k);
-      new RailButton(scene, x, y, BTN, LEFT_BTN, [text(scene, 0, -2, label, 38, CSS.ink, true).setOrigin(0.5)], () => onTurn(k ? 1 : -1));
+      const arrow = text(scene, 0, ICON_Y, label, 32, CSS.ink, true).setOrigin(0.5);
+      const row = new NameRow(scene, T.turn, LEFT_BTN, false);
+      new RailButton(scene, x, y, TOOL_W, LEFT_BTN, [arrow, ...row.objects], () => onTurn(k ? 1 : -1));
     });
 
     BUILD_TOOLS.forEach((kind, k) => {
       const { x, y } = buildButton(k);
-      this.addBuild(scene, kind, x, y, BUILD_W, BTN, onSelect);
+      this.add(scene, kind, x, y, BTN, thumbnail(scene, kind, TOOL_W, BTN), onSelect);
     });
   }
 
-  /** A building button: thumbnail, coin and cost (or the goal that unlocks it). */
-  private addBuild(scene: Phaser.Scene, kind: BuildTool, x: number, y: number, w: number, h: number, onSelect: (t: Tool) => void) {
-    const thumb = thumbnail(scene, kind, w, h);
-    const [coin, cost] = this.costRow(scene, '', CSS.ink, h);
-    const btn = new RailButton(scene, x, y, w, h, [...thumb, coin, cost], () => onSelect(kind), true);
-    this.builds.push({ kind, btn, thumb, coin, cost });
+  private add(scene: Phaser.Scene, tool: Tool, x: number, y: number, h: number, icon: Phaser.GameObjects.Image[], onSelect: (t: Tool) => void) {
+    const row = new NameRow(scene, toolName(tool), h, tool !== 'view' && tool !== 'clear');
+    const goal = text(scene, TOOL_W / 2 - 8, ICON_Y, '', 15, CSS.ink, true).setOrigin(1, 0.5).setVisible(false);
+    const btn = new RailButton(scene, x, y, TOOL_W, h, [...icon, ...row.objects, goal], () => onSelect(tool), true);
+    this.buttons.push({ tool, btn, row, thumb: tool === 'road' ? [] : icon, goal, shifted: false });
   }
 
-  /** Small coin + number at the bottom of a button of height h. */
-  private costRow(scene: Phaser.Scene, value: string, color: string, h = LEFT_BTN): [Phaser.GameObjects.Image, Phaser.GameObjects.Text] {
-    const coin = scene.add.image(0, h / 2 - 15, TEX.icon('silver')).setScale(0.4);
-    const t = text(scene, 0, h / 2 - 15, value, 16, color, true).setOrigin(0, 0.5);
-    this.centerCost(coin, t);
-    return [coin, t];
-  }
-
-  private centerCost(coin: Phaser.GameObjects.Image, t: Phaser.GameObjects.Text) {
-    const w = coin.visible ? 18 + t.width : t.width;
-    coin.setX(-w / 2 + 8);
-    t.setX(coin.visible ? -w / 2 + 18 : -w / 2);
-  }
-
-  refresh(state: GameState, selected: Tool) {
-    for (const [tool, btn] of this.tools) btn.setLook(tool === selected ? 'active' : 'normal');
-    const roadColor = state.silver < RULES.roadCost ? CSS.bad : CSS.ink;
-    if (this.roadCost.style.color !== roadColor) this.roadCost.setColor(roadColor);
-    for (const b of this.builds) {
-      const locked = !state.unlocked.includes(b.kind);
-      const short = !locked && state.silver < costOf(b.kind);
-      b.btn.setLook(b.kind === selected ? 'active' : locked || short ? 'disabled' : 'normal');
-      b.btn.root.setAlpha(locked ? 0.5 : 1);
+  /** `allowed` (tutorial): only these tools are enabled, the others are greyed without "Meta N". */
+  refresh(state: GameState, selected: Tool, allowed: ReadonlySet<Tool> | null = null) {
+    for (const b of this.buttons) {
+      const { tool } = b;
+      const blocked = !!allowed && !allowed.has(tool);
+      if (tool === 'view' || tool === 'clear') {
+        b.btn.setLook(tool === selected ? 'active' : blocked ? 'disabled' : 'normal');
+        b.btn.root.setAlpha(blocked ? 0.5 : 1);
+        continue;
+      }
+      const locked = !state.unlocked.includes(tool);
+      const cost = costOf(tool);
+      const short = !locked && state.silver < cost;
+      b.btn.setLook(tool === selected ? 'active' : locked || short || blocked ? 'disabled' : 'normal');
+      b.btn.root.setAlpha(locked || blocked ? 0.5 : 1);
       for (const img of b.thumb) {
         if (short) img.setTint(SHORT_TINT);
         else img.clearTint();
         img.setAlpha(short ? 0.75 : 1);
       }
-      const label = locked ? T.lockedCost(unlockingGoal(b.kind) ?? 0) : String(costOf(b.kind));
-      const color = locked ? CSS.muted : short ? CSS.bad : CSS.ink;
-      if (b.cost.text !== label || b.coin.visible === locked) {
-        b.cost.setText(label);
-        b.coin.setVisible(!locked);
-        this.centerCost(b.coin, b.cost);
+      // Locked: the goal that unlocks it in the corner instead of the cost (not during the tutorial).
+      const goal = locked && !allowed;
+      b.row.setCost(locked ? null : String(cost), short ? CSS.bad : CSS.ink);
+      if (goal) b.goal.setText(T.lockedCost(unlockingGoal(tool) ?? 0));
+      b.goal.setVisible(goal);
+      if (goal !== b.shifted) {
+        for (const img of b.thumb) img.x += goal ? -GOAL_SHIFT : GOAL_SHIFT;
+        b.shifted = goal;
       }
-      if (b.cost.style.color !== color) b.cost.setColor(color);
     }
+  }
+
+  /** Screen center of a tool's button and the side it should be pointed at from. */
+  buttonOf(tool: Tool): { x: number; y: number; w: number; side: 'left' | 'right' } | null {
+    const b = this.buttons.find((x) => x.tool === tool);
+    if (!b) return null;
+    return { x: b.btn.root.x, y: b.btn.root.y, w: TOOL_W, side: b.btn.root.x < RIGHT_RAIL.x ? 'left' : 'right' };
   }
 
   contains(x: number, y: number) {

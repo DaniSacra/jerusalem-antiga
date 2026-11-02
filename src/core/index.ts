@@ -18,3 +18,4 @@ export * from './state';
 export * from './actions';
 export * from './simulation';
 export * from './clock';
+export * from './tutorial';

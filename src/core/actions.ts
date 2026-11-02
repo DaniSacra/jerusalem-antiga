@@ -4,7 +4,7 @@ import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
-import type { ActionResult, Building, Cell, Dims, FailReason, GameState, Placeable, Rng } from './types';
+import type { ActionResult, BuildableKind, Building, Cell, Dims, FailReason, GameState, Placeable, Rng } from './types';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -33,9 +33,9 @@ export function checkPlace(s: GameState, kind: Placeable, x: number, y: number, 
   return OK;
 }
 
-/** Top-left cells where the temple fits: free land touching the connected road network (silver ignored). */
-export function templeSpots(s: GameState): Cell[] {
-  const d = placeSize('temple');
+/** Top-left cells where a building fits on free land touching the connected road network (silver ignored). */
+export function placeSpots(s: GameState, kind: BuildableKind, rotated = false): Cell[] {
+  const d = placeSize(kind, rotated);
   const out: Cell[] = [];
   for (let y = 0; y + d.h <= s.rows; y++) {
     for (let x = 0; x + d.w <= s.cols; x++) {
@@ -44,6 +44,9 @@ export function templeSpots(s: GameState): Cell[] {
   }
   return out;
 }
+
+/** Top-left cells where the temple fits. */
+export const templeSpots = (s: GameState) => placeSpots(s, 'temple');
 
 /** Builds a road or building. `rng` draws the look of houses (seeded from the id if not given). */
 export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false, rng?: Rng): ActionResult {

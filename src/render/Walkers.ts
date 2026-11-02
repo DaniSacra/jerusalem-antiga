@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { craftOf, doorsOf, findPath, indexOf, pickWalkerType, RULES, walkerDef, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type WalkerType } from '../core';
+import { craftOf, doorsOf, familySpeed, findPath, indexOf, pickWalkerType, walkerDef, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type WalkerType } from '../core';
 import { depthAt, gridToWorld } from './iso';
 import type { RoadWear } from './RoadWear';
 import { TEX, WALKER_LOOKS } from './textures';
@@ -175,6 +175,12 @@ export class Walkers {
     w.idle = 0.6;
   }
 
+  /** World position of a family on its way home (none when it has arrived). */
+  familyPos(id: number): { x: number; y: number } | null {
+    const img = this.families.get(id);
+    return img ? { x: img.x, y: img.y } : null;
+  }
+
   private updateFamilies(s: GameState, monthFrac: number) {
     const alive = new Set<number>();
     for (const f of s.families) {
@@ -184,7 +190,7 @@ export class Walkers {
         img = this.scene.add.image(0, 0, TEX.family).setOrigin(0.5, 1);
         this.families.set(f.id, img);
       }
-      const step = Math.min(f.step + RULES.familyCellsPerMonth * monthFrac, f.path.length - 1);
+      const step = Math.min(f.step + familySpeed(f) * monthFrac, f.path.length - 1);
       const p = along(f.path, step, 0);
       place(img, p.gx, p.gy, p.dx, p.dy, Math.abs(Math.sin(step * Math.PI * 2)) * 1.5);
     }
