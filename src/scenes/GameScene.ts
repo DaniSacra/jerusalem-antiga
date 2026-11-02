@@ -1,54 +1,83 @@
 import Phaser from 'phaser';
 import {
   advanceClock,
-  build,
   clearCell,
   computeEconomy,
   createGame,
   createRng,
+  indexOf,
+  place,
+  RULES,
   stepMonth,
   type ActionResult,
+  type Cell,
   type Economy,
   type GameEvent,
   type GameState,
   type Rng,
 } from '../core';
+import { CameraRig } from '../render/CameraRig';
 import { Effects } from '../render/Effects';
-import { Hud, SPEEDS, type Speed } from '../render/Hud';
+import { SPEEDS, type Speed } from '../render/Hud';
 import { describeCell, hintSegments } from '../render/info';
-import { CELL, DEPTH, GAME_H, GAME_W, cellBottom, cellCenterX, pointToCell } from '../render/layout';
-import { MapView } from '../render/MapView';
+import { footCenter, worldToCell } from '../render/iso';
+import { INFO_Y, TOP_H, isOverUi } from '../render/layout';
+import { MapView, originFor } from '../render/MapView';
 import { C, CSS } from '../render/palette';
 import { T, toolHint } from '../render/strings';
-import { generateTextures } from '../render/textures';
-import { Toasts } from '../render/Toasts';
-import { Toolbar } from '../render/Toolbar';
-import { DRAG_TOOLS, isBuildTool, TOOLS, type Tool } from '../render/tools';
-import { button, panel, text } from '../render/ui';
+import { generateTextures, HEIGHT, TEX } from '../render/textures';
+import { DRAG_TOOLS, isPlaceTool, TOOLS, type Tool } from '../render/tools';
 import { Walkers } from '../render/Walkers';
+import type { UIScene, UiHost } from './UIScene';
 
-type Cell = { x: number; y: number };
+const TAP_SLOP = 10;
+const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
 
-export class GameScene extends Phaser.Scene {
+/** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
+function orthoSteps(a: Cell, b: Cell): Cell[] {
+  const out: Cell[] = [];
+  let { x, y } = a;
+  while (x !== b.x || y !== b.y) {
+    if (Math.abs(b.x - x) >= Math.abs(b.y - y)) x += Math.sign(b.x - x);
+    else y += Math.sign(b.y - y);
+    out.push({ x, y });
+  }
+  return out;
+}
+
+interface Gesture {
+  id: number;
+  start: Cell | null;
+  last: Cell | null;
+  downX: number;
+  downY: number;
+  lastX: number;
+  lastY: number;
+  moved: boolean;
+  applied: boolean;
+  cancelled: boolean;
+  toastedSilver: boolean;
+}
+
+export class GameScene extends Phaser.Scene implements UiHost {
   private state!: GameState;
   private rng!: Rng;
   private eco!: Economy;
   private map!: MapView;
   private walkers!: Walkers;
   private fx!: Effects;
-  private hud!: Hud;
-  private toolbar!: Toolbar;
-  private toasts!: Toasts;
+  private rig!: CameraRig;
+  private ui: UIScene | null = null;
 
   private tool: Tool = 'view';
   private speedIndex = 0;
   private clock = 0;
-  private modal: Phaser.GameObjects.Container | null = null;
   private hover: Cell | null = null;
   private selected: Cell | null = null;
-  private dragging = false;
-  private lastDragCell = '';
-  private dragToasted = false;
+  private gesture: Gesture | null = null;
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
+  private rightPan: { id: number; x: number; y: number } | null = null;
 
   constructor() {
     super('game');
@@ -62,31 +91,38 @@ export class GameScene extends Phaser.Scene {
     generateTextures(this);
     this.rng = createRng((Math.random() * 2 ** 32) >>> 0);
     this.state = createGame(this.rng);
+    this.eco = computeEconomy(this.state);
     this.tool = 'view';
     this.speedIndex = 0;
     this.clock = 0;
-    this.modal = null;
+    this.ui = null;
 
+    this.cameras.main.setBackgroundColor(C.bg);
     this.map = new MapView(this, this.state);
     this.walkers = new Walkers(this);
     this.fx = new Effects(this);
-    this.hud = new Hud(this, () => this.cycleSpeed());
-    this.toolbar = new Toolbar(this, (t) => this.selectTool(t));
-    this.toasts = new Toasts(this);
+    this.rig = new CameraRig(this.cameras.main);
+    const altar = footCenter(this.state.altar.x, this.state.altar.y);
+    this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, (TOP_H + INFO_Y) / 2);
 
     this.setupInput();
+    this.scene.launch('ui', { host: this });
+    if (import.meta.env.DEV) import('../core').then((core) => Object.assign(window, { game: this, state: this.state, core }));
+  }
+
+  attachUi(ui: UIScene) {
+    this.ui = ui;
     this.selectTool('view');
-    if (import.meta.env.DEV) Object.assign(window, { game: this, state: this.state });
   }
 
   update(_time: number, delta: number) {
-    const speed = this.modal ? 0 : this.speed;
+    const speed = this.ui?.modalOpen ? 0 : this.speed;
     const { acc, steps } = advanceClock(this.clock, delta / 1000, speed);
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
     this.map.update(this.time.now);
-    this.walkers.update(delta, this.state, this.eco.residents);
+    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds);
   }
 
   // ---------- state -> view ----------
@@ -94,141 +130,211 @@ export class GameScene extends Phaser.Scene {
   private refresh() {
     this.eco = computeEconomy(this.state);
     this.map.sync(this.state);
-    this.hud.refresh(this.state, this.eco, this.speed);
-    this.toolbar.refresh(this.state, this.tool);
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
-    if (this.tool === 'view' && this.selected) this.toolbar.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
+    this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
+    if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
   }
 
   private handleEvents(events: GameEvent[]) {
     for (const e of events) {
       switch (e.type) {
         case 'houseUp': {
-          const { px, py } = this.center(e);
-          this.map.bounce(e.x, e.y);
-          this.fx.ring(px, py);
-          this.fx.floatText(px, py - 24, `+${e.delta}`);
+          const c = footCenter(e.x, e.y);
+          this.map.bounce(this.state, e.x, e.y);
+          this.fx.ring(c.x, c.y);
+          this.fx.floatText(c.x, c.y - (HEIGHT[TEX.building('house', e.level)] ?? 20) - 8, `+${e.delta}`);
           break;
         }
         case 'houseDown': {
-          const { px, py } = this.center(e);
-          this.fx.floatText(px, py - 24, e.famine ? `Fome ${e.delta}` : `${e.delta}`, CSS.bad);
+          const c = footCenter(e.x, e.y);
+          this.fx.floatText(c.x, c.y - 30, e.famine ? `Fome ${e.delta}` : `${e.delta}`, CSS.bad);
           break;
         }
         case 'famineStart':
-          this.toasts.show(T.famine, 'bad');
+          this.ui?.toast(T.famine, 'bad');
           break;
         case 'goal':
-          this.toasts.show(T.goalDone(e.reward, e.unlock), 'good');
+          this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
           break;
         case 'victory':
-          this.showVictory(e.month);
+          this.ui?.showVictory(e.month, e.residents);
           break;
       }
     }
   }
 
-  private center(c: Cell) {
-    return { px: cellCenterX(c.x), py: cellBottom(c.y) - CELL / 2 };
-  }
+  // ---------- UI host ----------
 
-  // ---------- input ----------
-
-  private setupInput() {
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.modal) return;
-      const cell = pointToCell(p.x, p.y);
-      if (!cell) return;
-      this.hover = cell;
-      this.dragging = true;
-      this.dragToasted = false;
-      this.lastDragCell = `${cell.x},${cell.y}`;
-      this.applyTool(cell, true);
-    });
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (this.modal) return;
-      const cell = pointToCell(p.x, p.y);
-      const key = cell ? `${cell.x},${cell.y}` : '';
-      if (key !== (this.hover ? `${this.hover.x},${this.hover.y}` : '')) {
-        this.hover = cell;
-        this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
-      }
-      if (cell && this.dragging && p.isDown && DRAG_TOOLS.has(this.tool) && key !== this.lastDragCell) {
-        this.lastDragCell = key;
-        this.applyTool(cell, false);
-      }
-    });
-    const release = (p: Phaser.Input.Pointer) => {
-      this.dragging = false;
-      if (p.wasTouch) {
-        this.hover = null;
-        this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
-      }
-    };
-    this.input.on('pointerup', release);
-    this.input.on('pointerupoutside', release);
-
-    const keys = this.input.keyboard;
-    TOOLS.forEach((t, k) => keys?.on(`keydown-${k + 1}`, () => this.selectTool(t)));
-    keys?.on('keydown-SPACE', () => this.cycleSpeed());
-    keys?.on('keydown-ESC', () => this.selectTool('view'));
-  }
-
-  private selectTool(tool: Tool) {
-    if (this.modal) return;
-    if (isBuildTool(tool) && !this.state.unlocked.includes(tool)) {
-      this.toolbar.setInfo(hintSegments(T.lockedHint(tool)));
+  selectTool(tool: Tool) {
+    if (this.ui?.modalOpen) return;
+    if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
+      this.ui?.setInfo(hintSegments(T.lockedHint(tool)));
       return;
     }
     this.tool = tool;
     this.selected = null;
-    this.toolbar.setInfo(hintSegments(toolHint(tool)));
+    this.ui?.setInfo(hintSegments(toolHint(tool)));
     this.refresh();
   }
 
-  private cycleSpeed() {
-    if (this.modal) return;
+  cycleSpeed() {
+    if (this.ui?.modalOpen) return;
     this.speedIndex = (this.speedIndex + 1) % SPEEDS.length;
     this.refresh();
   }
 
-  private applyTool(cell: Cell, first: boolean) {
-    const { x, y } = cell;
-    if (this.tool === 'view') {
-      this.selected = cell;
-      this.refresh();
-      return;
-    }
-    const r: ActionResult = isBuildTool(this.tool) ? build(this.state, this.tool, x, y) : clearCell(this.state, x, y);
-    const { px, py } = this.center(cell);
-    if (r.ok) {
-      if (this.tool === 'clear') this.fx.dust(px, py + 8);
-      else this.fx.ring(px, py);
-      this.refresh();
-      return;
-    }
-    if (r.reason === 'silver' && !this.dragToasted) {
-      this.dragToasted = true;
-      this.toasts.show(T.noSilver, 'bad');
-    } else if (r.reason === 'invalid' && first) {
-      this.toasts.show(T.invalid, 'bad');
-    }
+  // ---------- input ----------
+
+  private cellAt(sx: number, sy: number): Cell | null {
+    const w = this.rig.toWorld(sx, sy);
+    return worldToCell(w.x, w.y);
   }
 
-  // ---------- victory ----------
+  private setHover(cell: Cell | null) {
+    if (sameCell(cell, this.hover) || (!cell && !this.hover)) return;
+    this.hover = cell;
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
+  }
 
-  private showVictory(months: number) {
-    const w = 560;
-    const h = 260;
-    const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, C.shadow, 0.5).setOrigin(0).setInteractive();
-    const g = this.add.graphics();
-    panel(g, (GAME_W - w) / 2, (GAME_H - h) / 2, w, h, C.parchment, 18);
-    const title = text(this, GAME_W / 2, GAME_H / 2 - 80, T.victoryTitle, 44, CSS.ink, true).setOrigin(0.5);
-    const msg = text(this, GAME_W / 2, GAME_H / 2 - 20, T.victoryText(months), 22, CSS.ink).setOrigin(0.5);
-    const btn = button(this, GAME_W / 2, GAME_H / 2 + 65, 320, 58, T.keepBuilding, 22, () => {
-      this.modal?.destroy();
-      this.modal = null;
+  private setupInput() {
+    this.input.mouse?.disableContextMenu();
+    this.input.addPointer(1);
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onDown(p));
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.onMove(p));
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.onUp(p));
+    this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.onUp(p));
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      this.rig.zoomAt(p.x, p.y, this.rig.zoom * (dy > 0 ? 0.9 : 1.1));
     });
-    this.modal = this.add.container(0, 0, [dim, g, title, msg, btn.container]).setDepth(DEPTH.modal);
+    const keys = this.input.keyboard;
+    const digits = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+    TOOLS.forEach((t, k) => keys?.on(`keydown-${digits[k]}`, () => this.selectTool(t)));
+    keys?.on('keydown-SPACE', () => this.cycleSpeed());
+    keys?.on('keydown-ESC', () => this.selectTool('view'));
+  }
+
+  private onDown(p: Phaser.Input.Pointer) {
+    if (this.ui?.modalOpen || isOverUi(p.y)) return;
+    if (p.rightButtonDown() || p.middleButtonDown()) {
+      this.rightPan = { id: p.id, x: p.x, y: p.y };
+      return;
+    }
+    this.touches.set(p.id, { x: p.x, y: p.y });
+    if (this.touches.size >= 2) {
+      if (this.gesture) this.gesture.cancelled = true;
+      const [a, b] = [...this.touches.values()];
+      this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.rig.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+      return;
+    }
+    const cell = this.cellAt(p.x, p.y);
+    this.gesture = {
+      id: p.id,
+      start: cell,
+      last: cell,
+      downX: p.x,
+      downY: p.y,
+      lastX: p.x,
+      lastY: p.y,
+      moved: false,
+      applied: false,
+      cancelled: false,
+      toastedSilver: false,
+    };
+    if (this.tool !== 'view') this.setHover(cell);
+  }
+
+  private onMove(p: Phaser.Input.Pointer) {
+    if (this.rightPan?.id === p.id) {
+      this.rig.panBy(p.x - this.rightPan.x, p.y - this.rightPan.y);
+      this.rightPan.x = p.x;
+      this.rightPan.y = p.y;
+      return;
+    }
+    if (this.touches.has(p.id)) this.touches.set(p.id, { x: p.x, y: p.y });
+
+    if (this.pinch && this.touches.size >= 2) {
+      const [a, b] = [...this.touches.values()];
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      this.rig.panBy(midX - this.pinch.midX, midY - this.pinch.midY);
+      this.rig.zoomAt(midX, midY, (this.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / Math.max(1, this.pinch.dist));
+      this.pinch.midX = midX;
+      this.pinch.midY = midY;
+      return;
+    }
+
+    const g = this.gesture;
+    if (!g || g.id !== p.id || !p.isDown) {
+      if (!p.isDown && !p.wasTouch) this.setHover(isOverUi(p.y) ? null : this.cellAt(p.x, p.y));
+      return;
+    }
+    if (g.cancelled) return;
+    if (Math.hypot(p.x - g.downX, p.y - g.downY) > TAP_SLOP) g.moved = true;
+
+    if (this.tool === 'view') {
+      if (g.moved) this.rig.panBy(p.x - g.lastX, p.y - g.lastY);
+    } else {
+      const cell = this.cellAt(p.x, p.y);
+      this.setHover(cell);
+      if (DRAG_TOOLS.has(this.tool) && cell && !sameCell(cell, g.last)) {
+        if (!g.applied && g.start) this.apply(g.start, true);
+        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false);
+        g.last = cell;
+        g.applied = true;
+      }
+    }
+    g.lastX = p.x;
+    g.lastY = p.y;
+  }
+
+  private onUp(p: Phaser.Input.Pointer) {
+    if (this.rightPan?.id === p.id) {
+      this.rightPan = null;
+      return;
+    }
+    this.touches.delete(p.id);
+    if (this.touches.size < 2) this.pinch = null;
+    const g = this.gesture;
+    if (!g || g.id !== p.id) return;
+    this.gesture = null;
+    if (!g.cancelled) {
+      if (this.tool === 'view') {
+        if (!g.moved && g.start) this.select(g.start);
+      } else if (!g.applied) {
+        // Single-placement tools drop where the finger is released, so the preview can be adjusted.
+        const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.cellAt(p.x, p.y);
+        if (cell) this.apply(cell, true);
+      }
+    }
+    if (p.wasTouch) this.setHover(null);
+  }
+
+  private select(cell: Cell) {
+    this.selected = cell;
+    this.refresh();
+  }
+
+  private apply(cell: Cell, first: boolean) {
+    if (this.tool === 'view') return;
+    const s = this.state;
+    const o = originFor(this.tool, cell);
+    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y) : clearCell(s, o.x, o.y);
+    if (r.ok) {
+      const b = s.grid[indexOf(s, o.x, o.y)];
+      const c = b ? footCenter(b.x, b.y, b.size) : footCenter(o.x, o.y);
+      if (this.tool === 'clear') this.fx.dust(c.x, c.y);
+      else if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
+      else this.fx.ring(c.x, c.y);
+      this.refresh();
+      return;
+    }
+    const g = this.gesture;
+    if (r.reason === 'silver') {
+      if (g?.toastedSilver) return;
+      if (g) g.toastedSilver = true;
+      this.ui?.toast(T.fail.silver, 'bad');
+    } else if (first) {
+      this.ui?.toast(T.fail[r.reason], 'bad');
+    }
   }
 }

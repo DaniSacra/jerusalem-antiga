@@ -1,17 +1,16 @@
-import { BUILDINGS, RULES, unlockingGoal, type BuildingKind, type ServiceKind } from '../core';
-import type { Tool } from './tools';
+import { BUILDINGS, RULES, unlockingGoal, type FailReason, type Feature, type Ground, type NeedKind, type Placeable } from '../core';
+import { toolName, type Tool } from './tools';
 
 export const T = {
   title: 'Jerusalém Antiga',
-  view: 'Ver',
-  clear: 'Limpar',
   start: 'Começar',
   howTo: [
-    'Construa casas e espere as famílias chegarem.',
-    'Campos dão comida. Poço, mercado e altar fazem as casas crescerem.',
-    'Casas melhores têm mais moradores e pagam mais impostos.',
-    'Cumpra as metas e chegue a 200 moradores.',
-    'Dica: arraste para construir várias casas ou campos de uma vez.',
+    'A cidade começa no altar. Construa ruas ligadas a ele.',
+    'Toda construção precisa encostar numa rua ligada ao altar.',
+    'Casas recebem famílias que chegam pela entrada da cidade, ao sul.',
+    'Campos dão comida. Poço, mercado e o raio do altar fazem as casas crescerem.',
+    'Cumpra as metas e construa o Templo para vencer.',
+    'Ver: arraste para mover o mapa. Construindo: dois dedos ou botão direito movem. Pinça ou roda: zoom.',
   ],
   silver: 'Prata',
   food: 'Comida',
@@ -19,28 +18,29 @@ export const T = {
   work: 'Trabalho',
   month: 'Mês',
   goal: 'Meta',
-  speed: 'Velocidade',
   pause: 'Pausa',
   perMonth: '/mês',
   allGoals: 'Todas as metas cumpridas!',
-  noSilver: 'Prata insuficiente',
-  invalid: 'Local inválido',
   famine: 'Falta comida: construa campos',
-  goalDone: (reward: number, unlock?: BuildingKind) =>
-    `Meta cumprida! +${reward} prata` + (unlock ? ` · Nova construção: ${BUILDINGS[unlock].name}` : ''),
+  fail: {
+    silver: 'Prata insuficiente',
+    invalid: 'Local inválido',
+    noRoad: 'O Templo precisa encostar numa rua ligada ao altar',
+    protected: 'O altar e o templo não podem ser demolidos',
+    locked: 'Ainda bloqueado',
+  } satisfies Record<FailReason, string>,
+  goalDone: (reward: number, unlock?: Placeable) =>
+    `Meta cumprida! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   victoryTitle: 'Vitória!',
-  victoryText: (months: number) => `Sua cidade chegou a 200 moradores em ${months} ${months === 1 ? 'mês' : 'meses'}.`,
+  victoryText: (months: number, residents: number) =>
+    `O Templo foi construído em ${months} ${months === 1 ? 'mês' : 'meses'}, com ${residents} moradores.`,
   keepBuilding: 'Continuar construindo',
   lockedCost: (n: number) => `Meta ${n}`,
-  lockedHint: (kind: BuildingKind) => `${BUILDINGS[kind].name}: liberado ao cumprir a Meta ${unlockingGoal(kind)}.`,
+  lockedHint: (kind: Placeable) => `${toolName(kind)}: liberado ao cumprir a Meta ${unlockingGoal(kind)}.`,
   treeCost: `árvore ${RULES.treeClearCost}`,
-  terrain: {
-    grass: 'Grama: livre para construir',
-    rock: 'Rocha: não dá para construir aqui',
-    tree: `Oliveira: use Limpar para cortar (${RULES.treeClearCost} prata)`,
-    valley: 'Vale do Cedrom: não dá para construir aqui',
-  },
-  needName: (k: ServiceKind) => BUILDINGS[k].name,
+  ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
+  feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira' } satisfies Record<Feature, string>,
+  need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo' } satisfies Record<NeedKind, string>,
 };
 
 /** Formats a number with up to one decimal, Brazilian style. */
@@ -52,15 +52,18 @@ export function fmt(n: number): string {
 export const signed = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n));
 
 export function toolHint(tool: Tool): string {
-  if (tool === 'view') return 'Ver: toque no mapa para ver os detalhes de cada lugar.';
-  if (tool === 'clear') return `Limpar: remove construções sem reembolso. Cortar oliveira custa ${RULES.treeClearCost} prata. Pode arrastar.`;
+  if (tool === 'view') return 'Ver: toque para ver detalhes. Arraste para mover o mapa.';
+  if (tool === 'clear') return `Limpar: remove construções e ruas sem reembolso. Cortar árvore custa ${RULES.treeClearCost} prata. Pode arrastar.`;
+  if (tool === 'road') return `Rua (${RULES.roadCost} prata por célula): ligue as construções ao altar. Arraste para construir.`;
   const d = BUILDINGS[tool];
   const parts = [`${d.name} (${d.cost} prata)`];
-  if (tool === 'house') parts.push('terreno onde uma família vem morar. Pode arrastar');
-  if (d.jobs) parts.push(`${d.jobs} vagas de trabalho`);
+  if (tool === 'house') parts.push('terreno para uma família. Ao lado de uma rua. Pode arrastar');
+  if (d.size) parts.push(`ocupa ${d.size}x${d.size}`);
+  if (d.jobs) parts.push(`${d.jobs} vagas`);
   if (d.food) parts.push(`produz ${d.food} de comida por mês`);
   if (d.silver) parts.push(`produz ${d.silver} de prata por mês`);
-  if (d.radius) parts.push(`atende casas num raio de ${d.radius}`);
+  if (d.radius) parts.push(`raio ${d.radius}`);
+  if (tool === 'temple') parts.push('precisa encostar numa rua');
   if (tool === 'field') parts.push('pode arrastar');
   return parts.join(' · ') + '.';
 }

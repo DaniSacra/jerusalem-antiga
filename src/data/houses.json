@@ -1,7 +1,7 @@
 [
   { "name": "Terreno",       "residents": 0,  "tax": 0,   "needs": [] },
-  { "name": "Tenda",         "residents": 3,  "tax": 1,   "needs": [] },
-  { "name": "Casa de barro", "residents": 6,  "tax": 2,   "needs": ["well"] },
-  { "name": "Casa de pedra", "residents": 10, "tax": 3.5, "needs": ["well", "market"] },
-  { "name": "Casa grande",   "residents": 16, "tax": 6,   "needs": ["well", "market", "altar"] }
+  { "name": "Tenda",         "residents": 3,  "tax": 1,   "needs": ["road"] },
+  { "name": "Casa de barro", "residents": 6,  "tax": 2,   "needs": ["road", "well"] },
+  { "name": "Casa de pedra", "residents": 10, "tax": 3.5, "needs": ["road", "well", "market"] },
+  { "name": "Casa grande",   "residents": 16, "tax": 6,   "needs": ["road", "well", "market", "sacred"] }
 ]

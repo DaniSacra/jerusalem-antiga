@@ -1,56 +1,86 @@
 import { describe, expect, it } from 'vitest';
-import { build, clearCell, createGame, createRng, indexOf, RULES } from '../src/core';
-import { emptyGame, place } from './helpers';
+import { checkPlace, clearCell, indexOf, place, RULES } from '../src/core';
+import { emptyGame, put, ROADSIDE } from './helpers';
 
-describe('actions', () => {
-  it('starts with the configured resources and tools', () => {
-    const s = createGame(createRng(7));
-    expect(s.silver).toBe(150);
-    expect(s.food).toBe(30);
-    expect(s.unlocked).toEqual(['house', 'field', 'well']);
-  });
-
-  it('builds on grass and charges the cost', () => {
+describe('placing buildings', () => {
+  it('charges the cost and occupies the cell', () => {
     const s = emptyGame({ silver: 100 });
-    expect(build(s, 'well', 3, 3)).toEqual({ ok: true });
+    expect(place(s, 'well', ROADSIDE, 20)).toEqual({ ok: true });
     expect(s.silver).toBe(80);
-    expect(s.buildings[indexOf(s, 3, 3)]).toMatchObject({ kind: 'well', level: 0 });
-    expect(s.coverage.well[indexOf(s, 6, 6)]).toBe(true);
+    expect(s.grid[indexOf(s, ROADSIDE, 20)]).toMatchObject({ kind: 'well', connected: true });
   });
 
   it('rejects invalid cells, missing silver and locked buildings', () => {
     const s = emptyGame({ silver: 12 });
-    s.terrain[indexOf(s, 1, 1)] = 'rock';
-    s.terrain[indexOf(s, 2, 1)] = 'tree';
-    place(s, 'house', 3, 1);
-    expect(build(s, 'house', 1, 1)).toEqual({ ok: false, reason: 'invalid' });
-    expect(build(s, 'house', 2, 1)).toEqual({ ok: false, reason: 'invalid' });
-    expect(build(s, 'house', 3, 1)).toEqual({ ok: false, reason: 'invalid' });
-    expect(build(s, 'house', 19, 0)).toEqual({ ok: false, reason: 'invalid' });
-    expect(build(s, 'house', -1, 0)).toEqual({ ok: false, reason: 'invalid' });
-    expect(build(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'silver' });
+    s.feature[indexOf(s, 1, 1)] = 'rock';
+    s.feature[indexOf(s, 2, 1)] = 'palm';
+    put(s, 'house', 3, 1);
+    expect(place(s, 'house', 1, 1).ok).toBe(false);
+    expect(place(s, 'house', 2, 1)).toEqual({ ok: false, reason: 'invalid' });
+    expect(place(s, 'house', 3, 1)).toEqual({ ok: false, reason: 'invalid' });
+    expect(place(s, 'house', 16, 20)).toEqual({ ok: false, reason: 'invalid' }); // road
+    expect(place(s, 'house', 31, 0)).toEqual({ ok: false, reason: 'invalid' }); // river
+    expect(place(s, 'house', -1, 0)).toEqual({ ok: false, reason: 'invalid' });
+    expect(place(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'silver' });
     s.unlocked = ['house'];
-    expect(build(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'locked' });
+    expect(place(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'locked' });
     expect(s.silver).toBe(12);
   });
+});
 
-  it('clears buildings without refund and cuts trees for silver', () => {
+describe('temple placement', () => {
+  it('occupies 3x3 cells and costs 400', () => {
+    const s = emptyGame({ silver: 450 });
+    expect(place(s, 'temple', 17, 20)).toEqual({ ok: true });
+    expect(s.silver).toBe(50);
+    const t = s.grid[indexOf(s, 17, 20)]!;
+    expect(t).toMatchObject({ kind: 'temple', size: 3, connected: true });
+    expect(s.grid[indexOf(s, 19, 22)]).toBe(t);
+    expect(s.grid[indexOf(s, 20, 22)]).toBeNull();
+  });
+
+  it('is invalid if any of its cells is blocked', () => {
+    const s = emptyGame();
+    s.feature[indexOf(s, 19, 22)] = 'rock';
+    expect(checkPlace(s, 'temple', 17, 20)).toEqual({ ok: false, reason: 'invalid' });
+    expect(checkPlace(s, 'temple', 15, 20)).toEqual({ ok: false, reason: 'invalid' }); // over the road
+    expect(checkPlace(s, 'temple', 29, 5)).toEqual({ ok: false, reason: 'invalid' }); // river / edge
+  });
+
+  it('must touch a connected road', () => {
+    const s = emptyGame();
+    expect(checkPlace(s, 'temple', 18, 20)).toEqual({ ok: false, reason: 'noRoad' });
+    expect(checkPlace(s, 'temple', 13, 25)).toEqual({ ok: true }); // west side of the road
+  });
+});
+
+describe('clearing', () => {
+  it('removes buildings and roads without refund and cuts trees for silver', () => {
     const s = emptyGame({ silver: 7 });
-    place(s, 'well', 4, 4);
-    expect(clearCell(s, 4, 4)).toEqual({ ok: true });
-    expect(s.buildings[indexOf(s, 4, 4)]).toBeNull();
+    put(s, 'well', ROADSIDE, 20);
+    expect(clearCell(s, ROADSIDE, 20)).toEqual({ ok: true });
+    expect(s.grid[indexOf(s, ROADSIDE, 20)]).toBeNull();
     expect(s.coverage.well.some(Boolean)).toBe(false);
+    expect(clearCell(s, 16, 30)).toEqual({ ok: true });
+    expect(s.roads[indexOf(s, 16, 30)]).toBe(false);
     expect(s.silver).toBe(7);
 
-    s.terrain[indexOf(s, 2, 2)] = 'tree';
+    for (const tree of ['palm', 'olive'] as const) s.feature[indexOf(s, tree === 'palm' ? 2 : 3, 2)] = tree;
     expect(clearCell(s, 2, 2)).toEqual({ ok: true });
-    expect(s.terrain[indexOf(s, 2, 2)]).toBe('grass');
+    expect(s.feature[indexOf(s, 2, 2)]).toBeNull();
     expect(s.silver).toBe(7 - RULES.treeClearCost);
-
-    s.terrain[indexOf(s, 3, 2)] = 'tree';
     expect(clearCell(s, 3, 2)).toEqual({ ok: false, reason: 'silver' });
-    s.terrain[indexOf(s, 5, 2)] = 'rock';
+
+    s.feature[indexOf(s, 5, 2)] = 'rock';
     expect(clearCell(s, 5, 2)).toEqual({ ok: false, reason: 'invalid' });
     expect(clearCell(s, 6, 2)).toEqual({ ok: false, reason: 'invalid' });
+  });
+
+  it('protects the altar and the temple', () => {
+    const s = emptyGame();
+    put(s, 'temple', 17, 20);
+    expect(clearCell(s, 16, 16)).toEqual({ ok: false, reason: 'protected' });
+    expect(clearCell(s, 18, 21)).toEqual({ ok: false, reason: 'protected' });
+    expect(s.buildings.map((b) => b.kind)).toEqual(['altar', 'temple']);
   });
 });

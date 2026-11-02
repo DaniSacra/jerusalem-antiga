@@ -1,22 +1,27 @@
 import { BUILDINGS } from './data';
-import { cellOf, cellsInRadius } from './grid';
-import { SERVICE_KINDS, type Coverage, type GameState, type ServiceKind } from './types';
+import { cellsInRadius } from './grid';
+import { SERVICE_KINDS, type BuildingKind, type Coverage, type GameState, type ServiceKind } from './types';
 
-export function serviceCoverage(s: GameState, kind: ServiceKind): boolean[] {
+/** Building kinds that provide each service. */
+export const SERVICE_SOURCES: Record<ServiceKind, BuildingKind[]> = {
+  well: ['well'],
+  market: ['market'],
+  sacred: ['altar', 'temple'],
+};
+
+export const serviceOf = (kind: BuildingKind): ServiceKind | null =>
+  SERVICE_KINDS.find((k) => SERVICE_SOURCES[k].includes(kind)) ?? null;
+
+/** Cells covered by connected buildings of a service (radius measured from any footprint cell). */
+export function serviceCoverage(s: GameState, service: ServiceKind): boolean[] {
   const covered = new Array<boolean>(s.cols * s.rows).fill(false);
-  const r = BUILDINGS[kind].radius ?? 0;
-  s.buildings.forEach((b, i) => {
-    if (b?.kind !== kind) return;
-    const { x, y } = cellOf(s, i);
-    for (const c of cellsInRadius(s, x, y, r)) covered[c] = true;
-  });
+  for (const b of s.buildings) {
+    if (!b.connected || !SERVICE_SOURCES[service].includes(b.kind)) continue;
+    for (const c of cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.size)) covered[c] = true;
+  }
   return covered;
 }
 
 export function computeCoverage(s: GameState): Coverage {
   return Object.fromEntries(SERVICE_KINDS.map((k) => [k, serviceCoverage(s, k)])) as Coverage;
-}
-
-export function updateCoverage(s: GameState): void {
-  s.coverage = computeCoverage(s);
 }

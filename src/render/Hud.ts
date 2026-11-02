@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { currentGoal, goalProgress, type Economy, type GameState } from '../core';
-import { DEPTH, GAME_W, TOP_H } from './layout';
+import { GAME_W, TOP_H } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
 import { TEX } from './textures';
@@ -21,7 +21,7 @@ export class Hud {
   private speedLabel: Phaser.GameObjects.Text;
 
   constructor(private scene: Phaser.Scene, onSpeed: () => void) {
-    const g = scene.add.graphics().setDepth(DEPTH.ui);
+    const g = scene.add.graphics();
     g.fillStyle(C.shadow, 0.25);
     g.fillRect(0, TOP_H, GAME_W, 3);
     g.fillStyle(C.parchment);
@@ -36,22 +36,17 @@ export class Hud {
       work: this.stat(500, 'work', T.work),
       month: this.stat(664, 'month', T.month),
     };
-    scene.add.image(790, TOP_H / 2, TEX.icon('goal')).setScale(0.7).setDepth(DEPTH.ui);
-    text(scene, 808, 6, T.goal, 13, CSS.muted, true).setDepth(DEPTH.ui);
-    this.goal = text(scene, 808, 22, '', 18, CSS.ink, true).setDepth(DEPTH.ui);
-
-    const speed = button(scene, GAME_W - 62, TOP_H / 2, 104, 40, '1x', 20, onSpeed);
-    speed.container.setDepth(DEPTH.ui);
-    this.speedLabel = speed.label;
+    scene.add.image(790, TOP_H / 2, TEX.icon('goal')).setScale(0.7);
+    text(scene, 808, 6, T.goal, 13, CSS.muted, true);
+    this.goal = text(scene, 808, 22, '', 18, CSS.ink, true);
+    this.speedLabel = button(scene, GAME_W - 62, TOP_H / 2, 104, 40, '1x', 20, onSpeed).label;
   }
 
   private stat(x: number, icon: Parameters<typeof TEX.icon>[0], label: string): Stat {
     const s = this.scene;
-    s.add.image(x + 16, TOP_H / 2, TEX.icon(icon)).setScale(0.75).setDepth(DEPTH.ui);
-    text(s, x + 38, 6, label, 13, CSS.muted, true).setDepth(DEPTH.ui);
-    const value = text(s, x + 38, 22, '', 22, CSS.ink, true).setDepth(DEPTH.ui);
-    const sub = text(s, x + 38, 27, '', 15, CSS.muted, true).setDepth(DEPTH.ui);
-    return { value, sub };
+    s.add.image(x + 16, TOP_H / 2, TEX.icon(icon)).setScale(0.75);
+    text(s, x + 38, 6, label, 13, CSS.muted, true);
+    return { value: text(s, x + 38, 22, '', 22, CSS.ink, true), sub: text(s, x + 38, 27, '', 15, CSS.muted, true) };
   }
 
   private set(stat: Stat, value: string, sub = '', subColor: string = CSS.muted) {

@@ -1,324 +1,398 @@
 /**
- * All art is generated here as named textures. To switch to sprite files later,
- * load images with the same keys (see TEX) in a preload step and skip generateTextures().
+ * All art is generated here as named textures. To switch to sprite files later, load images
+ * with the same keys (see TEX) and keep the anchors in ORIGIN / HEIGHT, then skip generateTextures().
+ *
+ * Drawing uses a tiny 3D pen: local grid units (x east, y south, tile = 1) plus z in pixels.
+ * Light comes from the late-afternoon sun in the west: south faces (+y, left on screen) are lit,
+ * east faces (+x, right on screen) are in shade, and shadows fall toward the east.
  */
 import Phaser from 'phaser';
-import { createRng, type BuildingKind, type ServiceKind } from '../core';
-import { CELL } from './layout';
+import { createRng, type BuildingKind, type Feature, type Ground, type NeedKind } from '../core';
+import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
 
 type G = Phaser.GameObjects.Graphics;
-
-/** Building textures are one cell wide and have extra headroom above the cell. */
-export const HEADROOM = 12;
-export const BW = CELL;
-export const BH = CELL + HEADROOM;
+type P3 = [number, number, number?];
 
 export const TEX = {
-  grass: (v: number) => `grass-${v}`,
-  valley: (v: number) => `valley-${v}`,
-  rock: (v: number) => `rock-${v}`,
-  tree: (v: number) => `tree-${v}`,
-  house: (level: number) => `house-${level}`,
+  ground: (g: Ground, v: number) => `ground-${g}-${v}`,
+  road: (mask: number) => `road-${mask}`,
+  feature: (f: Feature, v: number) => `${f}-${v}`,
   building: (kind: BuildingKind, level = 0) => (kind === 'house' ? `house-${level}` : kind),
   wheat: 'wheat',
   flame: 'flame',
   soft: 'soft',
   ring: 'ring',
   balloon: 'balloon',
-  need: (k: ServiceKind) => `need-${k}`,
+  need: (k: NeedKind) => `need-${k}`,
   walker: (v: number) => `walker-${v}`,
-  icon: (name: 'view' | 'clear' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
+  family: 'family',
+  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
 };
-export const GRASS_VARIANTS = 4;
+export const VARIANTS = 4;
 export const WALKER_VARIANTS = 6;
 
-/** Offsets (from a building's bottom-center anchor) used by animations. */
-export const ANCHORS = {
-  chimney: { x: 11.5, y: -52 },
-  altarFire: { x: 0, y: -28 },
-  wheat: [-12, 0, 12].flatMap((x) => [-34, -22, -10].map((y) => ({ x, y }))),
-  balloonY: -38,
+/** Texture origin (anchor = ground point at the footprint center), as Phaser origin fractions. */
+export const ORIGIN: Record<string, [number, number]> = {};
+/** Height in pixels above the ground, for balloons. */
+export const HEIGHT: Record<string, number> = {};
+
+/** Local grid offsets of wheat tufts inside a field, and of animated parts. */
+export const PARTS = {
+  wheat: [-0.27, 0, 0.27].flatMap((x) => [-0.27, 0, 0.27].map((y) => ({ x, y }))),
+  chimney: { x: 0.19, y: -0.23, z: 42 },
+  altarFire: { x: 0, y: 0, z: 22 },
 };
 
-function make(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G) => void, headroom = 0) {
+const SHADOW_K = 0.022;
+const SQRT2 = Math.SQRT2;
+
+class Pen {
+  constructor(readonly g: G, readonly ax: number, readonly ay: number) {}
+
+  p(x: number, y: number, z = 0) {
+    return { x: this.ax + (x - y) * HW, y: this.ay + (x + y) * HH - z };
+  }
+
+  poly(color: number, pts: P3[], alpha = 1) {
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(([x, y, z]) => this.p(x, y, z ?? 0)), true);
+  }
+
+  line(color: number, width: number, a: P3, b: P3, alpha = 1) {
+    const pa = this.p(a[0], a[1], a[2] ?? 0);
+    const pb = this.p(b[0], b[1], b[2] ?? 0);
+    this.g.lineStyle(width, color, alpha);
+    this.g.lineBetween(pa.x, pa.y, pb.x, pb.y);
+  }
+
+  /** Flat quad on the ground (or at height z). */
+  rect(color: number, x0: number, y0: number, x1: number, y1: number, z = 0, alpha = 1) {
+    this.poly(color, [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], alpha);
+  }
+
+  /** Box with a top, a lit south face and a shaded east face. */
+  box(x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, top: number, lit = shade(top, 0.88), dark = shade(top, 0.66)) {
+    this.poly(lit, [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]);
+    this.poly(dark, [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]);
+    this.rect(top, x0, y0, x1, y1, z1);
+  }
+
+  /** Soft shadow of a box of height h, cast toward the east. */
+  shadow(x0: number, y0: number, x1: number, y1: number, h: number, alpha = 0.24) {
+    const d = h * SHADOW_K;
+    for (const [grow, a] of [[0.07, alpha * 0.45], [0, alpha * 0.7]]) {
+      const corners: P3[] = [[x0 - grow, y0 - grow], [x1 + grow, y0 - grow], [x1 + grow, y1 + grow], [x0 - grow, y1 + grow]];
+      const shifted = corners.map(([x, y]) => [x + d, y - d * 0.25] as P3);
+      this.g.fillStyle(C.shadow, a);
+      this.g.fillPoints(hull([...corners, ...shifted].map(([x, y]) => this.p(x, y))), true);
+    }
+  }
+
+  /** Flat circle of radius r (grid units) at height z. */
+  disc(color: number, x: number, y: number, z: number, r: number, alpha = 1) {
+    const c = this.p(x, y, z);
+    this.g.fillStyle(color, alpha);
+    this.g.fillEllipse(c.x, c.y, r * 2 * SQRT2 * HW, r * 2 * SQRT2 * HH);
+  }
+
+  /** Screen-space circle (for foliage, fruit and other round things). */
+  ball(color: number, x: number, y: number, z: number, radiusPx: number, alpha = 1) {
+    const c = this.p(x, y, z);
+    this.g.fillStyle(color, alpha);
+    this.g.fillCircle(c.x, c.y, radiusPx);
+  }
+
+  /** Quad on the south face plane (y = const), e.g. a door or window. */
+  southQuad(color: number, y: number, x0: number, x1: number, z0: number, z1: number) {
+    this.poly(color, [[x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1]]);
+  }
+
+  /** Quad on the east face plane (x = const). */
+  eastQuad(color: number, x: number, y0: number, y1: number, z0: number, z1: number) {
+    this.poly(color, [[x, y0, z0], [x, y1, z0], [x, y1, z1], [x, y0, z1]]);
+  }
+}
+
+function hull(pts: { x: number; y: number }[]) {
+  const s = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (list: typeof s) => {
+    const out: typeof s = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(s), ...half([...s].reverse())];
+}
+
+// ---------- texture factory ----------
+
+const SMALL = { w: 108, h: 128, ax: 40, ay: 96 };
+const LARGE = { w: 264, h: 208, ax: 110, ay: 128 };
+const TILE = { w: TW + 2, h: TH + 2, ax: TW / 2 + 1, ay: TH / 2 + 1 };
+
+function make(scene: Phaser.Scene, key: string, size: { w: number; h: number; ax: number; ay: number }, draw: (p: Pen) => void, height = 0) {
+  ORIGIN[key] = [size.ax / size.w, size.ay / size.h];
+  HEIGHT[key] = height;
   if (scene.textures.exists(key)) return;
   const g = new Phaser.GameObjects.Graphics(scene);
-  g.translateCanvas(0, headroom);
+  draw(new Pen(g, size.ax, size.ay));
+  g.generateTexture(key, size.w, size.h);
+  g.destroy();
+}
+
+function makeFlat(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G) => void) {
+  ORIGIN[key] = [0.5, 0.5];
+  if (scene.textures.exists(key)) return;
+  const g = new Phaser.GameObjects.Graphics(scene);
   draw(g);
   g.generateTexture(key, w, h);
   g.destroy();
 }
 
-// ---------- helpers (coordinates are cell-local: 0..48, headroom above is negative y) ----------
-
-function softShadowBox(g: G, x: number, y: number, w: number, h: number) {
-  for (let k = 2; k >= 0; k--) {
-    g.fillStyle(C.shadow, 0.06 + (2 - k) * 0.04);
-    g.fillRoundedRect(x + 3 - k, y + 3 - k, w + 2 * k, h + 2 * k, 4 + k);
-  }
-}
-
-function softShadowEllipse(g: G, cx: number, cy: number, w: number, h: number) {
-  for (let k = 2; k >= 0; k--) {
-    g.fillStyle(C.shadow, 0.06 + (2 - k) * 0.04);
-    g.fillEllipse(cx, cy, w + k * 4, h + k * 3);
-  }
-}
-
-/** Flat-roofed block: roof seen from above plus the front wall below it. */
-function block(g: G, x: number, y: number, w: number, roofH: number, wallH: number, roof: number, wall: number) {
-  softShadowBox(g, x, y + 2, w, roofH + wallH);
-  g.fillStyle(wall);
-  g.fillRoundedRect(x, y + roofH - 4, w, wallH + 4, 3);
-  g.fillStyle(shade(wall, 0.82));
-  g.fillRect(x + 1, y + roofH + wallH - 2, w - 2, 2);
-  g.fillStyle(roof);
-  g.fillRoundedRect(x, y, w, roofH, 3);
-  g.fillStyle(shade(roof, 1.25));
-  g.fillRect(x + 2, y + 1, w - 4, 2);
-  g.fillStyle(shade(roof, 0.86));
-  g.fillRect(x + 1, y + roofH - 2, w - 2, 2);
-}
-
-/** Inner darker floor that makes the roof edge read as a parapet. */
-function parapet(g: G, x: number, y: number, w: number, h: number, roof: number) {
-  g.fillStyle(shade(roof, 0.92));
-  g.fillRoundedRect(x, y, w, h, 2);
-  g.fillStyle(shade(roof, 0.84));
-  g.fillRect(x, y, w, 1.5);
-}
-
-function archDoor(g: G, x: number, y: number, w: number, h: number, color = C.door) {
-  g.fillStyle(color);
-  g.fillRect(x, y + w / 2, w, h - w / 2);
-  g.fillCircle(x + w / 2, y + w / 2, w / 2);
-}
-
-function windows(g: G, xs: number[], y: number, w = 5, h = 4) {
-  g.fillStyle(C.window);
-  xs.forEach((x) => g.fillRoundedRect(x, y, w, h, 1));
-}
-
-function stoneLines(g: G, x: number, y: number, w: number, h: number, color: number) {
-  g.lineStyle(1, shade(color, 0.85), 0.8);
-  const mid = y + h / 2;
-  g.lineBetween(x + 1, mid, x + w - 1, mid);
-  for (let xx = x + 5; xx < x + w - 2; xx += 9) {
-    g.lineBetween(xx, y + 1, xx, mid);
-    g.lineBetween(xx + 4, mid, xx + 4, y + h - 2);
-  }
-}
-
-function softCircle(g: G, cx: number, cy: number, r: number, color: number, alpha = 1) {
-  for (let k = 5; k >= 1; k--) {
-    g.fillStyle(color, (alpha * (6 - k)) / 15);
-    g.fillCircle(cx, cy, (r * k) / 5);
-  }
-}
+const DIAMOND = 0.515;
 
 // ---------- ground ----------
 
-function grass(g: G, v: number) {
-  const base = C.grass[v];
-  const r = createRng(100 + v);
-  g.fillStyle(base);
-  g.fillRect(0, 0, CELL, CELL);
-  for (let i = 0; i < 4; i++) {
-    g.fillStyle(shade(base, r() < 0.5 ? 0.96 : 1.06), 0.6);
-    g.fillCircle(10 + r() * 28, 10 + r() * 28, 5 + r() * 6);
-  }
-  for (let i = 0; i < 3 + (v % 2); i++) {
-    const x = 6 + r() * 36;
-    const y = 10 + r() * 32;
-    g.lineStyle(1.5, r() < 0.7 ? C.tuft : C.tuftLight, 0.9);
-    g.lineBetween(x, y, x - 2.5, y - 5);
-    g.lineBetween(x, y, x, y - 6);
-    g.lineBetween(x, y, x + 2.5, y - 5);
-  }
-  if (v === 3) {
-    g.fillStyle(0xfdf6e3);
-    g.fillCircle(14, 34, 1.6);
-    g.fillCircle(33, 15, 1.6);
-    g.fillStyle(C.gold);
-    g.fillCircle(36, 38, 1.6);
-  }
-}
-
-function valley(g: G, v: number) {
-  const base = C.valley[v];
-  const r = createRng(200 + v);
-  g.fillStyle(base);
-  g.fillRect(0, 0, CELL, CELL);
-  g.lineStyle(1.5, C.valleyLine, 0.5);
-  for (let y = 8 + v * 4; y < CELL; y += 14) {
-    g.beginPath();
-    g.moveTo(0, y);
-    for (let x = 0; x <= CELL; x += 8) g.lineTo(x, y + Math.sin((x + v * 10) * 0.25) * 2);
-    g.strokePath();
+function groundTile(p: Pen, kind: Ground, v: number) {
+  const r = createRng(300 + v * 7 + kind.length);
+  const base = kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
+  p.rect(base, -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
+  const spot = () => [-0.4 + r() * 0.8, -0.4 + r() * 0.8] as const;
+  if (kind === 'river') {
+    p.rect(C.waterDeep, -0.2, -DIAMOND, 0.2, DIAMOND, 0, 0.35);
+    return;
   }
   for (let i = 0; i < 5; i++) {
-    g.fillStyle(r() < 0.5 ? C.rockLight : C.rock, 0.9);
-    g.fillEllipse(4 + r() * 40, 4 + r() * 40, 3 + r() * 3, 2 + r() * 2);
+    const [x, y] = spot();
+    p.disc(shade(base, r() < 0.5 ? 0.93 : 1.08), x, y, 0, 0.06 + r() * 0.08, 0.7);
+  }
+  if (kind === 'sand') {
+    for (let i = 0; i < 2; i++) {
+      const [x, y] = spot();
+      p.line(shade(base, 1.12), 1.2, [x - 0.12, y], [x + 0.12, y], 0.8);
+    }
+    const [px, py] = spot();
+    p.ball(C.rockLight, px, py, 0, 1.2);
+  } else {
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = spot();
+      const b = p.p(x, y);
+      p.g.lineStyle(1.3, i % 2 ? C.tuft : shade(base, 1.2), 0.9);
+      p.g.lineBetween(b.x, b.y, b.x - 2, b.y - 4);
+      p.g.lineBetween(b.x, b.y, b.x, b.y - 5);
+      p.g.lineBetween(b.x, b.y, b.x + 2, b.y - 4);
+    }
   }
 }
 
-// ---------- terrain objects ----------
-
-function rock(g: G, v: number) {
-  const m = v === 0 ? 1 : -1;
-  const cx = 24;
-  softShadowEllipse(g, cx + 3, 40, 34, 14);
-  g.fillStyle(C.rockDark);
-  g.fillEllipse(cx, 36, 32, 20);
-  g.fillStyle(C.rock);
-  g.fillEllipse(cx - 1 * m, 33, 28, 17);
-  g.fillStyle(C.rockLight);
-  g.fillEllipse(cx - 5 * m, 29, 12, 6);
-  g.fillStyle(C.rockDark);
-  g.fillEllipse(cx + 13 * m, 41, 11, 8);
-  g.fillStyle(C.rock);
-  g.fillEllipse(cx + 13 * m, 39.5, 9, 6);
-  g.lineStyle(1, C.rockDark, 0.7);
-  g.lineBetween(cx + 3 * m, 28, cx + 7 * m, 35);
+/** Dirt road: a center patch plus an arm toward each connected neighbour (N, E, S, W). */
+function road(p: Pen, mask: number) {
+  const w = 0.24;
+  const arms: [number, number, number, number][] = [
+    [-w, -0.5, w, -w], // N (y - 1)
+    [w, -w, 0.5, w], // E (x + 1)
+    [-w, w, w, 0.5], // S (y + 1)
+    [-0.5, -w, -w, w], // W (x - 1)
+  ];
+  const draw = (color: number, grow: number, alpha: number) => {
+    p.rect(color, -w - grow, -w - grow, w + grow, w + grow, 0, alpha);
+    arms.forEach(([x0, y0, x1, y1], k) => {
+      if (!(mask & (1 << k))) return;
+      const gx = k % 2 ? 0 : grow;
+      const gy = k % 2 ? grow : 0;
+      p.rect(color, x0 - gx, y0 - gy, x1 + gx, y1 + gy, 0, alpha);
+    });
+  };
+  draw(C.roadEdge, 0.05, 0.6);
+  draw(C.road, 0, 1);
+  const rut = shade(C.road, 0.85);
+  arms.forEach((_, k) => {
+    if (!(mask & (1 << k))) return;
+    const sign = k === 0 || k === 3 ? -0.5 : 0.5;
+    for (const o of [-0.09, 0.09]) {
+      if (k % 2) p.line(rut, 1, [0, o], [sign, o], 0.8);
+      else p.line(rut, 1, [o, 0], [o, sign], 0.8);
+    }
+  });
+  p.ball(shade(C.road, 1.15), -0.08, 0.1, 0, 1.2);
+  p.ball(shade(C.road, 0.8), 0.1, -0.06, 0, 1);
 }
 
-function tree(g: G, v: number) {
-  const m = v === 0 ? 1 : -1;
-  softShadowEllipse(g, 27, 42, 36, 13);
-  g.fillStyle(C.trunk);
-  g.fillRoundedRect(21, 30, 6, 13, 2);
-  g.fillRoundedRect(23 + 3 * m, 28, 3, 8, 1);
-  const blobs: [number, number, number][] = [
-    [24 - 8 * m, 22, 10],
-    [24 + 7 * m, 20, 11],
-    [24, 12, 11],
-    [24 + 1 * m, 27, 9],
-  ];
-  g.fillStyle(C.oliveDark);
-  blobs.forEach(([x, y, r]) => g.fillCircle(x, y + 2, r));
-  g.fillStyle(C.olive);
-  blobs.forEach(([x, y, r]) => g.fillCircle(x, y, r));
-  g.fillStyle(C.oliveLight);
-  blobs.forEach(([x, y, r]) => g.fillCircle(x - 2, y - 3, r * 0.45));
-  g.fillStyle(0x4b5a33);
-  [[18, 20], [30, 15], [27, 25], [20, 11], [33, 22]].forEach(([x, y]) => g.fillCircle(24 + (x - 24) * m, y, 1.4));
+// ---------- features ----------
+
+function rock(p: Pen, v: number) {
+  const boulders: [number, number, number][] = v % 2 ? [[-0.1, -0.05, 11], [0.17, 0.12, 7]] : [[0.05, 0, 12], [-0.2, 0.15, 6], [0.2, -0.2, 5]];
+  p.shadow(-0.3, -0.25, 0.3, 0.3, 14, 0.2);
+  for (const [x, y, r] of boulders) {
+    const c = p.p(x, y);
+    p.g.fillStyle(C.rockDark);
+    p.g.fillEllipse(c.x, c.y - r * 0.45, r * 2.2, r * 1.5);
+    p.g.fillStyle(C.rock);
+    p.g.fillEllipse(c.x - r * 0.12, c.y - r * 0.7, r * 1.9, r * 1.2);
+    p.g.fillStyle(C.rockLight);
+    p.g.fillEllipse(c.x - r * 0.4, c.y - r * 0.9, r * 0.9, r * 0.5);
+  }
+}
+
+function olive(p: Pen, v: number) {
+  const m = v % 2 ? -1 : 1;
+  p.disc(C.shadow, 0.3, -0.05, 0, 0.32, 0.2);
+  p.disc(C.shadow, 0.18, 0, 0, 0.22, 0.15);
+  const base = p.p(0, 0);
+  p.g.lineStyle(5, C.trunk);
+  p.g.lineBetween(base.x, base.y, base.x + 2 * m, base.y - 12);
+  p.g.lineStyle(3, C.trunk);
+  p.g.lineBetween(base.x + 2 * m, base.y - 10, base.x - 5 * m, base.y - 18);
+  const blobs: [number, number, number][] = [[-8 * m, -22, 9], [7 * m, -24, 10], [0, -31, 10], [0, -19, 8]];
+  for (const [color, dy] of [[C.oliveDark, 2], [C.olive, 0]] as const) {
+    p.g.fillStyle(color);
+    blobs.forEach(([x, y, r]) => p.g.fillCircle(base.x + x, base.y + y + dy, r));
+  }
+  p.g.fillStyle(C.oliveLight);
+  blobs.forEach(([x, y, r]) => p.g.fillCircle(base.x + x - 3, base.y + y - 3, r * 0.45));
+  p.g.fillStyle(0x4b5a33);
+  [[-6, -24], [5, -28], [2, -18], [-2, -34], [9, -21]].forEach(([x, y]) => p.g.fillCircle(base.x + x * m, base.y + y, 1.3));
+}
+
+function palm(p: Pen, v: number) {
+  const m = v % 2 ? -1 : 1;
+  const height = 46 + (v % 3) * 4;
+  const lean = 7 * m;
+  p.disc(C.shadow, 0.55, -0.15, 0, 0.3, 0.18);
+  p.line(C.shadow, 3, [0, 0], [0.5, -0.12], 0.15);
+  const base = p.p(0, 0);
+  const at = (t: number) => ({ x: base.x + lean * t * t, y: base.y - height * t });
+  for (let i = 0; i < 8; i++) {
+    const a = at(i / 8);
+    const b = at((i + 1) / 8);
+    p.g.lineStyle(5 - i * 0.25, i % 2 ? C.palmTrunk : shade(C.palmTrunk, 0.82));
+    p.g.lineBetween(a.x, a.y, b.x, b.y);
+  }
+  const top = at(1);
+  const leaves = 8;
+  for (const pass of [0, 1]) {
+    for (let k = 0; k < leaves; k++) {
+      const ang = (k / leaves) * Math.PI * 2 + v;
+      const dx = Math.cos(ang) * 20;
+      const dy = Math.sin(ang) * 9;
+      const back = dy < 0;
+      if ((pass === 0) !== back) continue;
+      const tip = { x: top.x + dx, y: top.y + dy + 9 };
+      const mid = { x: top.x + dx * 0.55, y: top.y + dy * 0.55 - 4 };
+      const nx = -dy * 0.18;
+      const ny = dx * 0.12;
+      p.g.fillStyle(back ? C.palmDark : C.palm);
+      p.g.fillTriangle(top.x, top.y, mid.x + nx, mid.y + ny, tip.x, tip.y);
+      p.g.fillTriangle(top.x, top.y, mid.x - nx, mid.y - ny, tip.x, tip.y);
+    }
+  }
+  p.g.fillStyle(0x7a4f2a);
+  [[-2, 3], [2, 4], [0, 2]].forEach(([x, y]) => p.g.fillCircle(top.x + x, top.y + y, 2.2));
 }
 
 // ---------- houses ----------
 
-function plot(g: G) {
-  g.fillStyle(0xc8ab7c, 0.85);
-  g.fillRoundedRect(8, 10, 32, 30, 4);
-  g.lineStyle(1.5, C.rope, 1);
-  for (let x = 8; x < 40; x += 6) {
-    g.lineBetween(x, 9, x + 3, 9);
-    g.lineBetween(x, 41, x + 3, 41);
+function plot(p: Pen) {
+  p.rect(0xcfa874, -0.38, -0.38, 0.38, 0.38, 0, 0.9);
+  const corners: P3[] = [[-0.38, -0.38], [0.38, -0.38], [0.38, 0.38], [-0.38, 0.38]];
+  corners.forEach((c, k) => p.line(C.rope, 1.2, [c[0], c[1], 3], [corners[(k + 1) % 4][0], corners[(k + 1) % 4][1], 3]));
+  corners.forEach(([x, y]) => p.box(x - 0.03, y - 0.03, x + 0.03, y + 0.03, 0, 6, C.wood));
+  p.box(0.08, 0.08, 0.28, 0.2, 0, 4, C.mud);
+  p.box(0.12, 0.1, 0.24, 0.18, 4, 7, shade(C.mud, 1.08));
+}
+
+function tent(p: Pen) {
+  const h = 20;
+  p.shadow(-0.36, -0.32, 0.36, 0.32, h * 0.7);
+  const corners: P3[] = [[-0.36, -0.32], [0.36, -0.32], [0.36, 0.32], [-0.36, 0.32]];
+  corners.forEach(([x, y]) => p.line(C.rope, 1, [x * 0.7, y, h * 0.5], [x * 1.25, y * 1.3, 0]));
+  p.poly(shade(C.fabric, 1.1), [[-0.36, -0.32, 0], [-0.36, 0.32, 0], [0, 0.32, h], [0, -0.32, h]]);
+  p.poly(shade(C.fabric, 0.72), [[0, -0.32, h], [0, 0.32, h], [0.36, 0.32, 0], [0.36, -0.32, 0]]);
+  for (const t of [0.33, 0.66]) {
+    p.line(shade(C.fabric, 0.85), 2, [-0.36 * (1 - t), -0.32, h * t], [-0.36 * (1 - t), 0.32, h * t], 0.6);
+    p.line(shade(C.fabric, 0.55), 2, [0.36 * (1 - t), -0.32, h * t], [0.36 * (1 - t), 0.32, h * t], 0.6);
   }
-  for (let y = 9; y < 41; y += 6) {
-    g.lineBetween(7, y, 7, y + 3);
-    g.lineBetween(41, y, 41, y + 3);
+  p.poly(shade(C.fabric, 0.9), [[-0.36, 0.32, 0], [0.36, 0.32, 0], [0, 0.32, h]]);
+  p.poly(C.door, [[-0.1, 0.32, 0], [0.1, 0.32, 0], [0, 0.32, h * 0.62]]);
+  p.line(C.woodDark, 2, [0, -0.32, h], [0, 0.32, h]);
+}
+
+/** Flat-roofed house body with a parapet and a door on the lit side. */
+function house(p: Pen, s: number, h: number, color: number) {
+  p.shadow(-s, -s, s, s, h);
+  p.box(-s, -s, s, s, 0, h, shade(color, 1.08), color, shade(color, 0.68));
+  const i = 0.06;
+  p.rect(shade(color, 0.96), -s + i, -s + i, s - i, s - i, h);
+  p.poly(shade(color, 0.85), [[-s + i, -s + i, h], [s - i, -s + i, h], [s - i, -s + i, h - 2], [-s + i, -s + i, h - 2]]);
+  p.southQuad(C.door, s, -0.08, 0.08, 0, Math.min(14, h * 0.55));
+}
+
+function windows(p: Pen, s: number, z: number) {
+  p.southQuad(C.door, s, -0.28 * s * 2.6, -0.18 * s * 2.6, z, z + 5);
+  p.eastQuad(shade(C.door, 0.8), s, -0.1, 0.06, z, z + 5);
+}
+
+function mudHouse(p: Pen) {
+  const s = 0.33;
+  house(p, s, 22, C.mud);
+  windows(p, s, 11);
+  for (const x of [-0.24, -0.08, 0.08, 0.24]) p.southQuad(C.woodDark, s + 0.001, x, x + 0.04, 18, 20);
+  p.rect(shade(C.mud, 0.8), -0.25, -0.25, -0.08, -0.08, 22);
+  p.rect(C.red, -0.02, 0.05, 0.22, 0.2, 22, 0.85);
+  p.disc(C.terracotta, 0.17, -0.17, 22, 0.07);
+  p.ball(C.terracotta, 0.17, -0.17, 26, 3.2);
+}
+
+function stoneHouse(p: Pen) {
+  const s = 0.38;
+  house(p, s, 28, C.stone);
+  windows(p, s, 15);
+  for (const z of [9, 19]) {
+    p.line(shade(C.stone, 0.8), 1, [-s, s, z], [s, s, z], 0.6);
+    p.line(shade(C.stone, 0.55), 1, [s, -s, z], [s, s, z], 0.6);
   }
-  g.fillStyle(C.woodDark);
-  [[6, 7], [40, 7], [6, 39], [40, 39]].forEach(([x, y]) => g.fillRect(x, y, 3, 4));
-  g.fillStyle(C.rockLight);
-  g.fillCircle(33, 34, 2.5);
-  g.fillCircle(29, 35, 2);
-  g.fillStyle(C.rock);
-  g.fillCircle(31, 31.5, 2);
+  p.box(-0.26, -0.26, -0.14, -0.14, 28, 32, C.terracotta);
+  p.ball(C.leaf, -0.2, -0.2, 37, 5);
+  p.ball(shade(C.leaf, 1.25), -0.22, -0.22, 39, 2);
+  p.rect(shade(C.stone, 0.75), 0.08, -0.26, 0.24, -0.1, 28);
 }
 
-function tent(g: G) {
-  softShadowEllipse(g, 26, 34, 42, 20);
-  g.lineStyle(1, C.rope, 1);
-  g.lineBetween(8, 13, 3, 8);
-  g.lineBetween(40, 13, 45, 8);
-  g.lineBetween(8, 37, 3, 42);
-  g.lineBetween(40, 37, 45, 42);
-  g.fillStyle(C.woodDark);
-  [[2, 7], [44, 7], [2, 41], [44, 41]].forEach(([x, y]) => g.fillCircle(x, y, 1.5));
-  g.fillStyle(C.fabric);
-  g.fillRoundedRect(8, 12, 32, 14, { tl: 4, tr: 4, bl: 0, br: 0 });
-  g.fillStyle(C.fabricDark);
-  g.fillRoundedRect(8, 25, 32, 13, { tl: 0, tr: 0, bl: 3, br: 3 });
-  g.fillStyle(shade(C.fabricDark, 0.85), 0.5);
-  for (let x = 12; x < 40; x += 8) g.fillRect(x, 12, 3, 26);
-  g.lineStyle(2, C.woodDark, 1);
-  g.lineBetween(8, 25, 40, 25);
-  g.fillStyle(0x5c3f28);
-  g.fillTriangle(19, 38, 29, 38, 24, 28);
-  g.fillStyle(C.woodDark);
-  g.fillCircle(8, 25, 2);
-  g.fillCircle(40, 25, 2);
-}
-
-function mudHouse(g: G) {
-  block(g, 7, 10, 34, 22, 12, C.mudRoof, C.mudWall);
-  g.fillStyle(shade(C.mudRoof, 0.82));
-  g.fillRect(12, 14, 7, 6);
-  g.fillStyle(C.red, 0.85);
-  g.fillRoundedRect(21, 17, 11, 6, 1);
-  g.fillStyle(C.terracotta);
-  g.fillCircle(35, 15, 3);
-  g.fillStyle(shade(C.terracotta, 0.7));
-  g.fillCircle(35, 15, 1.2);
-  g.fillStyle(C.woodDark);
-  [10, 17, 30, 37].forEach((x) => g.fillRect(x, 32, 2, 2));
-  archDoor(g, 20, 34, 8, 10);
-  windows(g, [11, 32], 36);
-}
-
-function stoneHouse(g: G) {
-  block(g, 5, 6, 38, 24, 14, C.stoneRoof, C.stoneWall);
-  parapet(g, 8, 9, 32, 18, C.stoneRoof);
-  stoneLines(g, 6, 30, 36, 13, C.stoneWall);
-  g.fillStyle(C.terracotta);
-  g.fillRoundedRect(11, 14, 6, 5, 1);
-  g.fillStyle(C.leaf);
-  g.fillCircle(14, 13, 3.5);
-  g.fillStyle(shade(C.stoneRoof, 0.78));
-  g.fillRect(29, 15, 7, 7);
-  g.lineStyle(1, C.woodDark, 1);
-  g.lineBetween(30, 15, 30, 22);
-  g.lineBetween(35, 15, 35, 22);
-  archDoor(g, 20, 32, 8, 12);
-  windows(g, [10, 33], 34);
-}
-
-function bigHouse(g: G) {
-  block(g, 2, 0, 44, 30, 16, C.bigRoof, C.bigWall);
-  parapet(g, 5, 3, 38, 24, C.bigRoof);
-  g.fillStyle(0xcdb68b);
-  g.fillRoundedRect(14, 8, 18, 14, 2);
-  g.fillStyle(C.shadow, 0.15);
-  g.fillRect(14, 8, 18, 3);
-  softCircle(g, 24, 16, 6, C.shadow, 0.5);
-  g.fillStyle(C.leaf);
-  g.fillCircle(23, 14, 4.5);
-  g.fillStyle(shade(C.leaf, 1.2));
-  g.fillCircle(22, 12.5, 2);
-  for (let i = 0; i < 4; i++) {
-    g.fillStyle(i % 2 ? C.cream : C.red);
-    g.fillRect(35 + i * 2, 5, 2, 10);
+function bigHouse(p: Pen) {
+  const s = 0.43;
+  house(p, s, 26, C.limestone);
+  windows(p, s, 14);
+  // Upper room on the back half.
+  p.box(-0.38, -0.38, 0.06, -0.02, 26, 40, shade(C.limestone, 1.05), shade(C.limestone, 0.9), shade(C.limestone, 0.66));
+  p.southQuad(C.door, -0.02, -0.26, -0.12, 26, 35);
+  // Striped awning with posts.
+  for (const [x, y] of [[0.36, -0.36], [0.36, 0.04]] as const) p.line(C.woodDark, 1.5, [x, y, 26], [x, y, 36]);
+  const stripes = 5;
+  for (let k = 0; k < stripes; k++) {
+    const y0 = -0.38 + (k * 0.44) / stripes;
+    const y1 = y0 + 0.44 / stripes;
+    p.poly(k % 2 ? C.cream : C.red, [[0.12, y0, 39], [0.4, y0, 35], [0.4, y1, 35], [0.12, y1, 39]]);
   }
-  g.fillStyle(C.terracotta);
-  g.fillCircle(9, 9, 2.5);
-  g.fillCircle(9, 15, 2.5);
-  stoneLines(g, 3, 31, 42, 14, C.bigWall);
-  archDoor(g, 20, 32, 9, 13);
-  windows(g, [6, 13, 32, 39], 34, 4, 5);
+  // Rooftop plants and jars.
+  p.disc(C.terracotta, -0.3, 0.3, 26, 0.06);
+  p.ball(C.leaf, -0.3, 0.3, 31, 5);
+  p.ball(shade(C.leaf, 1.3), -0.32, 0.28, 33, 2);
+  p.ball(C.terracotta, 0.1, 0.32, 29, 3);
+  p.ball(C.terracotta, 0.2, 0.32, 29, 3);
+  p.ball(C.leaf, -0.3, -0.3, 45, 4);
 }
 
 // ---------- other buildings ----------
 
-function field(g: G) {
-  softShadowBox(g, 3, 3, 42, 42);
-  g.fillStyle(C.soil);
-  g.fillRoundedRect(3, 3, 42, 42, 5);
-  g.fillStyle(shade(C.soil, 1.15));
-  g.fillRect(5, 4, 38, 2);
-  g.lineStyle(2, C.soilDark, 0.8);
-  for (let y = 10; y < 44; y += 6) g.lineBetween(6, y, 42, y);
+function field(p: Pen) {
+  p.rect(C.soilDark, -0.46, -0.46, 0.46, 0.46);
+  p.rect(C.soil, -0.43, -0.43, 0.43, 0.43);
+  for (let x = -0.36; x < 0.4; x += 0.12) p.line(C.soilDark, 1.5, [x, -0.42], [x, 0.42], 0.8);
 }
 
 function wheat(g: G) {
@@ -331,101 +405,161 @@ function wheat(g: G) {
   tips.forEach(([x, y]) => g.fillEllipse(x - 0.6, y - 1, 1.2, 3.5));
 }
 
-function well(g: G) {
-  softShadowEllipse(g, 27, 36, 38, 18);
-  g.fillStyle(shade(C.rock, 0.85));
-  g.fillEllipse(24, 37, 32, 18);
-  g.fillRect(8, 28, 32, 9);
-  g.lineStyle(1, C.rockDark, 0.8);
-  [13, 19, 26, 33].forEach((x) => g.lineBetween(x, 31, x, 42));
-  g.fillStyle(C.rockLight);
-  g.fillEllipse(24, 28, 32, 18);
-  g.fillStyle(0x3f86b8);
-  g.fillEllipse(24, 28, 21, 11);
-  g.fillStyle(C.water);
-  g.fillEllipse(24, 29, 19, 9);
-  g.fillStyle(C.waterLight, 0.9);
-  g.fillEllipse(20, 27.5, 7, 2.5);
-  g.fillStyle(C.woodDark);
-  g.fillRect(6, 12, 3, 20);
-  g.fillRect(39, 12, 3, 20);
-  g.fillStyle(C.wood);
-  g.fillRoundedRect(4, 9, 40, 4, 1);
-  g.lineStyle(1, C.rope, 1);
-  g.lineBetween(24, 13, 24, 21);
-  g.fillStyle(C.wood);
-  g.fillRect(21, 21, 6, 5);
-  g.fillStyle(C.woodDark);
-  g.fillRect(21, 21, 6, 1.5);
+function well(p: Pen) {
+  const r = 0.27;
+  const h = 10;
+  p.shadow(-0.25, -0.25, 0.25, 0.25, 22, 0.2);
+  const top = p.p(0, 0, h);
+  const bottom = p.p(0, 0, 0);
+  const w = r * 2 * SQRT2 * HW;
+  const eh = r * 2 * SQRT2 * HH;
+  p.g.fillStyle(shade(C.stone, 0.6));
+  p.g.fillEllipse(bottom.x, bottom.y, w, eh);
+  p.g.fillRect(bottom.x, top.y, w / 2, bottom.y - top.y);
+  p.g.fillStyle(shade(C.stone, 0.85));
+  p.g.fillRect(bottom.x - w / 2, top.y, w / 2, bottom.y - top.y);
+  p.g.fillEllipse(bottom.x - w / 4, bottom.y, w / 2, eh * 0.9);
+  p.g.fillStyle(C.stone);
+  p.g.fillEllipse(top.x, top.y, w, eh);
+  p.g.fillStyle(C.waterDeep);
+  p.g.fillEllipse(top.x, top.y + 1, w * 0.66, eh * 0.62);
+  p.g.fillStyle(C.waterLight, 0.8);
+  p.g.fillEllipse(top.x - 4, top.y, w * 0.2, eh * 0.18);
+  for (const [x, y] of [[-0.22, 0.22], [0.22, -0.22]] as const) p.box(x - 0.03, y - 0.03, x + 0.03, y + 0.03, 0, 28, C.wood);
+  p.line(C.woodDark, 3, [-0.24, 0.24, 28], [0.24, -0.24, 28]);
+  p.line(C.rope, 1, [0, 0, 27], [0, 0, 16]);
+  p.box(-0.04, -0.04, 0.04, 0.04, 12, 17, C.wood);
 }
 
-function market(g: G) {
-  softShadowBox(g, 4, 4, 40, 34);
-  g.fillStyle(C.wood);
-  g.fillRoundedRect(6, 22, 36, 14, 2);
-  g.lineStyle(1, C.woodDark, 0.9);
-  for (let x = 12; x < 42; x += 6) g.lineBetween(x, 27, x, 35);
-  g.fillStyle(C.woodDark);
-  g.fillRect(6, 34, 36, 2);
-  g.fillStyle(C.red);
-  g.fillRoundedRect(4, 2, 40, 23, 3);
-  g.fillStyle(C.cream);
-  for (let x = 9; x < 42; x += 10) g.fillRect(x, 2, 5, 23);
-  for (let i = 0; i < 8; i++) {
-    g.fillStyle(i % 2 ? C.cream : C.red);
-    g.fillCircle(6.5 + i * 5, 25, 2.6);
+function market(p: Pen) {
+  p.shadow(-0.42, -0.42, 0.42, 0.25, 30, 0.2);
+  const posts: [number, number][] = [[-0.38, -0.38], [0.38, -0.38], [-0.38, 0.18], [0.38, 0.18]];
+  const post = ([x, y]: [number, number]) => p.box(x - 0.025, y - 0.025, x + 0.025, y + 0.025, 0, 30, C.wood);
+  posts.slice(0, 2).forEach(post);
+  p.box(-0.34, -0.3, 0.34, 0.12, 0, 11, C.wood);
+  [[-0.2, 0xe8742c], [0, 0x8fae4a], [0.2, 0x8a4f8f]].forEach(([x, color]) => {
+    p.ball(color, x, -0.05, 13, 2.5);
+    p.ball(color, x + 0.06, -0.1, 13, 2.5);
+  });
+  posts.slice(2).forEach(post);
+  const stripes = 6;
+  for (let k = 0; k < stripes; k++) {
+    const x0 = -0.44 + (k * 0.88) / stripes;
+    const x1 = x0 + 0.88 / stripes;
+    p.poly(k % 2 ? C.cream : C.red, [[x0, -0.44, 34], [x1, -0.44, 34], [x1, 0.24, 28], [x0, 0.24, 28]]);
+    p.poly(shade(k % 2 ? C.cream : C.red, 0.85), [[x0, 0.24, 28], [x1, 0.24, 28], [x1, 0.24, 24], [x0, 0.24, 24]]);
   }
-  g.fillStyle(shade(C.cream, 1.2), 0.5);
-  g.fillRect(5, 3, 38, 2);
-  const baskets: [number, number, number][] = [[12, 41, 0xe8742c], [24, 42, 0x8fae4a], [36, 41, 0x8a4f8f]];
-  baskets.forEach(([x, y, fruit]) => {
-    g.fillStyle(C.shadow, 0.18);
-    g.fillEllipse(x + 1.5, y + 2, 11, 6);
-    g.fillStyle(C.woodDark);
-    g.fillEllipse(x, y, 10, 7);
-    g.fillStyle(fruit);
-    g.fillCircle(x - 2, y - 1, 2);
-    g.fillCircle(x + 2, y - 1, 2);
-    g.fillCircle(x, y - 2.5, 2);
+  [[-0.2, 0.36, 0xe8742c], [0.1, 0.38, 0x8fae4a]].forEach(([x, y, fruit]) => {
+    p.disc(C.woodDark, x, y, 0, 0.09);
+    p.box(x - 0.07, y - 0.07, x + 0.07, y + 0.07, 0, 5, C.wood);
+    p.ball(fruit, x, y, 7, 2.2);
+    p.ball(fruit, x + 0.04, y + 0.03, 7, 2.2);
   });
 }
 
-function workshop(g: G) {
-  block(g, 4, 6, 40, 24, 14, 0xc49a6a, 0xa07a50);
-  g.lineStyle(1, shade(0xc49a6a, 0.85), 0.9);
-  for (let y = 12; y < 28; y += 5) g.lineBetween(7, y, 26, y);
-  g.fillStyle(C.woodDark);
-  [[9, 20], [13, 20], [17, 20], [11, 16.5], [15, 16.5]].forEach(([x, y]) => g.fillCircle(x, y, 2.2));
-  g.fillStyle(C.wood);
-  [[9, 20], [13, 20], [17, 20], [11, 16.5], [15, 16.5]].forEach(([x, y]) => g.fillCircle(x, y, 1.2));
-  g.fillStyle(C.rockDark);
-  g.fillRoundedRect(31, -4, 9, 14, 1);
-  g.fillStyle(C.rock);
-  g.fillRect(31, -4, 9, 3);
-  g.fillStyle(0x3a2c20);
-  g.fillRect(33, -3.5, 5, 2);
-  g.fillStyle(0x3a2c20);
-  g.fillRoundedRect(16, 32, 16, 12, { tl: 3, tr: 3, bl: 0, br: 0 });
-  softCircle(g, 24, 41, 5, 0xf08a32, 0.9);
-  g.lineStyle(1.5, C.woodDark, 1);
-  g.strokeCircle(10, 38, 4);
-  g.lineBetween(10, 34, 10, 42);
-  g.lineBetween(6, 38, 14, 38);
+function workshop(p: Pen) {
+  const s = 0.38;
+  p.shadow(-s, -s, s, s, 30);
+  p.box(-s, -s, s, s, 0, 24, 0xc9a06c, 0xb88752, 0x8d6539);
+  for (let y = -0.3; y < 0.35; y += 0.12) p.line(shade(0xc9a06c, 0.85), 1, [-0.34, y, 24], [0.34, y, 24], 0.8);
+  const { x, y } = PARTS.chimney;
+  p.box(x - 0.07, y - 0.07, x + 0.07, y + 0.07, 24, 40, C.rock, shade(C.rock, 0.9), C.rockDark);
+  p.rect(0x3a2c20, x - 0.04, y - 0.04, x + 0.04, y + 0.04, 40);
+  p.southQuad(0x3a2c20, s, -0.16, 0.16, 0, 14);
+  const glow = p.p(0, s, 4);
+  for (let k = 3; k >= 1; k--) {
+    p.g.fillStyle(0xf08a32, 0.25 * (4 - k));
+    p.g.fillCircle(glow.x, glow.y, k * 2.5);
+  }
+  for (const [lx, ly, lz] of [[0.42, -0.2, 3], [0.42, -0.06, 3], [0.42, -0.13, 9]] as const) {
+    const c = p.p(lx, ly, lz);
+    p.g.fillStyle(C.woodDark);
+    p.g.fillCircle(c.x, c.y, 3.5);
+    p.g.fillStyle(C.wood);
+    p.g.fillCircle(c.x, c.y, 2);
+  }
 }
 
-function altar(g: G) {
-  block(g, 5, 12, 38, 22, 10, C.stoneRoof, C.stoneWall);
-  stoneLines(g, 6, 34, 36, 9, C.stoneWall);
-  g.fillStyle(shade(C.stoneWall, 0.9));
-  g.fillRect(11, 26, 26, 6);
-  g.fillStyle(shade(C.stoneRoof, 1.1));
-  g.fillRoundedRect(11, 8, 26, 19, 2);
-  g.fillStyle(shade(C.stoneRoof, 0.95));
-  [[10, 7], [34, 7], [10, 23], [34, 23]].forEach(([x, y]) => g.fillRoundedRect(x, y, 4, 4, 1));
-  g.fillStyle(0x4a3a2a);
-  g.fillEllipse(24, 18, 15, 9);
-  g.fillStyle(0xe8742c);
-  [[21, 19], [26, 18], [24, 20]].forEach(([x, y]) => g.fillCircle(x, y, 1.6));
+function altar(p: Pen) {
+  p.rect(shade(C.stone, 0.9), -0.5, -0.5, 0.5, 0.5);
+  for (let k = -0.25; k <= 0.25; k += 0.25) {
+    p.line(shade(C.stone, 0.75), 1, [k, -0.5], [k, 0.5], 0.6);
+    p.line(shade(C.stone, 0.75), 1, [-0.5, k], [0.5, k], 0.6);
+  }
+  p.shadow(-0.36, -0.36, 0.36, 0.36, 22);
+  p.box(-0.36, -0.36, 0.36, 0.36, 0, 8, C.limestone);
+  p.box(-0.26, -0.26, 0.26, 0.26, 8, 20, C.stone);
+  for (const [x, y] of [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]] as const) {
+    p.box(x - 0.04, y - 0.04, x + 0.04, y + 0.04, 20, 26, shade(C.stone, 1.05));
+  }
+  p.disc(0x4a3a2a, 0, 0, 20, 0.15);
+  p.ball(0xe8742c, -0.05, 0.03, 21, 1.6);
+  p.ball(0xe8742c, 0.06, -0.02, 21, 1.6);
+}
+
+/** The temple (3x3): platform, thick walls, inner columns, a tall sanctuary with a columned porch. */
+function temple(p: Pen) {
+  const top = 10;
+  p.shadow(-0.9, -1.3, 0.9, 0.2, 64, 0.22);
+  p.shadow(-1.45, -1.45, 1.45, 1.45, 16, 0.2);
+  p.box(-1.45, -1.45, 1.45, 1.15, 0, top, C.limestone, shade(C.limestone, 0.88), shade(C.limestone, 0.66));
+  // Courtyard paving.
+  for (let k = -1.1; k < 1.1; k += 0.3) {
+    p.line(shade(C.limestone, 0.86), 1, [k, -1.3, top], [k, 1.0, top], 0.6);
+    p.line(shade(C.limestone, 0.86), 1, [-1.3, k, top], [1.3, k, top], 0.6);
+  }
+  // Front stairs (bottom step first so upper steps sit on it).
+  for (let k = 2; k >= 0; k--) p.box(-0.5, 1.15, 0.5, 1.15 + (k + 1) * 0.1, 0, top - k * 3.3, shade(C.limestone, 1.02));
+
+  const parts: { key: number; draw: () => void }[] = [];
+  const add = (gx: number, gy: number, draw: () => void) => parts.push({ key: gx + gy, draw });
+  const wallH = top + 14;
+  const wall = (x0: number, y0: number, x1: number, y1: number) =>
+    add((x0 + x1) / 2, (y0 + y1) / 2, () => {
+      p.box(x0, y0, x1, y1, top, wallH, C.stone);
+      p.rect(shade(C.stone, 1.12), x0, y0, x1, y1, wallH);
+    });
+  wall(-1.42, -1.42, 1.42, -1.28); // back
+  wall(-1.42, -1.28, -1.28, 1.12); // west
+  wall(1.28, -1.28, 1.42, 1.12); // east
+  wall(-1.42, 0.98, -0.42, 1.12); // front left
+  wall(0.42, 0.98, 1.42, 1.12); // front right
+  for (const [x, y] of [[-1.42, -1.42], [1.24, -1.42], [-1.42, 0.94], [1.24, 0.94]] as const) {
+    add(x + 0.09, y + 0.09, () => {
+      p.box(x, y, x + 0.18, y + 0.18, top, wallH + 10, C.limestone);
+      p.rect(C.gold, x + 0.03, y + 0.03, x + 0.15, y + 0.15, wallH + 10);
+    });
+  }
+  const column = (x: number, y: number, h: number) =>
+    add(x, y, () => {
+      p.box(x - 0.05, y - 0.05, x + 0.05, y + 0.05, top, top + h, 0xfbf6ea, 0xf0e6d2, 0xc9bb9c);
+      p.box(x - 0.08, y - 0.08, x + 0.08, y + 0.08, top + h, top + h + 3, C.limestone);
+    });
+  for (const y of [-0.8, -0.3, 0.2, 0.7]) {
+    column(-1.1, y, 22);
+    column(1.1, y, 22);
+  }
+  // Sanctuary with a gold-trimmed roof and a columned porch.
+  add(0, -0.5, () => {
+    const h = top + 52;
+    p.box(-0.62, -1.15, 0.62, -0.05, top, h, C.limestone, shade(C.limestone, 0.9), shade(C.limestone, 0.66));
+    p.box(-0.66, -1.19, 0.66, -0.01, h, h + 3, C.gold, shade(C.gold, 0.9), shade(C.gold, 0.7));
+    p.rect(shade(C.limestone, 0.95), -0.56, -1.09, 0.56, -0.11, h + 3);
+    p.southQuad(shade(C.gold, 0.8), -0.05, -0.16, 0.16, top, top + 30);
+    p.southQuad(C.door, -0.05, -0.12, 0.12, top, top + 26);
+    p.box(-0.62, -0.05, 0.62, 0.35, top, top + 2, shade(C.limestone, 1.04));
+    for (const [x, y] of [[-0.56, -1.13], [0.5, -1.13], [-0.56, -0.13], [0.5, -0.13]] as const) {
+      p.box(x, y, x + 0.06, y + 0.06, h + 3, h + 9, C.gold);
+    }
+  });
+  for (const x of [-0.5, -0.17, 0.17, 0.5]) column(x, 0.28, 40);
+  add(0, 0.28, () => p.box(-0.6, 0.2, 0.6, 0.36, top + 43, top + 48, C.limestone));
+  // Bronze basin in the courtyard.
+  add(0.75, 0.55, () => {
+    p.box(0.65, 0.45, 0.85, 0.65, top, top + 7, 0xb8803e, 0xa86f32, 0x7f5224);
+    p.rect(C.waterDeep, 0.69, 0.49, 0.81, 0.61, top + 7);
+  });
+  parts.sort((a, b) => a.key - b.key).forEach((part) => part.draw());
 }
 
 // ---------- effects and UI ----------
@@ -451,18 +585,24 @@ function balloon(g: G) {
   g.strokeCircle(13, 12, 11);
 }
 
-function needIcon(g: G, k: ServiceKind) {
-  if (k === 'well') {
+function needIcon(g: G, k: NeedKind) {
+  if (k === 'road') {
+    g.fillStyle(C.road);
+    g.fillPoints([{ x: 8, y: 4 }, { x: 16, y: 9 }, { x: 8, y: 14 }, { x: 0, y: 9 }], true);
+    g.lineStyle(2.5, C.need.road);
+    g.lineBetween(3, 4, 13, 15);
+    g.lineBetween(13, 4, 3, 15);
+  } else if (k === 'well') {
     g.fillStyle(C.need.well);
-    g.fillCircle(8, 10, 5);
-    g.fillTriangle(3.3, 8.5, 12.7, 8.5, 8, 1);
+    g.fillCircle(8, 11, 5);
+    g.fillTriangle(3.3, 9.5, 12.7, 9.5, 8, 2);
     g.fillStyle(0xffffff, 0.8);
-    g.fillCircle(6.3, 10, 1.4);
+    g.fillCircle(6.3, 11, 1.4);
   } else if (k === 'market') {
     g.fillStyle(C.cream);
-    g.fillRoundedRect(1, 2, 14, 12, 2);
+    g.fillRoundedRect(1, 3, 14, 12, 2);
     g.fillStyle(C.need.market);
-    [1.5, 6.5, 11.5].forEach((x) => g.fillRect(x, 2, 3, 12));
+    [1.5, 6.5, 11.5].forEach((x) => g.fillRect(x, 3, 3, 12));
   } else {
     flame(g);
   }
@@ -470,30 +610,38 @@ function needIcon(g: G, k: ServiceKind) {
 
 function walker(g: G, v: number) {
   const cloth = C.clothes[v];
-  const skin = C.skin[v % C.skin.length];
   g.fillStyle(C.shadow, 0.25);
-  g.fillEllipse(6, 18.5, 10, 4);
-  g.fillStyle(cloth);
-  g.fillRoundedRect(2, 7, 8, 11, 3);
-  g.fillStyle(shade(cloth, 0.8));
-  g.fillRect(2, 12, 8, 1.5);
-  g.fillStyle(skin);
-  g.fillCircle(6, 5, 3.6);
-  if (v % 2 === 0) {
-    g.fillStyle(shade(cloth, 1.35));
-    g.fillEllipse(6, 3, 8, 4.5);
-  } else {
-    g.fillStyle(0x4a3523);
-    g.fillEllipse(6, 2.6, 6.5, 3);
-  }
+  g.fillEllipse(8, 19.5, 9, 3.5);
+  figure(g, 6, 20, cloth, C.skin[v % C.skin.length], v % 2 === 0);
 }
 
-function icon(scene: Phaser.Scene, name: Parameters<typeof TEX.icon>[0], draw: (g: G) => void) {
-  make(scene, TEX.icon(name), 40, 40, draw);
+function figure(g: G, x: number, bottom: number, cloth: number, skin: number, scarf: boolean, scale = 1) {
+  const s = scale;
+  g.fillStyle(cloth);
+  g.fillRoundedRect(x - 4 * s, bottom - 12 * s, 8 * s, 11 * s, 3 * s);
+  g.fillStyle(shade(cloth, 0.75));
+  g.fillRect(x - 4 * s, bottom - 7 * s, 8 * s, 1.5 * s);
+  g.fillStyle(skin);
+  g.fillCircle(x, bottom - 15 * s, 3.6 * s);
+  g.fillStyle(scarf ? shade(cloth, 1.35) : 0x4a3523);
+  g.fillEllipse(x, bottom - 17 * s, 7 * s, 3.5 * s);
+}
+
+function family(g: G) {
+  g.fillStyle(C.shadow, 0.25);
+  g.fillEllipse(16, 21, 28, 4);
+  figure(g, 6, 21, C.clothes[1], C.skin[1], false);
+  figure(g, 15, 21, C.clothes[0], C.skin[0], true);
+  figure(g, 23, 21, C.clothes[2], C.skin[2], true, 0.7);
+  g.fillStyle(C.fabric);
+  g.fillCircle(15, 3, 3.5);
+  g.lineStyle(1, shade(C.fabric, 0.7));
+  g.strokeCircle(15, 3, 3.5);
 }
 
 function icons(scene: Phaser.Scene) {
-  icon(scene, 'view', (g) => {
+  const icon = (name: Parameters<typeof TEX.icon>[0], draw: (g: G) => void) => makeFlat(scene, TEX.icon(name), 40, 40, draw);
+  icon('view', (g) => {
     g.lineStyle(5, C.woodDark, 1);
     g.lineBetween(25, 25, 35, 35);
     g.fillStyle(0xd9eef7);
@@ -503,7 +651,7 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(0xffffff, 0.8);
     g.fillCircle(13, 13, 3);
   });
-  icon(scene, 'clear', (g) => {
+  icon('clear', (g) => {
     g.lineStyle(4, C.wood, 1);
     g.lineBetween(10, 34, 28, 10);
     g.fillStyle(C.rockLight);
@@ -511,7 +659,15 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(C.rockDark);
     g.fillTriangle(26, 12, 36, 10, 30, 20);
   });
-  icon(scene, 'silver', (g) => {
+  icon('road', (g) => {
+    g.fillStyle(C.sand[0]);
+    g.fillPoints([{ x: 20, y: 8 }, { x: 38, y: 20 }, { x: 20, y: 32 }, { x: 2, y: 20 }], true);
+    g.fillStyle(C.road);
+    g.fillPoints([{ x: 26, y: 12 }, { x: 32, y: 16 }, { x: 14, y: 28 }, { x: 8, y: 24 }], true);
+    g.lineStyle(1, shade(C.road, 0.8));
+    g.lineBetween(28, 14, 11, 26);
+  });
+  icon('silver', (g) => {
     g.fillStyle(0x8f949b);
     g.fillCircle(20, 21, 14);
     g.fillStyle(0xd3d7dc);
@@ -521,7 +677,7 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(0xffffff, 0.8);
     g.fillEllipse(15, 13, 6, 3);
   });
-  icon(scene, 'food', (g) => {
+  icon('food', (g) => {
     g.fillStyle(shade(0xd8a35a, 0.75));
     g.fillEllipse(20, 24, 32, 18);
     g.fillStyle(0xd8a35a);
@@ -529,17 +685,11 @@ function icons(scene: Phaser.Scene) {
     g.lineStyle(2, shade(0xd8a35a, 0.7), 1);
     [12, 20, 28].forEach((x) => g.lineBetween(x - 2, 16, x + 2, 25));
   });
-  icon(scene, 'people', (g) => {
-    const person = (x: number, cloth: number) => {
-      g.fillStyle(cloth);
-      g.fillRoundedRect(x - 7, 18, 14, 18, 5);
-      g.fillStyle(C.skin[0]);
-      g.fillCircle(x, 12, 6);
-    };
-    person(27, C.clothes[1]);
-    person(14, C.clothes[0]);
+  icon('people', (g) => {
+    figure(g, 26, 36, C.clothes[1], C.skin[0], false, 1.6);
+    figure(g, 14, 36, C.clothes[0], C.skin[1], true, 1.6);
   });
-  icon(scene, 'work', (g) => {
+  icon('work', (g) => {
     g.lineStyle(5, C.wood, 1);
     g.lineBetween(12, 34, 26, 14);
     g.fillStyle(C.rockDark);
@@ -547,7 +697,7 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(C.rockLight);
     g.fillRect(17, 5, 20, 3);
   });
-  icon(scene, 'month', (g) => {
+  icon('month', (g) => {
     g.fillStyle(C.cream);
     g.fillRoundedRect(6, 8, 28, 26, 4);
     g.fillStyle(C.red);
@@ -557,7 +707,7 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(C.ink);
     [[12, 22], [20, 22], [28, 22], [12, 28], [20, 28]].forEach(([x, y]) => g.fillRect(x - 1.5, y - 1.5, 3, 3));
   });
-  icon(scene, 'goal', (g) => {
+  icon('goal', (g) => {
     g.lineStyle(3, C.woodDark, 1);
     g.lineBetween(10, 6, 10, 36);
     g.fillStyle(C.red);
@@ -566,32 +716,58 @@ function icons(scene: Phaser.Scene) {
 }
 
 export function generateTextures(scene: Phaser.Scene): void {
-  for (let v = 0; v < GRASS_VARIANTS; v++) make(scene, TEX.grass(v), CELL, CELL, (g) => grass(g, v));
-  for (let v = 0; v < 2; v++) {
-    make(scene, TEX.valley(v), CELL, CELL, (g) => valley(g, v));
-    make(scene, TEX.rock(v), BW, BH, (g) => rock(g, v), HEADROOM);
-    make(scene, TEX.tree(v), BW, BH, (g) => tree(g, v), HEADROOM);
+  for (let v = 0; v < VARIANTS; v++) {
+    for (const g of ['sand', 'grass', 'river'] as Ground[]) make(scene, TEX.ground(g, v), TILE, (p) => groundTile(p, g, v));
+    make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
+    make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
+    make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
   }
-  [plot, tent, mudHouse, stoneHouse, bigHouse].forEach((draw, level) => make(scene, TEX.house(level), BW, BH, draw, HEADROOM));
-  const buildings: [BuildingKind, (g: G) => void][] = [
-    ['field', field],
-    ['well', well],
-    ['market', market],
-    ['workshop', workshop],
-    ['altar', altar],
+  for (let mask = 0; mask < 16; mask++) make(scene, TEX.road(mask), TILE, (p) => road(p, mask));
+  const houses: [(p: Pen) => void, number][] = [[plot, 6], [tent, 22], [mudHouse, 26], [stoneHouse, 40], [bigHouse, 46]];
+  houses.forEach(([draw, h], level) => make(scene, TEX.building('house', level), SMALL, draw, h));
+  const buildings: [BuildingKind, (p: Pen) => void, number][] = [
+    ['field', field, 14],
+    ['well', well, 30],
+    ['market', market, 34],
+    ['workshop', workshop, 42],
+    ['altar', altar, 28],
   ];
-  buildings.forEach(([kind, draw]) => make(scene, TEX.building(kind), BW, BH, draw, HEADROOM));
-  make(scene, TEX.wheat, 14, 19, wheat);
-  make(scene, TEX.flame, 16, 22, flame);
-  make(scene, TEX.soft, 32, 32, (g) => softCircle(g, 16, 16, 16, 0xffffff));
-  make(scene, TEX.ring, 64, 64, (g) => {
+  buildings.forEach(([kind, draw, h]) => make(scene, TEX.building(kind), SMALL, draw, h));
+  make(scene, TEX.building('temple'), LARGE, temple, 80);
+
+  ORIGIN[TEX.wheat] = [0.5, 1];
+  ORIGIN[TEX.flame] = [0.5, 1];
+  ORIGIN[TEX.walker(0)] = [0.5, 1];
+  const raw = (key: string, w: number, h: number, draw: (g: G) => void) => {
+    if (scene.textures.exists(key)) return;
+    const g = new Phaser.GameObjects.Graphics(scene);
+    draw(g);
+    g.generateTexture(key, w, h);
+    g.destroy();
+  };
+  raw(TEX.wheat, 14, 19, wheat);
+  raw(TEX.flame, 16, 22, flame);
+  raw(TEX.soft, 32, 32, (g) => {
+    for (let k = 5; k >= 1; k--) {
+      g.fillStyle(0xffffff, (6 - k) / 15);
+      g.fillCircle(16, 16, (16 * k) / 5);
+    }
+  });
+  raw(TEX.ring, 64, 64, (g) => {
     g.lineStyle(6, 0xffffff, 0.35);
     g.strokeCircle(32, 32, 27);
     g.lineStyle(3, 0xffffff, 1);
     g.strokeCircle(32, 32, 27);
   });
-  make(scene, TEX.balloon, 28, 28, balloon);
-  (['well', 'market', 'altar'] as ServiceKind[]).forEach((k) => make(scene, TEX.need(k), 16, 22, (g) => needIcon(g, k)));
-  for (let v = 0; v < WALKER_VARIANTS; v++) make(scene, TEX.walker(v), 12, 21, (g) => walker(g, v));
+  raw(TEX.balloon, 28, 28, balloon);
+  (['road', 'well', 'market', 'sacred'] as NeedKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  for (let v = 0; v < WALKER_VARIANTS; v++) raw(TEX.walker(v), 16, 22, (g) => walker(g, v));
+  raw(TEX.family, 30, 23, family);
   icons(scene);
+}
+
+/** Applies a texture and its ground anchor to an image. */
+export function setTex(img: Phaser.GameObjects.Image, key: string): Phaser.GameObjects.Image {
+  const [ox, oy] = ORIGIN[key] ?? [0.5, 0.5];
+  return img.setTexture(key).setOrigin(ox, oy);
 }

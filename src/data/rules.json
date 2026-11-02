@@ -1,20 +1,25 @@
 {
-  "startSilver": 150,
+  "startSilver": 200,
   "startFood": 30,
-  "startUnlocked": ["house", "field", "well"],
+  "startUnlocked": ["road", "house", "field", "well"],
   "monthSeconds": 1.2,
   "workerShare": 0.5,
   "foodPerResident": 0.2,
-  "tentChance": 0.35,
+  "familyChance": 0.35,
+  "familyCellsPerMonth": 3,
   "monthsToChange": 3,
   "famineDropChance": 0.12,
   "treeClearCost": 5,
+  "roadCost": 2,
   "map": {
-    "cols": 20,
-    "rows": 11,
-    "rocks": 10,
-    "trees": 18,
-    "freeArea": { "x0": 6, "x1": 12, "y0": 3, "y1": 7 },
-    "valley": { "partialRows": [3, 7] }
+    "cols": 32,
+    "rows": 32,
+    "altar": { "x": 16, "y": 16 },
+    "clearRadius": 7,
+    "rocks": 45,
+    "olives": 45,
+    "palms": 40,
+    "grassShare": 0.45,
+    "river": { "minWidth": 2, "maxWidth": 3 }
   }
 }

@@ -1,10 +1,9 @@
-import { BUILDINGS, type BuildingKind } from '../core';
-import { T } from './strings';
+import { BUILDINGS, type Placeable } from '../core';
 
-export type Tool = 'view' | BuildingKind | 'clear';
+export type Tool = 'view' | Placeable | 'clear';
 
-export const TOOLS: Tool[] = ['view', 'house', 'field', 'well', 'market', 'workshop', 'altar', 'clear'];
-export const DRAG_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['house', 'field', 'clear']);
+export const TOOLS: Tool[] = ['view', 'road', 'house', 'field', 'well', 'market', 'workshop', 'temple', 'clear'];
+export const DRAG_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['road', 'house', 'field', 'clear']);
 
-export const isBuildTool = (t: Tool): t is BuildingKind => t !== 'view' && t !== 'clear';
-export const toolName = (t: Tool) => (t === 'view' ? T.view : t === 'clear' ? T.clear : BUILDINGS[t].name);
+export const isPlaceTool = (t: Tool): t is Placeable => t !== 'view' && t !== 'clear';
+export const toolName = (t: Tool) => ({ view: 'Ver', road: 'Rua', clear: 'Limpar' } as Record<string, string>)[t] ?? BUILDINGS[t as keyof typeof BUILDINGS].name;

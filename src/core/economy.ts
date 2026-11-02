@@ -13,6 +13,7 @@ export interface Economy {
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Disconnected workplaces neither produce nor offer jobs. Houses always count residents and taxes. */
 export function computeEconomy(s: GameState): Economy {
   let residents = 0;
   let taxes = 0;
@@ -20,15 +21,16 @@ export function computeEconomy(s: GameState): Economy {
   let foodProd = 0;
   let silverProd = 0;
   for (const b of s.buildings) {
-    if (!b) continue;
+    if (b.kind === 'house') {
+      residents += HOUSE_LEVELS[b.level].residents;
+      taxes += HOUSE_LEVELS[b.level].tax;
+      continue;
+    }
+    if (!b.connected) continue;
     const def = BUILDINGS[b.kind];
     jobs += def.jobs;
     foodProd += def.food ?? 0;
     silverProd += def.silver ?? 0;
-    if (b.kind === 'house') {
-      residents += HOUSE_LEVELS[b.level].residents;
-      taxes += HOUSE_LEVELS[b.level].tax;
-    }
   }
   const workers = Math.floor(residents * RULES.workerShare);
   const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
