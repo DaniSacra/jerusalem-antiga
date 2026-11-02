@@ -53,8 +53,6 @@ Leia docs/TESTING.md e use os cenários existentes: `npm run test:visual -- town
 (cidade completa com todos os prédios) e `npm run test:visual -- camera-wheel`
 (zoom máximo e mínimo); as capturas ficam em screenshots/.
 
-Quando `npm test`, `npx tsc --noEmit` e `npm run test:visual` passarem e as
-capturas estiverem boas, faça commit só dos arquivos que você alterou (mensagem
-em inglês, terminando com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`)
-e dê `git push origin main`.
-Se alguma verificação falhar, não faça commit; relate o problema.
+Nunca faça commit nem push. Ao terminar, deixe as alterações no working tree
+e relate o que mudou; só o agente principal faz commit e push, e apenas quando
+o usuário mandar.

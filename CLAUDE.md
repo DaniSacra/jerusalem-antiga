@@ -4,9 +4,10 @@ Isometric city builder for phone (landscape) and PC. Phaser 3 + TypeScript + Vit
 
 ## Read first
 - `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
+- `docs/design.md` — game direction: current state, decisions and next candidates (game-director).
 - `docs/TESTING.md` — unit tests, visual tests, dev hooks and how to add scenarios.
 
-Keep both up to date: any change to a rule, number, control or test scenario must update the
+Keep these docs up to date: any change to a rule, number, control or test scenario must update the
 matching doc in the same change.
 
 ## Commands
@@ -14,6 +15,20 @@ matching doc in the same change.
 - `npm test` — unit tests for `src/core`
 - `npm run test:visual` — Playwright scenarios with screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
+
+## Git
+- Only the main agent commits or pushes, and only when the user explicitly asks.
+  Subagents never commit or push; they leave changes in the working tree.
+
+## Agents
+Defined in `.claude/agents/`. None of them commit or push (see Git).
+- `sprite-artist` — creates and improves the code-drawn art in `src/render`.
+- `game-director` — guards the game vision and pillars; scopes each feature package and decides
+  which recommendations go in. Keeps `docs/design.md` up to date.
+- `playtester` — finds bugs, confusion, bad controls and broken pacing (sim + Playwright).
+  Reports only, fixes nothing.
+- `fun-critic` — plays as the target audience (ages 12–17) and rates fun, challenge and
+  pacing; suggests improvements and `src/data` balance tweaks. Does not hunt bugs or implement.
 
 ## Definition of done
 `npm test`, `npx tsc --noEmit` and `npm run test:visual` pass, and the screenshots affected by
