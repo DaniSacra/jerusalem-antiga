@@ -3,7 +3,7 @@ import { costOf, unlockingGoal, type GameState } from '../core';
 import { GAME_W, INFO_H, INFO_Y, TOOL_H, TOOL_Y } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
-import { ORIGIN, TEX } from './textures';
+import { ORIGIN, TEX, wheatImages } from './textures';
 import { isPlaceTool, TOOLS, toolName, type Tool } from './tools';
 import { text } from './ui';
 import type { Segment } from './info';
@@ -11,6 +11,8 @@ import type { Segment } from './info';
 const BTN_GAP = 6;
 const BTN_W = Math.floor((GAME_W - 24 - (TOOLS.length - 1) * BTN_GAP) / TOOLS.length);
 const BTN_H = TOOL_H - 10;
+const ICON_W = 84;
+const ICON_H = 40;
 
 interface ToolButton {
   tool: Tool;
@@ -19,12 +21,16 @@ interface ToolButton {
   cost: Phaser.GameObjects.Text;
 }
 
-function toolIcon(scene: Phaser.Scene, tool: Tool): Phaser.GameObjects.Image {
+function toolIcon(scene: Phaser.Scene, tool: Tool): Phaser.GameObjects.GameObject {
   if (tool === 'view' || tool === 'clear' || tool === 'road') return scene.add.image(0, -BTN_H / 2 + 24, TEX.icon(tool)).setScale(0.85);
-  const key = TEX.building(tool, tool === 'house' ? 2 : 0);
-  const [ox, oy] = ORIGIN[key];
-  const scale = tool === 'temple' ? 0.24 : 0.62;
-  return scene.add.image(0, -BTN_H / 2 + (tool === 'temple' ? 36 : 38), key).setOrigin(ox, oy).setScale(scale);
+  // Building textures come at their real footprint size: shrink each to fit the icon area.
+  const key = TEX.building(tool, tool === 'house' ? 3 : 0);
+  const img = scene.add.image(0, -4, key).setOrigin(0.5, 1);
+  const k = Math.min(ICON_W / img.width, ICON_H / img.height);
+  img.setScale(k);
+  if (tool !== 'field') return img;
+  const [, oy] = ORIGIN[key];
+  return scene.add.container(0, 0, [img, ...wheatImages(scene, 0, -4 - img.height * (1 - oy) * k, k)]);
 }
 
 /** Bottom tool bar plus the info line above it. */

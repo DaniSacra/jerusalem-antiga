@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   advanceClock,
+  canRotate,
   clearCell,
   computeEconomy,
   createGame,
@@ -21,7 +22,7 @@ import { CameraRig } from '../render/CameraRig';
 import { Effects } from '../render/Effects';
 import { SPEEDS, type Speed } from '../render/Hud';
 import { describeCell, hintSegments } from '../render/info';
-import { footCenter, worldToCell } from '../render/iso';
+import { footCenter, getRotation, gridToWorld, setRotation, worldToCell, worldToGrid } from '../render/iso';
 import { INFO_Y, TOP_H, isOverUi } from '../render/layout';
 import { MapView, originFor } from '../render/MapView';
 import { C, CSS } from '../render/palette';
@@ -73,6 +74,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private ui: UIScene | null = null;
 
   private tool: Tool = 'view';
+  /** Non-square buildings (the market) are placed rotated; kept between placements. */
+  private rotated = false;
   private speedIndex = 0;
   private clock = 0;
   private hover: Cell | null = null;
@@ -96,21 +99,26 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.state = createGame(this.rng);
     this.eco = computeEconomy(this.state);
     this.tool = 'view';
+    this.rotated = false;
     this.speedIndex = 0;
     this.clock = 0;
     this.ui = null;
 
+    setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
     this.map = new MapView(this, this.state);
     this.walkers = new Walkers(this);
     this.fx = new Effects(this);
     this.rig = new CameraRig(this.cameras.main);
-    const altar = footCenter(this.state.altar.x, this.state.altar.y);
+    const a = this.state.buildings.find((b) => b.kind === 'altar')!;
+    const altar = footCenter(a.x, a.y, a.w, a.h);
     this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, (TOP_H + INFO_Y) / 2);
 
     this.setupInput();
     this.scene.launch('ui', { host: this });
-    if (import.meta.env.DEV) import('../core').then((core) => Object.assign(window, { game: this, state: this.state, core }));
+    if (import.meta.env.DEV) {
+      Promise.all([import('../core'), import('../render/iso')]).then(([core, iso]) => Object.assign(window, { game: this, state: this.state, core, iso }));
+    }
   }
 
   attachUi(ui: UIScene) {
@@ -133,7 +141,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private refresh() {
     this.eco = computeEconomy(this.state);
     this.map.sync(this.state);
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
     this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
   }
@@ -170,6 +178,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   selectTool(tool: Tool) {
     if (this.ui?.modalOpen) return;
+    if (tool === this.tool && isPlaceTool(tool) && tool !== 'road' && canRotate(tool)) {
+      this.rotate();
+      return;
+    }
     if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
       this.ui?.setInfo(hintSegments(T.lockedHint(tool)));
       return;
@@ -178,6 +190,29 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.selected = null;
     this.ui?.setInfo(hintSegments(toolHint(tool)));
     if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.setInfo([{ text: T.noTempleSpot, color: CSS.badLight }]);
+    this.refresh();
+  }
+
+  /** Turns the footprint of the current tool (only non-square buildings). */
+  rotate() {
+    if (!isPlaceTool(this.tool) || this.tool === 'road' || !canRotate(this.tool)) return;
+    this.rotated = !this.rotated;
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
+  }
+
+  /** Turns the view a quarter turn (1 = clockwise, -1 = counterclockwise), keeping the same spot centered. */
+  turnMap(dir: 1 | -1) {
+    if (this.ui?.modalOpen) return;
+    const cam = this.cameras.main;
+    const sx = cam.width / 2;
+    const sy = (TOP_H + INFO_Y) / 2;
+    const w = this.rig.toWorld(sx, sy);
+    const g = worldToGrid(w.x, w.y);
+    setRotation(getRotation() + dir);
+    this.map.destroy();
+    this.map = new MapView(this, this.state);
+    const n = gridToWorld(g.x, g.y);
+    this.rig.centerAt(n.x, n.y, sx, sy);
     this.refresh();
   }
 
@@ -197,7 +232,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private setHover(cell: Cell | null) {
     if (sameCell(cell, this.hover) || (!cell && !this.hover)) return;
     this.hover = cell;
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected);
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
   }
 
   private setupInput() {
@@ -214,11 +249,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const digits = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
     TOOLS.forEach((t, k) => keys?.on(`keydown-${digits[k]}`, () => this.selectTool(t)));
     keys?.on('keydown-SPACE', () => this.cycleSpeed());
+    keys?.on('keydown-R', () => this.rotate());
+    keys?.on('keydown-Q', () => this.turnMap(-1));
+    keys?.on('keydown-E', () => this.turnMap(1));
     keys?.on('keydown-ESC', () => this.selectTool('view'));
   }
 
   private onDown(p: Phaser.Input.Pointer) {
-    if (this.ui?.modalOpen || isOverUi(p.y)) return;
+    if (this.ui?.modalOpen || isOverUi(p.x, p.y)) return;
     if (p.rightButtonDown() || p.middleButtonDown()) {
       this.rightPan = { id: p.id, x: p.x, y: p.y };
       return;
@@ -270,7 +308,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
     const g = this.gesture;
     if (!g || g.id !== p.id || !p.isDown) {
-      if (!p.isDown && !p.wasTouch) this.setHover(isOverUi(p.y) ? null : this.cellAt(p.x, p.y));
+      if (!p.isDown && !p.wasTouch) this.setHover(isOverUi(p.x, p.y) ? null : this.cellAt(p.x, p.y));
       return;
     }
     if (g.cancelled) return;
@@ -329,15 +367,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private apply(cell: Cell, first: boolean) {
     if (this.tool === 'view') return;
     const s = this.state;
-    const o = originFor(this.tool, cell);
-    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y) : clearCell(s, o.x, o.y);
+    const o = originFor(this.tool, cell, this.rotated);
+    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated) : clearCell(s, o.x, o.y);
     if (r.ok) {
       if (this.tool === 'road') {
         if (this.gesture) this.gesture.roads.push(o);
         else this.warnLooseRoads([o]); // a tap ends the gesture before placing
       }
       const b = s.grid[indexOf(s, o.x, o.y)];
-      const c = b ? footCenter(b.x, b.y, b.size) : footCenter(o.x, o.y);
+      const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
       if (this.tool === 'clear') this.fx.dust(c.x, c.y);
       else if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
       else this.fx.ring(c.x, c.y);

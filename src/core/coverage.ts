@@ -17,7 +17,7 @@ export function serviceCoverage(s: GameState, service: ServiceKind): boolean[] {
   const covered = new Array<boolean>(s.cols * s.rows).fill(false);
   for (const b of s.buildings) {
     if (!b.connected || !SERVICE_SOURCES[service].includes(b.kind)) continue;
-    for (const c of cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.size)) covered[c] = true;
+    for (const c of cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.w, b.h)) covered[c] = true;
   }
   return covered;
 }

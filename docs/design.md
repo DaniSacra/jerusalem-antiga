@@ -9,20 +9,29 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 4. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a mecânica.
 5. Uma mecânica nova por vez, sempre liberada por meta.
 
-## Estado atual (após o pacote "Equilíbrio e clareza", 2026-11-02)
-- Começa com o altar no centro (a "prefeitura") e uma rua até a entrada
-  da cidade na borda sul
+## Estado atual (após o pacote "Mapa maior e construções grandes", 2026-11-02)
+- Mapa 48 x 48. Altar 4 x 4 fixo no centro (canto em 22,22) e uma rua inicial
+  na coluna 24 até a entrada da cidade na borda sul (24,47)
+- Tamanhos: rua 1 x 1, casa 2 x 2, poço 2 x 2, campo 2 x 2, mercado 2 x 4
+  (gira para 4 x 2 antes de construir: botão ou tecla R), oficina 3 x 3,
+  altar 4 x 4, templo 6 x 6
+- A visão do mapa gira 90° (setas ↺ ↻ no canto superior direito, Q e E no PC);
+  só a visão gira, as regras não mudam
+- Raios quadrados medidos da borda da construção: poço 4, mercado 5, altar 3,
+  templo 12. A casa é atendida se qualquer uma das suas 4 células estiver no raio
+- Terreno: área livre de raio 9 em volta do altar, 50 rochas, 60 oliveiras,
+  50 palmeiras, rio de 3 a 4 células na borda leste
+- Famílias andam 4 células por mês
 - Ruas obrigatórias: toda construção precisa encostar numa rua ligada ao
   altar; moradores e famílias novas andam só pelas ruas
 - Casas evoluem: tenda (rua), barro (+ poço), pedra (+ mercado),
   casa grande (+ raio do altar ou do templo)
-- Altar com raio 3 (casa grande vira escolha de lugar); templo com raio 9
 - Categorias: casas = moradia, mercado = comércio, oficina = indústria,
   campo = comida
 - Comida e trabalhadores (40% dos moradores) são o equilíbrio da cidade;
   campo e mercado têm 3 vagas, oficina 3
 - As 3 primeiras casas ligadas à rua recebem família com certeza; depois, 35% por mês
-- Templo 3 x 3 custa 800 e é a meta final
+- Templo 6 x 6 custa 800 e é a meta final
 - 8 metas em sequência; metas liberam construções:
   1. 6 casas ligadas à rua (tenda ou melhor): +20
   2. 20 moradores: +30, libera Mercado
@@ -41,6 +50,28 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   dos lugares onde ele cabe
 
 ## Decisões
+- 2026-11-02 — Pacote "Mapa maior e construções grandes" (decisão do usuário):
+  mapa 32 → 48, construções com tamanhos próprios, mercado girável, depois a
+  arte é redesenhada nos tamanhos novos. Motivo: mais variedade visual e
+  construções que parecem grandes (pilar 2). Não é mecânica nova; girar o
+  mercado é só interface.
+- 2026-11-02 — Raios pelo alcance do centro × ~1,5 (a borda maior já alcança
+  mais): poço 3 → 4, mercado 4 → 5, altar fica 3, templo 9 → 12. Altar não
+  sobe para casa grande continuar sendo escolha de lugar (pilar 3).
+- 2026-11-02 — Casa atendida se qualquer célula dela estiver no raio. Motivo:
+  com 2 x 2, olhar só o canto faria o mesmo lugar funcionar de um lado do poço
+  e não do outro (pilar 1).
+- 2026-11-02 — Rochas sobem pouco (45 → 50) e árvores 85 → 110, densidade
+  menor que antes. Motivo: com templo 6 x 6, a densidade antiga deixava quase
+  nenhum lugar livre.
+- 2026-11-02 — Campo volta de 3 x 3 para 2 x 2 (pedido do usuário): 3 x 3
+  ficou grande demais na tela.
+- 2026-11-02 — familyCellsPerMonth 3 → 4. Motivo: rua inicial 15 → 22 células;
+  família não pode demorar mais de ~6 meses para chegar.
+- 2026-11-02 — Custos, vagas, produção, moradores, impostos e metas não mudam:
+  cada construção continua valendo uma unidade e o mapa cabe as casas das
+  metas com folga. Rua por casa fica mais cara (frente de 2 células), o que
+  ajuda contra a prata sobrando. O fun-critic remede depois.
 - 2026-11-02 — Pacote "Equilíbrio e clareza" sem mecânica nova. Motivo:
   fun-critic mostrou jogo curto (~30 meses), metas 3–5 juntas, prata sobrando,
   trabalho sempre 100% e templo sem lugar em 5/5 partidas apressadas.

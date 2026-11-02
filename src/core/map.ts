@@ -1,4 +1,4 @@
-import { RULES } from './data';
+import { dimsOf, RULES } from './data';
 import { shuffle } from './rng';
 import type { Cell, Feature, Ground, Rng } from './types';
 
@@ -12,14 +12,22 @@ export function riverWidth(y: number): number {
 
 export const isRiver = (x: number, y: number) => x >= cols - riverWidth(y);
 
+const ALTAR = dimsOf('altar');
+/** Column of the starting road: below the middle of the altar's south side. */
+export const ROAD_X = altar.x + Math.floor(ALTAR.w / 2);
+const ROAD_Y0 = altar.y + ALTAR.h;
+
 /** The starting road runs straight south from the altar to the map edge. */
-export const startRoad = (): Cell[] => Array.from({ length: rows - 1 - altar.y }, (_, k) => ({ x: altar.x, y: altar.y + 1 + k }));
-export const entranceCell = (): Cell => ({ x: altar.x, y: rows - 1 });
+export const startRoad = (): Cell[] => Array.from({ length: rows - ROAD_Y0 }, (_, k) => ({ x: ROAD_X, y: ROAD_Y0 + k }));
+export const entranceCell = (): Cell => ({ x: ROAD_X, y: rows - 1 });
+
+/** Chebyshev distance from a cell to the altar footprint (0 inside it). */
+const altarDistance = (x: number, y: number) =>
+  Math.max(altar.x - x, x - (altar.x + ALTAR.w - 1), altar.y - y, y - (altar.y + ALTAR.h - 1), 0);
 
 /** Cells kept free of rocks and trees: around the altar and along the starting road. */
 export function isReserved(x: number, y: number): boolean {
-  const nearAltar = Math.max(Math.abs(x - altar.x), Math.abs(y - altar.y)) <= clearRadius;
-  return nearAltar || (x === altar.x && y > altar.y);
+  return altarDistance(x, y) <= clearRadius || (x === ROAD_X && y >= ROAD_Y0);
 }
 
 export interface Terrain {

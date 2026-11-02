@@ -15,10 +15,14 @@ import {
   type Cell,
   type GameState,
   type BalloonKind,
+  canRotate,
+  dimsOf,
+  type Dims,
+  type Rect,
 } from '../core';
 import { C, shade } from './palette';
-import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, gridToWorld, rectCorners } from './iso';
-import { HEIGHT, PARTS, TEX, VARIANTS, setTex } from './textures';
+import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
+import { HEIGHT, PARTS, TEX, VARIANTS, setTex, wheatImages } from './textures';
 import { isPlaceTool, type Tool } from './tools';
 
 interface BuildingView {
@@ -41,12 +45,21 @@ interface Balloon {
 
 const local = (x: number, y: number, z = 0) => ({ x: (x - y) * HW, y: (x + y) * HH - z });
 
+/** Footprint of a tool (1x1 for Ver and Limpar). */
+export const toolDims = (kind: Tool, rotated = false): Dims => (isPlaceTool(kind) ? placeSize(kind, rotated) : { w: 1, h: 1 });
+
 /** Origin (top-left) of a footprint centered on the hovered cell. */
-export function originFor(kind: Tool, cell: Cell): Cell {
-  const size = isPlaceTool(kind) ? placeSize(kind) : 1;
-  const off = Math.floor((size - 1) / 2);
-  return { x: cell.x - off, y: cell.y - off };
+export function originFor(kind: Tool, cell: Cell, rotated = false): Cell {
+  const { w, h } = toolDims(kind, rotated);
+  return { x: cell.x - Math.floor((w - 1) / 2), y: cell.y - Math.floor((h - 1) / 2) };
 }
+
+/** Texture of a building; non-square footprints lying the other way on screen have their own drawing. */
+const keyOf = (b: Rect & { kind: BuildingKind; level?: number }) =>
+  TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w);
+
+/** Road texture for a cell, with its junctions turned to the current view. */
+const roadKey = (s: GameState, x: number, y: number) => TEX.road(viewMask(roadMask(s, x, y)));
 
 export class MapView {
   private features = new Map<number, { key: string; img: Phaser.GameObjects.Image }>();
@@ -59,6 +72,8 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
+  /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
+  private ground: Phaser.GameObjects.GameObject[] = [];
 
   constructor(private scene: Phaser.Scene, state: GameState) {
     this.drawGround(state);
@@ -71,29 +86,34 @@ export class MapView {
 
   private drawGround(s: GameState) {
     const sc = this.scene;
-    // Diorama sides along the two front edges.
+    // Diorama sides along the two front edges of the view.
     const sides = sc.add.graphics().setDepth(DEPTH.ground);
+    this.ground.push(sides);
     const depth = 26;
+    const groundAtView = (vx: number, vy: number) => {
+      const g = fromView(vx + 0.5, vy + 0.5);
+      return s.ground[indexOf(s, Math.floor(g.x), Math.floor(g.y))];
+    };
+    const W = viewToWorld;
     for (let k = 0; k < COLS; k++) {
-      const south = s.ground[indexOf(s, k, ROWS - 1)] === 'river' ? C.waterDeep : C.earthLit;
-      sides.fillStyle(south);
-      sides.fillPoints([gridToWorld(k, ROWS), gridToWorld(k + 1, ROWS), gridToWorld(k + 1, ROWS, -depth), gridToWorld(k, ROWS, -depth)], true);
+      sides.fillStyle(groundAtView(k, ROWS - 1) === 'river' ? C.waterDeep : C.earthLit);
+      sides.fillPoints([W(k, ROWS), W(k + 1, ROWS), W(k + 1, ROWS, -depth), W(k, ROWS, -depth)], true);
     }
     for (let k = 0; k < ROWS; k++) {
-      const east = s.ground[indexOf(s, COLS - 1, k)] === 'river' ? shade(C.waterDeep, 0.8) : C.earthDark;
-      sides.fillStyle(east);
-      sides.fillPoints([gridToWorld(COLS, k), gridToWorld(COLS, k + 1), gridToWorld(COLS, k + 1, -depth), gridToWorld(COLS, k, -depth)], true);
+      sides.fillStyle(groundAtView(COLS - 1, k) === 'river' ? shade(C.waterDeep, 0.8) : C.earthDark);
+      sides.fillPoints([W(COLS, k), W(COLS, k + 1), W(COLS, k + 1, -depth), W(COLS, k, -depth)], true);
     }
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         const g = s.ground[indexOf(s, x, y)];
         if (g === 'river') this.riverCells.push({ x, y });
         const c = footCenter(x, y);
-        sc.add.image(c.x, c.y, TEX.ground(g, cellHash(x, y) % VARIANTS)).setDepth(DEPTH.ground);
+        this.ground.push(sc.add.image(c.x, c.y, TEX.ground(g, cellHash(x, y) % VARIANTS)).setDepth(DEPTH.ground));
       }
     }
     // Light sandy bank where land meets the river.
     const bank = sc.add.graphics().setDepth(DEPTH.ground);
+    this.ground.push(bank);
     for (const { x, y } of this.riverCells) {
       if (x > 0 && s.ground[indexOf(s, x - 1, y)] !== 'river') {
         const a = gridToWorld(x, y);
@@ -102,6 +122,16 @@ export class MapView {
         bank.lineBetween(a.x, a.y, b.x, b.y);
       }
     }
+  }
+
+  /** Removes everything this view drew (used to rebuild it after turning the map). */
+  destroy() {
+    for (const o of this.ground) o.destroy();
+    for (const f of this.features.values()) f.img.destroy();
+    for (const r of this.roads.values()) r.destroy();
+    for (const v of this.views.values()) this.destroyView(v);
+    for (const b of this.balloons.values()) b.root.destroy();
+    [this.water, this.looseRoads, this.overlay, this.preview].forEach((o) => o.destroy());
   }
 
   // ---------- sync with the simulation ----------
@@ -150,7 +180,7 @@ export class MapView {
       this.roads.delete(i);
       return;
     }
-    const key = TEX.road(roadMask(s, x, y));
+    const key = roadKey(s, x, y);
     const alpha = s.network[i] ? 1 : 0.45;
     if (cur) {
       if (cur.texture.key !== key) cur.setTexture(key);
@@ -195,29 +225,27 @@ export class MapView {
       v = this.createView(b);
       this.views.set(b.id, v);
     }
-    const key = TEX.building(b.kind, b.level);
+    const key = keyOf(b);
     if (v.main.texture.key !== key) setTex(v.main, key);
   }
 
   private createView(b: Building): BuildingView {
     const sc = this.scene;
-    const c = footCenter(b.x, b.y, b.size);
-    const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.size / 2, b.y + b.size / 2));
-    const key = TEX.building(b.kind, b.level);
+    const c = footCenter(b.x, b.y, b.w, b.h);
+    const key = keyOf(b);
+    const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.w / 2, b.y + b.h / 2));
     const main = setTex(sc.add.image(0, 0, key), key);
     root.add(main);
     const view: BuildingView = { kind: b.kind, root, main, wheat: [] };
     if (b.kind === 'field') {
-      view.wheat = PARTS.wheat.map((w) => {
-        const o = local(w.x, w.y);
-        return sc.add.image(o.x, o.y + 2, TEX.wheat).setOrigin(0.5, 1);
-      });
+      view.wheat = wheatImages(sc);
       root.add(view.wheat);
     }
     if (b.kind === 'altar') {
-      const f = local(PARTS.altarFire.x, PARTS.altarFire.y, PARTS.altarFire.z);
-      view.glow = sc.add.image(f.x, f.y - 4, TEX.soft).setTint(0xf6a03c).setAlpha(0.5).setScale(1.3);
-      view.flame = sc.add.image(f.x, f.y + 1, TEX.flame).setOrigin(0.5, 1);
+      const { x, y, z, scale } = PARTS.altarFire;
+      const f = local(x, y, z);
+      view.glow = sc.add.image(f.x, f.y - 4 * scale, TEX.soft).setTint(0xf6a03c).setAlpha(0.5).setScale(1.3 * scale);
+      view.flame = sc.add.image(f.x, f.y + 1, TEX.flame).setOrigin(0.5, 1).setScale(scale);
       root.add([view.glow, view.flame]);
     }
     if (b.kind === 'workshop') {
@@ -251,8 +279,8 @@ export class MapView {
       this.balloons.delete(b.id);
       return;
     }
-    const c = footCenter(b.x, b.y, b.size);
-    const baseY = c.y - (HEIGHT[TEX.building(b.kind, b.level)] ?? 20) - 6;
+    const c = footCenter(b.x, b.y, b.w, b.h);
+    const baseY = c.y - (HEIGHT[keyOf(b)] ?? 20) - 6;
     if (cur) {
       cur.baseY = baseY;
       if (cur.need !== need) {
@@ -275,7 +303,7 @@ export class MapView {
     const v = b && this.views.get(b.id);
     if (!b || !v) return;
     const tweens = this.scene.tweens;
-    const groundY = footCenter(b.x, b.y, b.size).y;
+    const groundY = footCenter(b.x, b.y, b.w, b.h).y;
     tweens.killTweensOf(v.root);
     v.root.setY(groundY).setScale(1);
     tweens.add({ targets: v.root, y: groundY - 10, scaleX: 0.92, scaleY: 1.08, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
@@ -292,7 +320,8 @@ export class MapView {
   /** Cells covered by any position where the temple fits. */
   private templeArea(s: GameState): Cell[] {
     const seen = new Set<number>();
-    for (const o of templeSpots(s)) for (const c of footprint(o.x, o.y, BUILDINGS.temple.size ?? 1)) seen.add(indexOf(s, c.x, c.y));
+    const { w, h } = dimsOf('temple');
+    for (const o of templeSpots(s)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
   }
 
@@ -302,7 +331,7 @@ export class MapView {
     return out;
   }
 
-  showOverlay(s: GameState, tool: Tool, hover: Cell | null, selected: Cell | null) {
+  showOverlay(s: GameState, tool: Tool, hover: Cell | null, selected: Cell | null, rotated = false) {
     const g = this.overlay;
     g.clear();
     this.preview.setVisible(false);
@@ -310,7 +339,7 @@ export class MapView {
     if (tool === 'view') {
       if (selected) {
         const b = s.grid[indexOf(s, selected.x, selected.y)];
-        const area = b ? rectCorners(b.x, b.y, b.size, b.size) : rectCorners(selected.x, selected.y, 1, 1);
+        const area = b ? rectCorners(b.x, b.y, b.w, b.h) : rectCorners(selected.x, selected.y, 1, 1);
         g.lineStyle(3, 0xfff3b0, 0.95);
         g.strokePoints(area, true, true);
       }
@@ -336,28 +365,28 @@ export class MapView {
     if (tool === 'temple') this.fillCells(this.templeArea(s), C.fits, 0.4);
 
     if (!hover) return;
-    const o = originFor(tool, hover);
-    const size = isPlaceTool(tool) ? placeSize(tool) : 1;
+    const o = originFor(tool, hover, rotated);
+    const { w, h } = toolDims(tool, rotated);
     if (service && isPlaceTool(tool) && tool !== 'road') {
       const r = BUILDINGS[tool].radius ?? 0;
       const x0 = Math.max(0, o.x - r);
       const y0 = Math.max(0, o.y - r);
-      const x1 = Math.min(COLS, o.x + size + r);
-      const y1 = Math.min(ROWS, o.y + size + r);
+      const x1 = Math.min(COLS, o.x + w + r);
+      const y1 = Math.min(ROWS, o.y + h + r);
       const area = rectCorners(x0, y0, x1 - x0, y1 - y0);
       g.fillStyle(C.need[service], 0.12);
       g.fillPoints(area, true);
       g.lineStyle(3, C.need[service], 0.9);
       g.strokePoints(area, true, true);
     }
-    const ok = (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y) : checkClear(s, o.x, o.y)).ok;
+    const ok = (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
     const color = ok ? 0xfff3b0 : C.famine;
-    this.fillCells(footprint(o.x, o.y, size), color, 0.3);
+    this.fillCells(footprint(o.x, o.y, w, h), color, 0.3);
     g.lineStyle(2, color, 0.9);
-    g.strokePoints(rectCorners(o.x, o.y, size, size), true, true);
+    g.strokePoints(rectCorners(o.x, o.y, w, h), true, true);
     if (!isPlaceTool(tool)) return;
-    const key = tool === 'road' ? TEX.road(roadMask(s, o.x, o.y)) : TEX.building(tool);
-    const c = footCenter(o.x, o.y, size);
+    const key = tool === 'road' ? roadKey(s, o.x, o.y) : keyOf({ kind: tool, ...o, w, h });
+    const c = footCenter(o.x, o.y, w, h);
     setTex(this.preview, key).setPosition(c.x, c.y).setAlpha(0.7).setVisible(true);
     if (ok) this.preview.clearTint();
     else this.preview.setTint(0xff6a5a);
@@ -372,7 +401,8 @@ export class MapView {
       v.wheat.forEach((w, k) => w.setAngle(Math.sin(t * 2.2 + k * 0.7 + v.root.x * 0.05) * 7));
       if (v.flame) {
         const f = Math.sin(t * 14) * 0.08 + Math.sin(t * 23) * 0.05;
-        v.flame.setScale(1 - f * 0.6, 1 + f);
+        const k = PARTS.altarFire.scale;
+        v.flame.setScale(k * (1 - f * 0.6), k * (1 + f));
         v.glow?.setAlpha(0.45 + f);
       }
     }

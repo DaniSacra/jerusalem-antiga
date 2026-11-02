@@ -1,69 +1,93 @@
 import { describe, expect, it } from 'vitest';
 import { checkPlace, clearCell, indexOf, place, RULES, templeSpots } from '../src/core';
-import { emptyGame, put, ROADSIDE } from './helpers';
+import { EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('placing buildings', () => {
-  it('charges the cost and occupies the cell', () => {
+  it('charges the cost and occupies every cell of the footprint', () => {
     const s = emptyGame({ silver: 100 });
-    expect(place(s, 'well', ROADSIDE, 20)).toEqual({ ok: true });
+    expect(place(s, 'well', ROADSIDE, 30)).toEqual({ ok: true });
     expect(s.silver).toBe(80);
-    expect(s.grid[indexOf(s, ROADSIDE, 20)]).toMatchObject({ kind: 'well', connected: true });
+    const w = s.grid[indexOf(s, ROADSIDE, 30)]!;
+    expect(w).toMatchObject({ kind: 'well', w: 2, h: 2, connected: true });
+    expect(s.grid[indexOf(s, ROADSIDE + 1, 31)]).toBe(w);
+    expect(s.grid[indexOf(s, ROADSIDE, 32)]).toBeNull();
+  });
+
+  it('uses the configured footprints', () => {
+    const s = emptyGame();
+    const dims = (kind: Parameters<typeof put>[1], x: number, y: number) => {
+      const b = put(s, kind, x, y);
+      return [b.w, b.h];
+    };
+    expect(dims('house', 1, 1)).toEqual([2, 2]);
+    expect(dims('field', 4, 1)).toEqual([2, 2]);
+    expect(dims('market', 8, 1)).toEqual([2, 4]);
+    expect(dims('workshop', 11, 1)).toEqual([3, 3]);
+  });
+
+  it('rotates the market to 4x2; rotation does nothing on square buildings', () => {
+    const s = emptyGame();
+    const m = put(s, 'market', 1, 1, 0, true);
+    expect([m.w, m.h]).toEqual([4, 2]);
+    expect(s.grid[indexOf(s, 4, 2)]).toBe(m);
+    expect(s.grid[indexOf(s, 1, 3)]).toBeNull();
+    const f = put(s, 'field', 1, 5, 0, true);
+    expect([f.w, f.h]).toEqual([2, 2]);
   });
 
   it('rejects invalid cells, missing silver and locked buildings', () => {
     const s = emptyGame({ silver: 12 });
-    s.feature[indexOf(s, 1, 1)] = 'rock';
-    s.feature[indexOf(s, 2, 1)] = 'palm';
-    put(s, 'house', 3, 1);
-    expect(place(s, 'house', 1, 1).ok).toBe(false);
-    expect(place(s, 'house', 2, 1)).toEqual({ ok: false, reason: 'invalid' });
-    expect(place(s, 'house', 3, 1)).toEqual({ ok: false, reason: 'invalid' });
-    expect(place(s, 'house', 16, 20)).toEqual({ ok: false, reason: 'invalid' }); // road
-    expect(place(s, 'house', 31, 0)).toEqual({ ok: false, reason: 'invalid' }); // river
+    s.feature[indexOf(s, 2, 2)] = 'rock';
+    put(s, 'house', 6, 1);
+    expect(place(s, 'house', 1, 1)).toEqual({ ok: false, reason: 'invalid' }); // rock in the 2x2
+    expect(place(s, 'house', 5, 1)).toEqual({ ok: false, reason: 'invalid' }); // overlaps a house
+    expect(place(s, 'house', 23, 30)).toEqual({ ok: false, reason: 'invalid' }); // over the road
+    expect(place(s, 'house', 46, 0)).toEqual({ ok: false, reason: 'invalid' }); // river
+    expect(place(s, 'house', 47, 10)).toEqual({ ok: false, reason: 'invalid' }); // past the edge
     expect(place(s, 'house', -1, 0)).toEqual({ ok: false, reason: 'invalid' });
-    expect(place(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'silver' });
+    expect(place(s, 'field', 10, 10)).toEqual({ ok: false, reason: 'silver' });
     s.unlocked = ['house'];
-    expect(place(s, 'field', 5, 5)).toEqual({ ok: false, reason: 'locked' });
+    expect(place(s, 'field', 10, 10)).toEqual({ ok: false, reason: 'locked' });
     expect(s.silver).toBe(12);
   });
 });
 
 describe('temple placement', () => {
-  it('occupies 3x3 cells and costs 800', () => {
+  it('occupies 6x6 cells and costs 800', () => {
     const s = emptyGame({ silver: 850 });
-    expect(place(s, 'temple', 17, 20)).toEqual({ ok: true });
+    expect(place(s, 'temple', EAST, 30)).toEqual({ ok: true });
     expect(s.silver).toBe(50);
-    const t = s.grid[indexOf(s, 17, 20)]!;
-    expect(t).toMatchObject({ kind: 'temple', size: 3, connected: true });
-    expect(s.grid[indexOf(s, 19, 22)]).toBe(t);
-    expect(s.grid[indexOf(s, 20, 22)]).toBeNull();
+    const t = s.grid[indexOf(s, EAST, 30)]!;
+    expect(t).toMatchObject({ kind: 'temple', w: 6, h: 6, connected: true });
+    expect(s.grid[indexOf(s, EAST + 5, 35)]).toBe(t);
+    expect(s.grid[indexOf(s, EAST + 6, 35)]).toBeNull();
   });
 
   it('is invalid if any of its cells is blocked', () => {
     const s = emptyGame();
-    s.feature[indexOf(s, 19, 22)] = 'rock';
-    expect(checkPlace(s, 'temple', 17, 20)).toEqual({ ok: false, reason: 'invalid' });
-    expect(checkPlace(s, 'temple', 15, 20)).toEqual({ ok: false, reason: 'invalid' }); // over the road
-    expect(checkPlace(s, 'temple', 29, 5)).toEqual({ ok: false, reason: 'invalid' }); // river / edge
+    s.feature[indexOf(s, EAST + 5, 35)] = 'rock';
+    expect(checkPlace(s, 'temple', EAST, 30)).toEqual({ ok: false, reason: 'invalid' });
+    expect(checkPlace(s, 'temple', 20, 30)).toEqual({ ok: false, reason: 'invalid' }); // over the road
+    expect(checkPlace(s, 'temple', 40, 5)).toEqual({ ok: false, reason: 'invalid' }); // river / edge
   });
 
   it('must touch a connected road', () => {
     const s = emptyGame();
-    expect(checkPlace(s, 'temple', 18, 20)).toEqual({ ok: false, reason: 'noRoad' });
-    expect(checkPlace(s, 'temple', 13, 25)).toEqual({ ok: true }); // west side of the road
+    expect(checkPlace(s, 'temple', EAST + 1, 30)).toEqual({ ok: false, reason: 'noRoad' });
+    expect(checkPlace(s, 'temple', 18, 36)).toEqual({ ok: true }); // west side of the road
   });
 
   it('lists every spot where it fits, ignoring silver', () => {
     const s = emptyGame({ silver: 0 });
     const spots = templeSpots(s);
-    expect(spots).toContainEqual({ x: 17, y: 20 });
-    expect(spots).toContainEqual({ x: 13, y: 25 });
-    expect(spots).not.toContainEqual({ x: 18, y: 20 });
+    expect(spots).toContainEqual({ x: EAST, y: 30 });
+    expect(spots).toContainEqual({ x: 18, y: 36 });
+    expect(spots).not.toContainEqual({ x: EAST + 1, y: 30 });
     s.silver = 1e6;
     for (const o of spots) expect(checkPlace(s, 'temple', o.x, o.y)).toEqual({ ok: true });
   });
 
-  it('has no spot when no free 3x3 touches a connected road', () => {
+  it('has no spot when no free 6x6 touches a connected road', () => {
     const s = emptyGame();
     s.feature = s.feature.map(() => 'rock');
     expect(templeSpots(s)).toEqual([]);
@@ -73,12 +97,12 @@ describe('temple placement', () => {
 describe('clearing', () => {
   it('removes buildings and roads without refund and cuts trees for silver', () => {
     const s = emptyGame({ silver: 7 });
-    put(s, 'well', ROADSIDE, 20);
-    expect(clearCell(s, ROADSIDE, 20)).toEqual({ ok: true });
-    expect(s.grid[indexOf(s, ROADSIDE, 20)]).toBeNull();
+    put(s, 'well', ROADSIDE, 30);
+    expect(clearCell(s, ROADSIDE + 1, 31)).toEqual({ ok: true }); // any cell of the footprint
+    expect(s.grid[indexOf(s, ROADSIDE, 30)]).toBeNull();
     expect(s.coverage.well.some(Boolean)).toBe(false);
-    expect(clearCell(s, 16, 30)).toEqual({ ok: true });
-    expect(s.roads[indexOf(s, 16, 30)]).toBe(false);
+    expect(clearCell(s, 24, 46)).toEqual({ ok: true });
+    expect(s.roads[indexOf(s, 24, 46)]).toBe(false);
     expect(s.silver).toBe(7);
 
     for (const tree of ['palm', 'olive'] as const) s.feature[indexOf(s, tree === 'palm' ? 2 : 3, 2)] = tree;
@@ -94,9 +118,9 @@ describe('clearing', () => {
 
   it('protects the altar and the temple', () => {
     const s = emptyGame();
-    put(s, 'temple', 17, 20);
-    expect(clearCell(s, 16, 16)).toEqual({ ok: false, reason: 'protected' });
-    expect(clearCell(s, 18, 21)).toEqual({ ok: false, reason: 'protected' });
+    put(s, 'temple', EAST, 30);
+    expect(clearCell(s, 25, 25)).toEqual({ ok: false, reason: 'protected' });
+    expect(clearCell(s, EAST + 3, 33)).toEqual({ ok: false, reason: 'protected' });
     expect(s.buildings.map((b) => b.kind)).toEqual(['altar', 'temple']);
   });
 });

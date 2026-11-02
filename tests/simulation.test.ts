@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { advanceClock, stepMonth } from '../src/core';
-import { constRng, emptyGame, put, ROADSIDE } from './helpers';
+import { constRng, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
 
 describe('stepMonth: resources', () => {
   it('updates food, silver and the month', () => {
     const s = emptyGame({ silver: 0, food: 10 });
-    put(s, 'house', ROADSIDE, 20, 1);
+    put(s, 'house', ROADSIDE, 30, 1);
     stepMonth(s, never);
     expect(s.food).toBeCloseTo(9.4);
     expect(s.silver).toBe(1);
@@ -16,12 +16,12 @@ describe('stepMonth: resources', () => {
 
   it('enters famine when food hits zero with a negative balance, once per episode', () => {
     const s = emptyGame({ food: 0.5 });
-    put(s, 'house', ROADSIDE, 20, 1);
+    put(s, 'house', ROADSIDE, 30, 1);
     expect(stepMonth(s, never)).toContainEqual({ type: 'famineStart' });
     expect(s.food).toBe(0);
     expect(s.famine).toBe(true);
     expect(stepMonth(s, never)).not.toContainEqual({ type: 'famineStart' });
-    put(s, 'field', ROADSIDE, 21);
+    put(s, 'field', westOf('field'), 32);
     expect(stepMonth(s, never)).toContainEqual({ type: 'famineEnd' });
   });
 });

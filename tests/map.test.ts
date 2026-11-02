@@ -4,11 +4,11 @@ import { createGame, createRng, generateTerrain, indexOf, isReserved, isRiver, R
 const { cols, rows } = RULES.map;
 
 describe('map generation', () => {
-  it('has a river along the east edge, 2 to 3 cells wide', () => {
+  it('is 48 x 48 with a river along the east edge, 3 to 4 cells wide', () => {
+    expect([cols, rows]).toEqual([48, 48]);
     for (let y = 0; y < rows; y++) {
-      expect(isRiver(cols - 1, y)).toBe(true);
-      expect(isRiver(cols - 2, y)).toBe(true);
-      expect(isRiver(cols - 4, y)).toBe(false);
+      for (let k = 1; k <= 3; k++) expect(isRiver(cols - k, y)).toBe(true);
+      expect(isRiver(cols - 5, y)).toBe(false);
     }
   });
 
@@ -27,22 +27,24 @@ describe('map generation', () => {
     });
   });
 
-  it('keeps 7 cells free around the altar and the starting road', () => {
-    expect(isReserved(9, 9)).toBe(true);
-    expect(isReserved(23, 23)).toBe(true);
-    expect(isReserved(8, 16)).toBe(false);
-    expect(isReserved(16, 31)).toBe(true);
-    expect(isReserved(15, 31)).toBe(false);
+  it('keeps 9 cells free around the 4x4 altar and the starting road', () => {
+    expect(isReserved(13, 13)).toBe(true);
+    expect(isReserved(34, 34)).toBe(true);
+    expect(isReserved(12, 24)).toBe(false);
+    expect(isReserved(30, 35)).toBe(false);
+    expect(isReserved(24, 47)).toBe(true); // road
+    expect(isReserved(23, 47)).toBe(false);
   });
 
-  it('starts with the altar at the center and a road to the south edge (the entrance)', () => {
+  it('starts with a 4x4 altar at the center and a road to the south edge (the entrance)', () => {
     const s = createGame(createRng(5));
     expect(s.silver).toBe(200);
     expect(s.food).toBe(30);
     expect(s.unlocked).toEqual(['road', 'house', 'field', 'well']);
-    expect(s.buildings).toEqual([expect.objectContaining({ kind: 'altar', x: 16, y: 16, size: 1, connected: true })]);
-    expect(s.entrance).toEqual({ x: 16, y: 31 });
-    for (let y = 17; y < 32; y++) expect(s.network[indexOf(s, 16, y)]).toBe(true);
-    expect(s.network[indexOf(s, 16, 16)]).toBe(true);
+    expect(s.buildings).toEqual([expect.objectContaining({ kind: 'altar', x: 22, y: 22, w: 4, h: 4, connected: true })]);
+    expect(s.grid[indexOf(s, 25, 25)]?.kind).toBe('altar');
+    expect(s.entrance).toEqual({ x: 24, y: 47 });
+    for (let y = 26; y < 48; y++) expect(s.network[indexOf(s, 24, y)]).toBe(true);
+    expect(s.network[indexOf(s, 22, 22)]).toBe(true); // altar cells start the network
   });
 });

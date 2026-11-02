@@ -3,12 +3,15 @@ import { indexOf } from './grid';
 import { doorsOf, findPath } from './network';
 import type { Building, Cell, GameEvent, GameState, Rng } from './types';
 
-/** Families start at the city entrance; if it was cut off, they start at the altar. */
-function startCell(s: GameState): Cell {
-  return s.network[indexOf(s, s.entrance.x, s.entrance.y)] ? s.entrance : s.altar;
+/** Families start at the city entrance; if it was cut off, at a road next to the altar. */
+function startCell(s: GameState): Cell | null {
+  if (s.network[indexOf(s, s.entrance.x, s.entrance.y)]) return s.entrance;
+  const altar = s.buildings.find((b) => b.kind === 'altar');
+  return (altar && doorsOf(s, altar)[0]) ?? null;
 }
 
-function pathTo(s: GameState, from: Cell, house: Building): Cell[] | null {
+function pathTo(s: GameState, from: Cell | null, house: Building): Cell[] | null {
+  if (!from) return null;
   const path = findPath(s, from, doorsOf(s, house));
   return path && [...path, { x: house.x, y: house.y }];
 }

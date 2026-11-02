@@ -7,20 +7,20 @@
   "foodPerResident": 0.2,
   "familyChance": 0.35,
   "guaranteedFamilies": 3,
-  "familyCellsPerMonth": 3,
+  "familyCellsPerMonth": 4,
   "monthsToChange": 3,
   "famineDropChance": 0.12,
   "treeClearCost": 5,
   "roadCost": 2,
   "map": {
-    "cols": 32,
-    "rows": 32,
-    "altar": { "x": 16, "y": 16 },
-    "clearRadius": 7,
-    "rocks": 45,
-    "olives": 45,
-    "palms": 40,
+    "cols": 48,
+    "rows": 48,
+    "altar": { "x": 22, "y": 22 },
+    "clearRadius": 9,
+    "rocks": 50,
+    "olives": 60,
+    "palms": 50,
     "grassShare": 0.45,
-    "river": { "minWidth": 2, "maxWidth": 3 }
+    "river": { "minWidth": 3, "maxWidth": 4 }
   }
 }

@@ -19,12 +19,12 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 
 | Arquivo | O que cobre |
 |---|---|
-| `map.test.ts` | rio na borda leste, contagem de rochas e árvores, área livre do altar e da rua, estado inicial (altar, rua, entrada, prata, liberações) |
-| `network.test.ts` | rede de ruas ligada ao altar, desconexão ao demolir, custo e validação de rua, caminhos por busca em largura, máscara de junções, exigência de rua para cada tipo de construção |
-| `coverage.test.ts` | raio quadrado, sem cobertura quando desconectado, área sagrada do altar, raio do templo 3 x 3 |
+| `map.test.ts` | mapa 48 x 48, rio na borda leste, contagem de rochas e árvores, área livre do altar e da rua, estado inicial (altar, rua, entrada, prata, liberações) |
+| `network.test.ts` | rede de ruas ligada a qualquer lado do altar 4 x 4, caminhos que não atravessam o altar, desconexão ao demolir, custo e validação de rua, caminhos por busca em largura, máscara de junções, exigência de rua para cada tipo de construção |
+| `coverage.test.ts` | raio quadrado a partir de qualquer célula, sem cobertura quando desconectado, área sagrada do altar 4 x 4, raio do templo 6 x 6, áreas não quadradas |
 | `economy.test.ts` | eficiência, produção, construções desconectadas não produzem nem contam vagas, vagas do templo |
-| `actions.test.ts` | custos e locais inválidos, posicionamento do templo (3 x 3, bloqueios, exige rua, lista de posições possíveis), limpar, proteção do altar e do templo |
-| `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), fome, informações e balões (incluindo "sem trabalhadores") |
+| `actions.test.ts` | custos e locais inválidos, tamanhos das construções, mercado girado, posicionamento do templo (6 x 6, bloqueios, exige rua, lista de posições possíveis), limpar, proteção do altar e do templo |
+| `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), atendimento por qualquer célula da casa, fome, informações e balões (incluindo "sem trabalhadores") |
 | `families.test.ts` | chegada de famílias, 3 primeiras garantidas, chance de 35%, uma por terreno, desconexão e fome, desvio de rota, saída pelo altar |
 | `goals.test.ts` | as 8 metas, recompensas, liberações, contagem só de casas conectadas, vitória com o templo |
 | `simulation.test.ts` | comida, prata, mês, fome e relógio |
@@ -32,11 +32,13 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 ### Utilitários (`tests/helpers.ts`)
 
 - `emptyGame(overrides)` — jogo sem rochas/árvores, areia em tudo (exceto o rio), muita prata e
-  tudo liberado. Altar em (16,16) e rua inicial em x = 16, de y = 17 a 31.
-- `put(state, kind, x, y, level)` — coloca uma construção sem cobrar e já no nível desejado.
+  tudo liberado. Altar 4 x 4 em x, y = 22..25 e rua inicial em x = 24, de y = 26 a 47.
+- `put(state, kind, x, y, level, rotated)` — coloca uma construção sem cobrar e já no nível desejado.
 - `road(state, [[x, y], ...])` — coloca ruas sem cobrar.
 - `constRng(v)` — gerador aleatório fixo (0 = sempre acontece, 0,99 = nunca acontece).
-- `ROADSIDE = 15` — coluna logo a oeste da rua inicial (conectada).
+- `ROADSIDE = 22` — coluna de uma casa 2 x 2 encostada a oeste da rua inicial (conectada).
+- `westOf(kind)` — coluna de uma construção desse tipo encostada a oeste da rua; `EAST = 25` —
+  coluna de qualquer construção encostada a leste.
 
 ## Testes visuais (`scripts/visual/run.mjs`)
 
@@ -53,6 +55,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
 | `touch` | celular deitado com toque real: um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
 | `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na barra; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
+| `turn-map` | mercado, casa e poço; clica ↻ (não constrói nada), arrasta rua no mapa girado e confere as células; E/E e Q | `turn-0`, `turn-1`, `turn-3`, `turn-2` |
 | `victory` | constrói o templo e espera a vitória | `temple-celebration`, `victory` |
 
 ### Ganchos de desenvolvimento
@@ -61,7 +64,9 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 
 - `window.game` — a `GameScene` (câmera em `game.cameras.main`, `game.refresh()`, `game.selectTool(t)`);
 - `window.state` — o `GameState` atual;
-- `window.core` — todas as funções do core (`core.place`, `core.clearCell`, `core.stepMonth`...).
+- `window.core` — todas as funções do core (`core.place`, `core.clearCell`, `core.stepMonth`...);
+- `window.iso` — projeção e giro do mapa (`iso.gridToWorld`, `iso.getRotation()`); o
+  `cellToScreen` do script já usa o giro atual.
 
 Use-os para montar situações rapidamente em vez de jogar até lá. Depois de mudar o estado
 diretamente, chame `window.game.refresh()`. Se mudar conexões à mão (ruas, construções), prefira

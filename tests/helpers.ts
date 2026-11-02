@@ -1,8 +1,9 @@
-import { createGame, createRng, indexOf, place, refreshCity, type BuildableKind, type GameState, type Rng } from '../src/core';
+import { createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
- * everything unlocked. The altar is at (16,16) and the starting road runs south along x = 16.
+ * everything unlocked. The 4x4 altar covers x, y = 22..25 and the starting road runs south along
+ * x = 24, from y = 26 to the entrance at (24, 47).
  */
 export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   const s = createGame(createRng(1));
@@ -16,12 +17,12 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
 }
 
 /** Places a building (top-left at x, y) without charging silver, optionally at a given house level. */
-export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0) {
+export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0, rotated = false) {
   const silver = s.silver;
   const unlocked = s.unlocked;
   s.silver = 1e9;
   s.unlocked = [kind];
-  const r = place(s, kind, x, y);
+  const r = place(s, kind, x, y, rotated);
   s.silver = silver;
   s.unlocked = unlocked;
   if (!r.ok) throw new Error(`cannot place ${kind} at ${x},${y}: ${r.reason}`);
@@ -37,5 +38,12 @@ export function road(s: GameState, cells: [number, number][]) {
 }
 
 export const constRng = (v: number): Rng => () => v;
-/** Cells right next to the starting road (x = 15 is west of it). */
-export const ROADSIDE = 15;
+/** The starting road column (x = 24) and its first cell below the altar (y = 26). */
+export { ROAD_X };
+export const ROAD_TOP = 26;
+/** Left column of a 2x2 house touching the starting road on its west side (x = 22..23). */
+export const ROADSIDE = ROAD_X - 2;
+/** Left column of a building of this kind touching the starting road on its west side. */
+export const westOf = (kind: BuildableKind) => ROAD_X - dimsOf(kind).w;
+/** Left column of any building touching the starting road on its east side. */
+export const EAST = ROAD_X + 1;

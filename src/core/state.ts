@@ -1,8 +1,8 @@
-import { RULES } from './data';
-import { indexOf } from './grid';
+import { dimsOf, RULES } from './data';
+import { cellsOf, indexOf } from './grid';
 import { entranceCell, generateTerrain, startRoad } from './map';
 import { refreshCity } from './refresh';
-import type { GameState, Rng } from './types';
+import type { Building, GameState, Rng } from './types';
 
 export function createGame(rng: Rng): GameState {
   const { cols, rows, altar } = RULES.map;
@@ -30,9 +30,9 @@ export function createGame(rng: Rng): GameState {
     nextId: 1,
   };
   for (const c of startRoad()) s.roads[indexOf(s, c.x, c.y)] = true;
-  const altarB = { id: s.nextId++, kind: 'altar' as const, x: altar.x, y: altar.y, size: 1, level: 0, upStreak: 0, downStreak: 0, connected: true };
+  const altarB: Building = { id: s.nextId++, kind: 'altar', x: altar.x, y: altar.y, ...dimsOf('altar'), level: 0, upStreak: 0, downStreak: 0, connected: true };
   s.buildings.push(altarB);
-  s.grid[indexOf(s, altar.x, altar.y)] = altarB;
+  for (const c of cellsOf(altarB)) s.grid[indexOf(s, c.x, c.y)] = altarB;
   refreshCity(s);
   return s;
 }

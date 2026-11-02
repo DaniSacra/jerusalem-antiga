@@ -1,10 +1,11 @@
 import { BUILDINGS, HOUSE_LEVELS } from './data';
 import { computeEconomy } from './economy';
-import { indexOf } from './grid';
+import { cellsOf, indexOf } from './grid';
 import type { BalloonKind, Building, GameState, NeedKind } from './types';
 
+/** Road: the building is connected. Services: any cell of its footprint is covered. */
 export function needMet(s: GameState, b: Building, need: NeedKind): boolean {
-  return need === 'road' ? b.connected : s.coverage[need][indexOf(s, b.x, b.y)];
+  return need === 'road' ? b.connected : cellsOf(b).some((c) => s.coverage[need][indexOf(s, c.x, c.y)]);
 }
 
 export const missingNeeds = (s: GameState, b: Building, needs: readonly NeedKind[]) => needs.filter((n) => !needMet(s, b, n));

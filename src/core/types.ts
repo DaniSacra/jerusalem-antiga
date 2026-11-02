@@ -20,11 +20,24 @@ export interface Cell {
   y: number;
 }
 
+/** A footprint: top-left cell plus width and height. */
+export interface Rect extends Cell {
+  w: number;
+  h: number;
+}
+
+export interface Dims {
+  w: number;
+  h: number;
+}
+
 export interface BuildingDef {
   name: string;
   cost: number;
   jobs: number;
-  size?: number;
+  /** Footprint width (x) and height (y) in cells; default 1x1, h defaults to w. */
+  w?: number;
+  h?: number;
   radius?: number;
   food?: number;
   silver?: number;
@@ -85,7 +98,9 @@ export interface Building {
   /** Top-left cell of the footprint. */
   x: number;
   y: number;
-  size: number;
+  /** Footprint in cells (x by y). */
+  w: number;
+  h: number;
   /** House level (0..4). Unused by other kinds. */
   level: number;
   /** Consecutive months meeting the next level's needs. */
@@ -114,13 +129,14 @@ export interface GameState {
   ground: Ground[];
   feature: (Feature | null)[];
   roads: boolean[];
-  /** Cells of the road network connected to the altar (altar cell included). */
+  /** Cells of the road network connected to the altar (altar cells included). */
   network: boolean[];
   buildings: Building[];
   /** Building occupying each cell. */
   grid: (Building | null)[];
   coverage: Coverage;
   families: Family[];
+  /** Top-left cell of the altar footprint. */
   altar: Cell;
   entrance: Cell;
   silver: number;

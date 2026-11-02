@@ -1,4 +1,4 @@
-import type { Building, Cell, GameState } from './types';
+import type { Building, Cell, GameState, Rect } from './types';
 
 type Dims = Pick<GameState, 'cols' | 'rows'>;
 
@@ -18,32 +18,31 @@ export function neighbors(s: Dims, x: number, y: number): Cell[] {
   ].filter((c) => inBounds(s, c.x, c.y));
 }
 
-/** Cells of a square footprint with top-left (x, y). */
-export function footprint(x: number, y: number, size: number): Cell[] {
+/** Cells of a w x h footprint with top-left (x, y). */
+export function footprint(x: number, y: number, w: number, h = w): Cell[] {
   const out: Cell[] = [];
-  for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) out.push({ x: x + dx, y: y + dy });
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) out.push({ x: x + dx, y: y + dy });
   return out;
 }
 
-export const cellsOf = (b: Building) => footprint(b.x, b.y, b.size);
+export const cellsOf = (b: Building) => footprint(b.x, b.y, b.w, b.h);
 
 /** Cells orthogonally adjacent to a building, outside its footprint. */
-export function borderCells(s: Dims, b: Pick<Building, 'x' | 'y' | 'size'>): Cell[] {
+export function borderCells(s: Dims, b: Rect): Cell[] {
   const out: Cell[] = [];
-  for (let k = 0; k < b.size; k++) {
-    out.push({ x: b.x + k, y: b.y - 1 }, { x: b.x + k, y: b.y + b.size }, { x: b.x - 1, y: b.y + k }, { x: b.x + b.size, y: b.y + k });
-  }
+  for (let k = 0; k < b.w; k++) out.push({ x: b.x + k, y: b.y - 1 }, { x: b.x + k, y: b.y + b.h });
+  for (let k = 0; k < b.h; k++) out.push({ x: b.x - 1, y: b.y + k }, { x: b.x + b.w, y: b.y + k });
   return out.filter((c) => inBounds(s, c.x, c.y));
 }
 
 /**
  * Indices within a square radius (Chebyshev distance) of a rectangle, clipped to the map.
- * For a single cell, pass size 1.
+ * For a single cell, pass w = h = 1.
  */
-export function cellsInRadius(s: Dims, x: number, y: number, r: number, size = 1): number[] {
+export function cellsInRadius(s: Dims, x: number, y: number, r: number, w = 1, h = w): number[] {
   const out: number[] = [];
-  for (let yy = Math.max(0, y - r); yy <= Math.min(s.rows - 1, y + size - 1 + r); yy++) {
-    for (let xx = Math.max(0, x - r); xx <= Math.min(s.cols - 1, x + size - 1 + r); xx++) out.push(yy * s.cols + xx);
+  for (let yy = Math.max(0, y - r); yy <= Math.min(s.rows - 1, y + h - 1 + r); yy++) {
+    for (let xx = Math.max(0, x - r); xx <= Math.min(s.cols - 1, x + w - 1 + r); xx++) out.push(yy * s.cols + xx);
   }
   return out;
 }

@@ -1,4 +1,4 @@
-import { BUILDINGS, RULES, unlockingGoal, type FailReason, type Feature, type Ground, type NeedKind, type Placeable } from '../core';
+import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type FailReason, type Feature, type Ground, type NeedKind, type Placeable } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -24,7 +24,7 @@ export const T = {
   famine: 'Falta comida: construa campos',
   looseRoad: 'Esta rua não está ligada ao altar',
   noWorkers: 'Sem trabalhadores: faltam moradores',
-  noTempleSpot: 'Sem espaço para o templo: abra uma rua ao lado de um terreno livre 3 x 3',
+  noTempleSpot: `Sem espaço para o templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   fail: {
     silver: 'Prata insuficiente',
     invalid: 'Local inválido',
@@ -61,7 +61,9 @@ export function toolHint(tool: Tool): string {
   const d = BUILDINGS[tool];
   const parts = [`${d.name} (${d.cost} prata)`];
   if (tool === 'house') parts.push('terreno para uma família. Ao lado de uma rua. Pode arrastar');
-  if (d.size) parts.push(`ocupa ${d.size}x${d.size}`);
+  const { w, h } = dimsOf(tool);
+  if (w > 1 || h > 1) parts.push(`ocupa ${w}x${h}`);
+  if (canRotate(tool)) parts.push('toque de novo no botão ou tecla R para girar');
   if (d.jobs) parts.push(`${d.jobs} vagas`);
   if (d.food) parts.push(`produz ${d.food} de comida por mês`);
   if (d.silver) parts.push(`produz ${d.silver} de prata por mês`);

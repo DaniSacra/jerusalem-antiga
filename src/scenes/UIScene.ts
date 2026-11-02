@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Economy, GameState } from '../core';
 import { Hud, type Speed } from '../render/Hud';
 import type { Segment } from '../render/info';
-import { GAME_H, GAME_W, INFO_Y, TOP_H } from '../render/layout';
+import { GAME_H, GAME_W, INFO_Y, TOP_H, TURN } from '../render/layout';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { Toasts, type Tone } from '../render/Toasts';
@@ -13,6 +13,7 @@ import { button, panel, text } from '../render/ui';
 export interface UiHost {
   selectTool(tool: Tool): void;
   cycleSpeed(): void;
+  turnMap(dir: 1 | -1): void;
   attachUi(ui: UIScene): void;
 }
 
@@ -39,6 +40,9 @@ export class UIScene extends Phaser.Scene {
     this.modal = null;
     this.famineTint = this.add.rectangle(0, TOP_H, GAME_W, INFO_Y - TOP_H, C.famine, 1).setOrigin(0).setAlpha(0);
     this.hud = new Hud(this, () => host.cycleSpeed());
+    const half = TURN.size / 2;
+    button(this, TURN.x + half, TURN.y + half, TURN.size, TURN.size, '↺', 30, () => host.turnMap(-1));
+    button(this, TURN.x + TURN.size + TURN.gap + half, TURN.y + half, TURN.size, TURN.size, '↻', 30, () => host.turnMap(1));
     this.toolbar = new Toolbar(this, (t) => host.selectTool(t));
     this.toasts = new Toasts(this);
     host.attachUi(this);
