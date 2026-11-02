@@ -49,3 +49,6 @@ DIREÇÃO TÉCNICA
 
 Ao terminar, rode o jogo com Playwright, analise as capturas (são para
 você, não para o usuário) e confira legibilidade no zoom mínimo e máximo.
+Leia docs/TESTING.md e use os cenários existentes: `npm run test:visual -- town-art`
+(cidade completa com todos os prédios) e `npm run test:visual -- camera-wheel`
+(zoom máximo e mínimo); as capturas ficam em screenshots/.
