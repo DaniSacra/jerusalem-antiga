@@ -435,6 +435,24 @@ imposto menor de pedra/casa grande.
 
 Interface em espera: botão "Mesmo mapa" (mesma seed) na tela de derrota.
 
+Backlog visual (pedido do usuário, em espera desde 2026-11-02): parte 4 do
+pacote "Cidade bonita" (vida e ambiente). As partes 1, 2, 3, 5 e 6 entraram
+no commit 610c4fc (dia e noite, andaime, ruas que evoluem, acabamento e
+desempenho). A parte 4 está quase pronta no `git stash` "WIP parte 4: vida e
+ambiente" (`git stash list`; retomar com `git stash apply`):
+- Cabras e galinhas perto das tendas, jumentos amarrados perto do mercado,
+  ovelhas pastando na grama aberta, pombas no altar que voam quando alguém
+  passa
+- Rio: barquinhos de pescadores e lavadeiras nas margens mais próximas
+- Sombras de nuvens passando devagar
+- Chão: flores silvestres, arbustos e pedrinhas em parte das células,
+  trilhas de terra entre casas vizinhas
+- Varais com roupas coloridas balançando em algumas casas
+- Palmeiras e oliveiras balançando com vento leve
+Falta: revisar as capturas (cenário `ambient`), rodar a suíte inteira e
+atualizar GAME_DESIGN.md e TESTING.md. Absorve parte da "Cidade densa"
+(trilhas, mais vida na rua).
+
 Visual aprovado pelo usuário (2026-11-02), depois de "Avisos a tempo":
 "Cidade densa", inspirado no visual orgânico de Banished, em 2D isométrico
 desenhado em código e com tema de Jerusalém: grupos de árvores, grama
