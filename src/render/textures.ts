@@ -17,7 +17,10 @@ type P3 = [number, number, number?];
 
 export const TEX = {
   ground: (g: Ground, v: number) => `ground-${g}-${v}`,
-  road: (mask: number) => `road-${mask}`,
+  /** Street with junctions `mask`; `wear` 0 packed earth, 1 wider and lighter (busy), 2 stone paving. */
+  road: (mask: number, wear = 0) => `road-${mask}${wear ? `-${wear}` : ''}`,
+  /** Wooden scaffold over a w x h footprint (as seen on screen) while a building goes up. */
+  scaffold: (w: number, h: number) => `scaffold-${w}x${h}`,
   feature: (f: Feature, v: number) => `${f}-${v}`,
   /**
    * Houses have one texture per level and variant, fields one per crop and workshops one per craft,
@@ -35,6 +38,8 @@ export const TEX = {
   /** Crop tuft of a field variant (wheat, barley, lentils, flax). */
   crop: (variant: number) => `crop-${variant}`,
   flame: 'flame',
+  /** Oil lamp on a wooden post, lit at night (roads near the altar and the market). */
+  lamp: 'lamp',
   soft: 'soft',
   ring: 'ring',
   balloon: 'balloon',
@@ -48,7 +53,7 @@ export const TEX = {
   family: 'family',
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
-  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
+  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options') => `icon-${name}`,
 };
 export const VARIANTS = 4;
 /** Skin and clothes combinations drawn for each walker type. */
@@ -64,7 +69,7 @@ type Spot = { x: number; y: number; z: number };
 /**
  * Animated parts, in local grid units from the footprint center (z in pixels): wheat tufts in rows
  * over the 2 x 2 field (back to front), the chimney smoke and fire glow of the workshop crafts that
- * burn (unmirrored drawing; a mirrored one swaps x and y) and the altar fire (with scale).
+ * burn (unmirrored drawing; a mirrored one swaps x and y), the altar fire and the tent campfires.
  */
 export const PARTS = {
   wheat: [-0.66, -0.33, 0, 0.33, 0.66]
@@ -75,6 +80,8 @@ export const PARTS = {
     smithy: { smoke: { x: 1.04, y: -1.12, z: 48 }, glow: { x: 0.74, y: -0.86, z: 14 } },
   } as Partial<Record<Craft, { smoke: Spot; glow: Spot }>>,
   altarFire: { x: 0, y: -0.2, z: 24, scale: 2.2 },
+  /** Campfires drawn in front of some tents, by tent variant (lit brighter at night). */
+  tentFire: { 2: { x: -0.2, y: 0.62, z: 2, scale: 0.7 }, 4: { x: 0.42, y: 0.52, z: 2, scale: 1 } } as Record<number, Spot & { scale: number }>,
 };
 
 const SHADOW_K = 0.016;
@@ -274,8 +281,8 @@ function groundTile(p: Pen, kind: Ground, v: number) {
  * Packed-earth street: a soft verge, a wide trodden surface with an arm toward each connected
  * neighbour (N, E, S, W), cart ruts, worn edge stones and a few pebbles.
  */
-function road(p: Pen, mask: number) {
-  const w = 0.32;
+function road(p: Pen, mask: number, wear = 0) {
+  const w = wear ? 0.38 : 0.32;
   const arms: [number, number, number, number][] = [
     [-w, -0.5, w, -w], // N (y - 1)
     [w, -w, 0.5, w], // E (x + 1)
@@ -295,8 +302,13 @@ function road(p: Pen, mask: number) {
   // A soft trodden verge, then a crisp dark kerb line so streets read on sand at the minimum zoom.
   draw(C.roadEdge, 0.13, 0.28);
   draw(C.roadEdge, 0.055, 1);
-  draw(C.road, 0, 1);
-  draw(shade(C.road, 1.08), -0.08, 0.7);
+  if (wear === 2) {
+    pavers(p, w, has);
+    return;
+  }
+  const surface = wear ? shade(C.road, 1.12) : C.road;
+  draw(surface, 0, 1);
+  draw(shade(surface, 1.08), -0.08, 0.7);
   const rut = shade(C.road, 0.82);
   arms.forEach((_, k) => {
     if (!has(k)) return;
@@ -571,6 +583,75 @@ function footCanvas(w: number, h: number, height: number) {
   const halfW = ((w + h) / 2) * HW;
   const halfH = ((w + h) / 2) * HH;
   return { w: Math.ceil(halfW * 2 + pad * 2 + east), h: Math.ceil(height + halfH * 2 + pad * 2), ax: halfW + pad, ay: height + halfH + pad };
+}
+
+/** Stone paving over a street: a mortar bed and rows of worn limestone setts (center and arms). */
+function pavers(p: Pen, w: number, has: (k: number) => boolean) {
+  const inside = (x: number, y: number) =>
+    (Math.abs(x) <= w && Math.abs(y) <= w) ||
+    (has(0) && Math.abs(x) <= w && y < 0) ||
+    (has(2) && Math.abs(x) <= w && y > 0) ||
+    (has(1) && Math.abs(y) <= w && x > 0) ||
+    (has(3) && Math.abs(y) <= w && x < 0);
+  const r = createRng(77);
+  const step = 0.125;
+  for (let y = -0.5 + step / 2; y < 0.5; y += step) {
+    for (let x = -0.5 + step / 2; x < 0.5; x += step) {
+      if (!inside(x, y)) continue;
+      p.rect(shade(C.rockDark, 1.1), x - step / 2, y - step / 2, x + step / 2, y + step / 2);
+      const k = 0.9 + r() * 0.18;
+      const o = (Math.round((y + 0.5) / step) % 2) * 0.02;
+      p.rect(shade(C.stone, k), x - step / 2 + 0.012 + o, y - step / 2 + 0.012, x + step / 2 - 0.012 + o, y + step / 2 - 0.012);
+    }
+  }
+}
+
+/** Wooden scaffold over a footprint: a stone course, corner poles, beams, a ladder and a pile of stones. */
+function scaffold(p: Pen, w: number, h: number) {
+  const x0 = -w / 2 + 0.12;
+  const y0 = -h / 2 + 0.12;
+  const x1 = w / 2 - 0.12;
+  const y1 = h / 2 - 0.12;
+  const top = 18 + 6 * Math.min(w, h);
+  p.rect(shade(C.sand[0], 0.92), x0 - 0.06, y0 - 0.06, x1 + 0.06, y1 + 0.06);
+  // First course of stones along the back walls.
+  p.box(x0, y0, x1, y0 + 0.16, 0, 7, C.stone);
+  p.box(x0, y0, x0 + 0.16, y1, 0, 7, C.stone);
+  const pole = (x: number, y: number) => p.line(C.woodDark, 2.4, [x, y, 0], [x, y, top]);
+  const beam = (a: P3, b: P3) => p.line(C.wood, 2, a, b);
+  pole(x0, y0);
+  pole(x1, y0);
+  pole(x0, y1);
+  for (const z of [top * 0.5, top]) {
+    beam([x0, y0, z], [x1, y0, z]);
+    beam([x0, y0, z], [x0, y1, z]);
+  }
+  // Planks on the upper beams.
+  p.rect(C.wood, x0, y0, x1, y0 + 0.14, top * 0.5 + 1);
+  pole(x1, y1);
+  for (const z of [top * 0.5, top]) {
+    beam([x1, y0, z], [x1, y1, z]);
+    beam([x0, y1, z], [x1, y1, z]);
+  }
+  beam([x0, y1, 2], [x1, y1, top * 0.5]); // diagonal brace
+  // Ladder leaning on the front.
+  const lx = x1 - 0.25;
+  p.line(C.wood, 1.6, [lx, y1 + 0.18, 0], [lx, y1, top * 0.55]);
+  p.line(C.wood, 1.6, [lx + 0.14, y1 + 0.18, 0], [lx + 0.14, y1, top * 0.55]);
+  for (let k = 1; k < 5; k++) {
+    const t = k / 5;
+    p.line(C.woodDark, 1, [lx, y1 + 0.18 * (1 - t), top * 0.55 * t], [lx + 0.14, y1 + 0.18 * (1 - t), top * 0.55 * t]);
+  }
+  // Stones piled at the front corner.
+  const r = createRng(31);
+  for (let k = 0; k < 7; k++) p.ball(r() < 0.5 ? C.rock : C.rockLight, x0 + 0.15 + r() * 0.3, y1 - 0.05 + r() * 0.15, 2 + (k > 4 ? 3 : 0), 2.4);
+}
+
+/** Creates the scaffold texture for a footprint size on first use and returns its key. */
+export function scaffoldTexture(scene: Phaser.Scene, w: number, h: number): string {
+  const key = TEX.scaffold(w, h);
+  make(scene, key, footCanvas(w, h, 24 + 6 * Math.min(w, h)), (p) => scaffold(p, w, h));
+  return key;
 }
 
 // ---------- houses (2 x 2: local x, y in [-1, 1]) ----------
@@ -2448,6 +2529,21 @@ function flame(g: G) {
   g.fillCircle(8, 18, 1.8);
 }
 
+/** Wooden post with a small clay oil lamp on an arm (the light itself is an additive glow at night). */
+function lamp(g: G) {
+  g.fillStyle(C.shadow, 0.25);
+  g.fillEllipse(6, 32, 9, 3);
+  g.fillStyle(C.woodDark);
+  g.fillRect(4.5, 7, 3, 26);
+  g.fillStyle(C.wood);
+  g.fillRect(4.5, 7, 1.4, 26);
+  g.fillRect(3, 7, 7, 2);
+  g.fillStyle(C.terracotta);
+  g.fillEllipse(8.5, 5.5, 6, 3.6);
+  g.fillStyle(C.gold);
+  g.fillCircle(10.5, 3.8, 1.3);
+}
+
 function balloon(g: G) {
   g.fillStyle(C.shadow, 0.2);
   g.fillCircle(14, 14, 11);
@@ -2593,6 +2689,49 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(C.red);
     g.fillTriangle(11, 7, 34, 13, 11, 20);
   });
+  // Time of day, next to the month.
+  icon('sun', (g) => {
+    g.lineStyle(3, 0xe89a2c, 1);
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      g.lineBetween(20 + Math.cos(a) * 12, 20 + Math.sin(a) * 12, 20 + Math.cos(a) * 17, 20 + Math.sin(a) * 17);
+    }
+    g.fillStyle(0xf2c23c);
+    g.fillCircle(20, 20, 9);
+    g.fillStyle(0xfff0b0, 0.8);
+    g.fillCircle(17, 17, 3);
+  });
+  icon('dusk', (g) => {
+    g.fillStyle(0xe8742c);
+    g.slice(20, 26, 11, Math.PI, 0, false);
+    g.fillPath();
+    g.lineStyle(3, 0xc0503c, 1);
+    for (const a of [Math.PI * 1.15, Math.PI * 1.5, Math.PI * 1.85]) g.lineBetween(20 + Math.cos(a) * 14, 26 + Math.sin(a) * 14, 20 + Math.cos(a) * 18, 26 + Math.sin(a) * 18);
+    g.lineStyle(3, C.ink, 1);
+    g.lineBetween(4, 27, 36, 27);
+  });
+  icon('moon', (g) => {
+    // Crescent on a small night-blue disc, so it reads on the light plaque.
+    g.fillStyle(0x2f3a66);
+    g.fillCircle(20, 20, 17);
+    g.fillStyle(0xf6e6a8);
+    g.fillCircle(18, 20, 10);
+    g.fillStyle(0x2f3a66);
+    g.fillCircle(23, 16, 9);
+    g.fillStyle(0xfff6dc);
+    g.fillCircle(29, 27, 1.5);
+    g.fillCircle(27, 9, 1.2);
+  });
+  icon('options', (g) => {
+    g.fillStyle(C.ink);
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      g.fillCircle(20 + Math.cos(a) * 12, 20 + Math.sin(a) * 12, 4);
+    }
+    g.fillCircle(20, 20, 12);
+    g.fillStyle(C.cream);
+    g.fillCircle(20, 20, 5);
+  });
 }
 
 export function generateTextures(scene: Phaser.Scene): void {
@@ -2602,7 +2741,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
   }
-  for (let mask = 0; mask < 16; mask++) make(scene, TEX.road(mask), TILE, (p) => road(p, mask));
+  for (let mask = 0; mask < 16; mask++) for (const wear of [0, 1, 2]) make(scene, TEX.road(mask, wear), TILE, (p) => road(p, mask, wear));
   // Every building is drawn at its real footprint: [draw, canvas height above ground, balloon height].
   for (const mirror of [false, true]) {
     HOUSE_ART.forEach(([draws, top, h], level) => {
@@ -2627,6 +2766,7 @@ export function generateTextures(scene: Phaser.Scene): void {
 
   CROPS.forEach((_, v) => (ORIGIN[TEX.crop(v)] = [0.5, 1]));
   ORIGIN[TEX.flame] = [0.5, 1];
+  ORIGIN[TEX.lamp] = [0.5, 1];
   const raw = (key: string, w: number, h: number, draw: (g: G) => void) => {
     if (scene.textures.exists(key)) return;
     const g = new Phaser.GameObjects.Graphics(scene);
@@ -2636,6 +2776,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   };
   CROPS.forEach((c, v) => raw(TEX.crop(v), 22, 22, c.draw));
   raw(TEX.flame, 16, 22, flame);
+  raw(TEX.lamp, 12, 34, lamp);
   raw(TEX.soft, 32, 32, (g) => {
     for (let k = 5; k >= 1; k--) {
       g.fillStyle(0xffffff, (6 - k) / 15);

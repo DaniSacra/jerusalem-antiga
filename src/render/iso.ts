@@ -76,7 +76,8 @@ export const WORLD = {
   bottom: (COLS + ROWS) * HH + 40,
 };
 
-export const DEPTH = { ground: 0, road: 1, groundFx: 2, overlay: 5, world: 100, fx: 1500, preview: 1600 };
+/** `tint` is the day/night colour multiplied over the world; `light` the night glows added on top of it. */
+export const DEPTH = { ground: 0, road: 1, groundFx: 2, overlay: 5, world: 100, tint: 1490, light: 1495, fx: 1500, preview: 1600 };
 
 /** Painter's order for objects standing at continuous grid position (gx, gy). */
 export const depthAt = (gx: number, gy: number) => {

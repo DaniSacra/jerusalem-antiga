@@ -11,6 +11,12 @@ export const T = {
   ],
   controls: 'Mover: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
   cityName: 'Jerusalém',
+  options: {
+    title: 'Opções',
+    dayNight: (on: boolean) => `Dia e noite: ${on ? 'ligado' : 'desligado'}`,
+    miniature: (on: boolean) => `Efeito maquete: ${on ? 'ligado' : 'desligado'}`,
+    miniatureSlow: 'Efeito maquete: desligado (aparelho lento)',
+  },
   speed: (v: number) => (v === 0 ? '❚❚' : `${v}x`),
   perMonth: '/mês',
   noJobs: '—',

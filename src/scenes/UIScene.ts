@@ -3,6 +3,7 @@ import type { Economy, GameState } from '../core';
 import { Hud, type Speed } from '../render/Hud';
 import type { Segment } from '../render/info';
 import { InfoLine } from '../render/InfoLine';
+import { Options } from '../render/Options';
 import { GAME_H, GAME_W } from '../render/layout';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
@@ -17,6 +18,7 @@ export interface UiHost {
   turnMap(dir: 1 | -1): void;
   showSilver(): void;
   showGoal(): void;
+  applySettings(): void;
   restart(): void;
   attachUi(ui: UIScene): void;
 }
@@ -27,6 +29,7 @@ export class UIScene extends Phaser.Scene {
   private toolbar!: Toolbar;
   private info!: InfoLine;
   private toasts!: Toasts;
+  private options!: Options;
   private famineTint!: Phaser.GameObjects.Rectangle;
   private famine = false;
   private modal: Phaser.GameObjects.Container | null = null;
@@ -50,6 +53,7 @@ export class UIScene extends Phaser.Scene {
     this.toolbar = new Toolbar(this, (t) => host.selectTool(t), (dir) => host.turnMap(dir));
     this.info = new InfoLine(this);
     this.toasts = new Toasts(this);
+    this.options = new Options(this, () => host.applySettings());
     host.attachUi(this);
   }
 
@@ -66,7 +70,13 @@ export class UIScene extends Phaser.Scene {
 
   /** True if a screen point is over the plaque, the banners, the rails, the speed or the info line. */
   isOverUi(x: number, y: number) {
-    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y);
+    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y) || this.options.contains(x, y);
+  }
+
+  /** Sun, dusk or moon next to the month; `slow` greys out the miniature option. */
+  setDayPhase(icon: 'sun' | 'dusk' | 'moon', slow: boolean) {
+    this.hud.setPhase(icon);
+    this.options.setSlow(slow);
   }
 
   toast(msg: string, tone: Tone = 'info') {

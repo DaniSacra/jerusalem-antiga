@@ -188,13 +188,18 @@ Layout inspirado em Pharaoh: A New Era, com arte própria desenhada em código (
 detalhes dourados, cores e fonte de `palette.ts`). O mapa ocupa quase a tela toda: nada de barras
 de largura total. Posições e tamanhos em `src/render/layout.ts`.
 
-- **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês,
+- **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (com
+  sol, entardecer ou lua ao lado, conforme a hora do dia),
   Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores e Trabalho
   (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%; "+N sem vaga" em laranja
   quando sobra gente). O valor da prata fica normal com saldo ≥ 0, laranja com saldo do mês
   negativo e vermelho piscando em dívida. Durante a fome, o valor da Comida fica vermelho e pisca.
   **Tocar na prata** mostra na linha de informação: impostos, produção por tipo ("Oficina +X ·
   Campo +Y"), "Manutenção: Campo −1, Poço −3…" e saldo (atualizado a cada mês).
+- **Opções** (engrenagem no canto superior direito; em telas muito largas, ao lado do topo do trilho
+  direito): painel com "Dia e noite: ligado/desligado" e "Efeito maquete: ligado/desligado". As
+  escolhas ficam salvas no navegador. Se o aparelho for lento, o efeito maquete aparece desligado
+  "(aparelho lento)". Tocar fora fecha o painel.
 - **Faixa da meta** (dourada, logo abaixo da placa): "1. Tenha 6 casas ligadas à rua  5/6" (a fonte
   encolhe se o texto for longo). Tocar mostra na linha de informação a meta inteira: "Meta 1 de 9:
   … · 5 de 6 · prêmio +20 prata · libera Mercado".
@@ -275,12 +280,30 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - Famílias (grupo de três com uma trouxa) andando da entrada até a casa.
 - Agricultores trabalhando dentro de cada campo: round(vagas do campo × eficiência), de 0 a 2;
   nenhum no campo sem rua. Param quando o jogo está pausado.
+- **Dia e noite** (só visual, números em `src/data/visual.json`): ciclo de 4 min reais em 1x,
+  seguindo o tempo do jogo (para na pausa): amanhecer, manhã, tarde dourada, pôr do sol e noite.
+  Um tom de cor é multiplicado sobre o mapa (balões, prévias e interface não mudam) e o céu atrás
+  do mapa acompanha a hora; à noite tudo continua legível. À noite: janelas acesas nas casas de
+  pedra e casas grandes, lamparinas em algumas ruas perto do altar e do mercado, fogo do altar e das
+  oficinas mais forte, fogueiras das tendas acesas (com faíscas em até 6), estrelas no céu. Metade
+  dos moradores anda à noite e 25% a mais no fim da tarde; os que sobram entram em casa ao chegar
+  ao destino. Desligado nas opções: sempre de dia.
+- **Andaime:** toda construção nova aparece primeiro com andaime de madeira, pedras e poeira por
+  1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s antes do novo desenho. Ao abrir o jogo
+  ou girar o mapa, o que já existe aparece pronto.
+- **Ruas que evoluem** (só visual): cada passo de morador conta na célula; com 60 passos a rua fica
+  mais larga e clara, com 240 ganha calçamento de pedra. Ruas a até 2 células do altar ou do templo
+  já são calçadas.
 - Plantações balançando, fumaça na chaminé da oficina, fogo tremulando no altar, água correndo no rio.
 - Ao subir de nível: pulinho, "+N" e anel de brilho. Ao cair de nível ou por fome: texto vermelho.
 - Ao construir: anel de brilho. Ao limpar: nuvem de poeira. Templo: anéis dourados, faíscas e
   clarão.
 
 ## Arte
+- **Acabamento de imagem** (só no mapa, WebGL, `FinishPipeline.ts`): vinheta suave e efeito
+  maquete (desfoque leve que cresce para as bordas de cima e de baixo; a faixa do meio fica nítida),
+  numa passada só. Se a média ficar abaixo de 40 quadros por segundo por 4 s, o efeito maquete
+  desliga e as faíscas das fogueiras somem até reiniciar.
 
 - Tudo desenhado por código, sem pacotes de assets (`src/render/textures.ts`).
 - Isométrico 2:1, paleta quente: areia, ocre, tijolo de barro, pedra calcária clara, com verde de

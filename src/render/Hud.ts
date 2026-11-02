@@ -39,6 +39,8 @@ export interface HudHandlers {
 /** Top of the screen: speed (top left), the city plaque, the goal banner and one alert banner. */
 export class Hud {
   private stats = {} as Record<StatKey, Stat>;
+  /** Sun, dusk or moon right after the month number. */
+  private phase: Phaser.GameObjects.Image;
   private speedButtons: [Speed, RailButton][] = [];
   /** Blinking values (food during famine, silver in debt). */
   private blinks = new Map<Phaser.GameObjects.Text, Phaser.Tweens.Tween>();
@@ -91,6 +93,8 @@ export class Hud {
       // Tapping the silver shows where it comes from and where it goes.
       if (key === 'silver') scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', h.onSilver);
     });
+
+    this.phase = scene.add.image(0, ROW_Y, TEX.icon('sun')).setScale(0.62);
 
     // Goal banner: tapping shows the whole goal in the info line.
     this.goalBg = scene.add.graphics();
@@ -194,6 +198,7 @@ export class Hud {
   refresh(state: GameState, eco: Economy, speed: Speed) {
     const { silver, food, residents, work, month } = this.stats;
     this.set(month, String(state.month + 1));
+    this.phase.setX(month.value.x + month.value.width + 16);
     this.set(silver, String(Math.floor(state.silver)), signed(eco.silverDelta) + T.perMonth, eco.silverDelta < 0 ? CSS.bad : CSS.good);
     const debt = state.silver < 0;
     this.tone(silver.value, debt ? CSS.bad : eco.silverDelta < 0 ? CSS.warn : CSS.ink, debt);
@@ -214,6 +219,11 @@ export class Hud {
     this.lastAlerts = alerts(state);
     for (const kind of this.dismissed) if (!this.lastAlerts.some((a) => a.kind === kind)) this.dismissed.delete(kind);
     this.showAlert();
+  }
+
+  setPhase(icon: 'sun' | 'dusk' | 'moon') {
+    const key = TEX.icon(icon);
+    if (this.phase.texture.key !== key) this.phase.setTexture(key);
   }
 
   contains(x: number, y: number) {

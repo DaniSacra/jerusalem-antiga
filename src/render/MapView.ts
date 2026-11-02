@@ -24,9 +24,12 @@ import {
 } from '../core';
 import { C, shade } from './palette';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
-import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, setTex } from './textures';
+import VISUAL from '../data/visual.json';
+import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, scaffoldTexture, setTex } from './textures';
+import type { RoadWear } from './RoadWear';
 import { isPlaceTool, type Tool } from './tools';
 import { FieldCrew } from './Fieldhands';
+import { Lights } from './Lights';
 
 interface BuildingView {
   kind: BuildingKind;
@@ -38,6 +41,10 @@ interface BuildingView {
   flame?: Phaser.GameObjects.Image;
   glow?: Phaser.GameObjects.Image;
   smoke?: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** House level shown (a level up shows the scaffold first). */
+  level: number;
+  /** Scaffold while the building goes up; the finished drawing is hidden until it is done. */
+  scaffold?: { img: Phaser.GameObjects.Image; timer: Phaser.Time.TimerEvent };
 }
 
 interface Balloon {
@@ -78,7 +85,7 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building) {
 }
 
 /** Road texture for a cell, with its junctions turned to the current view. */
-const roadKey = (s: GameState, x: number, y: number) => TEX.road(viewMask(roadMask(s, x, y)));
+const roadKey = (s: GameState, x: number, y: number, wear = 0) => TEX.road(viewMask(roadMask(s, x, y)), wear);
 
 export class MapView {
   private features = new Map<number, { key: string; img: Phaser.GameObjects.Image }>();
@@ -95,14 +102,37 @@ export class MapView {
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
   private ground: Phaser.GameObjects.GameObject[] = [];
+  private lights: Lights;
+  /** Set when the frame rate stayed low: no campfire sparks. */
+  degraded = false;
+  /** False during the first sync: buildings already standing appear without a scaffold. */
+  private ready = false;
+  private dust: Phaser.GameObjects.Particles.ParticleEmitter;
 
-  constructor(private scene: Phaser.Scene, state: GameState) {
+  constructor(
+    private scene: Phaser.Scene,
+    state: GameState,
+    private wear: RoadWear,
+  ) {
     this.drawGround(state);
     this.water = scene.add.graphics().setDepth(DEPTH.groundFx);
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
+    this.lights = new Lights(scene);
+    this.dust = scene.add
+      .particles(0, 0, TEX.soft, {
+        lifespan: 900,
+        speed: { min: 10, max: 40 },
+        angle: { min: 200, max: 340 },
+        scale: { start: 0.5, end: 1.4 },
+        alpha: { start: 0.5, end: 0 },
+        tint: C.sand[0],
+        emitting: false,
+      })
+      .setDepth(DEPTH.fx);
     this.sync(state, computeEconomy(state).efficiency);
+    this.ready = true;
   }
 
   private drawGround(s: GameState) {
@@ -153,6 +183,8 @@ export class MapView {
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
     [this.water, this.looseRoads, this.overlay, this.preview].forEach((o) => o.destroy());
+    this.lights.destroyAll();
+    this.dust.destroy();
   }
 
   // ---------- sync with the simulation ----------
@@ -181,6 +213,7 @@ export class MapView {
       this.balloons.get(id)?.root.destroy();
       this.balloons.delete(id);
     }
+    this.lights.sync(s, (b) => HEIGHT[keyOf(b)] ?? 20, this.degraded);
   }
 
   private syncFeature(s: GameState, x: number, y: number) {
@@ -204,7 +237,7 @@ export class MapView {
       this.roads.delete(i);
       return;
     }
-    const key = roadKey(s, x, y);
+    const key = roadKey(s, x, y, this.wear.level(s, x, y));
     const alpha = s.network[i] ? 1 : 0.45;
     if (cur) {
       if (cur.texture.key !== key) cur.setTexture(key);
@@ -250,8 +283,38 @@ export class MapView {
       this.views.set(b.id, v);
     }
     const key = keyOf(b);
-    if (v.main.texture.key !== key) setTex(v.main, key);
+    if (v.main.texture.key !== key) {
+      // A house going up a level shows the scaffold briefly, then its new drawing.
+      if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
+      if (!v.scaffold) setTex(v.main, key);
+    }
+    v.level = b.level;
     applyLook(v.main, b);
+  }
+
+  /** Hides a building behind a wooden scaffold with dust for `ms`, then shows it with a little bounce. */
+  private raise(v: BuildingView, b: Building, ms: number) {
+    const { w, h } = viewDims(b.w, b.h);
+    const key = scaffoldTexture(this.scene, w, h);
+    const parts = v.root.list as (Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Visible)[];
+    parts.forEach((o) => o.setVisible(false));
+    const img = setTex(this.scene.add.image(0, 0, key), key);
+    v.root.add(img);
+    this.puff(v.root.x, v.root.y, b.w * b.h);
+    const timer = this.scene.time.delayedCall(ms, () => {
+      img.destroy();
+      v.scaffold = undefined;
+      parts.forEach((o) => o.active && o.setVisible(true));
+      setTex(v.main, keyOf(b));
+      applyLook(v.main, b);
+      this.puff(v.root.x, v.root.y, b.w * b.h);
+      this.scene.tweens.add({ targets: v.root, scaleY: { from: 0.9, to: 1 }, duration: 220, ease: 'Back.easeOut' });
+    });
+    v.scaffold = { img, timer };
+  }
+
+  private puff(x: number, y: number, cells: number) {
+    this.dust.explode(Math.min(14, 4 + cells), x, y);
   }
 
   private createView(b: Building): BuildingView {
@@ -261,7 +324,7 @@ export class MapView {
     const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.w / 2, b.y + b.h / 2));
     const main = setTex(sc.add.image(0, 0, key), key);
     root.add(main);
-    const view: BuildingView = { kind: b.kind, root, main, wheat: [] };
+    const view: BuildingView = { kind: b.kind, root, main, wheat: [], level: b.level };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       root.add(view.wheat);
@@ -294,10 +357,12 @@ export class MapView {
         })
         .setDepth(DEPTH.fx);
     }
+    if (this.ready) this.raise(view, b, VISUAL.build.scaffoldMs);
     return view;
   }
 
   private destroyView(v: BuildingView) {
+    v.scaffold?.timer.remove();
     this.scene.tweens.killTweensOf(v.root);
     v.smoke?.destroy();
     v.root.destroy();
@@ -428,13 +493,14 @@ export class MapView {
 
   /**
    * `zoom` keeps balloons readable when zoomed out: they never shrink below ~1.2x / zoom on screen.
-   * `workDt` is the frame time in seconds times the game speed (0 when paused).
+   * `workDt` is the frame time in seconds times the game speed (0 when paused); `night` 0..1.
    */
-  update(time: number, zoom: number, workDt: number) {
+  update(time: number, zoom: number, workDt: number, night: number) {
     const t = time / 1000;
     this.work += workDt;
     const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
     this.drawWater(t);
+    this.lights.update(t, night);
     for (const v of this.views.values()) {
       v.wheat.forEach((w, k) => w.setAngle(Math.sin(t * 2.2 + k * 0.7 + v.root.x * 0.05) * 7));
       v.crew?.update(this.work);

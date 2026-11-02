@@ -22,12 +22,14 @@ import {
   type Rng,
 } from '../core';
 import { CameraRig } from '../render/CameraRig';
+import { DayNight, phaseIcon } from '../render/DayNight';
 import { Effects } from '../render/Effects';
 import { SPEEDS, type Speed } from '../render/Hud';
 import { describeCell, hintSegments, toolSegments } from '../render/info';
 import { footCenter, getRotation, gridToWorld, setRotation, worldToCell, worldToGrid } from '../render/iso';
 import { VIEW_CY } from '../render/layout';
 import { MapView, originFor } from '../render/MapView';
+import { RoadWear } from '../render/RoadWear';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
@@ -81,6 +83,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private walkers!: Walkers;
   private fx!: Effects;
   private rig!: CameraRig;
+  private dayNight!: DayNight;
+  private wear!: RoadWear;
   private ui: UIScene | null = null;
 
   private tool: Tool = 'view';
@@ -120,8 +124,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
     setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
-    this.map = new MapView(this, this.state);
-    this.walkers = new Walkers(this);
+    this.wear = new RoadWear(this.state);
+    this.map = new MapView(this, this.state, this.wear);
+    this.dayNight = new DayNight(this);
+    this.walkers = new Walkers(this, this.wear);
     this.fx = new Effects(this);
     this.rig = new CameraRig(this.cameras.main);
     const a = this.state.buildings.find((b) => b.kind === 'altar')!;
@@ -148,8 +154,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
-    this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed);
-    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds);
+    this.dayNight.update((delta / 1000) * speed, delta);
+    const light = this.dayNight.current;
+    if (this.dayNight.degraded !== this.map.degraded) {
+      this.map.degraded = this.dayNight.degraded;
+      this.map.sync(this.state, this.eco.efficiency);
+    }
+    this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
+    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers);
+    this.ui?.setDayPhase(phaseIcon(light.phase), this.dayNight.degraded);
   }
 
   // ---------- state -> view ----------
@@ -249,7 +262,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const g = worldToGrid(w.x, w.y);
     setRotation(getRotation() + dir);
     this.map.destroy();
-    this.map = new MapView(this, this.state);
+    this.map = new MapView(this, this.state, this.wear);
+    this.map.degraded = this.dayNight.degraded;
     const n = gridToWorld(g.x, g.y);
     this.rig.centerAt(n.x, n.y, sx, sy);
     this.refresh();
@@ -273,6 +287,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   /** New map, new seed: back to the start of the game. */
+  /** The player changed the display options (day and night, miniature blur). */
+  applySettings() {
+    this.dayNight.applySettings();
+  }
+
   restart() {
     this.scene.stop('ui');
     this.scene.restart();

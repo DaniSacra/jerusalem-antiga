@@ -57,6 +57,8 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `build-with-mouse` | rua e casas arrastando, campo e poço clicando; conta ruas e construções | `build-with-mouse` |
 | `families-arrive` | terrenos ao lado da rua em 3x; espera família andando e tenda pronta | `families-walking`, `families-arrived` |
 | `town-art` | monta uma cidade com todos os níveis e prédios; templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
+| `day-night` | PC: cidade de `buildTown` pausada em manhã, tarde dourada, pôr do sol e noite (ícone certo ao lado do mês, metade dos moradores e luzes acesas à noite); painel de opções e ciclo desligado (sempre dia) | `day-night-morning`, `day-night-golden`, `day-night-sunset`, `day-night-night`, `day-night-options`, `day-night-off` |
+| `scaffold-roads` | ruas com passos de moradores (uma gasta, uma calçada, uma comum); oficina nova com andaime que some depois | `roads-wear`, `scaffold`, `scaffold-done` |
 | `field-work` | pausado: 8 campos ligados (4 plantações, normal e espelhado) e 1 sem rua; 2 agricultores por campo com eficiência 100%, nenhum no campo sem rua; zoom máximo (dois momentos do trabalho) e mínimo; mapa girado com 1 agricultor por campo quando só parte das vagas está ocupada | `field-work-zoom-max`, `field-work-zoom-max-later`, `field-work-zoom-min`, `field-work-turned` |
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
 | `touch` | celular deitado com toque real: toque no botão Rua do trilho esquerdo; um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
@@ -115,6 +117,11 @@ async 'meu-cenario'(page) {
   pelo protocolo do Chrome, em coordenadas do jogo.
 - No PC, o primeiro movimento do mouse depois de sair de um botão vai para a interface (evento
   "out" do Phaser); mova duas vezes antes de conferir a prévia.
+- `shot(page, nome)` espera as construções novas terminarem de subir (andaime) antes da captura;
+  use `{ scaffolds: true }` para fotografar o andaime. `buildTown(page)` monta a cidade de exemplo.
+- `startGame` desliga o controle de quadros por segundo (`game.dayNight.fpsGuard = false`), para o
+  acabamento não sumir no navegador lento. Ganchos: `game.dayNight.setTime(t)` (0..1, 0,76 = noite),
+  `game.dayNight.current`, `game.wear.step(state, x, y)` e `game.wear.level(state, x, y)`.
 - O navegador sem placa de vídeo é lento: prefira `page.waitForFunction(...)` esperando um estado
   do jogo em vez de tempos fixos longos.
 

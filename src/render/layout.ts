@@ -31,16 +31,24 @@ export const DIVIDER = 16;
 /** Left rail, under the speed: 3 tools, a divider and the 2 turn arrows. */
 export const LEFT_RAIL: Rect = { x: PAD, y: SPEED.y + SPEED.h + 10, w: BTN + 2 * PAD, h: 5 * BTN + 3 * BTN_GAP + DIVIDER + 2 * PAD };
 
-/** Right rail: the 6 buildings, wider buttons for the thumbnails, centered vertically. */
+/** Right rail: the 6 buildings, wider buttons for the thumbnails, centered vertically under the options button. */
 export const BUILD_W = 88;
 const RIGHT_H = 6 * BTN + 5 * BTN_GAP + 2 * PAD;
-export const RIGHT_RAIL: Rect = { x: GAME_W - PAD - BUILD_W - 2 * PAD, y: Math.round((GAME_H - RIGHT_H) / 2), w: BUILD_W + 2 * PAD, h: RIGHT_H };
+const RIGHT_W = BUILD_W + 2 * PAD;
+const OPT_SIZE = SPEED_BTN + 2 * PAD;
+const RIGHT_Y = Math.min(GAME_H - PAD - RIGHT_H, Math.max(Math.round((GAME_H - RIGHT_H) / 2), PAD + OPT_SIZE + 8));
+export const RIGHT_RAIL: Rect = { x: GAME_W - PAD - RIGHT_W, y: RIGHT_Y, w: RIGHT_W, h: RIGHT_H };
+/** Options (gear) in the top right corner; on very wide screens, beside the top of the rail instead. */
+export const OPTIONS: Rect =
+  RIGHT_Y >= PAD + OPT_SIZE + 8
+    ? { x: GAME_W - PAD - OPT_SIZE, y: PAD, w: OPT_SIZE, h: OPT_SIZE }
+    : { x: RIGHT_RAIL.x - 8 - OPT_SIZE, y: PAD, w: OPT_SIZE, h: OPT_SIZE };
 
 /** Top-center plaque: city name, then month, silver, food, residents and work. */
-export const PLAQUE_W = 760;
+export const PLAQUE_W = 790;
 export const PLAQUE: Rect = { x: (GAME_W - PLAQUE_W) / 2, y: 0, w: PLAQUE_W, h: 66 };
 /** Widths of the plaque slots (month, silver, food, residents, work), fixed so numbers never push each other. */
-const SLOT_W = [84, 180, 168, 104, 196];
+const SLOT_W = [112, 180, 168, 104, 196];
 const SLOT_X0 = PLAQUE.x + (PLAQUE_W - SLOT_W.reduce((a, b) => a + b, 0)) / 2;
 /** Slot k of the plaque, full plaque height (the silver slot is the tap target for the breakdown). */
 export const plaqueSlot = (k: number): Rect => ({ x: SLOT_X0 + SLOT_W.slice(0, k).reduce((a, b) => a + b, 0), y: 0, w: SLOT_W[k], h: PLAQUE.h });

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { craftOf, doorsOf, findPath, indexOf, pickWalkerType, RULES, walkerDef, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type WalkerType } from '../core';
 import { depthAt, gridToWorld } from './iso';
+import type { RoadWear } from './RoadWear';
 import { TEX, WALKER_LOOKS } from './textures';
 
 const MAX_WALKERS = 60;
@@ -61,10 +62,14 @@ export class Walkers {
   /** Families who abandoned their tent, walking out to the city entrance (only a sight, no rules). */
   private leaving: { img: Phaser.GameObjects.Image; path: Cell[]; step: number }[] = [];
 
-  constructor(private scene: Phaser.Scene) {}
+  constructor(
+    private scene: Phaser.Scene,
+    private wear: RoadWear,
+  ) {}
 
-  update(dtMs: number, s: GameState, residents: number, speed: number, monthFrac: number) {
-    this.updateResidents(dtMs / 1000, s, residents, speed);
+  /** `share` scales how many residents are out (time of day: half at night, more in the late afternoon). */
+  update(dtMs: number, s: GameState, residents: number, speed: number, monthFrac: number, share = 1) {
+    this.updateResidents(dtMs / 1000, s, Math.floor(Math.min(MAX_WALKERS, residents / PER_WALKER) * share), speed);
     this.updateFamilies(s, monthFrac);
     this.updateLeaving(dtMs / 1000, speed);
   }
@@ -93,9 +98,13 @@ export class Walkers {
     });
   }
 
-  private updateResidents(dt: number, s: GameState, residents: number, speed: number) {
-    const target = Math.min(MAX_WALKERS, Math.floor(residents / PER_WALKER));
-    while (this.list.length > target) this.list.pop()!.img.destroy();
+  private updateResidents(dt: number, s: GameState, target: number, speed: number) {
+    // Extra walkers go home once they reach where they were going (no one vanishes mid-street),
+    // unless there are far too many (the city shrank).
+    if (this.list.length > target) {
+      const k = this.list.length > target * 2 + 4 ? this.list.length - 1 : this.list.findIndex((w) => w.seg >= w.path.length - 1);
+      if (k >= 0) this.list.splice(k, 1)[0].img.destroy();
+    }
     if (this.list.length < target) this.spawn(s);
 
     const onNet = (c: Cell) => s.network[indexOf(s, c.x, c.y)];
@@ -118,6 +127,7 @@ export class Walkers {
         while (w.t >= 1 && w.seg < w.path.length - 1) {
           w.t -= 1;
           w.seg++;
+          this.wear.step(s, w.path[w.seg].x, w.path[w.seg].y);
         }
         if (w.seg >= w.path.length - 1) {
           w.t = 0;

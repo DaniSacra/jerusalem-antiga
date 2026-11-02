@@ -1,0 +1,44 @@
+{
+  "dayNight": {
+    "cycleSeconds": 240,
+    "startAt": 0.12,
+    "keys": [
+      { "t": 0.0,  "phase": "dawn",      "tint": "0xe6cfc8", "sky": "0x8a7a8e", "night": 0.45 },
+      { "t": 0.08, "phase": "morning",   "tint": "0xfff8ee", "sky": "0x9fc3d6", "night": 0 },
+      { "t": 0.18, "phase": "morning",   "tint": "0xffffff", "sky": "0xa9cce0", "night": 0 },
+      { "t": 0.36, "phase": "afternoon", "tint": "0xffffff", "sky": "0xa9cce0", "night": 0 },
+      { "t": 0.46, "phase": "afternoon", "tint": "0xffdcaa", "sky": "0xe2c08a", "night": 0 },
+      { "t": 0.54, "phase": "sunset",    "tint": "0xf6b892", "sky": "0xd9875e", "night": 0.15 },
+      { "t": 0.6,  "phase": "sunset",    "tint": "0xb6a4c4", "sky": "0x6a5878", "night": 0.6 },
+      { "t": 0.66, "phase": "night",     "tint": "0x8e96c8", "sky": "0x232a4a", "night": 1 },
+      { "t": 0.9,  "phase": "night",     "tint": "0x8e96c8", "sky": "0x232a4a", "night": 1 },
+      { "t": 1.0,  "phase": "dawn",      "tint": "0xe6cfc8", "sky": "0x8a7a8e", "night": 0.45 }
+    ],
+    "walkers": { "night": 0.5, "evening": 1.25, "eveningFrom": 0.42, "eveningTo": 0.56 }
+  },
+  "lights": {
+    "lampRadius": 3,
+    "lampEvery": 5,
+    "maxSparkFires": 6,
+    "windowLevel": 3
+  },
+  "roads": {
+    "worn": 60,
+    "paved": 240,
+    "pavedNear": 2
+  },
+  "build": {
+    "scaffoldMs": 1500,
+    "upgradeMs": 600
+  },
+  "finish": {
+    "vignetteRadius": 0.5,
+    "vignetteStrength": 0.28,
+    "tiltBand": 0.5,
+    "tiltBlur": 3.5
+  },
+  "perf": {
+    "minFps": 40,
+    "sampleSeconds": 4
+  }
+}

@@ -92,6 +92,8 @@ async function startGame(page) {
   await page.waitForTimeout(800);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.game?.ui && window.state && window.core && window.iso, null, { timeout: 15000 });
+  // Software rendering is slow: keep the image finish on so screenshots do not depend on the frame rate.
+  await page.evaluate(() => (window.game.dayNight.fpsGuard = false));
   await page.waitForTimeout(300);
 }
 
@@ -149,7 +151,54 @@ async function setupHudCity(page) {
   assert(kinds.includes('deficit') && kinds.includes('unemployed'), `deficit and unemployment alerts (${kinds})`);
 }
 
-const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
+/** A walled town with every building kind and house level, framed at zoom 1.1. */
+async function buildTown(page) {
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = 1e6;
+    s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
+    s.feature = s.feature.map(() => null);
+    for (let x = 12; x <= 36; x++) {
+      core.place(s, 'road', x, 18);
+      core.place(s, 'road', x, 31);
+    }
+    for (let y = 18; y <= 31; y++) {
+      core.place(s, 'road', 12, y);
+      core.place(s, 'road', 36, y);
+    }
+    for (let x = 27; x <= 36; x++) core.place(s, 'road', x, 24);
+    const put = (k, x, y, level = 0, rotated = false) => {
+      const r = core.place(s, k, x, y, rotated);
+      if (!r.ok) throw new Error(`town-art: cannot place ${k} at ${x},${y}: ${r.reason}`);
+      s.grid[y * s.cols + x].level = level;
+    };
+    for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 19, (k % 4) + 1);
+    for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 29, (k + 2) % 5);
+    put('well', 27, 25);
+    put('market', 29, 25, 0, true); // rotated 4x2
+    put('workshop', 33, 25);
+    put('field', 26, 29);
+    put('field', 29, 29);
+    put('house', 32, 29, 4);
+    put('house', 34, 29, 3);
+    put('market', 34, 19); // 2x4 upright
+    put('temple', 25, 32);
+    put('field', 3, 3); // disconnected: shows the "no road" balloon
+    window.game.refresh();
+    const cam = window.game.cameras.main;
+    cam.setZoom(1.1);
+    cam.centerOn(-64, 780);
+  });
+}
+
+/** Screenshot; waits for new buildings to finish going up unless `scaffolds` is set. */
+async function shot(page, name, { scaffolds = false } = {}) {
+  if (!scaffolds)
+    await page
+      .waitForFunction(() => !window.game?.map || [...window.game.map.views.values()].every((v) => !v.scaffold), null, { timeout: 20000 })
+      .catch(() => {}); // title and other screens without a map
+  await page.screenshot({ path: `${OUT}/${name}.png` });
+}
 
 // ---------- scenarios ----------
 
@@ -198,44 +247,80 @@ const scenarios = {
     await shot(page, 'families-arrived');
   },
 
+  'day-night': {
+    context: PC,
+    async run(page) {
+      await startGame(page);
+      await buildTown(page);
+      await page.evaluate(() => window.game.setSpeed(0));
+      const phases = [
+        ['morning', 0.22, 'sun'],
+        ['golden', 0.47, 'sun'],
+        ['sunset', 0.56, 'dusk'],
+        ['night', 0.76, 'moon'],
+      ];
+      for (const [name, t, icon] of phases) {
+        await page.evaluate((t) => window.game.dayNight.setTime(t), t);
+        await page.waitForTimeout(400);
+        const got = await page.evaluate(() => ({ icon: window.game.ui.hud.phase.texture.key, light: window.game.dayNight.current }));
+        assert(got.icon === `icon-${icon}`, `${name}: ${icon} next to the month (got ${got.icon})`);
+        await shot(page, `day-night-${name}`);
+      }
+      const night = await page.evaluate(() => window.game.dayNight.current);
+      assert(night.night === 1 && Math.abs(night.walkers - 0.5) < 1e-9, `half the walkers at night (${night.walkers})`);
+      assert(await page.evaluate(() => window.game.map.lights.groups.size > 10), 'windows, lamps and fires are lit at night');
+      // Turning the cycle off from the options panel: always day.
+      const opt = await page.evaluate(() => window.layout.OPTIONS);
+      await page.mouse.click(...(await gameToPage(page, opt.x + opt.w / 2, opt.y + opt.h / 2)));
+      await page.waitForTimeout(200);
+      const row = await page.evaluate(() => {
+        const r = window.game.ui.options.rect;
+        return [r.x + r.w / 2, r.y + 6 + 36 + 30];
+      });
+      await shot(page, 'day-night-options');
+      await page.mouse.click(...(await gameToPage(page, ...row)));
+      await page.waitForTimeout(300);
+      const off = await page.evaluate(() => window.game.dayNight.current);
+      assert(off.night === 0 && off.phase !== 'night', `cycle off shows the day (${off.phase})`);
+      await shot(page, 'day-night-off');
+      await page.mouse.click(...(await gameToPage(page, ...row))); // back on for the next runs (saved in the browser)
+    },
+  },
+
+  async 'scaffold-roads'(page) {
+    await startGame(page);
+    await buildTown(page);
+    await page.evaluate(() => window.game.setSpeed(0));
+    // Busy streets: the north road worn, the east road paved (steps only change the looks).
+    await page.evaluate(() => {
+      const { state: s, game } = window;
+      for (let x = 12; x <= 36; x++) for (let k = 0; k < 80; k++) game.wear.step(s, x, 18);
+      for (let y = 18; y <= 31; y++) for (let k = 0; k < 300; k++) game.wear.step(s, 36, y);
+      game.refresh();
+    });
+    await page.waitForTimeout(200);
+    const wear = await page.evaluate(() => {
+      const { state: s, game } = window;
+      return [game.wear.level(s, 20, 18), game.wear.level(s, 36, 25), game.wear.level(s, 20, 31)];
+    });
+    assert(wear[0] === 1 && wear[1] === 2 && wear[2] === 0, `worn, paved and plain streets (${wear})`);
+    await shot(page, 'roads-wear');
+    // A new building goes up behind a scaffold, then shows its drawing.
+    await page.evaluate(() => {
+      window.core.place(window.state, 'workshop', 13, 23);
+      window.game.refresh();
+    });
+    await page.waitForTimeout(300);
+    const up = () => page.evaluate(() => !!window.game.map.views.get(window.state.buildings.at(-1).id).scaffold);
+    assert(await up(), 'a new building shows a scaffold');
+    await shot(page, 'scaffold', { scaffolds: true });
+    await page.waitForFunction(() => !window.game.map.views.get(window.state.buildings.at(-1).id).scaffold, null, { timeout: 20000 });
+    await shot(page, 'scaffold-done');
+  },
+
   async 'town-art'(page) {
     await startGame(page);
-    await page.evaluate(() => {
-      const { state: s, core } = window;
-      s.silver = 1e6;
-      s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
-      s.feature = s.feature.map(() => null);
-      for (let x = 12; x <= 36; x++) {
-        core.place(s, 'road', x, 18);
-        core.place(s, 'road', x, 31);
-      }
-      for (let y = 18; y <= 31; y++) {
-        core.place(s, 'road', 12, y);
-        core.place(s, 'road', 36, y);
-      }
-      for (let x = 27; x <= 36; x++) core.place(s, 'road', x, 24);
-      const put = (k, x, y, level = 0, rotated = false) => {
-        const r = core.place(s, k, x, y, rotated);
-        if (!r.ok) throw new Error(`town-art: cannot place ${k} at ${x},${y}: ${r.reason}`);
-        s.grid[y * s.cols + x].level = level;
-      };
-      for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 19, (k % 4) + 1);
-      for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 29, (k + 2) % 5);
-      put('well', 27, 25);
-      put('market', 29, 25, 0, true); // rotated 4x2
-      put('workshop', 33, 25);
-      put('field', 26, 29);
-      put('field', 29, 29);
-      put('house', 32, 29, 4);
-      put('house', 34, 29, 3);
-      put('market', 34, 19); // 2x4 upright
-      put('temple', 25, 32);
-      put('field', 3, 3); // disconnected: shows the "no road" balloon
-      window.game.refresh();
-      const cam = window.game.cameras.main;
-      cam.setZoom(1.1);
-      cam.centerOn(-64, 780);
-    });
+    await buildTown(page);
     await page.waitForTimeout(1500);
     await shot(page, 'town-art');
     const t = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'temple'));
@@ -599,7 +684,7 @@ const scenarios = {
     await page.waitForTimeout(300);
     await shot(page, 'turn-3');
     await page.keyboard.press('KeyQ');
-    await page.waitForTimeout(300);
+    await page.waitForFunction(() => window.iso.getRotation() === 2, null, { timeout: 3000 }).catch(() => {});
     const rot = await page.evaluate(() => window.iso.getRotation());
     assert(rot === 2, `Q turns back (rotation ${rot})`);
     await shot(page, 'turn-2');
