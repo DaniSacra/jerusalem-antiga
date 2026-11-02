@@ -41,4 +41,9 @@ export const DEPTH = { ground: 0, road: 1, groundFx: 2, overlay: 5, world: 100, 
 export const depthAt = (gx: number, gy: number) => DEPTH.world + (gx + gy) * 10;
 
 /** Stable per-cell hash for picking visual variants. */
-export const cellHash = (x: number, y: number) => (((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0;
+export const cellHash = (x: number, y: number) => {
+  let h = Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  return (h ^ (h >>> 15)) >>> 0;
+};

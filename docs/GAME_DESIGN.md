@@ -167,7 +167,13 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
 - Isométrico 2:1, paleta quente: areia, ocre, tijolo de barro, pedra calcária clara, com verde de
   palmeiras e azul do rio como contraste.
 - Construções como pequenas maquetes: paredes em dois tons (face sul iluminada, face leste na
-  sombra), telhados planos, muros grossos, jarros, toldos e plantas nos telhados das casas grandes.
+  sombra), telhados planos usados como área de convivência, muros grossos, jarros, toldos e plantas.
+- Cada nível de casa se distingue mesmo no zoom mínimo: tenda de pano escuro de pelo de cabra;
+  casa de barro pequena; casa de pedra embaixo e barro em cima, com janela emoldurada, escadinha
+  externa e varal no telhado; casa grande de calcário claro de "quatro cômodos", com andar de cima
+  nos fundos, alas laterais e pátio interno com forno e figueira.
+- Chão com variação suave (manchas, ondulações na areia, seixos, tufos de capim), sem padrão de
+  xadrez. Ruas de terra batida largas, com sulcos de carroça e pedras gastas nas bordas.
 - Luz de fim de tarde vinda do oeste; sombras suaves sempre para o leste.
 - Desenho ordenado por profundidade (x + y do centro da área), incluindo moradores e o templo 3 x 3.
 - A camada de desenho é isolada: texturas com nome e pontos de ancoragem (`ORIGIN`, `HEIGHT`),

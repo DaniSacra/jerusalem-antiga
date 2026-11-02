@@ -163,65 +163,122 @@ function groundTile(p: Pen, kind: Ground, v: number) {
   const r = createRng(300 + v * 7 + kind.length);
   const base = kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
   p.rect(base, -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
-  const spot = () => [-0.4 + r() * 0.8, -0.4 + r() * 0.8] as const;
+  const spot = (m = 0.4) => [-m + r() * m * 2, -m + r() * m * 2] as const;
   if (kind === 'river') {
     p.rect(C.waterDeep, -0.2, -DIAMOND, 0.2, DIAMOND, 0, 0.35);
     return;
   }
-  for (let i = 0; i < 5; i++) {
+  // Large soft patches break the tile grid; small speckles give grain.
+  for (let i = 0; i < 2; i++) {
+    const [x, y] = spot(0.25);
+    p.disc(shade(base, r() < 0.5 ? 0.96 : 1.05), x, y, 0, 0.18 + r() * 0.1, 0.55);
+  }
+  for (let i = 0; i < 7; i++) {
     const [x, y] = spot();
-    p.disc(shade(base, r() < 0.5 ? 0.93 : 1.08), x, y, 0, 0.06 + r() * 0.08, 0.7);
+    p.disc(shade(base, r() < 0.5 ? 0.92 : 1.08), x, y, 0, 0.03 + r() * 0.06, 0.7);
   }
   if (kind === 'sand') {
-    for (let i = 0; i < 2; i++) {
-      const [x, y] = spot();
-      p.line(shade(base, 1.12), 1.2, [x - 0.12, y], [x + 0.12, y], 0.8);
+    // Wind ripples and a few pebbles.
+    for (let i = 0; i < 3; i++) {
+      const [x, y] = spot(0.35);
+      const a = p.p(x - 0.1, y + 0.02);
+      const m = p.p(x, y - 0.03);
+      const b = p.p(x + 0.1, y + 0.02);
+      p.g.lineStyle(1, shade(base, 1.14), 0.85);
+      p.g.lineBetween(a.x, a.y, m.x, m.y);
+      p.g.lineBetween(m.x, m.y, b.x, b.y);
+      p.g.lineStyle(1, shade(base, 0.9), 0.5);
+      p.g.lineBetween(a.x, a.y + 1, m.x, m.y + 1);
+      p.g.lineBetween(m.x, m.y + 1, b.x, b.y + 1);
     }
-    const [px, py] = spot();
-    p.ball(C.rockLight, px, py, 0, 1.2);
+    for (let i = 0; i < 2 + (v % 2); i++) {
+      const [px, py] = spot();
+      const c = p.p(px, py);
+      p.g.fillStyle(C.rockDark, 0.5);
+      p.g.fillEllipse(c.x + 0.6, c.y + 0.6, 3, 1.8);
+      p.g.fillStyle(C.rockLight);
+      p.g.fillEllipse(c.x, c.y, 2.6, 1.6);
+    }
   } else {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       const [x, y] = spot();
       const b = p.p(x, y);
-      p.g.lineStyle(1.3, i % 2 ? C.tuft : shade(base, 1.2), 0.9);
-      p.g.lineBetween(b.x, b.y, b.x - 2, b.y - 4);
-      p.g.lineBetween(b.x, b.y, b.x, b.y - 5);
-      p.g.lineBetween(b.x, b.y, b.x + 2, b.y - 4);
+      const tall = 3 + r() * 3;
+      p.g.lineStyle(1.2, i % 3 ? C.tuft : shade(base, 1.22), 0.9);
+      p.g.lineBetween(b.x, b.y, b.x - 2, b.y - tall * 0.8);
+      p.g.lineBetween(b.x, b.y, b.x, b.y - tall);
+      p.g.lineBetween(b.x, b.y, b.x + 2, b.y - tall * 0.8);
+    }
+    if (v === 0) {
+      const [x, y] = spot(0.3);
+      p.ball(0xf2e6b0, x, y, 2, 1.1);
+      p.ball(0xd98a6a, x + 0.08, y - 0.04, 2, 1.1);
     }
   }
 }
 
-/** Dirt road: a center patch plus an arm toward each connected neighbour (N, E, S, W). */
+/**
+ * Packed-earth street: a soft verge, a wide trodden surface with an arm toward each connected
+ * neighbour (N, E, S, W), cart ruts, worn edge stones and a few pebbles.
+ */
 function road(p: Pen, mask: number) {
-  const w = 0.24;
+  const w = 0.32;
   const arms: [number, number, number, number][] = [
     [-w, -0.5, w, -w], // N (y - 1)
     [w, -w, 0.5, w], // E (x + 1)
     [-w, w, w, 0.5], // S (y + 1)
     [-0.5, -w, -w, w], // W (x - 1)
   ];
+  const has = (k: number) => !!(mask & (1 << k));
   const draw = (color: number, grow: number, alpha: number) => {
     p.rect(color, -w - grow, -w - grow, w + grow, w + grow, 0, alpha);
     arms.forEach(([x0, y0, x1, y1], k) => {
-      if (!(mask & (1 << k))) return;
+      if (!has(k)) return;
       const gx = k % 2 ? 0 : grow;
       const gy = k % 2 ? grow : 0;
       p.rect(color, x0 - gx, y0 - gy, x1 + gx, y1 + gy, 0, alpha);
     });
   };
-  draw(C.roadEdge, 0.05, 0.6);
+  draw(C.roadEdge, 0.1, 0.25);
+  draw(C.roadEdge, 0.05, 0.55);
   draw(C.road, 0, 1);
-  const rut = shade(C.road, 0.85);
+  draw(shade(C.road, 1.08), -0.08, 0.7);
+  const rut = shade(C.road, 0.82);
   arms.forEach((_, k) => {
-    if (!(mask & (1 << k))) return;
+    if (!has(k)) return;
     const sign = k === 0 || k === 3 ? -0.5 : 0.5;
-    for (const o of [-0.09, 0.09]) {
-      if (k % 2) p.line(rut, 1, [0, o], [sign, o], 0.8);
-      else p.line(rut, 1, [o, 0], [o, sign], 0.8);
+    for (const o of [-0.13, 0.13]) {
+      if (k % 2) p.line(rut, 1.2, [0, o], [sign, o], 0.7);
+      else p.line(rut, 1.2, [o, 0], [o, sign], 0.7);
     }
   });
-  p.ball(shade(C.road, 1.15), -0.08, 0.1, 0, 1.2);
-  p.ball(shade(C.road, 0.8), 0.1, -0.06, 0, 1);
+  // Worn edge stones along the open sides of each arm.
+  const r = createRng(900 + mask);
+  const stone = (x: number, y: number) => {
+    const c = p.p(x, y);
+    p.g.fillStyle(C.rockDark, 0.6);
+    p.g.fillEllipse(c.x + 0.7, c.y + 0.7, 3.4, 2);
+    p.g.fillStyle(r() < 0.5 ? C.rock : C.rockLight);
+    p.g.fillEllipse(c.x, c.y, 3.2, 1.9);
+  };
+  arms.forEach(([x0, y0, x1, y1], k) => {
+    if (!has(k)) return;
+    for (const t of [0.55]) {
+      const along = k % 2 ? x0 + (x1 - x0) * t : y0 + (y1 - y0) * t;
+      if (k % 2) {
+        stone(along, -w - 0.03);
+        stone(along, w + 0.03);
+      } else {
+        stone(-w - 0.03, along);
+        stone(w + 0.03, along);
+      }
+    }
+  });
+  for (let i = 0; i < 4; i++) {
+    const x = -0.2 + r() * 0.4;
+    const y = -0.2 + r() * 0.4;
+    p.ball(i % 2 ? shade(C.road, 1.2) : shade(C.road, 0.75), x, y, 0, 0.9);
+  }
 }
 
 // ---------- features ----------
@@ -307,20 +364,29 @@ function plot(p: Pen) {
   p.box(0.12, 0.1, 0.24, 0.18, 4, 7, shade(C.mud, 1.08));
 }
 
+/** Level 1: a tent of dark goat-hair cloth on poles, with guy ropes and a lighter door flap. */
 function tent(p: Pen) {
   const h = 20;
+  const cloth = C.tentCloth;
   p.shadow(-0.36, -0.32, 0.36, 0.32, h * 0.7);
   const corners: P3[] = [[-0.36, -0.32], [0.36, -0.32], [0.36, 0.32], [-0.36, 0.32]];
   corners.forEach(([x, y]) => p.line(C.rope, 1, [x * 0.7, y, h * 0.5], [x * 1.25, y * 1.3, 0]));
-  p.poly(shade(C.fabric, 1.1), [[-0.36, -0.32, 0], [-0.36, 0.32, 0], [0, 0.32, h], [0, -0.32, h]]);
-  p.poly(shade(C.fabric, 0.72), [[0, -0.32, h], [0, 0.32, h], [0.36, 0.32, 0], [0.36, -0.32, 0]]);
-  for (const t of [0.33, 0.66]) {
-    p.line(shade(C.fabric, 0.85), 2, [-0.36 * (1 - t), -0.32, h * t], [-0.36 * (1 - t), 0.32, h * t], 0.6);
-    p.line(shade(C.fabric, 0.55), 2, [0.36 * (1 - t), -0.32, h * t], [0.36 * (1 - t), 0.32, h * t], 0.6);
+  p.poly(shade(cloth, 1.25), [[-0.36, -0.32, 0], [-0.36, 0.32, 0], [0, 0.32, h], [0, -0.32, h]]);
+  p.poly(shade(cloth, 0.78), [[0, -0.32, h], [0, 0.32, h], [0.36, 0.32, 0], [0.36, -0.32, 0]]);
+  // Woven strips of the cloth.
+  for (const t of [0.25, 0.5, 0.75]) {
+    p.line(shade(cloth, 1.45), 1.5, [-0.36 * (1 - t), -0.32, h * t], [-0.36 * (1 - t), 0.32, h * t], 0.55);
+    p.line(shade(cloth, 0.6), 1.5, [0.36 * (1 - t), -0.32, h * t], [0.36 * (1 - t), 0.32, h * t], 0.6);
   }
-  p.poly(shade(C.fabric, 0.9), [[-0.36, 0.32, 0], [0.36, 0.32, 0], [0, 0.32, h]]);
-  p.poly(C.door, [[-0.1, 0.32, 0], [0.1, 0.32, 0], [0, 0.32, h * 0.62]]);
+  p.poly(shade(cloth, 1.1), [[-0.36, 0.32, 0], [0.36, 0.32, 0], [0, 0.32, h]]);
+  p.poly(0x2a1f17, [[-0.1, 0.32, 0], [0.1, 0.32, 0], [0, 0.32, h * 0.62]]);
+  p.poly(C.fabric, [[0.02, 0.32, 0], [0.14, 0.32, 0], [0.02, 0.32, h * 0.55]]);
   p.line(C.woodDark, 2, [0, -0.32, h], [0, 0.32, h]);
+  p.line(C.wood, 2, [0, 0.33, 0], [0, 0.33, h + 3]);
+  // Water jar and a mat by the door.
+  p.ball(C.terracotta, -0.22, 0.42, 4, 3.2);
+  p.ball(shade(C.terracotta, 1.25), -0.23, 0.41, 6, 1.2);
+  p.rect(C.red, 0.12, 0.36, 0.3, 0.46, 0, 0.8);
 }
 
 /** Flat-roofed house body with a parapet and a door on the lit side. */
@@ -338,6 +404,35 @@ function windows(p: Pen, s: number, z: number) {
   p.eastQuad(shade(C.door, 0.8), s, -0.1, 0.06, z, z + 5);
 }
 
+/** Courses of stone blocks on the lit (south) and shaded (east) faces of a box. */
+function masonry(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, color: number, alpha = 1) {
+  const lit = shade(color, 0.8);
+  const dark = shade(color, 0.5);
+  let row = 0;
+  for (let z = z0 + 4; z < z1; z += 4, row++) {
+    p.line(lit, 1, [x0, y1, z], [x1, y1, z], 0.55 * alpha);
+    p.line(dark, 1, [x1, y0, z], [x1, y1, z], 0.55 * alpha);
+    for (let x = x0 + (row % 2 ? 0.07 : 0.14); x < x1; x += 0.14) p.line(lit, 1, [x, y1, z - 4], [x, y1, z], 0.45 * alpha);
+    for (let y = y0 + (row % 2 ? 0.07 : 0.14); y < y1; y += 0.14) p.line(dark, 1, [x1, y, z - 4], [x1, y, z], 0.45 * alpha);
+  }
+}
+
+/** Clothesline between two posts on a roof at height z, with drying cloths. */
+function clothesline(p: Pen, a: [number, number], b: [number, number], z: number, cloths: number[]) {
+  p.line(C.woodDark, 1.5, [a[0], a[1], z], [a[0], a[1], z + 10]);
+  p.line(C.woodDark, 1.5, [b[0], b[1], z], [b[0], b[1], z + 10]);
+  p.line(C.rope, 1, [a[0], a[1], z + 10], [b[0], b[1], z + 10]);
+  cloths.forEach((color, k) => {
+    const t0 = (k + 0.4) / (cloths.length + 0.4);
+    const t1 = t0 + 0.55 / (cloths.length + 0.4);
+    const at = (t: number): [number, number] => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    const [x0, y0] = at(t0);
+    const [x1, y1] = at(t1);
+    p.poly(color, [[x0, y0, z + 10], [x1, y1, z + 10], [x1, y1, z + 4], [x0, y0, z + 5]]);
+  });
+}
+
+/** Level 2: a small mud-brick house with roof beams and a jar on the roof. */
 function mudHouse(p: Pen) {
   const s = 0.33;
   house(p, s, 22, C.mud);
@@ -349,42 +444,126 @@ function mudHouse(p: Pen) {
   p.ball(C.terracotta, 0.17, -0.17, 26, 3.2);
 }
 
+/**
+ * Level 3: stone ground floor with mud brick above, a framed window, an outside stair up to the
+ * flat roof, and a roof used for living (clothesline, jars, a potted plant).
+ */
 function stoneHouse(p: Pen) {
-  const s = 0.38;
-  house(p, s, 28, C.stone);
-  windows(p, s, 15);
-  for (const z of [9, 19]) {
-    p.line(shade(C.stone, 0.8), 1, [-s, s, z], [s, s, z], 0.6);
-    p.line(shade(C.stone, 0.55), 1, [s, -s, z], [s, s, z], 0.6);
+  const s = 0.36;
+  const h = 30;
+  const base = 13;
+  p.shadow(-s, -s, s, s, h);
+  p.box(-s, -s, s, s, 0, base, C.stone, shade(C.stone, 0.9), shade(C.stone, 0.62));
+  masonry(p, -s, -s, s, s, 0, base, C.stone);
+  p.box(-s, -s, s, s, base, h, shade(C.mud, 1.08), C.mud, shade(C.mud, 0.66));
+  // Parapet and roof.
+  const i = 0.05;
+  p.rect(shade(C.mud, 0.92), -s + i, -s + i, s - i, s - i, h);
+  p.poly(shade(C.mud, 0.78), [[-s + i, -s + i, h], [s - i, -s + i, h], [s - i, -s + i, h - 2], [-s + i, -s + i, h - 2]]);
+  // Door with a stone lintel, framed window, small east window.
+  p.southQuad(C.limestone, s + 0.002, -0.12, 0.04, 11, 14);
+  p.southQuad(C.door, s + 0.002, -0.1, 0.02, 0, 11);
+  p.southQuad(C.limestone, s + 0.002, 0.12, 0.28, 16, 25);
+  p.southQuad(0x3a2818, s + 0.003, 0.14, 0.26, 17.5, 23.5);
+  p.southQuad(C.woodDark, s + 0.004, 0.19, 0.21, 17.5, 23.5);
+  p.eastQuad(shade(C.door, 0.7), s + 0.002, -0.08, 0.04, 18, 23);
+  // Outside stair against the south face, rising toward the west corner.
+  for (let k = 0; k < 5; k++) {
+    const x0 = -s + (4 - k) * 0.045;
+    const z = (k + 1) * (h / 5);
+    p.box(x0, s, x0 + 0.045, s + 0.09, 0, z, shade(C.mud, 1.15), shade(C.mud, 0.92), shade(C.mud, 0.62));
+    p.line(shade(C.mud, 1.3), 1, [x0, s + 0.09, z], [x0 + 0.045, s + 0.09, z]);
   }
-  p.box(-0.26, -0.26, -0.14, -0.14, 28, 32, C.terracotta);
-  p.ball(C.leaf, -0.2, -0.2, 37, 5);
-  p.ball(shade(C.leaf, 1.25), -0.22, -0.22, 39, 2);
-  p.rect(shade(C.stone, 0.75), 0.08, -0.26, 0.24, -0.1, 28);
+  // Rooftop life.
+  clothesline(p, [-0.24, -0.26], [0.24, -0.26], h, [C.clothes[1], C.cream, C.clothes[0]]);
+  p.ball(C.terracotta, 0.22, 0.16, h + 4, 3.4);
+  p.ball(shade(C.terracotta, 1.25), 0.21, 0.15, h + 6, 1.3);
+  p.ball(C.terracotta, 0.12, 0.22, h + 3, 2.6);
+  p.box(-0.06, 0.02, 0.06, 0.14, h, h + 4, C.terracotta);
+  p.ball(C.leaf, 0, 0.08, h + 9, 5);
+  p.ball(shade(C.leaf, 1.3), -0.02, 0.06, h + 11, 2);
 }
 
+/**
+ * Level 4: a large two-storey "four-room house" of light limestone. A broad back range with an
+ * upper floor, two side wings and a front wall with a gate enclose an open courtyard with a bread
+ * oven and a fig tree.
+ */
 function bigHouse(p: Pen) {
-  const s = 0.43;
-  house(p, s, 26, C.limestone);
-  windows(p, s, 14);
-  // Upper room on the back half.
-  p.box(-0.38, -0.38, 0.06, -0.02, 26, 40, shade(C.limestone, 1.05), shade(C.limestone, 0.9), shade(C.limestone, 0.66));
-  p.southQuad(C.door, -0.02, -0.26, -0.12, 26, 35);
-  // Striped awning with posts.
-  for (const [x, y] of [[0.36, -0.36], [0.36, 0.04]] as const) p.line(C.woodDark, 1.5, [x, y, 26], [x, y, 36]);
+  const s = 0.45;
+  const wing = 22;
+  const tall = 42;
+  const wall = C.limeWash;
+  const back = -0.08; // front edge of the back range
+  const cx0 = -0.16; // courtyard west edge
+  const cx1 = 0.17; // courtyard east edge
+  const front = 0.34; // inner edge of the front wall
+  p.shadow(-s, -s, s, back, tall);
+  p.shadow(-s, back, s, s, wing);
+  const roof = (x0: number, y0: number, x1: number, y1: number, z: number) => {
+    const i = 0.04;
+    p.rect(shade(wall, 0.9), x0 + i, y0 + i, x1 - i, y1 - i, z);
+    p.poly(shade(wall, 0.75), [[x0 + i, y0 + i, z], [x1 - i, y0 + i, z], [x1 - i, y0 + i, z - 2], [x0 + i, y0 + i, z - 2]]);
+  };
+  // Back range: stone ground floor, plastered upper floor with windows.
+  p.box(-s, -s, s, back, 0, tall, shade(wall, 1.04), shade(wall, 0.9), shade(wall, 0.64));
+  masonry(p, -s, -s, s, back, 0, 16, shade(wall, 0.95), 0.6);
+  roof(-s, -s, s, back, tall);
+  for (const x of [-0.08, 0.06]) {
+    p.southQuad(C.limestone, back + 0.002, x - 0.015, x + 0.075, 26, 35);
+    p.southQuad(0x3a2818, back + 0.003, x, x + 0.06, 27, 34);
+  }
+  p.eastQuad(0x3a2818, s + 0.002, -0.32, -0.24, 27, 34);
+  // Courtyard floor with oven, jar and fig tree.
+  p.rect(shade(C.sand[0], 0.92), cx0, back, cx1, front);
+  const oven = p.p(0.08, 0.02, 0);
+  p.g.fillStyle(shade(C.mud, 0.8));
+  p.g.fillEllipse(oven.x, oven.y - 3, 10, 8);
+  p.g.fillStyle(C.mud);
+  p.g.fillEllipse(oven.x - 1, oven.y - 4, 7, 5);
+  p.ball(0x2a1f17, 0.08, 0.06, 2, 1.4);
+  p.ball(C.terracotta, -0.08, 0.26, 3, 2.6);
+  // West wing (its east face looks into the courtyard).
+  p.box(-s, back, cx0, s, 0, wing, shade(wall, 1.04), shade(wall, 0.9), shade(wall, 0.7));
+  masonry(p, -s, back, cx0, s, 0, 12, shade(wall, 0.95), 0.6);
+  roof(-s, back, cx0, s, wing);
+  p.eastQuad(C.door, cx0 + 0.002, 0.04, 0.14, 0, 12);
+  p.southQuad(0x3a2818, s + 0.002, -0.36, -0.28, 13, 18);
+  // Fig tree rising from the courtyard.
+  const trunk = p.p(-0.02, 0.12, 0);
+  p.g.lineStyle(3, C.trunk);
+  p.g.lineBetween(trunk.x, trunk.y, trunk.x + 1, trunk.y - 16);
+  for (const [dx, dy, r, col] of [[-5, -20, 7, C.oliveDark], [5, -21, 7, C.leaf], [0, -26, 7, C.leaf], [-3, -24, 3, shade(C.leaf, 1.3)]] as const) {
+    p.g.fillStyle(col);
+    p.g.fillCircle(trunk.x + dx, trunk.y + dy, r);
+  }
+  // Front wall with a gate.
+  p.box(cx0, front, -0.06, s, 0, 14, wall, shade(wall, 0.9), shade(wall, 0.66));
+  p.box(0.07, front, cx1, s, 0, 14, wall, shade(wall, 0.9), shade(wall, 0.66));
+  p.box(-0.06, front, 0.07, s, 12, 16, C.limestone, shade(C.limestone, 0.88), shade(C.limestone, 0.66));
+  p.southQuad(C.wood, s + 0.002, -0.06, 0.07, 0, 12);
+  p.line(C.woodDark, 1, [0.005, s + 0.003, 0], [0.005, s + 0.003, 12]);
+  // East wing.
+  p.box(cx1, back, s, s, 0, wing, shade(wall, 1.04), shade(wall, 0.9), shade(wall, 0.66));
+  masonry(p, cx1, back, s, s, 0, 12, shade(wall, 0.95), 0.6);
+  roof(cx1, back, s, s, wing);
+  p.southQuad(0x3a2818, s + 0.002, 0.26, 0.36, 13, 18);
+  p.eastQuad(0x3a2818, s + 0.002, 0.1, 0.2, 13, 18);
+  // Roof life: striped awning and clothesline up top, plants and jars on the wings.
+  for (const [x, y] of [[0.4, -0.4], [0.4, -0.14]] as const) p.line(C.woodDark, 1.5, [x, y, tall], [x, y, tall + 10]);
   const stripes = 5;
   for (let k = 0; k < stripes; k++) {
-    const y0 = -0.38 + (k * 0.44) / stripes;
-    const y1 = y0 + 0.44 / stripes;
-    p.poly(k % 2 ? C.cream : C.red, [[0.12, y0, 39], [0.4, y0, 35], [0.4, y1, 35], [0.12, y1, 39]]);
+    const y0 = -0.42 + (k * 0.3) / stripes;
+    const y1 = y0 + 0.3 / stripes;
+    p.poly(k % 2 ? C.cream : C.red, [[0.16, y0, tall + 13], [0.42, y0, tall + 9], [0.42, y1, tall + 9], [0.16, y1, tall + 13]]);
   }
-  // Rooftop plants and jars.
-  p.disc(C.terracotta, -0.3, 0.3, 26, 0.06);
-  p.ball(C.leaf, -0.3, 0.3, 31, 5);
-  p.ball(shade(C.leaf, 1.3), -0.32, 0.28, 33, 2);
-  p.ball(C.terracotta, 0.1, 0.32, 29, 3);
-  p.ball(C.terracotta, 0.2, 0.32, 29, 3);
-  p.ball(C.leaf, -0.3, -0.3, 45, 4);
+  clothesline(p, [-0.38, -0.34], [-0.38, -0.12], tall, [C.clothes[3], C.clothes[2]]);
+  p.ball(C.terracotta, -0.12, -0.3, tall + 3, 3);
+  p.box(-0.37, 0.22, -0.27, 0.32, wing, wing + 4, C.terracotta);
+  p.ball(C.leaf, -0.32, 0.27, wing + 9, 5);
+  p.ball(shade(C.leaf, 1.3), -0.34, 0.25, wing + 11, 2);
+  p.ball(C.terracotta, 0.3, 0.3, wing + 3, 2.8);
+  p.ball(C.terracotta, 0.38, 0.22, wing + 3, 2.8);
 }
 
 // ---------- other buildings ----------
@@ -723,7 +902,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
   }
   for (let mask = 0; mask < 16; mask++) make(scene, TEX.road(mask), TILE, (p) => road(p, mask));
-  const houses: [(p: Pen) => void, number][] = [[plot, 6], [tent, 22], [mudHouse, 26], [stoneHouse, 40], [bigHouse, 46]];
+  const houses: [(p: Pen) => void, number][] = [[plot, 6], [tent, 22], [mudHouse, 26], [stoneHouse, 44], [bigHouse, 56]];
   houses.forEach(([draw, h], level) => make(scene, TEX.building('house', level), SMALL, draw, h));
   const buildings: [BuildingKind, (p: Pen) => void, number][] = [
     ['field', field, 14],
