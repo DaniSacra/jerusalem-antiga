@@ -1,0 +1,8 @@
+{
+  "house":    { "name": "Casa",    "cost": 10, "jobs": 0 },
+  "field":    { "name": "Campo",   "cost": 15, "jobs": 2, "food": 3 },
+  "well":     { "name": "Poço",    "cost": 20, "jobs": 0, "radius": 3 },
+  "market":   { "name": "Mercado", "cost": 40, "jobs": 2, "radius": 4 },
+  "workshop": { "name": "Oficina", "cost": 35, "jobs": 3, "silver": 5 },
+  "altar":    { "name": "Altar",   "cost": 80, "jobs": 1, "radius": 5 }
+}

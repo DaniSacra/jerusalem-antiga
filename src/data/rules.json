@@ -1,0 +1,20 @@
+{
+  "startSilver": 150,
+  "startFood": 30,
+  "startUnlocked": ["house", "field", "well"],
+  "monthSeconds": 1.2,
+  "workerShare": 0.5,
+  "foodPerResident": 0.2,
+  "tentChance": 0.35,
+  "monthsToChange": 3,
+  "famineDropChance": 0.12,
+  "treeClearCost": 5,
+  "map": {
+    "cols": 20,
+    "rows": 11,
+    "rocks": 10,
+    "trees": 18,
+    "freeArea": { "x0": 6, "x1": 12, "y0": 3, "y1": 7 },
+    "valley": { "partialRows": [3, 7] }
+  }
+}

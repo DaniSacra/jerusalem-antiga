@@ -1,0 +1,8 @@
+[
+  { "type": "residents", "target": 15,  "reward": 30,  "unlock": "market",   "text": "Chegue a 15 moradores" },
+  { "type": "houses",    "target": 3,   "level": 2,    "reward": 40, "unlock": "workshop", "text": "Tenha 3 casas de barro" },
+  { "type": "residents", "target": 50,  "reward": 50,  "text": "Chegue a 50 moradores" },
+  { "type": "houses",    "target": 3,   "level": 3,    "reward": 60, "unlock": "altar", "text": "Tenha 3 casas de pedra" },
+  { "type": "houses",    "target": 2,   "level": 4,    "reward": 100, "text": "Tenha 2 casas grandes" },
+  { "type": "residents", "target": 200, "reward": 0,   "victory": true, "text": "Chegue a 200 moradores" }
+]
