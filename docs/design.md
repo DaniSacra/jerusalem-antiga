@@ -98,17 +98,126 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
     vermelho piscando em dívida
 - Em dívida e com fome ao mesmo tempo, a etiqueta de dívida troca a dica para
   "Em dívida e com fome: demolir serviços para juntar prata para um campo"
-  (só texto; aprovado, a implementar)
 - Equilíbrio medido (100 seeds): Eficiente vence 100/100 sem dívida, mês 56;
   Comum vence 96/100, 82 com saldo negativo e 36 em dívida recuperada, mês 94;
   Distraído perde 81/100
+- fun-critic (2026-11-02): diversão 7, sempre algo a fazer 6, curva 5,
+  recompensas 7, clareza das metas 5, cidade viva 8, vontade de jogar de novo 6
 
-## Pendente
-- fun-critic avaliar o pacote "Manutenção e falência"
-- sim-tester medir a recompensa da meta 3 de 40 → 75 (paga as 2 oficinas da
-  meta 4); só entra depois da medição
+## Em andamento: pacote "Avisos a tempo" (aprovado 2026-11-02, não implementado)
+Sem mecânica nova: avisos, prévia, tela de derrota e números medidos.
+- Aviso de comida antes da fome: comida caindo e durando menos de
+  `foodAlertMonths` (8, `rules.json`) meses → "Comida acaba em N meses:
+  construa um campo"
+- Aviso de saldo negativo só quando aperta: prata + `deficitAlertMonths` (12,
+  `rules.json`) × saldo < 0. O valor da prata continua laranja com saldo negativo
+- Uma etiqueta só (a mais importante), no celular e no PC. Ordem: dívida, fome
+  ou comida acabando, saldo negativo, desemprego
+- Prévia de poço e mercado mostra "Atende N casas" (casas e terrenos com
+  alguma célula no raio)
+- Tela de derrota com a causa principal e uma dica: fome em algum mês dos
+  últimos `debtMonthsToLose` → "Faltou comida por N meses" + "Construa campos
+  antes de crescer"; senão "Maior gasto: Poços (N/mês)" + "Cada serviço deve
+  atender várias casas"
+- Para o sim-tester medir (só entram com os 3 alvos mantidos): comida inicial
+  30 → 45, `famineLeaveChance` 0,2 → 0,12, recompensa da meta 3 40 → 75, e
+  limites das metas 5 e 7 (hoje se cumprem sozinhas logo depois da meta 4).
+  Confirmar também se falta lugar para o templo ao liberar (fun-critic: 16/18)
+
+## Próximo: pacote "Campo é trabalho" (pedido do usuário, aprovado 2026-11-02)
+Sem mecânica nova: um número novo no campo, texto e arte. Ordem dos pacotes
+pendentes: este, depois "Interface nova", depois "Avisos a tempo" (assim a
+etiqueta única de aviso já nasce no lugar novo).
+- Campo emprega menos e rende menos prata que a oficina (`buildings.json`):
+  campo `jobs` 3 → 2 e `silver` 1 (novo); oficina continua 3 vagas e 5 de
+  prata. Prata por trabalhador: campo 0,5, oficina 1,7. Comida do campo (3) e
+  manutenção (1) não mudam: o campo "se paga" e dá comida
+- Core: a produção de prata soma `silver` de todo local de trabalho ligado ×
+  eficiência (hoje só a oficina tem). Mês: prata += impostos + produção −
+  manutenção. Testes no Vitest; `docs/GAME_DESIGN.md` atualizado
+- Texto: aviso de desemprego "N pessoas sem trabalho: construa uma oficina ou
+  um campo" (condição igual: Oficina liberada e 6+ sem trabalho); detalhe da
+  prata mostra "Impostos +X · Oficina +X · Campo +Y · Manutenção: … · Saldo";
+  Ver no campo mostra vagas, comida e prata; dica "… 2 vagas · produz 3 de
+  comida e 1 de prata/mês"
+- Arte: agricultores dentro do campo, trabalhando parados (enxada subindo e
+  descendo, abaixar para colher, passo curto entre as fileiras), com fase
+  sorteada para não ficarem sincronizados. Quantidade = round(vagas ×
+  eficiência), de 0 a 2; nenhum se o campo está sem rua ou com eficiência 0
+  (o balão já explica). Só render, lendo a eficiência do core
+- sim-tester mede com os 3 alvos atuais (Eficiente vence sem dívida, Comum
+  vence ≥ 90% com aperto, Distraído perde ~80%). Se a prata sobrar demais,
+  testar campo `silver` 0,5; se o desemprego travar o Comum antes da Oficina,
+  testar oficina `jobs` 4. O game-director aprova os números finais
+
+## Depois: pacote "Interface nova" (pedido do usuário, aprovado 2026-11-02)
+Só interface: troca as barras de largura total por placa no topo e dois
+trilhos laterais, para o mapa ocupar quase a tela toda no celular deitado.
+Layout inspirado em Pharaoh: A New Era; arte própria desenhada em código,
+pedra clara com detalhes dourados. Nenhum arquivo de imagem, nada copiado.
+- Placa no centro do topo (não de largura total): nome "Jerusalém" em cima
+  (pedido do usuário), depois Mês, prata (+X/mês, com as
+  cores atuais), comida (pisca na fome), moradores, trabalho. Ícone + número,
+  sem rótulo. Tocar na prata mostra o detalhe como hoje
+- Faixa da meta logo abaixo da placa; tocar mostra a meta inteira e o
+  progresso na linha de informação
+- Abaixo da meta, UMA faixa de aviso (a mais importante, ordem do pacote
+  "Avisos a tempo") com X: fechar esconde aquele aviso até ele sumir e voltar.
+  Aviso de dívida não tem X
+- Canto superior esquerdo: velocidade em 3 botões (pausa, 1x, 3x), o ativo
+  em dourado
+- Trilho esquerdo, abaixo da velocidade: Ver, Rua, Limpar, divisória,
+  girar ↺ e ↻ (saem do canto direito)
+- Trilho direito: as 6 construções (Casa, Campo, Poço, Mercado, Oficina,
+  Templo), ícone = miniatura da textura da própria construção, custo pequeno
+  embaixo. Sem flyout de categorias: 6 cabem e um toque a menos (pilar 1).
+  Cinza quando falta prata; bloqueadas como hoje
+- Ao escolher uma ferramenta, a linha de informação (placa compacta no centro
+  de baixo, só aparece quando tem texto) mostra nome, custo, manutenção e dica
+- Toasts no centro de baixo, acima da linha de informação
+- Tamanhos: botão dos trilhos ≥ 72 px do jogo (≈ 48 px de tela no celular
+  844 x 390, acima do mínimo de 44); substitui a decisão "botões ≥ 80 px" da
+  barra de baixo. Conferir no celular 844 x 390 e no PC 1366 x 768
+- Fora: desfazer, sobreposições, mundo, lista, ajuda (não temos essas
+  funções). O painel de estatísticas (candidato 7) ganhará um botão no trilho
+  esquerdo quando entrar
+- Absorve da revisão do ui-designer: "layout do celular", "Trabalho com — e
+  +N sem vaga" e "prévia acima do dedo" (prévia não pode ficar sob os trilhos)
+- `isOverUi` passa a cobrir placa, faixas, trilhos e linha de informação;
+  cenários visuais novos nos dois tamanhos em `docs/TESTING.md`
 
 ## Decisões
+- 2026-11-02 — Pacote "Campo é trabalho" (pedido do usuário). Motivo: hoje
+  o campo dá vaga mas o trabalho "parece" só oficina; campo com menos gente e
+  menos prata cria escolha (comida e pouca prata × prata e nenhuma comida).
+  Não é mecânica nova: o campo ganha um número que a oficina já tem.
+- 2026-11-02 — Agricultores no campo entram junto. Motivo: mostram na tela a
+  regra nova (campo = trabalho) e a falta de gente (campo vazio), pilar 2.
+- 2026-11-02 — Pacote "Interface nova" (pedido do usuário) entra depois do
+  campo e antes de "Avisos a tempo". Motivo: no celular deitado a barra de
+  cima e a de baixo comem ~30% da altura; trilhos laterais devolvem o mapa.
+  Fazer antes dos avisos evita construir a etiqueta duas vezes.
+- 2026-11-02 — Sem flyout de categorias. Motivo: 6 construções cabem num
+  trilho; cada toque a mais pesa no pilar 1.
+- 2026-11-02 — Usuário aprovou: ordem campo → interface → avisos, campo com
+  2 vagas e 1 prata, nome "Jerusalém" na placa do topo e "Cidade densa" como
+  pacote depois de "Avisos a tempo".
+- 2026-11-02 — Ferramentas só com ícone; nome, custo e dica vão para a linha
+  de informação ao escolher, custo pequeno no botão. Motivo: botões grandes
+  com texto não cabem no trilho; o custo continua visível para decidir.
+- 2026-11-02 — Pacote "Avisos a tempo" a partir do fun-critic. Motivo: a
+  derrota existe mas chega sem aviso (fome) ou com aviso errado (saldo negativo
+  no mês 0 mandando demolir o primeiro poço); o jovem tem que entender o que
+  errou (pilar 1). Só interface e números, nenhuma mecânica nova.
+- 2026-11-02 — Uma etiqueta por vez. Motivo: duas etiquetas cobrem o topo do
+  mapa no celular; o jogador resolve um problema de cada vez.
+- 2026-11-02 — "Atende N casas" na prévia entra agora. Motivo: com
+  manutenção, o número de casas atendidas é a decisão de posicionamento
+  (pilar 3), e hoje o jogador não o vê.
+- 2026-11-02 — Botão "Mesmo mapa" na derrota fica para depois: um botão a
+  mais na tela; rever se a vontade de jogar de novo continuar baixa.
+- 2026-11-02 — Templo sem lugar: decidir só depois de o sim-tester confirmar
+  o número do fun-critic.
 - 2026-11-02 — Equilíbrio da manutenção: poço 1 → 3, mercado 3 → 4; resto
   igual. Motivo: com os valores originais, Comum quase nunca apertava (1/40) e
   Distraído perdia só 15/40; agora os três alvos são cumpridos. Poço mais caro
@@ -229,3 +338,12 @@ Em ordem, um pacote por vez.
 
 Ajustes de equilíbrio em espera (dependem do sim-tester): oficina 8 de prata,
 imposto menor de pedra/casa grande.
+
+Interface em espera: botão "Mesmo mapa" (mesma seed) na tela de derrota.
+
+Visual aprovado pelo usuário (2026-11-02), depois de "Avisos a tempo":
+"Cidade densa", inspirado no visual orgânico de Banished, em 2D isométrico
+desenhado em código e com tema de Jerusalém: grupos de árvores, grama
+variada, trilhas de terra gastas, sombras no chão, textura de telhado e
+parede, fumaça de chaminé e mais vida na rua. Sem câmera 3D e sem copiar
+arte. map-designer + sprite-artist. O game-director fecha o escopo antes.

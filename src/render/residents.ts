@@ -29,9 +29,13 @@ const INK = 0x2e2118;
 const PRIEST_WHITE = 0xfaf7f0;
 const PRIEST_BLUE = 0x2f5fb0;
 const HAIR = 0x2e2118;
+const IRON = 0x5a5650;
+const IRON_EDGE = 0xc8c2b6;
+const SOIL = 0x7a5232;
+const BEARD_BROWN = 0x6b4a30;
 
 type Cover = 'mantle' | 'headcloth' | 'turban' | 'hair';
-type Arm = 'swing' | 'up' | 'front' | 'back' | 'staff';
+type Arm = 'swing' | 'up' | 'front' | 'back' | 'staff' | 'low' | 'reach';
 
 interface Look {
   skin: number;
@@ -167,6 +171,8 @@ function person(g: G, cx: number, F: number, b: Body, frame: number) {
     front: P(4.8 + l * 0.6, -11),
     back: P(-2 + l, -15.5),
     staff: P(5.2 + l * 0.6, -12.5),
+    low: P(5.6 + l * 0.7, -8),
+    reach: P(6.4 + l * 0.8, -5),
   };
   const hand = hands[b.arm];
   g.lineStyle(2.2 * s, shade(b.robe, 0.82));
@@ -232,7 +238,7 @@ function sack(g: G, back: Pt) {
 function sickle(g: G, hand: Pt) {
   g.lineStyle(2, C.woodDark);
   g.lineBetween(hand.x, hand.y + 1, hand.x + 1, hand.y - 2.5);
-  for (const [w, c] of [[2.8, 0x5a5650], [1.4, 0xe2ded4]] as const) {
+  for (const [w, c] of [[2.8, IRON], [1.4, 0xe2ded4]] as const) {
     g.lineStyle(w, c);
     g.beginPath();
     g.arc(hand.x + 4.2, hand.y - 2.6, 3.6, Math.PI, Math.PI * 2.25, false);
@@ -464,7 +470,7 @@ const LOOKS: Record<WalkerType, Look[]> = {
   farmer: [
     { skin: SKIN[1], robe: CLOTH.wool, head: CLOTH.white, sash: CLOTH.brown, beard: HAIR },
     { skin: SKIN[2], robe: CLOTH.brown, head: CLOTH.linen, sash: CLOTH.dark, beard: HAIR },
-    { skin: SKIN[0], robe: CLOTH.linen, head: CLOTH.rust, sash: CLOTH.brown, beard: 0x6b4a30 },
+    { skin: SKIN[0], robe: CLOTH.linen, head: CLOTH.rust, sash: CLOTH.brown, beard: BEARD_BROWN },
   ],
   basketWoman: [
     { skin: SKIN[1], robe: CLOTH.indigo, head: CLOTH.red, sash: CLOTH.ochre },
@@ -474,10 +480,10 @@ const LOOKS: Record<WalkerType, Look[]> = {
   porter: [
     { skin: SKIN[2], robe: CLOTH.linen, head: CLOTH.brown, sash: CLOTH.dark, beard: HAIR },
     { skin: SKIN[1], robe: CLOTH.blue, head: CLOTH.linen, sash: CLOTH.brown, beard: HAIR },
-    { skin: SKIN[0], robe: CLOTH.brown, head: CLOTH.wool, sash: CLOTH.red, beard: 0x6b4a30 },
+    { skin: SKIN[0], robe: CLOTH.brown, head: CLOTH.wool, sash: CLOTH.red, beard: BEARD_BROWN },
   ],
   artisan: [
-    { skin: SKIN[0], robe: CLOTH.indigo, head: CLOTH.linen, beard: 0x6b4a30 },
+    { skin: SKIN[0], robe: CLOTH.indigo, head: CLOTH.linen, beard: BEARD_BROWN },
     { skin: SKIN[1], robe: CLOTH.red, head: CLOTH.white, beard: HAIR },
     { skin: SKIN[2], robe: CLOTH.dark, head: CLOTH.ochre, beard: HAIR },
   ],
@@ -495,7 +501,7 @@ const LOOKS: Record<WalkerType, Look[]> = {
   donkeyMan: [
     { skin: SKIN[1], robe: CLOTH.wool, head: CLOTH.red, sash: CLOTH.dark, beard: HAIR },
     { skin: SKIN[2], robe: CLOTH.linen, head: CLOTH.blue, sash: CLOTH.brown, beard: HAIR },
-    { skin: SKIN[0], robe: CLOTH.brown, head: CLOTH.white, sash: CLOTH.ochre, beard: 0x6b4a30 },
+    { skin: SKIN[0], robe: CLOTH.brown, head: CLOTH.white, sash: CLOTH.ochre, beard: BEARD_BROWN },
   ],
   shepherd: [
     { skin: SKIN[2], robe: CLOTH.brown, head: CLOTH.wool, sash: CLOTH.red, beard: HAIR },
@@ -505,7 +511,7 @@ const LOOKS: Record<WalkerType, Look[]> = {
   // Priests: all-white linen, a wide blue sash and a tall white turban; only skin and beard vary.
   priest: [
     { skin: SKIN[1], robe: PRIEST_WHITE, head: PRIEST_WHITE, sash: PRIEST_BLUE, beard: HAIR },
-    { skin: SKIN[0], robe: PRIEST_WHITE, head: PRIEST_WHITE, sash: PRIEST_BLUE, beard: 0x6b4a30 },
+    { skin: SKIN[0], robe: PRIEST_WHITE, head: PRIEST_WHITE, sash: PRIEST_BLUE, beard: BEARD_BROWN },
     { skin: SKIN[2], robe: PRIEST_WHITE, head: PRIEST_WHITE, sash: PRIEST_BLUE, beard: HAIR },
   ],
 };
@@ -591,6 +597,94 @@ export function drawResident(g: G, type: WalkerType, look: number, frame: number
       // Drawn about 2 px taller than the other residents.
       person(g, cx, F, { ...L, cover: 'turban', arm: 'front', sashW: 3.4, s: 1.08 }, frame);
       break;
+    }
+  }
+}
+
+// ---------- farmers at work inside a field ----------
+
+/**
+ * Field work poses: 0 hoe raised, 1 hoe struck into the soil, 2 and 3 stooping to cut stalks with
+ * a sickle, 4 and 5 a short step carrying the hoe, 6 and 7 a short step with sickle and sheaf.
+ */
+export const FIELDHAND_POSES = 8;
+export const FIELDHAND_SIZE: [number, number] = [34, 40];
+
+/** A wooden hoe from the grip to the far end, with a broad iron blade bent toward `dir` at the end. */
+function hoe(g: G, grip: Pt, end: Pt, dir: Pt) {
+  g.lineStyle(2, C.woodDark);
+  g.lineBetween(grip.x, grip.y, end.x, end.y);
+  const tip = { x: end.x + dir.x * 4.5, y: end.y + dir.y * 4.5 };
+  const n = { x: -dir.y * 2, y: dir.x * 2 };
+  const blade = [
+    { x: end.x - n.x * 0.6, y: end.y - n.y * 0.6 },
+    { x: end.x + n.x * 0.6, y: end.y + n.y * 0.6 },
+    { x: tip.x + n.x, y: tip.y + n.y },
+    { x: tip.x - n.x, y: tip.y - n.y },
+  ];
+  g.fillStyle(IRON);
+  g.fillPoints(blade, true);
+  g.lineStyle(1, IRON_EDGE, 0.9);
+  g.lineBetween(blade[2].x, blade[2].y, blade[3].x, blade[3].y);
+}
+
+/** A few cut stalks held in the hand. */
+function handful(g: G, hand: Pt) {
+  g.lineStyle(1.2, C.wheatStem);
+  for (const dx of [-2.5, -0.5, 1.5]) g.lineBetween(hand.x, hand.y, hand.x + dx - 1, hand.y - 7);
+  g.fillStyle(C.wheat);
+  for (const dx of [-2.5, -0.5, 1.5]) g.fillEllipse(hand.x + dx - 1.2, hand.y - 8, 2.4, 4);
+}
+
+/**
+ * Farmers in the fields wear stronger colours than the farmer walker (white linen, indigo, madder
+ * red) so they stand out against golden wheat and brown soil at the minimum zoom.
+ */
+const FIELDHAND_LOOKS: Look[] = [
+  { skin: SKIN[1], robe: CLOTH.white, head: CLOTH.red, sash: CLOTH.brown, beard: HAIR },
+  { skin: SKIN[2], robe: CLOTH.indigo, head: CLOTH.white, sash: CLOTH.ochre, beard: HAIR },
+  { skin: SKIN[0], robe: CLOTH.red, head: CLOTH.linen, sash: CLOTH.dark, beard: BEARD_BROWN },
+];
+export const FIELDHAND_LOOK_COUNT = FIELDHAND_LOOKS.length;
+
+/** A farmer of a look in a field work pose, on a FIELDHAND_SIZE canvas. */
+export function drawFieldhand(g: G, look: number, pose: number) {
+  const [w, h] = FIELDHAND_SIZE;
+  const L = FIELDHAND_LOOKS[look];
+  const F = h - 2;
+  const cx = w / 2;
+  const body = { ...L, cover: 'headcloth' as Cover, short: true };
+  shadowAt(g, cx, F, 11);
+  switch (pose) {
+    case 0: {
+      const r = person(g, cx, F, { ...body, arm: 'up', lean: -0.6 }, 1);
+      hoe(g, { x: r.hand.x + 1.5, y: r.hand.y + 2 }, { x: r.hand.x - 7, y: r.hand.y - 3.5 }, { x: 0.35, y: 0.94 });
+      break;
+    }
+    case 1: {
+      const r = person(g, cx, F, { ...body, arm: 'low', lean: 3 }, 0);
+      hoe(g, { x: r.hand.x - 4, y: r.hand.y - 4 }, { x: cx + 12, y: F - 4 }, { x: 0.2, y: 0.98 });
+      g.fillStyle(SOIL);
+      [[13, -1.5], [15.5, -3], [11, -3.5]].forEach(([dx, dy]) => g.fillCircle(cx + dx, F + dy, 0.9));
+      break;
+    }
+    case 2:
+    case 3: {
+      const r = person(g, cx - 1, F, { ...body, arm: pose === 2 ? 'low' : 'reach', lean: 4.5, bent: true }, 0);
+      if (pose === 2) sickle(g, r.hand);
+      else handful(g, r.hand);
+      break;
+    }
+    case 4:
+    case 5: {
+      const r = person(g, cx, F, { ...body, arm: 'staff' }, pose - 4);
+      hoe(g, { x: r.hand.x + 0.6, y: F - 1 }, { x: r.hand.x - 0.6, y: F - 27 }, { x: 0.94, y: 0.35 });
+      break;
+    }
+    default: {
+      sheaf(g, { x: cx - 1, y: F - 9 });
+      const r = person(g, cx, F, { ...body, arm: 'front' }, pose - 6);
+      sickle(g, r.hand);
     }
   }
 }

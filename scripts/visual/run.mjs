@@ -188,6 +188,76 @@ const scenarios = {
     await shot(page, 'overlay-house-sacred-area');
   },
 
+  /** Farmers working inside fields: count follows efficiency, none on a field without a road. */
+  async 'field-work'(page) {
+    await startGame(page);
+    const farmers = () =>
+      page.evaluate(() =>
+        [...window.game.map.views.values()].filter((v) => v.kind === 'field').map((v) => v.crew.count),
+      );
+    const centerOnFields = (zoom) =>
+      page.evaluate((zoom) => {
+        const cam = window.game.cameras.main;
+        const c = window.iso.gridToWorld(18, 21);
+        cam.setZoom(zoom);
+        cam.centerOn(c.x, c.y);
+      }, zoom);
+    await page.evaluate(() => {
+      const { state: s, core } = window;
+      s.silver = 1e6;
+      s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
+      s.feature = s.feature.map(() => null);
+      for (let x = 12; x <= 36; x++) core.place(s, 'road', x, 18);
+      for (let y = 18; y <= 31; y++) core.place(s, 'road', 12, y);
+      for (let x = 12; x <= 24; x++) core.place(s, 'road', x, 31);
+      const put = (k, x, y, level = 0) => {
+        const r = core.place(s, k, x, y);
+        if (!r.ok) throw new Error(`field-work: cannot place ${k} at ${x},${y}: ${r.reason}`);
+        return s.grid[y * s.cols + x];
+      };
+      // 8 connected fields (16 jobs), all four crops, both drawings, and 3 big houses (19 workers).
+      [13, 15, 17, 19, 21, 23].forEach((x, k) => {
+        const f = put('field', x, 19);
+        f.variant = k % 4;
+        f.mirrored = k % 2 === 1;
+      });
+      [21, 23].forEach((y) => put('field', 13, y));
+      put('house', 13, 29).level = 4;
+      put('house', 15, 29).level = 4;
+      put('house', 17, 29).level = 4;
+      put('field', 16, 23); // no road: no farmers
+      window.game.cycleSpeed();
+      window.game.cycleSpeed(); // pause
+      core.refreshCity(s);
+      window.game.refresh();
+    });
+    await page.waitForTimeout(300);
+    const eff = await page.evaluate(() => window.core.computeEconomy(window.state).efficiency);
+    let n = await farmers();
+    assert(eff === 1, `full efficiency (got ${eff})`);
+    assert(n.filter((c) => c === 2).length === 8 && n.filter((c) => c === 0).length === 1, `2 farmers per connected field, none on the loose one (got ${n})`);
+    await centerOnFields(2);
+    await page.waitForTimeout(200);
+    await shot(page, 'field-work-zoom-max');
+    await page.evaluate(() => (window.game.map.work += 0.5)); // a moment later: other strokes
+    await page.waitForTimeout(200);
+    await shot(page, 'field-work-zoom-max-later');
+    await centerOnFields(0.5);
+    await page.waitForTimeout(200);
+    await shot(page, 'field-work-zoom-min');
+
+    await page.evaluate(() => {
+      window.game.turnMap(1);
+      window.state.buildings.filter((b) => b.kind === 'house').forEach((b) => (b.level = 2)); // 7 workers for 16 jobs
+      window.game.refresh();
+    });
+    await centerOnFields(1.5);
+    await page.waitForTimeout(300);
+    n = await farmers();
+    assert(n.filter((c) => c === 1).length === 8, `1 farmer per field at a third of the jobs filled (got ${n})`);
+    await shot(page, 'field-work-turned');
+  },
+
   async 'camera-wheel'(page) {
     await startGame(page);
     await page.mouse.move(640, 330);

@@ -26,6 +26,16 @@ describe('stepMonth: resources', () => {
   });
 });
 
+describe('stepMonth: field silver', () => {
+  it('adds the field silver, scaled by efficiency, to the monthly balance', () => {
+    const s = emptyGame({ silver: 0, food: 10 });
+    put(s, 'house', ROADSIDE, 30, 1); // 3 residents -> 1 worker, 1 tax
+    put(s, 'field', westOf('field'), 32); // 2 jobs -> efficiency 0.5
+    stepMonth(s, never);
+    expect(s.silver).toBeCloseTo(1 + 1 * 0.5 - 1); // tax + field silver - field upkeep
+  });
+});
+
 describe('clock', () => {
   it('advances one month every 1.2s at 1x, faster at 3x, never when paused', () => {
     let r = advanceClock(0, 1.0, 1);

@@ -10,7 +10,7 @@ import Phaser from 'phaser';
 import { BUILDINGS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type WalkerType } from '../core';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
-import { drawResident, residentSize } from './residents';
+import { drawFieldhand, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, residentSize } from './residents';
 
 type G = Phaser.GameObjects.Graphics;
 type P3 = [number, number, number?];
@@ -46,6 +46,8 @@ export const TEX = {
   walker: (type: WalkerType, look: number, frame: number, craft: Craft | null = null) =>
     `walker-${type}-${look}-${frame}${craft ? `-${craft}` : ''}`,
   family: 'family',
+  /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
+  fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
   icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
 };
 export const VARIANTS = 4;
@@ -2658,6 +2660,9 @@ export function generateTextures(scene: Phaser.Scene): void {
     }
   }
   raw(TEX.family, 30, 23, family);
+  for (let look = 0; look < FIELDHAND_LOOK_COUNT; look++) {
+    for (let pose = 0; pose < FIELDHAND_POSES; pose++) raw(TEX.fieldhand(look, pose), ...FIELDHAND_SIZE, (g) => drawFieldhand(g, look, pose));
+  }
   icons(scene);
 }
 

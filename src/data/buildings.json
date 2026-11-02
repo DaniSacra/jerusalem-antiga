@@ -1,6 +1,6 @@
 {
   "house":    { "name": "Casa",    "cost": 10,  "w": 2, "h": 2, "jobs": 0 },
-  "field":    { "name": "Campo",   "cost": 15, "upkeep": 1,  "w": 2, "h": 2, "jobs": 3, "food": 3, "variants": 4 },
+  "field":    { "name": "Campo",   "cost": 15, "upkeep": 1,  "w": 2, "h": 2, "jobs": 2, "food": 3, "silver": 1, "variants": 4 },
   "well":     { "name": "Poço",    "cost": 20, "upkeep": 3,  "w": 2, "h": 2, "jobs": 0, "radius": 4 },
   "market":   { "name": "Mercado", "cost": 40, "upkeep": 4,  "w": 2, "h": 4, "jobs": 3, "radius": 5 },
   "workshop": { "name": "Oficina", "cost": 35, "upkeep": 2,  "w": 3, "h": 3, "jobs": 3, "silver": 5,

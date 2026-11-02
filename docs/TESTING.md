@@ -57,6 +57,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `build-with-mouse` | rua e casas arrastando, campo e poço clicando; conta ruas e construções | `build-with-mouse` |
 | `families-arrive` | terrenos ao lado da rua em 3x; espera família andando e tenda pronta | `families-walking`, `families-arrived` |
 | `town-art` | monta uma cidade com todos os níveis e prédios; templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
+| `field-work` | pausado: 8 campos ligados (4 plantações, normal e espelhado) e 1 sem rua; 2 agricultores por campo com eficiência 100%, nenhum no campo sem rua; zoom máximo (dois momentos do trabalho) e mínimo; mapa girado com 1 agricultor por campo quando só parte das vagas está ocupada | `field-work-zoom-max`, `field-work-zoom-max-later`, `field-work-zoom-min`, `field-work-turned` |
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
 | `touch` | celular deitado com toque real: um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
 | `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na barra; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
@@ -68,7 +69,9 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 
 Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `window`:
 
-- `window.game` — a `GameScene` (câmera em `game.cameras.main`, `game.refresh()`, `game.selectTool(t)`);
+- `window.game` — a `GameScene` (câmera em `game.cameras.main`, `game.refresh()`, `game.selectTool(t)`;
+  em `game.map` a `MapView`: `map.work` é o relógio das animações de trabalho, que pode ser
+  avançado com o jogo pausado, e `map.views` as construções desenhadas, com `crew.count` nos campos);
 - `window.state` — o `GameState` atual;
 - `window.core` — todas as funções do core (`core.place`, `core.clearCell`, `core.stepMonth`...);
 - `window.iso` — projeção e giro do mapa (`iso.gridToWorld`, `iso.getRotation()`); o

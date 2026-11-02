@@ -4,6 +4,7 @@ import {
   BUILDINGS,
   checkClear,
   checkPlace,
+  computeEconomy,
   footprint,
   indexOf,
   placeSize,
@@ -25,12 +26,15 @@ import { C, shade } from './palette';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, setTex } from './textures';
 import { isPlaceTool, type Tool } from './tools';
+import { FieldCrew } from './Fieldhands';
 
 interface BuildingView {
   kind: BuildingKind;
   root: Phaser.GameObjects.Container;
   main: Phaser.GameObjects.Image;
   wheat: Phaser.GameObjects.Image[];
+  /** Farmers working in a field. */
+  crew?: FieldCrew;
   flame?: Phaser.GameObjects.Image;
   glow?: Phaser.GameObjects.Image;
   smoke?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -87,6 +91,8 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
+  /** Game-speed clock in seconds for work animations (stops when paused). */
+  private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
   private ground: Phaser.GameObjects.GameObject[] = [];
 
@@ -96,7 +102,7 @@ export class MapView {
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
-    this.sync(state);
+    this.sync(state, computeEconomy(state).efficiency);
   }
 
   private drawGround(s: GameState) {
@@ -151,7 +157,7 @@ export class MapView {
 
   // ---------- sync with the simulation ----------
 
-  sync(s: GameState) {
+  sync(s: GameState, efficiency: number) {
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         this.syncFeature(s, x, y);
@@ -160,9 +166,12 @@ export class MapView {
     }
     this.drawLooseRoads(s);
     const alive = new Set<number>();
+    // Farmers per field follow the share of jobs filled; none on a field without a road.
+    const farmers = Math.round(BUILDINGS.field.jobs * efficiency);
     for (const b of s.buildings) {
       alive.add(b.id);
       this.syncBuilding(b);
+      this.views.get(b.id)!.crew?.setCount(b.connected ? farmers : 0);
       this.syncBalloon(s, b);
     }
     for (const [id, v] of this.views) {
@@ -256,6 +265,7 @@ export class MapView {
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       root.add(view.wheat);
+      view.crew = new FieldCrew(sc, root, view.wheat, b.mirrored ?? false);
     }
     if (b.kind === 'altar') {
       const { x, y, z, scale } = PARTS.altarFire;
@@ -416,13 +426,18 @@ export class MapView {
 
   // ---------- per-frame animation ----------
 
-  /** `zoom` keeps balloons readable when zoomed out: they never shrink below ~1.2x / zoom on screen. */
-  update(time: number, zoom: number) {
+  /**
+   * `zoom` keeps balloons readable when zoomed out: they never shrink below ~1.2x / zoom on screen.
+   * `workDt` is the frame time in seconds times the game speed (0 when paused).
+   */
+  update(time: number, zoom: number, workDt: number) {
     const t = time / 1000;
+    this.work += workDt;
     const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
     this.drawWater(t);
     for (const v of this.views.values()) {
       v.wheat.forEach((w, k) => w.setAngle(Math.sin(t * 2.2 + k * 0.7 + v.root.x * 0.05) * 7));
+      v.crew?.update(this.work);
       if (v.glow) {
         const f = Math.sin(t * 14 + v.root.x) * 0.08 + Math.sin(t * 23) * 0.05;
         const k = PARTS.altarFire.scale;

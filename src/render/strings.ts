@@ -5,7 +5,7 @@ export const T = {
   title: 'Jerusalém Antiga',
   start: 'Começar',
   howTo: [
-    'Construa casas e campos encostados nas ruas do altar.',
+    'Construa casas e campos ao lado das ruas do altar. Campos dão comida e trabalho.',
     'Poço, mercado e o altar perto fazem as casas crescerem.',
     'Cumpra as metas e construa o Templo. Não deixe a cidade em dívida!',
   ],
@@ -36,7 +36,7 @@ export const T = {
   goalDone: (reward: number, unlock?: Placeable) =>
     `Meta cumprida! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   /** Extra message when a goal unlocks a building, explaining what it is for. */
-  unlocked: { workshop: 'Oficina liberada! Ela dá trabalho ao povo e rende prata.' } as Partial<Record<Placeable, string>>,
+  unlocked: { workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${BUILDINGS.workshop.silver} de prata/mês` } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
       return a.famine
@@ -44,14 +44,22 @@ export const T = {
         : `A cidade está em dívida! ${months(a.monthsLeft)} para ser abandonada`;
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/mês · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/mês) · demolir serviços que atendem poucas casas`;
-    return `${a.count} pessoas sem trabalho: construa uma oficina`;
+    return `${a.count} pessoas sem trabalho: construa uma oficina ou um campo`;
   },
   debtStart: 'A cidade entrou em dívida! Toque na prata para ver os gastos',
   debtEnd: 'A cidade saiu da dívida!',
   /** Info line when the silver is tapped: where it comes from and where it goes. */
   silverBreakdown: (e: Economy): string => {
-    const costs = (Object.entries(e.upkeep) as [BuildingKind, number][]).map(([k, v]) => `${BUILDINGS[k].name} −${fmt(v)}`);
-    return [`Impostos +${fmt(e.taxes)}`, `Oficinas +${fmt(e.workshops)}`, ...costs, `Saldo ${signed(e.silverDelta)}/mês`].join('  ·  ');
+    // Fixed kind order (buildings.json), so the parts never shuffle between games.
+    const each = (r: Partial<Record<BuildingKind, number>>, sign: string) =>
+      (Object.keys(BUILDINGS) as BuildingKind[]).filter((k) => r[k] !== undefined).map((k) => `${BUILDINGS[k].name} ${sign}${fmt(r[k]!)}`);
+    const costs = each(e.upkeep, '−');
+    return [
+      `Impostos +${fmt(e.taxes)}`,
+      ...each(e.production, '+'),
+      ...(costs.length ? [`Manutenção: ${costs.join(', ')}`] : []),
+      `Saldo ${signed(e.silverDelta)}/mês`,
+    ].join('  ·  ');
   },
   upkeep: (n: number) => `manutenção ${fmt(n)}/mês`,
   craft: {
@@ -99,8 +107,8 @@ export function toolHint(tool: Tool): string {
   if (w > 1 || h > 1) parts.push(`ocupa ${w}x${h}`);
   if (canRotate(tool)) parts.push('toque de novo no botão ou tecla R para girar');
   if (d.jobs) parts.push(`${d.jobs} vagas`);
-  if (d.food) parts.push(`produz ${d.food} de comida por mês`);
-  if (d.silver) parts.push(`produz ${d.silver} de prata por mês`);
+  const made = [d.food && `${d.food} de comida`, d.silver && `${d.silver} de prata`].filter(Boolean);
+  if (made.length) parts.push(`produz ${made.join(' e ')}${T.perMonth}`);
   if (d.radius) parts.push(`raio ${d.radius}`);
   if (tool === 'temple') parts.push('precisa encostar numa rua; os lugares possíveis ficam verdes');
   if (tool === 'field') parts.push('pode arrastar');

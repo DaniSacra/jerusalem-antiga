@@ -15,12 +15,14 @@ describe('economy', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 3); // 10 residents -> 4 workers (40%)
     put(s, 'field', westOf('field'), 29);
-    put(s, 'field', westOf('field'), 32); // 6 jobs
+    put(s, 'field', westOf('field'), 32);
+    put(s, 'field', westOf('field'), 35); // 6 jobs
     let e = computeEconomy(s);
     expect(e).toMatchObject({ workers: 4, jobs: 6 });
     expect(e.efficiency).toBeCloseTo(4 / 6);
-    expect(e.foodDelta).toBeCloseTo(2 * 3 * (4 / 6) - 10 * 0.25); // a stone house eats 0.25 per resident
-    put(s, 'house', ROADSIDE, 35, 4);
+    expect(e.foodDelta).toBeCloseTo(3 * 3 * (4 / 6) - 10 * 0.25); // a stone house eats 0.25 per resident
+    expect(e.production.field).toBeCloseTo(3 * 1 * (4 / 6), 2);
+    put(s, 'house', ROADSIDE, 38, 4);
     e = computeEconomy(s);
     expect(e.efficiency).toBe(1);
   });
@@ -35,7 +37,8 @@ describe('economy', () => {
     const e = computeEconomy(s);
     expect(e.jobs).toBe(0);
     expect(e.foodDelta).toBeCloseTo(-2.5);
-    expect(e).toMatchObject({ taxes: 3.5, workshops: 0, upkeep: { field: up('field'), workshop: up('workshop'), market: up('market') } });
+    expect(e.production).toEqual({});
+    expect(e).toMatchObject({ taxes: 3.5, upkeep: { field: up('field'), workshop: up('workshop'), market: up('market') } });
     expect(e.silverDelta).toBeCloseTo(3.5 - up('field') - up('workshop') - up('market'));
     put(s, 'workshop', westOf('workshop'), 29);
     expect(computeEconomy(s).silverDelta).toBeCloseTo(3.5 + 5 - up('field') - 2 * up('workshop') - up('market'));
@@ -60,7 +63,7 @@ describe('economy', () => {
     });
     expect(e.upkeep).toEqual({ well: 3, field: 1, market: 4, workshop: 2, temple: 10 });
     expect(costliestUpkeep(e)).toEqual({ kind: 'temple', amount: 10 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes + e.workshops - 20); // the balance shown as +X/mês
+    expect(e.silverDelta).toBeCloseTo(e.taxes + (e.production.workshop ?? 0) + (e.production.field ?? 0) - 20); // the balance shown as +X/mês
   });
 
   it('eats food per resident according to the house level', () => {
@@ -84,6 +87,56 @@ describe('economy', () => {
   });
 });
 
+describe('field production (Campo é trabalho)', () => {
+  it('a field has 2 jobs and makes 1 silver', () => {
+    expect(BUILDINGS.field).toMatchObject({ jobs: 2, silver: 1, food: 3 });
+  });
+
+  it('makes its full silver at 100% efficiency and adds it to the balance', () => {
+    const s = emptyGame();
+    put(s, 'house', ROADSIDE, 27, 3); // 10 residents -> 4 workers, 3.5 tax
+    put(s, 'field', westOf('field'), 29); // 2 jobs
+    const e = computeEconomy(s);
+    expect(e).toMatchObject({ jobs: 2, efficiency: 1, production: { field: 1 } });
+    expect(e.silverDelta).toBeCloseTo(3.5 + 1 - BUILDINGS.field.upkeep!);
+  });
+
+  it('makes no silver with zero workers, but the kind is listed at 0', () => {
+    const s = emptyGame();
+    put(s, 'field', westOf('field'), 29);
+    const e = computeEconomy(s);
+    expect(e).toMatchObject({ workers: 0, jobs: 2, efficiency: 0, production: { field: 0 } });
+    expect(e.silverDelta).toBeCloseTo(-BUILDINGS.field.upkeep!);
+  });
+
+  it('a disconnected field gives no silver or jobs until it touches the network', () => {
+    const s = emptyGame();
+    put(s, 'house', ROADSIDE, 27, 3);
+    const far = put(s, 'field', 1, 1);
+    expect(far.connected).toBe(false);
+    let e = computeEconomy(s);
+    expect(e.production.field).toBeUndefined();
+    expect(e.jobs).toBe(0);
+    put(s, 'field', westOf('field'), 29);
+    e = computeEconomy(s);
+    expect(e.jobs).toBe(2);
+    expect(e.production.field).toBe(1); // only the connected one, both pay upkeep
+    expect(e.upkeep.field).toBe(2 * BUILDINGS.field.upkeep!);
+  });
+
+  it('counts field and workshop production together, both scaled by the same efficiency', () => {
+    const s = emptyGame();
+    put(s, 'house', ROADSIDE, 27, 3); // 4 workers, 3.5 tax
+    put(s, 'field', westOf('field'), 29); // 2 jobs
+    put(s, 'workshop', EAST, 27); // 3 jobs -> 5 jobs, efficiency 0.8
+    const e = computeEconomy(s);
+    expect(e.efficiency).toBeCloseTo(0.8);
+    expect(e.production.field).toBeCloseTo(1 * 0.8);
+    expect(e.production.workshop).toBeCloseTo(BUILDINGS.workshop.silver! * 0.8);
+    expect(e.silverDelta).toBeCloseTo(3.5 + e.production.field! + e.production.workshop! - BUILDINGS.field.upkeep! - BUILDINGS.workshop.upkeep!);
+  });
+});
+
 describe('unemployment', () => {
   // Three level-2 houses: 18 residents -> floor(18 * 0.4) = 7 workers.
   const houses = (s: ReturnType<typeof emptyGame>, n: number) => {
@@ -94,10 +147,11 @@ describe('unemployment', () => {
     const s = emptyGame();
     houses(s, 3);
     expect(unemployed(s)).toBe(7);
-    put(s, 'field', EAST, 27); // 3 jobs
-    expect(unemployed(s)).toBe(4);
-    put(s, 'field', EAST, 29);
-    put(s, 'field', EAST, 31); // 9 jobs for 7 workers
+    put(s, 'field', EAST, 27); // 2 jobs
+    expect(unemployed(s)).toBe(5);
+    put(s, 'workshop', EAST, 29); // + 3 = 5 jobs
+    expect(unemployed(s)).toBe(2);
+    put(s, 'field', EAST, 32); // 7 jobs for 7 workers
     expect(unemployed(s)).toBe(0);
   });
 
@@ -113,7 +167,7 @@ describe('unemployment', () => {
     s.unlocked = s.unlocked.filter((k) => k !== 'workshop');
     expect(unemploymentAlert(s)).toBe(0); // workshop still locked
     s.unlocked.push('workshop');
-    put(s, 'field', EAST, 27); // 3 jobs: 3 without work, the alert goes away
+    put(s, 'field', EAST, 27); // 2 jobs: 4 without work, the alert goes away
     expect(unemploymentAlert(s)).toBe(0);
   });
 });

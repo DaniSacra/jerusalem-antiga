@@ -8,11 +8,11 @@ export interface Economy {
   /** 0..1 */
   efficiency: number;
   foodDelta: number;
-  /** Monthly silver balance: taxes + workshops - upkeep. */
+  /** Monthly silver balance: taxes + production - upkeep. */
   silverDelta: number;
   taxes: number;
-  /** Silver made by workshops this month (after efficiency). */
-  workshops: number;
+  /** Silver made per workplace kind this month (after efficiency). */
+  production: Partial<Record<BuildingKind, number>>;
   /** Upkeep per building kind (only kinds that cost something). */
   upkeep: Partial<Record<BuildingKind, number>>;
 }
@@ -29,7 +29,7 @@ export function computeEconomy(s: GameState): Economy {
   let eaten = 0;
   let jobs = 0;
   let foodProd = 0;
-  let silverProd = 0;
+  const silverProd: Partial<Record<BuildingKind, number>> = {};
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   for (const b of s.buildings) {
     if (b.kind === 'house') {
@@ -44,21 +44,22 @@ export function computeEconomy(s: GameState): Economy {
     if (!b.connected) continue;
     jobs += def.jobs;
     foodProd += def.food ?? 0;
-    silverProd += def.silver ?? 0;
+    if (def.silver) silverProd[b.kind] = (silverProd[b.kind] ?? 0) + def.silver;
   }
   const workers = Math.floor(residents * RULES.workerShare);
   const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
-  const workshops = round2(silverProd * efficiency);
-  const totalUpkeep = Object.values(upkeep).reduce((a, v) => a + v, 0);
+  const production: Partial<Record<BuildingKind, number>> = {};
+  for (const [k, v] of Object.entries(silverProd) as [BuildingKind, number][]) production[k] = round2(v * efficiency);
+  const sum = (r: Partial<Record<BuildingKind, number>>) => Object.values(r).reduce((a, v) => a + v, 0);
   return {
     residents,
     workers,
     jobs,
     efficiency,
     foodDelta: round2(foodProd * efficiency - eaten),
-    silverDelta: round2(taxes + workshops - totalUpkeep),
+    silverDelta: round2(taxes + sum(production) - sum(upkeep)),
     taxes: round2(taxes),
-    workshops,
+    production,
     upkeep,
   };
 }

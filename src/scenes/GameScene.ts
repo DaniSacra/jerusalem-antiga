@@ -143,7 +143,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
-    this.map.update(this.time.now, this.rig.zoom);
+    this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed);
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds);
   }
 
@@ -151,7 +151,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private refresh() {
     this.eco = computeEconomy(this.state);
-    this.map.sync(this.state);
+    this.map.sync(this.state, this.eco.efficiency);
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
     this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
@@ -243,7 +243,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
-  /** Shows taxes, workshops, upkeep per kind and balance in the info line (kept up to date). */
+  /** Shows taxes, production and upkeep per kind and balance in the info line (kept up to date). */
   showSilver() {
     if (this.ui?.modalOpen) return;
     if (this.tool !== 'view') this.selectTool('view');

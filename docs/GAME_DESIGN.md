@@ -36,7 +36,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 10 | – | 2 x 2 | – | impostos | – | começa como terreno vazio |
-| Campo | 15 | 1/mês | 2 x 2 | 3 | 3 comida/mês | – | 4 plantações (só aparência) |
+| Campo | 15 | 1/mês | 2 x 2 | 2 | 3 comida/mês e 1 prata/mês | – | 4 plantações (só aparência) |
 | Poço | 20 | 3/mês | 2 x 2 | – | – | 4 | |
 | Mercado | 40 | 4/mês | 2 x 4 | 3 | – | 5 | liberado pela Meta 2; pode girar para 4 x 2 |
 | Oficina | 35 | 2/mês | 3 x 3 | 3 | 5 prata/mês | – | liberada pela Meta 3; 6 ofícios (só aparência) |
@@ -107,7 +107,7 @@ A cada mês, nesta ordem (`simulation.ts`):
 3. Comida += campos × 3 × eficiência − consumo. Cada morador come conforme o nível da casa
    (`food` em `houses.json`): tenda 0,2, barro 0,2, pedra 0,25, casa grande 0,3. Se a comida chega
    a 0 com saldo negativo: **fome**. A comida nunca fica negativa.
-4. Prata += impostos + oficinas × 5 × eficiência − manutenção. A prata **pode ficar negativa**
+4. Prata += impostos + (oficinas × 5 + campos × 1) × eficiência − manutenção. A prata **pode ficar negativa**
    (dívida). Esse saldo é o "+X/mês" da barra.
 5. Famílias andam; as que chegam transformam o terreno em tenda.
 6. Para cada casa de nível 1 ou mais:
@@ -152,13 +152,13 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 
 Metas de casas e de construir contam só construções **conectadas** à rede.
 
-Ao liberar a Oficina aparece também o aviso "Oficina liberada! Ela dá trabalho ao povo e rende
-prata."
+Ao liberar a Oficina aparece também o aviso "Oficina liberada: 3 vagas e 5 de prata/mês" (números
+lidos de `buildings.json`).
 
 **Aviso de desemprego:** pessoas sem trabalho = trabalhadores − vagas (nunca menos de 0). Com a
 Oficina liberada e 6 ou mais pessoas sem trabalho (`unemploymentAlert` em `rules.json`), aparece
 uma etiqueta vermelha logo abaixo da barra superior, à esquerda: "N pessoas sem trabalho:
-construa uma oficina". Some sozinha quando o número cai abaixo de 6. Quando existir o painel de
+construa uma oficina ou um campo". Some sozinha quando o número cai abaixo de 6. Quando existir o painel de
 estatísticas, o mesmo aviso entra na lista de principais problemas.
 
 ## Aparência e moradores
@@ -186,16 +186,16 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
 
 - **Barra superior:** Prata e Comida com variação por mês (+X/mês; vermelho se negativa). O valor
   da prata fica normal com saldo ≥ 0, laranja com saldo do mês negativo e vermelho piscando em
-  dívida. **Tocar na prata** mostra na linha de informação: impostos, oficinas, manutenção por tipo
-  e saldo.
+  dívida. **Tocar na prata** mostra na linha de informação: impostos, produção por tipo ("Oficina +X · Campo +Y"),
+  "Manutenção: Campo −1, Poço −3…" e saldo.
   Moradores, Trabalho (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%;
   "+N sem vaga" em laranja quando sobra gente), Mês, Meta atual com progresso (a fonte encolhe se
   o texto for longo) e botão de velocidade da altura da barra (▶ 1x → ▶▶ 3x → ❚❚ Pausa). Durante a fome, o valor da Comida fica
   vermelho e pisca.
 - **Barra de ferramentas:** Ver, Rua, Casa, Campo, Poço, Mercado, Oficina, Templo, Limpar, cada
   uma com ícone desenhado, nome e custo (vermelho se faltar prata).
-- **Linha de informação:** mostra a dica da ferramenta, com custo e manutenção (ex.: "Mercado (40
-  prata, 3/mês)"). Com Ver, mostra o que foi tocado:
+- **Linha de informação:** mostra a dica da ferramenta, com custo e manutenção (ex.: "Campo (15
+  prata, 1/mês) · ocupa 2x2 · 2 vagas · produz 3 de comida e 1 de prata/mês"). Com Ver, mostra o que foi tocado:
   - casas: nível, moradores, imposto e as exigências do próximo nível em verde/vermelho
     (incluindo "sem rua"); terreno vazio diz se há família a caminho;
   - outras construções: nome (a oficina com o ofício, ex.: "Oficina (Olaria)"), estado de conexão,
@@ -214,9 +214,9 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
   olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o templo: abra
   uma rua ao lado de um terreno livre 6 x 6".
 - **Toasts** (mensagens curtas logo acima da linha de informação, empilhando para cima): prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, meta
-  cumprida, "Oficina liberada!…" e "Falta comida: construa campos" (uma vez por episódio de fome).
+  cumprida, "Oficina liberada: …" e "Falta comida: construa campos" (uma vez por episódio de fome).
 - Durante a fome, leve tom avermelhado sobre o mapa.
-- Tela inicial com 3 passos numerados (casas e campos nas ruas do altar; poço, mercado e altar
+- Tela inicial com 3 passos numerados (casas e campos ao lado das ruas do altar, campos dão comida e trabalho; poço, mercado e altar
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
   botão "Começar". Botões principais têm pelo menos 80 px de altura (setas de girar 80 x 80).
 
@@ -252,6 +252,8 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
   aleatória. Quantidade = moradores / 5, no máximo 60. Roupas variadas, balanço ao andar. Param
   quando o jogo está pausado e andam mais rápido em 3x.
 - Famílias (grupo de três com uma trouxa) andando da entrada até a casa.
+- Agricultores trabalhando dentro de cada campo: round(vagas do campo × eficiência), de 0 a 2;
+  nenhum no campo sem rua. Param quando o jogo está pausado.
 - Plantações balançando, fumaça na chaminé da oficina, fogo tremulando no altar, água correndo no rio.
 - Ao subir de nível: pulinho, "+N" e anel de brilho. Ao cair de nível ou por fome: texto vermelho.
 - Ao construir: anel de brilho. Ao limpar: nuvem de poeira. Templo: anéis dourados, faíscas e
@@ -290,6 +292,14 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
   de lajes, com roldana, cocho e uma mulher com jarro. Mercado: duas fileiras de barracas com toldos
   listrados ao longo de um corredor de pedra, com mercadores, fregueses e um jumento; o mercado
   girado (4 x 2) tem desenho próprio, para a luz continuar vindo do mesmo lado.
+- Agricultores no campo (`src/render/Fieldhands.ts`, desenho em `residents.ts`): túnica curta de
+  linho branco, índigo ou vermelho-garança (mais fortes que o lavrador da rua, para se lerem sobre
+  trigo e terra no zoom mínimo), pano na cabeça. Cada um trabalha parado no seu sulco entre as
+  fileiras: enxada sobe e desce, ou abaixa com a foice e junta um punhado; de tempos em tempos dá
+  um passo curto ao longo do sulco, indo e voltando. Ritmo e fase sorteados, para não ficarem
+  sincronizados; dois no mesmo campo nunca têm a mesma roupa. Os tufos da fileira logo à frente
+  dele somem (trecho já trabalhado), para o corpo aparecer. Ficam no desenho do campo, ordenados
+  entre os tufos por profundidade, e acompanham o giro do mapa e o campo espelhado.
 - Oficina 3 x 3 em 6 ofícios (um desenho cada, também espelhados), todos com pátio murado e uma
   sala de trabalho, cada um com forma e cor dominantes próprias para se distinguir no zoom mínimo:
   - olaria: forno de cúpula com chaminé (fumaça e brilho no buraco do fogo), roda sob toldo de
