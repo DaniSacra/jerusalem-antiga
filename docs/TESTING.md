@@ -23,10 +23,10 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 | `network.test.ts` | rede de ruas ligada ao altar, desconexão ao demolir, custo e validação de rua, caminhos por busca em largura, máscara de junções, exigência de rua para cada tipo de construção |
 | `coverage.test.ts` | raio quadrado, sem cobertura quando desconectado, área sagrada do altar, raio do templo 3 x 3 |
 | `economy.test.ts` | eficiência, produção, construções desconectadas não produzem nem contam vagas, vagas do templo |
-| `actions.test.ts` | custos e locais inválidos, posicionamento do templo (3 x 3, bloqueios, exige rua), limpar, proteção do altar e do templo |
-| `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), fome, informações e balões |
-| `families.test.ts` | chegada de famílias, chance de 35%, uma por terreno, desconexão e fome, desvio de rota, saída pelo altar |
-| `goals.test.ts` | recompensas, liberações, contagem de casas, vitória com o templo |
+| `actions.test.ts` | custos e locais inválidos, posicionamento do templo (3 x 3, bloqueios, exige rua, lista de posições possíveis), limpar, proteção do altar e do templo |
+| `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), fome, informações e balões (incluindo "sem trabalhadores") |
+| `families.test.ts` | chegada de famílias, 3 primeiras garantidas, chance de 35%, uma por terreno, desconexão e fome, desvio de rota, saída pelo altar |
+| `goals.test.ts` | as 8 metas, recompensas, liberações, contagem só de casas conectadas, vitória com o templo |
 | `simulation.test.ts` | comida, prata, mês, fome e relógio |
 
 ### Utilitários (`tests/helpers.ts`)
@@ -52,6 +52,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `town-art` | monta uma cidade com todos os níveis e prédios; templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
 | `touch` | celular deitado com toque real: um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
+| `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na barra; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
 | `victory` | constrói o templo e espera a vitória | `temple-celebration`, `victory` |
 
 ### Ganchos de desenvolvimento

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPlace, clearCell, indexOf, place, RULES } from '../src/core';
+import { checkPlace, clearCell, indexOf, place, RULES, templeSpots } from '../src/core';
 import { emptyGame, put, ROADSIDE } from './helpers';
 
 describe('placing buildings', () => {
@@ -29,8 +29,8 @@ describe('placing buildings', () => {
 });
 
 describe('temple placement', () => {
-  it('occupies 3x3 cells and costs 400', () => {
-    const s = emptyGame({ silver: 450 });
+  it('occupies 3x3 cells and costs 800', () => {
+    const s = emptyGame({ silver: 850 });
     expect(place(s, 'temple', 17, 20)).toEqual({ ok: true });
     expect(s.silver).toBe(50);
     const t = s.grid[indexOf(s, 17, 20)]!;
@@ -51,6 +51,22 @@ describe('temple placement', () => {
     const s = emptyGame();
     expect(checkPlace(s, 'temple', 18, 20)).toEqual({ ok: false, reason: 'noRoad' });
     expect(checkPlace(s, 'temple', 13, 25)).toEqual({ ok: true }); // west side of the road
+  });
+
+  it('lists every spot where it fits, ignoring silver', () => {
+    const s = emptyGame({ silver: 0 });
+    const spots = templeSpots(s);
+    expect(spots).toContainEqual({ x: 17, y: 20 });
+    expect(spots).toContainEqual({ x: 13, y: 25 });
+    expect(spots).not.toContainEqual({ x: 18, y: 20 });
+    s.silver = 1e6;
+    for (const o of spots) expect(checkPlace(s, 'temple', o.x, o.y)).toEqual({ ok: true });
+  });
+
+  it('has no spot when no free 3x3 touches a connected road', () => {
+    const s = emptyGame();
+    s.feature = s.feature.map(() => 'rock');
+    expect(templeSpots(s)).toEqual([]);
   });
 });
 

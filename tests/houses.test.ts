@@ -110,4 +110,17 @@ describe('house info and balloons', () => {
     b.level = 0;
     expect(balloonNeed(s, b)).toBeNull();
   });
+
+  it('shows "no workers" on workplaces only while nobody can work', () => {
+    const s = emptyGame();
+    const field = put(s, 'field', ROADSIDE, 20);
+    const well = put(s, 'well', ROADSIDE, 21);
+    const plot = put(s, 'house', ROADSIDE, 22);
+    expect(balloonNeed(s, field)).toBe('workers');
+    expect(balloonNeed(s, well)).toBeNull(); // no jobs
+    expect(balloonNeed(s, plot)).toBeNull();
+    expect(balloonNeed(s, put(s, 'workshop', 3, 3))).toBe('road'); // no road comes first
+    plot.level = 1; // 3 residents -> 1 worker
+    expect(balloonNeed(s, field)).toBeNull();
+  });
 });

@@ -8,6 +8,8 @@ export type Placeable = BuildableKind | 'road';
 /** Area services; "sacred" is the radius of the altar or a temple. */
 export type ServiceKind = 'well' | 'market' | 'sacred';
 export type NeedKind = 'road' | ServiceKind;
+/** What a building's balloon can point out: a missing need, or a workplace with no workers. */
+export type BalloonKind = NeedKind | 'workers';
 
 export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred'];
 
@@ -57,6 +59,8 @@ export interface Rules {
   workerShare: number;
   foodPerResident: number;
   familyChance: number;
+  /** The first plots get a family for sure (tents or better plus families on the way below this). */
+  guaranteedFamilies: number;
   familyCellsPerMonth: number;
   monthsToChange: number;
   famineDropChance: number;

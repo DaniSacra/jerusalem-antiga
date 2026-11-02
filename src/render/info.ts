@@ -53,7 +53,8 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
   if (def.jobs) segs.push(SEP, { text: `${def.jobs} vagas` });
   if (def.food) segs.push(SEP, { text: `${fmt(def.food * eff)} de comida${T.perMonth}` });
   if (def.silver) segs.push(SEP, { text: `${fmt(def.silver * eff)} de prata${T.perMonth}` });
-  if (def.jobs && eff < 1) segs.push(bad(` (eficiência ${Math.round(eff * 100)}%)`));
+  if (def.jobs && eff === 0) segs.push(SEP, bad(T.noWorkers));
+  else if (def.jobs && eff < 1) segs.push(bad(` (eficiência ${Math.round(eff * 100)}%)`));
   if (def.radius) segs.push(SEP, { text: `raio ${def.radius}` });
   return segs;
 }

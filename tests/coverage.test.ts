@@ -20,11 +20,12 @@ describe('coverage', () => {
     expect(s.coverage.market.some(Boolean)).toBe(false);
   });
 
-  it('covers radius 5 around the altar as sacred', () => {
+  it('covers radius 3 around the altar as sacred', () => {
     const s = emptyGame();
-    expect(s.coverage.sacred[indexOf(s, 11, 11)]).toBe(true);
-    expect(s.coverage.sacred[indexOf(s, 21, 21)]).toBe(true);
-    expect(s.coverage.sacred[indexOf(s, 10, 16)]).toBe(false);
+    expect(s.coverage.sacred[indexOf(s, 13, 13)]).toBe(true);
+    expect(s.coverage.sacred[indexOf(s, 19, 19)]).toBe(true);
+    expect(s.coverage.sacred[indexOf(s, 12, 16)]).toBe(false);
+    expect(s.coverage.sacred[indexOf(s, 16, 20)]).toBe(false);
   });
 
   it('measures the temple radius 9 from any of its 3x3 cells', () => {

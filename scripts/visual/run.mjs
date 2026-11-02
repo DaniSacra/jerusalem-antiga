@@ -245,12 +245,67 @@ const scenarios = {
     },
   },
 
+  async clarity(page) {
+    await startGame(page);
+    await page.evaluate(() => {
+      const { state: s, core } = window;
+      s.silver = 1e4;
+      s.feature = s.feature.map(() => null);
+      core.place(s, 'field', 15, 20); // connected, but nobody lives here yet
+      window.game.cycleSpeed();
+      window.game.cycleSpeed(); // pause, so the setup stays as built
+    });
+    await tool(page, 2); // Rua
+    await mouseDrag(page, [[20, 12], [23, 12]]);
+    await page.waitForTimeout(250);
+    const c = await page.evaluate(() => {
+      const s = window.state;
+      const field = s.buildings.find((b) => b.kind === 'field');
+      return {
+        loose: [20, 21, 22, 23].every((x) => s.roads[12 * s.cols + x] && !s.network[12 * s.cols + x]),
+        balloon: window.core.balloonNeed(s, field),
+      };
+    });
+    assert(c.loose, 'dragged road far from the network is built but not connected');
+    assert(c.balloon === 'workers', 'field with no residents shows the "no workers" balloon');
+    await shot(page, 'clarity-loose-road');
+
+    await page.evaluate(() => {
+      const s = window.state;
+      s.famine = true;
+      s.food = 0;
+      window.game.selectTool('view');
+      window.game.refresh();
+    });
+    await page.waitForTimeout(200);
+    await shot(page, 'clarity-famine');
+
+    await page.evaluate(() => {
+      const s = window.state;
+      s.famine = false;
+      s.unlocked.push('temple');
+      window.game.selectTool('temple');
+    });
+    await page.mouse.move(...(await cellToScreen(page, 14, 24)));
+    await page.waitForTimeout(250);
+    await shot(page, 'overlay-temple-spots');
+
+    const none = await page.evaluate(() => {
+      const { state: s, core } = window;
+      s.feature = s.feature.map((f, i) => (s.roads[i] || s.grid[i] ? f : 'rock'));
+      window.game.selectTool('temple');
+      return core.templeSpots(s).length === 0;
+    });
+    assert(none, 'no temple spot once every free cell is rock');
+    await page.waitForTimeout(250);
+    await shot(page, 'temple-no-spot');
+  },
   async victory(page) {
     await startGame(page);
     await page.evaluate(() => {
       const s = window.state;
-      s.silver = 500;
-      s.goalIndex = 5;
+      s.silver = 900;
+      s.goalIndex = 7;
       s.unlocked.push('temple');
       window.game.refresh();
     });

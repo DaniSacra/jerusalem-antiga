@@ -24,8 +24,25 @@ describe('families', () => {
     expect(s.families).toHaveLength(0);
   });
 
-  it('dispatches with 35% chance, one family per plot at a time', () => {
+  it('the first 3 families come for sure', () => {
     const s = emptyGame();
+    for (let y = 18; y < 22; y++) put(s, 'house', ROADSIDE, y);
+    stepMonth(s, never);
+    expect(s.families).toHaveLength(3);
+    stepMonth(s, never);
+    expect(s.families).toHaveLength(3); // the 4th plot is back to 35%
+
+    const t = emptyGame();
+    for (let y = 18; y < 20; y++) put(t, 'house', ROADSIDE, y, 1); // 2 tents already settled
+    put(t, 'house', ROADSIDE, 20);
+    put(t, 'house', ROADSIDE, 21);
+    stepMonth(t, never);
+    expect(t.families).toHaveLength(1);
+  });
+
+  it('after the first 3, dispatches with 35% chance, one family per plot at a time', () => {
+    const s = emptyGame();
+    for (let y = 21; y < 24; y++) put(s, 'house', ROADSIDE, y, 1);
     put(s, 'house', ROADSIDE, 18);
     stepMonth(s, constRng(0.36));
     expect(s.families).toHaveLength(0);

@@ -19,6 +19,7 @@ export class Hud {
   private stats: Record<'silver' | 'food' | 'residents' | 'work' | 'month', Stat>;
   private goal: Phaser.GameObjects.Text;
   private speedLabel: Phaser.GameObjects.Text;
+  private famineBlink: Phaser.Tweens.Tween | null = null;
 
   constructor(private scene: Phaser.Scene, onSpeed: () => void) {
     const g = scene.add.graphics();
@@ -49,6 +50,20 @@ export class Hud {
     return { value: text(s, x + 38, 22, '', 22, CSS.ink, true), sub: text(s, x + 38, 27, '', 15, CSS.muted, true) };
   }
 
+  /** During famine the food value turns red and blinks. */
+  private setFamine(on: boolean) {
+    const { value } = this.stats.food;
+    if (on === (this.famineBlink !== null)) return;
+    if (on) {
+      value.setColor(CSS.bad);
+      this.famineBlink = this.scene.tweens.add({ targets: value, alpha: 0.25, duration: 380, yoyo: true, repeat: -1 });
+    } else {
+      this.famineBlink?.remove();
+      this.famineBlink = null;
+      value.setAlpha(1).setColor(CSS.ink);
+    }
+  }
+
   private set(stat: Stat, value: string, sub = '', subColor: string = CSS.muted) {
     stat.value.setText(value);
     stat.sub.setText(sub).setX(stat.value.x + stat.value.width + 6);
@@ -59,6 +74,7 @@ export class Hud {
     const { silver, food, residents, work, month } = this.stats;
     this.set(silver, String(Math.floor(state.silver)), signed(eco.silverDelta) + T.perMonth, eco.silverDelta < 0 ? CSS.bad : CSS.good);
     this.set(food, String(Math.floor(state.food)), signed(eco.foodDelta) + T.perMonth, eco.foodDelta < 0 ? CSS.bad : CSS.good);
+    this.setFamine(state.famine);
     this.set(residents, String(eco.residents));
     const eff = Math.round(eco.efficiency * 100);
     this.set(work, `${eco.workers}/${eco.jobs}`, `${eff}%`, eff < 100 ? CSS.bad : CSS.good);

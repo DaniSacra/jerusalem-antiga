@@ -47,6 +47,8 @@ export const C = {
   ink: 0x4a3523,
   border: 0x8a6a45,
   famine: 0xc0392b,
+  /** Cells where a building fits (temple spots). */
+  fits: 0x6cc35a,
   clothes: [0xc0503c, 0x5a7fb5, 0xe2b544, 0x7fa65a, 0x9a6ab0, 0xe9ddc8],
   skin: [0xd9a77c, 0xc28a5e, 0xe8bf96],
   need: { road: 0xc0392b, well: 0x4a9bd8, market: 0xc0503c, sacred: 0xe8742c },

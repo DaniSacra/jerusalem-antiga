@@ -7,7 +7,7 @@
  * east faces (+x, right on screen) are in shade, and shadows fall toward the east.
  */
 import Phaser from 'phaser';
-import { createRng, type BuildingKind, type Feature, type Ground, type NeedKind } from '../core';
+import { createRng, type BuildingKind, type Feature, type Ground, type BalloonKind } from '../core';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
 
@@ -24,7 +24,7 @@ export const TEX = {
   soft: 'soft',
   ring: 'ring',
   balloon: 'balloon',
-  need: (k: NeedKind) => `need-${k}`,
+  need: (k: BalloonKind) => `need-${k}`,
   walker: (v: number) => `walker-${v}`,
   family: 'family',
   icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
@@ -764,13 +764,27 @@ function balloon(g: G) {
   g.strokeCircle(13, 12, 11);
 }
 
-function needIcon(g: G, k: NeedKind) {
+/** Red "not allowed" sign: a ring with a diagonal bar. */
+function noSign(g: G, x: number, y: number, r: number) {
+  g.lineStyle(2.2, C.need.road);
+  g.strokeCircle(x, y, r);
+  g.lineBetween(x - r * 0.7, y - r * 0.7, x + r * 0.7, y + r * 0.7);
+}
+
+function needIcon(g: G, k: BalloonKind) {
   if (k === 'road') {
+    // A dirt road broken in the middle, crossed out.
     g.fillStyle(C.road);
-    g.fillPoints([{ x: 8, y: 4 }, { x: 16, y: 9 }, { x: 8, y: 14 }, { x: 0, y: 9 }], true);
-    g.lineStyle(2.5, C.need.road);
-    g.lineBetween(3, 4, 13, 15);
-    g.lineBetween(13, 4, 3, 15);
+    g.fillPoints([{ x: 0, y: 14 }, { x: 4, y: 16 }, { x: 7, y: 13.5 }, { x: 3, y: 11.5 }], true);
+    g.fillPoints([{ x: 9, y: 8.5 }, { x: 13, y: 10.5 }, { x: 16, y: 8 }, { x: 12, y: 6 }], true);
+    noSign(g, 8, 11, 6.5);
+  } else if (k === 'workers') {
+    // A worker crossed out.
+    g.fillStyle(C.skin[0]);
+    g.fillCircle(8, 6, 2.6);
+    g.fillStyle(C.clothes[1]);
+    g.fillRoundedRect(4.5, 9, 7, 9, 2.5);
+    noSign(g, 8, 11, 7);
   } else if (k === 'well') {
     g.fillStyle(C.need.well);
     g.fillCircle(8, 11, 5);
@@ -939,7 +953,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.strokeCircle(32, 32, 27);
   });
   raw(TEX.balloon, 28, 28, balloon);
-  (['road', 'well', 'market', 'sacred'] as NeedKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  (['road', 'well', 'market', 'sacred', 'workers'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
   for (let v = 0; v < WALKER_VARIANTS; v++) raw(TEX.walker(v), 16, 22, (g) => walker(g, v));
   raw(TEX.family, 30, 23, family);
   icons(scene);

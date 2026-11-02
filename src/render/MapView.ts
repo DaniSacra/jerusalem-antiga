@@ -9,11 +9,12 @@ import {
   placeSize,
   roadMask,
   serviceOf,
+  templeSpots,
   type Building,
   type BuildingKind,
   type Cell,
   type GameState,
-  type NeedKind,
+  type BalloonKind,
 } from '../core';
 import { C, shade } from './palette';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, gridToWorld, rectCorners } from './iso';
@@ -31,7 +32,7 @@ interface BuildingView {
 }
 
 interface Balloon {
-  need: NeedKind;
+  need: BalloonKind;
   root: Phaser.GameObjects.Container;
   icon: Phaser.GameObjects.Image;
   baseY: number;
@@ -54,12 +55,15 @@ export class MapView {
   private balloons = new Map<number, Balloon>();
   private riverCells: Cell[] = [];
   private water: Phaser.GameObjects.Graphics;
+  /** Dashed marks over roads that are not connected to the altar. */
+  private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
 
   constructor(private scene: Phaser.Scene, state: GameState) {
     this.drawGround(state);
     this.water = scene.add.graphics().setDepth(DEPTH.groundFx);
+    this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
     this.sync(state);
@@ -109,6 +113,7 @@ export class MapView {
         this.syncRoad(s, x, y);
       }
     }
+    this.drawLooseRoads(s);
     const alive = new Set<number>();
     for (const b of s.buildings) {
       alive.add(b.id);
@@ -146,12 +151,42 @@ export class MapView {
       return;
     }
     const key = TEX.road(roadMask(s, x, y));
+    const alpha = s.network[i] ? 1 : 0.45;
     if (cur) {
       if (cur.texture.key !== key) cur.setTexture(key);
+      cur.setAlpha(alpha);
       return;
     }
     const c = footCenter(x, y);
-    this.roads.set(i, this.scene.add.image(c.x, c.y, key).setDepth(DEPTH.road));
+    this.roads.set(i, this.scene.add.image(c.x, c.y, key).setDepth(DEPTH.road).setAlpha(alpha));
+  }
+
+  /** Faded roads get a dashed center line along each arm, so "not connected" reads at a glance. */
+  private drawLooseRoads(s: GameState) {
+    const g = this.looseRoads;
+    g.clear();
+    g.lineStyle(2, C.cream, 0.9);
+    const arms = [
+      [0, -0.5],
+      [0.5, 0],
+      [0, 0.5],
+      [-0.5, 0],
+    ];
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const i = indexOf(s, x, y);
+        if (!s.roads[i] || s.network[i]) continue;
+        const mask = roadMask(s, x, y);
+        arms.forEach(([dx, dy], k) => {
+          if (mask && !(mask & (1 << k))) return;
+          for (let t = 0.08; t < 0.5; t += 0.2) {
+            const a = gridToWorld(x + 0.5 + dx * 2 * t, y + 0.5 + dy * 2 * t);
+            const b = gridToWorld(x + 0.5 + dx * 2 * (t + 0.1), y + 0.5 + dy * 2 * (t + 0.1));
+            g.lineBetween(a.x, a.y, b.x, b.y);
+          }
+        });
+      }
+    }
   }
 
   private syncBuilding(b: Building) {
@@ -254,6 +289,13 @@ export class MapView {
     for (const c of cells) g.fillPoints(rectCorners(c.x, c.y, 1, 1), true);
   }
 
+  /** Cells covered by any position where the temple fits. */
+  private templeArea(s: GameState): Cell[] {
+    const seen = new Set<number>();
+    for (const o of templeSpots(s)) for (const c of footprint(o.x, o.y, BUILDINGS.temple.size ?? 1)) seen.add(indexOf(s, c.x, c.y));
+    return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
+  }
+
   private coverageCells(s: GameState, covered: boolean[]): Cell[] {
     const out: Cell[] = [];
     covered.forEach((on, i) => on && out.push({ x: i % s.cols, y: Math.floor(i / s.cols) }));
@@ -290,6 +332,8 @@ export class MapView {
     const service = isPlaceTool(tool) && tool !== 'road' ? serviceOf(tool) : null;
     if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.sacred), C.gold, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
+
+    if (tool === 'temple') this.fillCells(this.templeArea(s), C.fits, 0.4);
 
     if (!hover) return;
     const o = originFor(tool, hover);

@@ -22,6 +22,9 @@ export const T = {
   perMonth: '/mês',
   allGoals: 'Todas as metas cumpridas!',
   famine: 'Falta comida: construa campos',
+  looseRoad: 'Esta rua não está ligada ao altar',
+  noWorkers: 'Sem trabalhadores: faltam moradores',
+  noTempleSpot: 'Sem espaço para o templo: abra uma rua ao lado de um terreno livre 3 x 3',
   fail: {
     silver: 'Prata insuficiente',
     invalid: 'Local inválido',
@@ -63,7 +66,7 @@ export function toolHint(tool: Tool): string {
   if (d.food) parts.push(`produz ${d.food} de comida por mês`);
   if (d.silver) parts.push(`produz ${d.silver} de prata por mês`);
   if (d.radius) parts.push(`raio ${d.radius}`);
-  if (tool === 'temple') parts.push('precisa encostar numa rua');
+  if (tool === 'temple') parts.push('precisa encostar numa rua; os lugares possíveis ficam verdes');
   if (tool === 'field') parts.push('pode arrastar');
   return parts.join(' · ') + '.';
 }

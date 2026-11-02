@@ -9,6 +9,7 @@ import {
   place,
   RULES,
   stepMonth,
+  templeSpots,
   type ActionResult,
   type Cell,
   type Economy,
@@ -57,6 +58,8 @@ interface Gesture {
   applied: boolean;
   cancelled: boolean;
   toastedSilver: boolean;
+  /** Road cells placed during this gesture, checked for connection when it ends. */
+  roads: Cell[];
 }
 
 export class GameScene extends Phaser.Scene implements UiHost {
@@ -174,6 +177,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.tool = tool;
     this.selected = null;
     this.ui?.setInfo(hintSegments(toolHint(tool)));
+    if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.setInfo([{ text: T.noTempleSpot, color: CSS.badLight }]);
     this.refresh();
   }
 
@@ -239,6 +243,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       applied: false,
       cancelled: false,
       toastedSilver: false,
+      roads: [],
     };
     if (this.tool !== 'view') this.setHover(cell);
   }
@@ -305,8 +310,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
         const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.cellAt(p.x, p.y);
         if (cell) this.apply(cell, true);
       }
+      this.warnLooseRoads(g.roads);
     }
     if (p.wasTouch) this.setHover(null);
+  }
+
+  /** Warns once if any road just built is not connected to the altar. */
+  private warnLooseRoads(cells: Cell[]) {
+    const s = this.state;
+    if (cells.some((c) => !s.network[indexOf(s, c.x, c.y)])) this.ui?.toast(T.looseRoad, 'bad');
   }
 
   private select(cell: Cell) {
@@ -320,6 +332,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const o = originFor(this.tool, cell);
     const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y) : clearCell(s, o.x, o.y);
     if (r.ok) {
+      if (this.tool === 'road') {
+        if (this.gesture) this.gesture.roads.push(o);
+        else this.warnLooseRoads([o]); // a tap ends the gesture before placing
+      }
       const b = s.grid[indexOf(s, o.x, o.y)];
       const c = b ? footCenter(b.x, b.y, b.size) : footCenter(o.x, o.y);
       if (this.tool === 'clear') this.fx.dust(c.x, c.y);

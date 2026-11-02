@@ -15,12 +15,19 @@ function pathTo(s: GameState, from: Cell, house: Building): Cell[] | null {
 
 const awaitsFamily = (s: GameState, b: Building) => s.families.some((f) => f.houseId === b.id);
 
-/** Each connected empty plot without a family on the way may receive one (not during famine). */
+/** Families already living in the city or on their way. */
+const settledOrComing = (s: GameState) => s.buildings.filter((b) => b.kind === 'house' && b.level >= 1).length + s.families.length;
+
+/**
+ * Each connected empty plot without a family on the way may receive one (not during famine).
+ * The first few families come for sure, so the start has no dead time.
+ */
 export function dispatchFamilies(s: GameState, rng: Rng): void {
   if (s.famine) return;
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level !== 0 || !b.connected || awaitsFamily(s, b)) continue;
-    if (rng() >= RULES.familyChance) continue;
+    const guaranteed = settledOrComing(s) < RULES.guaranteedFamilies;
+    if (!guaranteed && rng() >= RULES.familyChance) continue;
     const path = pathTo(s, startCell(s), b);
     if (path) s.families.push({ id: s.nextId++, houseId: b.id, path, step: 0 });
   }

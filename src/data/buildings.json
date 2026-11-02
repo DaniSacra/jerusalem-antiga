@@ -1,9 +1,9 @@
 {
   "house":    { "name": "Casa",    "cost": 10,  "jobs": 0 },
-  "field":    { "name": "Campo",   "cost": 15,  "jobs": 2, "food": 3 },
+  "field":    { "name": "Campo",   "cost": 15,  "jobs": 3, "food": 3 },
   "well":     { "name": "Poço",    "cost": 20,  "jobs": 0, "radius": 3 },
-  "market":   { "name": "Mercado", "cost": 40,  "jobs": 2, "radius": 4 },
+  "market":   { "name": "Mercado", "cost": 40,  "jobs": 3, "radius": 4 },
   "workshop": { "name": "Oficina", "cost": 35,  "jobs": 3, "silver": 5 },
-  "temple":   { "name": "Templo",  "cost": 400, "jobs": 2, "radius": 9, "size": 3, "protected": true },
-  "altar":    { "name": "Altar",   "cost": 0,   "jobs": 0, "radius": 5, "protected": true }
+  "temple":   { "name": "Templo",  "cost": 800, "jobs": 2, "radius": 9, "size": 3, "protected": true },
+  "altar":    { "name": "Altar",   "cost": 0,   "jobs": 0, "radius": 3, "protected": true }
 }

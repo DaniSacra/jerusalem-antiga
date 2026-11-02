@@ -2,7 +2,7 @@ import { BUILDINGS, RULES, sizeOf } from './data';
 import { footprint, inBounds, indexOf } from './grid';
 import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
-import type { ActionResult, Building, FailReason, GameState, Placeable } from './types';
+import type { ActionResult, Building, Cell, FailReason, GameState, Placeable } from './types';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -25,6 +25,18 @@ export function checkPlace(s: GameState, kind: Placeable, x: number, y: number):
   if (kind === 'temple' && !touchesNetwork(s, { x, y, size })) return fail('noRoad');
   if (s.silver < costOf(kind)) return fail('silver');
   return OK;
+}
+
+/** Top-left cells where the temple fits: free land touching the connected road network (silver ignored). */
+export function templeSpots(s: GameState): Cell[] {
+  const size = placeSize('temple');
+  const out: Cell[] = [];
+  for (let y = 0; y + size <= s.rows; y++) {
+    for (let x = 0; x + size <= s.cols; x++) {
+      if (footprint(x, y, size).every((c) => isFreeLand(s, c.x, c.y)) && touchesNetwork(s, { x, y, size })) out.push({ x, y });
+    }
+  }
+  return out;
 }
 
 export function place(s: GameState, kind: Placeable, x: number, y: number): ActionResult {

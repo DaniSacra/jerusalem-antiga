@@ -13,12 +13,13 @@ describe('economy', () => {
 
   it('scales production by efficiency, capped at 100%', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 20, 2); // 6 residents -> 3 workers
+    put(s, 'house', ROADSIDE, 20, 3); // 10 residents -> 4 workers (40%)
     put(s, 'field', ROADSIDE, 21);
-    put(s, 'field', ROADSIDE, 22); // 4 jobs
+    put(s, 'field', ROADSIDE, 22); // 6 jobs
     let e = computeEconomy(s);
-    expect(e.efficiency).toBe(0.75);
-    expect(e.foodDelta).toBeCloseTo(2 * 3 * 0.75 - 6 * 0.2);
+    expect(e).toMatchObject({ workers: 4, jobs: 6 });
+    expect(e.efficiency).toBeCloseTo(4 / 6);
+    expect(e.foodDelta).toBeCloseTo(2 * 3 * (4 / 6) - 10 * 0.2);
     put(s, 'house', ROADSIDE, 23, 4);
     e = computeEconomy(s);
     expect(e.efficiency).toBe(1);
