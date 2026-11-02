@@ -146,7 +146,7 @@ etiqueta única de aviso já nasce no lugar novo).
   eficiência), de 0 a 2; nenhum se o campo está sem rua ou com eficiência 0
   (o balão já explica). Só render, lendo a eficiência do core
 - sim-tester mede com os 3 alvos atuais (Eficiente vence sem dívida, Comum
-  vence ≥ 90% com aperto, Distraído perde ~80%). Se a prata sobrar demais,
+  vence ≥ 90% com aperto, Distraído perde ~60%; alvo mudado pelo usuário em 2026-11-02, antes ~80%). Se a prata sobrar demais,
   testar campo `silver` 0,5; se o desemprego travar o Comum antes da Oficina,
   testar oficina `jobs` 4. O game-director aprova os números finais
 
@@ -186,7 +186,97 @@ pedra clara com detalhes dourados. Nenhum arquivo de imagem, nada copiado.
 - `isOverUi` passa a cobrir placa, faixas, trilhos e linha de informação;
   cenários visuais novos nos dois tamanhos em `docs/TESTING.md`
 
+## Depois: pacote "Cidade densa" (aprovado pelo usuário 2026-11-02, escopo 2026-11-02)
+Só aparência e geração do mapa. Nenhuma regra, custo ou número de economia
+muda. Entra depois de "Avisos a tempo". Dividido em duas entregas, cada uma
+com seus testes e revisão; a B só começa com a A aprovada nas capturas.
+Visual inspirado no aspecto orgânico de Banished, em 2D isométrico desenhado
+em código e com tema de Jerusalém. Sem câmera 3D, sem arquivo de imagem, nada
+copiado.
+
+Pilares: fortalece o 2 (cidade viva) e o 3 (a vida da rua cresce com o nível
+das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
+(mapa poluído, rua difícil de ver) controlado pelas regras de leitura abaixo.
+
+### Entrega A: chão e árvores (map-designer, depois sprite-artist)
+- map-designer (`src/core/map.ts` + testes):
+  - Árvores em bosques: mesmas quantidades de hoje (oliveiras 60, palmeiras
+    50, rochas 50), só a posição muda. Oliveiras em grupos na grama, palmeiras
+    em grupos perto do rio e na areia, rochas em afloramentos pequenos
+  - Área livre do altar (raio 9) e rua inicial continuam livres
+  - Números novos em `rules.json` (`map`): quantidade de bosques e raio de
+    espalhamento por tipo. Nada mais
+  - Testes: mesmo seed dá o mesmo mapa; totais exatos de cada tipo; nada na
+    área livre, na rua inicial nem no rio; árvores ficam agrupadas (maioria
+    com vizinha do mesmo tipo); existe lugar livre para o templo 6 x 6 fora da
+    área do altar em 100 seeds
+- sprite-artist (`src/render`, só desenho):
+  - Grama variada: 3 a 4 tons, tufos, flores pequenas e pedrinhas, sorteados
+    pelo hash da célula; contraste baixo
+  - Chão gasto: terra batida na borda das ruas e na frente das portas. Sem
+    trilhas soltas no mato (pareceriam rua)
+  - Bosque denso: cada célula de árvore pode desenhar 1 a 3 árvores (a célula
+    bloqueada é a mesma), copas que se sobrepõem, sombra no chão
+  - Sombras no chão de todas as construções, árvores e rochas, para um lado
+    só, embutidas na textura ou numa camada estática
+  - Rua continua a linha mais forte do chão; rua desligada continua tracejada
+
+### Entrega B: construções e vida (sprite-artist)
+- Textura de parede (blocos de pedra, reboco de barro rachado) e de telhado
+  (terraço de barro, esteiras, toldos) nas texturas já existentes. Assado na
+  textura, custo zero por quadro
+- Fumaça fina de forno de barro (tabun) no terraço de casas de barro ou
+  melhores e de olaria e ferraria. Não chaminé europeia
+- Mais vida na rua, crescendo com o nível da casa: na frente de casas de
+  barro ou melhores, figuras paradas animadas (vizinhos conversando, criança
+  brincando, roupa no varal, cabras ou galinhas). Tenda tem pouco, casa grande
+  tem mais. Não são andarilhos novos e não usam o core
+- Números visuais (limites e quantidades por nível) num arquivo de dados
+  próprio do visual em `src/data`, junto de `walkers.json`
+
+### Regras de leitura e custo (valem para A e B)
+- Celular primeiro: nada novo animado fora da câmera; no máximo
+  `maxSmoke` 12 fumaças e `maxAmbient` 40 figuras paradas ativas
+- Decoração do chão e sombras não criam um objeto por célula a cada quadro:
+  são assadas em textura ou em pedaços estáticos
+- No zoom mínimo: figuras paradas e tufos somem; balões e andarilhos ficam
+  acima de tudo e com o mesmo tamanho e contraste de hoje
+- Árvore não cobre balão, prévia de construção nem destaque do templo
+
+### Como verificar
+- `npm test` com os testes novos do mapa (test-reviewer confere)
+- Cenário visual novo "dense-town" (cidade de ~150 moradores, com casas de
+  todos os níveis, bosques e rio) no zoom mínimo e máximo, celular 844 x 390 e
+  PC 1366 x 768; recapturar `town-art`, `field-work-*` e os de girar o mapa.
+  Olhar: rua se distingue do chão gasto, balões legíveis no zoom mínimo
+- Custo: cenário com contador de quadros a 3x em "dense-town", com a CPU do
+  Playwright 4x mais lenta; média ≥ 45 quadros/s e no máximo 10% abaixo da
+  mesma medida antes do pacote
+- sim-tester (só na entrega A): os 3 alvos se mantêm, prata gasta em Limpar e
+  mês do templo variam pouco (±10%) e o templo tem lugar ao ser liberado. Se
+  os bosques tirarem lugar, reduzir o espalhamento, nunca a quantidade de
+  árvores sem nova decisão
+- Depois de B: playtester (leitura, toque, celular) e fun-critic (cidade viva)
+
+### Fora
+- Mais árvores ou rochas bloqueando, trilhas de terra fora das ruas, câmera
+  3D, luz de dia e noite, clima, estações, construção nova, decoração que o
+  jogador posiciona (jardins são do candidato 1), qualquer regra nova
+
 ## Decisões
+- 2026-11-02 — Escopo de "Cidade densa": duas entregas (A chão e árvores com
+  geração do mapa; B construções e vida), só aparência. Motivo: pacote pequeno
+  e verificável; a parte que mexe no core (bosques) fica isolada e medida.
+- 2026-11-02 — Bosques com as mesmas quantidades de árvores e rochas; a
+  densidade vem de desenhar 1 a 3 árvores por célula. Motivo: o espaço de
+  construir e o gasto com Limpar não mudam, então a economia não muda.
+- 2026-11-02 — Sem trilhas de terra soltas no mato; chão gasto só junto de
+  ruas e portas. Motivo: trilha parecendo rua quebra a regra mais importante
+  de ler no mapa (pilar 1).
+- 2026-11-02 — Fumaça de forno de barro (tabun), não chaminé. Motivo: casa
+  de Jerusalém antiga não tinha chaminé; o tema pede o forno.
+- 2026-11-02 — Vida parada na frente das casas cresce com o nível da casa.
+  Motivo: o bairro bem posicionado fica visivelmente mais vivo (pilares 2 e 3).
 - 2026-11-02 — Pacote "Campo é trabalho" (pedido do usuário). Motivo: hoje
   o campo dá vaga mas o trabalho "parece" só oficina; campo com menos gente e
   menos prata cria escolha (comida e pouca prata × prata e nenhuma comida).
@@ -318,6 +408,10 @@ pedra clara com detalhes dourados. Nenhum arquivo de imagem, nada copiado.
   oficina (trabalho para o povo). Produção da oficina não muda. Sem painel de
   estatísticas ainda, o aviso fica numa etiqueta abaixo da barra superior.
 
+- 2026-11-02 — Usuário mudou o alvo do Distraído: perder ~60% (antes ~80%).
+  Hoje perde 64–67% (sim-tester, 200 seeds), já perto do alvo; a proposta
+  tenda 0,35 + saída na fome 0,3 (que levava a 80%) foi descartada.
+
 ## Próximos candidatos
 Em ordem, um pacote por vez.
 1. Fé/felicidade: aumenta perto do altar, do templo e de jardins; diminui
@@ -346,4 +440,5 @@ Visual aprovado pelo usuário (2026-11-02), depois de "Avisos a tempo":
 desenhado em código e com tema de Jerusalém: grupos de árvores, grama
 variada, trilhas de terra gastas, sombras no chão, textura de telhado e
 parede, fumaça de chaminé e mais vida na rua. Sem câmera 3D e sem copiar
-arte. map-designer + sprite-artist. O game-director fecha o escopo antes.
+arte. map-designer + sprite-artist. Escopo fechado na seção "Depois: pacote
+"Cidade densa"" acima.

@@ -38,6 +38,43 @@ function cellToScreen(page, x, y) {
   }, [x, y]);
 }
 
+/** Page position of a game point (the canvas is scaled to fit the page and centered). */
+function gameToPage(page, x, y) {
+  return page.evaluate(([x, y]) => {
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    const k = r.width / window.game.scale.width;
+    return [r.left + x * k, r.top + y * k];
+  }, [x, y]);
+}
+
+/** Game position of a UI element from the layout helpers, e.g. ('buildButton', 2) or ('plaqueSlot', 1). */
+const uiPoint = (page, fn, k) =>
+  page.evaluate(([fn, k]) => {
+    const p = window.layout[fn](k);
+    return 'w' in p ? [p.x + p.w / 2, p.y + p.h / 2] : [p.x, p.y];
+  }, [fn, k]);
+
+/** Clicks a UI element with the mouse (see uiPoint). */
+const clickUi = async (page, fn, k) => page.mouse.click(...(await gameToPage(page, ...(await uiPoint(page, fn, k)))));
+
+/** Real multi-touch through the Chrome DevTools Protocol, in game coordinates. */
+async function touchInput(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const toPage = (pts) => Promise.all(pts.map((p) => gameToPage(page, ...p)));
+  const touch = async (type, pts) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: (await toPage(pts)).map(([x, y], id) => ({ x, y, id })) });
+  const tap = async (p) => {
+    await touch('touchStart', [p]);
+    await page.waitForTimeout(60);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(150);
+  };
+  return { touch, tap };
+}
+
+const PHONE = { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
+const PC = { viewport: { width: 1366, height: 768 } };
+
 /** Presses Space until the game runs at the given speed (a key press can be lost or doubled). */
 async function setSpeed(page, speed) {
   for (let k = 0; k < 6; k++) {
@@ -61,10 +98,18 @@ async function startGame(page) {
 /** Selects a tool by its 1-based toolbar position (keyboard shortcut). */
 const tool = (page, n) => page.keyboard.press(`Digit${n}`);
 
+/** Page position of the center of a grid cell. */
+const cellToPage = async (page, x, y) => gameToPage(page, ...(await cellToScreen(page, x, y)));
+
+/** Drags the mouse through grid cells; every cell must be on the open map (not under the UI). */
 async function mouseDrag(page, cells) {
-  await page.mouse.move(...(await cellToScreen(page, ...cells[0])));
+  for (const c of cells) {
+    const [x, y] = await cellToScreen(page, ...c);
+    assert(!(await page.evaluate(([x, y]) => window.game.ui.isOverUi(x, y), [x, y])), `cell ${c} is not under the UI`);
+  }
+  await page.mouse.move(...(await cellToPage(page, ...cells[0])));
   await page.mouse.down();
-  for (const c of cells.slice(1)) await page.mouse.move(...(await cellToScreen(page, ...c)), { steps: 5 });
+  for (const c of cells.slice(1)) await page.mouse.move(...(await cellToPage(page, ...c)), { steps: 5 });
   await page.mouse.up();
 }
 
@@ -80,6 +125,29 @@ const stats = (page) =>
       won: s.won,
     };
   });
+
+/** Pause, a few houses, idle workers and services that cost more than the taxes: two alerts at once. */
+async function setupHudCity(page) {
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = 1e4;
+    s.feature = s.feature.map(() => null);
+    s.unlocked.push('market', 'workshop');
+    for (let y = 27; y <= 41; y += 2) {
+      core.place(s, 'house', 22, y);
+      s.grid[y * s.cols + 22].level = 2;
+    }
+    core.place(s, 'field', 25, 27);
+    for (let k = 0; k < 6 && core.computeEconomy(s).silverDelta >= 0; k++) core.place(s, 'well', 4 + 3 * k, 4); // off the road
+    s.silver = 180;
+    window.game.setSpeed(0);
+    core.refreshCity(s);
+    window.game.refresh();
+  });
+  await page.waitForTimeout(200);
+  const kinds = await page.evaluate(() => window.core.alerts(window.state).map((a) => a.kind));
+  assert(kinds.includes('deficit') && kinds.includes('unemployed'), `deficit and unemployment alerts (${kinds})`);
+}
 
 const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
 
@@ -275,32 +343,25 @@ const scenarios = {
 
   /** Phone in landscape with real multi-touch events sent through the Chrome DevTools Protocol. */
   touch: {
-    context: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 },
+    context: PHONE,
     async run(page) {
-      const cdp = await page.context().newCDPSession(page);
+      const { touch, tap } = await touchInput(page);
       // Same rule as src/render/layout.ts: the game height follows the screen shape (1280 x 591 here).
       const phoneH = Math.round(Math.min(720, Math.max(560, (GAME_W * 390) / 844)));
-      const scale = 390 / phoneH;
-      const offsetX = (844 - GAME_W * scale) / 2;
-      const toPage = ([x, y]) => ({ x: offsetX + x * scale, y: y * scale });
-      const touch = (type, pts) =>
-        cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, id) => ({ ...toPage(p), id })) });
-      const tap = async (p) => {
-        await touch('touchStart', [p]);
-        await page.waitForTimeout(60);
-        await touch('touchEnd', []);
-        await page.waitForTimeout(150);
-      };
 
       await page.goto(URL);
       await page.waitForTimeout(1200);
       await shot(page, 'touch-title');
-      await tap([640, (phoneH - 520) / 2 + 520 - 62]); // Começar (title panel 520 tall, button 62 above its bottom)
-      await page.waitForFunction(() => window.game?.ui && window.state, null, { timeout: 15000 });
+      await page.waitForFunction(() => document.querySelector('canvas'));
+      // Começar (title panel 520 tall, button 62 above its bottom); the game is not running yet, so map by hand.
+      const scale = 390 / phoneH;
+      await cdpTapPage(page, (844 - GAME_W * scale) / 2 + 640 * scale, ((phoneH - 520) / 2 + 520 - 62) * scale);
+      await page.waitForFunction(() => window.game?.ui && window.state && window.layout, null, { timeout: 15000 });
       await page.waitForTimeout(500);
 
-      await tap([12 + 138 + 66, phoneH - 48]); // Rua (2nd toolbar button)
+      await tap(await uiPoint(page, 'leftButton', 1)); // Rua
       assert(await page.evaluate((h) => window.game.scale.height === h, phoneH), `phone game height is ${phoneH}`);
+      assert(await page.evaluate(() => window.game.tool === 'road'), 'tapping the Rua button picks the road');
       const a = await cellToScreen(page, 27, 23);
       const b = await cellToScreen(page, 31, 23);
       const s0 = await stats(page);
@@ -329,6 +390,128 @@ const scenarios = {
     },
   },
 
+  /** New HUD on a phone in landscape: rails, plaque, goal and alert banners, preview above the finger. */
+  'hud-phone': {
+    context: PHONE,
+    async run(page) {
+      await startGame(page);
+      const { touch, tap } = await touchInput(page);
+      await setupHudCity(page);
+      const game = await page.evaluate(() => [window.game.scale.width, window.game.scale.height]);
+      assert(game[0] === 1280 && game[1] === 591, `phone game size is 1280 x 591 (got ${game})`);
+      // Rail buttons are at least 44 screen px.
+      const px = await page.evaluate(() => (window.layout.BTN * document.querySelector('canvas').getBoundingClientRect().width) / 1280);
+      assert(px >= 44, `rail buttons are at least 44 screen px (got ${px.toFixed(1)})`);
+      await shot(page, 'hud-phone');
+
+      await tap(await uiPoint(page, 'buildButton', 2)); // Poço
+      assert(await page.evaluate(() => window.game.tool === 'well'), 'tapping the Poço button picks the well');
+      // Hold a finger on the map: the preview sits above it. Sliding onto a rail and releasing cancels.
+      const count = async () => (await stats(page)).buildings.length;
+      const n0 = await count();
+      const finger = [820, 470];
+      const under = await page.evaluate(([x, y]) => window.game.cellAt(x, y), finger);
+      await touch('touchStart', [finger]);
+      await touch('touchMove', [[finger[0] + 4, finger[1] + 2]]);
+      await page.waitForTimeout(250);
+      await shot(page, 'hud-phone-preview');
+      const hover = await page.evaluate(() => window.game.hover);
+      assert(hover && hover.x + hover.y < under.x + under.y, `the preview is aimed above the finger (${JSON.stringify([hover, under])})`);
+      await touch('touchMove', [await uiPoint(page, 'buildButton', 4)]);
+      await page.waitForTimeout(100);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(200);
+      assert((await count()) === n0, 'releasing a building over the rail cancels it');
+
+      // A finger near the top rail edge would aim under the plaque: no preview, nothing built.
+      const before = (await stats(page)).buildings.length;
+      const [px0] = await uiPoint(page, 'plaqueSlot', 2);
+      await touch('touchStart', [[px0, 180]]); // aims 90 px higher, at the goal banner
+      await page.waitForTimeout(250);
+      const hidden = await page.evaluate(() => window.game.hover);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(200);
+      assert(!hidden, 'no preview when the aimed point is under the plaque');
+      assert((await stats(page)).buildings.length === before, 'nothing is built under the plaque');
+
+      // Close the alert with its X, then tap the goal.
+      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
+      assert(shown && shown !== 'debt', `a closable alert is shown (${shown})`);
+      await tap(await page.evaluate(() => {
+        const r = window.game.ui.hud.closeRect;
+        return [r.x + r.w / 2, r.y + r.h / 2];
+      }));
+      const after = await page.evaluate(() => window.game.ui.hud.shown?.kind ?? null);
+      assert(after !== shown, `the closed alert is hidden (${shown} -> ${after})`);
+      await tap(await page.evaluate(() => [640, window.layout.GOAL_Y + window.layout.GOAL_H / 2]));
+      assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'tapping the goal shows it in the info line');
+      await shot(page, 'hud-phone-goal');
+    },
+  },
+
+  /** New HUD on a PC: clicks on the rails and speed, the UI never builds, alert X, silver and goal. */
+  'hud-pc': {
+    context: PC,
+    async run(page) {
+      await startGame(page);
+      await setupHudCity(page);
+      const game = await page.evaluate(() => [window.game.scale.width, window.game.scale.height]);
+      assert(game[0] === 1280 && game[1] === 720, `PC game size is 1280 x 720 (got ${game})`);
+
+      await clickUi(page, 'buildButton', 3); // Mercado
+      assert(await page.evaluate(() => window.game.tool === 'market'), 'clicking the Mercado button picks the market');
+      const [mx, my] = await cellToPage(page, 29, 30);
+      await page.mouse.move(mx - 30, my); // leaving the rail: Phaser gives this move to the UI ("out" event)
+      await page.mouse.move(mx, my);
+      await page.waitForTimeout(250);
+      assert(await page.evaluate(() => !!window.game.hover), 'the market preview follows the mouse');
+      await shot(page, 'hud-pc');
+
+      await clickUi(page, 'speedButton', 2); // 3x
+      assert(await page.evaluate(() => window.game.speed === 3), 'the 3x button sets the speed');
+      await clickUi(page, 'speedButton', 0); // pause
+      assert(await page.evaluate(() => window.game.speed === 0), 'the pause button pauses');
+
+      // Dragging a road that starts on the plaque builds nothing.
+      await clickUi(page, 'leftButton', 1); // Rua
+      const r0 = (await stats(page)).roads;
+      await page.mouse.move(...(await gameToPage(page, ...(await uiPoint(page, 'plaqueSlot', 3)))));
+      await page.mouse.down();
+      await page.mouse.move(...(await cellToPage(page, 30, 30)), { steps: 8 });
+      await page.mouse.up();
+      assert((await stats(page)).roads === r0, 'a drag that starts on the plaque builds nothing');
+
+      // Closing the alert keeps it hidden while it lasts; it comes back after it goes away.
+      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
+      await page.mouse.click(...(await gameToPage(page, ...(await page.evaluate(() => {
+        const r = window.game.ui.hud.closeRect;
+        return [r.x + r.w / 2, r.y + r.h / 2];
+      })))));
+      const dismissed = await page.evaluate(() => [...window.game.ui.hud.dismissed]);
+      assert(dismissed.includes(shown), `the X closes the alert (${shown})`);
+      await page.evaluate(() => window.game.refresh());
+      assert(await page.evaluate((k) => window.game.ui.hud.shown?.kind !== k, shown), 'a closed alert stays hidden');
+
+      await clickUi(page, 'plaqueSlot', 1); // silver
+      assert(await page.evaluate(() => window.game.infoMode === 'silver'), 'clicking the silver shows the breakdown');
+      await shot(page, 'hud-pc-silver');
+      await page.mouse.click(...(await gameToPage(page, 640, await page.evaluate(() => window.layout.GOAL_Y + 10))));
+      assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'clicking the goal shows it in the info line');
+      await shot(page, 'hud-pc-goal');
+
+      // Debt: the alert has no X.
+      await page.evaluate(() => {
+        window.state.silver = -10;
+        window.state.debtMonths = 3;
+        window.game.refresh();
+      });
+      const debt = await page.evaluate(() => [window.game.ui.hud.shown?.kind, window.game.ui.hud.closeRect]);
+      assert(debt[0] === 'debt' && debt[1] === null, 'the debt alert has no X');
+      await page.waitForTimeout(200);
+      await shot(page, 'hud-pc-debt');
+    },
+  },
+
   async clarity(page) {
     await startGame(page);
     await page.evaluate(() => {
@@ -340,13 +523,13 @@ const scenarios = {
       window.game.cycleSpeed(); // pause, so the setup stays as built
     });
     await tool(page, 2); // Rua
-    await mouseDrag(page, [[30, 14], [33, 14]]);
+    await mouseDrag(page, [[28, 17], [31, 17]]);
     await page.waitForTimeout(250);
     const c = await page.evaluate(() => {
       const s = window.state;
       const field = s.buildings.find((b) => b.kind === 'field');
       return {
-        loose: [30, 31, 32, 33].every((x) => s.roads[14 * s.cols + x] && !s.network[14 * s.cols + x]),
+        loose: [28, 29, 30, 31].every((x) => s.roads[17 * s.cols + x] && !s.network[17 * s.cols + x]),
         balloon: window.core.balloonNeed(s, field),
       };
     });
@@ -400,13 +583,13 @@ const scenarios = {
     });
     await page.waitForTimeout(200);
     await shot(page, 'turn-0');
-    await page.mouse.click(1280 - 128 + 27 + 54 + 8, 56 + 10 + 27); // ↻
+    await clickUi(page, 'leftButton', 4); // ↻
     await page.waitForTimeout(300);
     assert((await page.evaluate(() => window.iso.getRotation())) === 1, 'the clockwise arrow turns the view');
     assert((await stats(page)).roads === 41, 'clicking the arrow builds nothing');
     await tool(page, 2); // Rua: picking must follow the turned view
-    await mouseDrag(page, [[25, 36], [28, 36]]);
-    const built = await page.evaluate(() => [25, 26, 27, 28].every((x) => window.state.roads[36 * window.state.cols + x]));
+    await mouseDrag(page, [[27, 28], [30, 28]]);
+    const built = await page.evaluate(() => [27, 28, 29, 30].every((x) => window.state.roads[28 * window.state.cols + x]));
     assert(built, 'dragging in the turned view builds on the right grid cells');
     await tool(page, 1);
     await shot(page, 'turn-1');
@@ -453,7 +636,7 @@ const scenarios = {
     assert(chips[0] === 'debt' && chips.includes('deficit'), `debt and deficit alerts (${chips})`);
     assert(await page.evaluate(() => !window.state.roads[20 * window.state.cols + 24]), 'no road is built in debt');
 
-    await page.mouse.click(60, 28); // tap the silver
+    await clickUi(page, 'plaqueSlot', 1); // tap the silver
     await page.waitForTimeout(200);
     await shot(page, 'debt-silver-info');
 
@@ -490,6 +673,15 @@ const scenarios = {
     await shot(page, 'victory');
   },
 };
+
+/** Taps a page point (before the game scene exists). */
+async function cdpTapPage(page, x, y) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 0 }] });
+  await page.waitForTimeout(60);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(150);
+}
 
 // ---------- runner ----------
 

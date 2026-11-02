@@ -1,101 +1,118 @@
 import Phaser from 'phaser';
-import { costOf, unlockingGoal, type GameState } from '../core';
-import { GAME_W, INFO_H, INFO_Y, TOOL_H, TOOL_Y } from './layout';
+import { costOf, RULES, unlockingGoal, type GameState } from '../core';
+import { BTN, BTN_GAP, BUILD_W, buildButton, DIVIDER, inRect, LEFT_RAIL, leftButton, RIGHT_RAIL } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
 import { cropImages, ORIGIN, TEX } from './textures';
-import { isPlaceTool, TOOLS, toolName, type Tool } from './tools';
-import { text } from './ui';
-import type { Segment } from './info';
+import { BUILD_TOOLS, RAIL_TOOLS, type BuildTool, type Tool } from './tools';
+import { RailButton, stonePanel, text } from './ui';
 
-const BTN_GAP = 6;
-const BTN_W = Math.floor((GAME_W - 24 - (TOOLS.length - 1) * BTN_GAP) / TOOLS.length);
-const BTN_H = TOOL_H - 10;
-const ICON_W = 84;
-const ICON_H = 40;
+/** Thumbnail area of a building button (above the cost). */
+const THUMB_W = BUILD_W - 10;
+const THUMB_H = BTN - 28;
+/** Shown on a building button when there is not enough silver. */
+const SHORT_TINT = 0x8c8c8c;
 
-interface ToolButton {
-  tool: Tool;
-  root: Phaser.GameObjects.Container;
-  bg: Phaser.GameObjects.Graphics;
+interface BuildButton {
+  kind: BuildTool;
+  btn: RailButton;
+  thumb: Phaser.GameObjects.Image[];
+  coin: Phaser.GameObjects.Image;
   cost: Phaser.GameObjects.Text;
 }
 
-function toolIcon(scene: Phaser.Scene, tool: Tool): Phaser.GameObjects.GameObject {
-  if (tool === 'view' || tool === 'clear' || tool === 'road') return scene.add.image(0, -BTN_H / 2 + 24, TEX.icon(tool)).setScale(0.85);
-  // Building textures come at their real footprint size: shrink each to fit the icon area.
-  const key = TEX.building(tool, tool === 'house' ? 3 : 0);
-  const img = scene.add.image(0, -4, key).setOrigin(0.5, 1);
-  const k = Math.min(ICON_W / img.width, ICON_H / img.height);
+/** Building texture shrunk to fit the button (fields get their crops on top). */
+function thumbnail(scene: Phaser.Scene, kind: BuildTool): Phaser.GameObjects.Image[] {
+  const key = TEX.building(kind, kind === 'house' ? 3 : 0);
+  const bottom = -BTN / 2 + 4 + THUMB_H;
+  const img = scene.add.image(0, bottom, key).setOrigin(0.5, 1);
+  const k = Math.min(THUMB_W / img.width, THUMB_H / img.height);
   img.setScale(k);
-  if (tool !== 'field') return img;
+  if (kind !== 'field') return [img];
   const [, oy] = ORIGIN[key];
-  return scene.add.container(0, 0, [img, ...cropImages(scene, 0, -4 - img.height * (1 - oy) * k, k)]);
+  return [img, ...cropImages(scene, 0, bottom - img.height * (1 - oy) * k, k)];
 }
 
-/** Bottom tool bar plus the info line above it. */
+/** The two side rails: Ver, Rua, Limpar and the turn arrows on the left; the 6 buildings on the right. */
 export class Toolbar {
-  private buttons: ToolButton[] = [];
-  private info: Phaser.GameObjects.Container;
+  private tools = new Map<Tool, RailButton>();
+  private builds: BuildButton[] = [];
+  private roadCost!: Phaser.GameObjects.Text;
 
-  constructor(private scene: Phaser.Scene, onSelect: (t: Tool) => void) {
+  constructor(scene: Phaser.Scene, onSelect: (t: Tool) => void, onTurn: (dir: 1 | -1) => void) {
     const g = scene.add.graphics();
-    g.fillStyle(C.shadow, 0.3);
-    g.fillRect(0, INFO_Y - 2, GAME_W, 2);
-    g.fillStyle(C.ink, 0.9);
-    g.fillRect(0, INFO_Y, GAME_W, INFO_H);
-    g.fillStyle(C.parchmentDark);
-    g.fillRect(0, TOOL_Y, GAME_W, TOOL_H);
-    this.info = scene.add.container(GAME_W / 2, INFO_Y + INFO_H / 2);
+    stonePanel(g, LEFT_RAIL.x, LEFT_RAIL.y, LEFT_RAIL.w, LEFT_RAIL.h);
+    stonePanel(g, RIGHT_RAIL.x, RIGHT_RAIL.y, RIGHT_RAIL.w, RIGHT_RAIL.h);
 
-    const x0 = (GAME_W - TOOLS.length * BTN_W - (TOOLS.length - 1) * BTN_GAP) / 2;
-    TOOLS.forEach((tool, k) => {
-      const bg = scene.add.graphics();
-      const name = text(scene, 0, 10, toolName(tool), 17, CSS.ink, true).setOrigin(0.5);
-      const cost = text(scene, 0, 29, '', 16, CSS.muted, true).setOrigin(0.5);
-      const root = scene.add.container(x0 + k * (BTN_W + BTN_GAP) + BTN_W / 2, TOOL_Y + 5 + BTN_H / 2, [bg, toolIcon(scene, tool), name, cost]);
-      root.setSize(BTN_W, BTN_H).setInteractive({ useHandCursor: true });
-      root.on('pointerdown', () => onSelect(tool));
-      this.buttons.push({ tool, root, bg, cost });
+    RAIL_TOOLS.forEach((tool, k) => {
+      const content: Phaser.GameObjects.GameObject[] = [];
+      if (tool === 'road') {
+        content.push(scene.add.image(0, -8, TEX.icon(tool)).setScale(1.1));
+        const row = this.costRow(scene, String(RULES.roadCost), CSS.ink);
+        this.roadCost = row[1];
+        content.push(...row);
+      } else content.push(scene.add.image(0, -2, TEX.icon(tool)).setScale(1.2));
+      const { x, y } = leftButton(k);
+      this.tools.set(tool, new RailButton(scene, x, y, BTN, BTN, content, () => onSelect(tool), true));
+    });
+    // Divider: a gold line between the tools and the turn arrows.
+    const { x: lx, y: dy } = leftButton(RAIL_TOOLS.length);
+    g.lineStyle(2, C.gold, 1);
+    g.lineBetween(lx - BTN / 2 + 8, dy - BTN / 2 - (BTN_GAP + DIVIDER) / 2, lx + BTN / 2 - 8, dy - BTN / 2 - (BTN_GAP + DIVIDER) / 2);
+    (['↺', '↻'] as const).forEach((label, k) => {
+      const { x, y } = leftButton(RAIL_TOOLS.length + k);
+      new RailButton(scene, x, y, BTN, BTN, [text(scene, 0, -2, label, 38, CSS.ink, true).setOrigin(0.5)], () => onTurn(k ? 1 : -1));
+    });
+
+    BUILD_TOOLS.forEach((kind, k) => {
+      const thumb = thumbnail(scene, kind);
+      const [coin, cost] = this.costRow(scene, '', CSS.ink);
+      const { x, y } = buildButton(k);
+      const btn = new RailButton(scene, x, y, BUILD_W, BTN, [...thumb, coin, cost], () => onSelect(kind), true);
+      this.builds.push({ kind, btn, thumb, coin, cost });
     });
   }
 
-  refresh(state: GameState, selected: Tool) {
-    for (const b of this.buttons) {
-      const kind = isPlaceTool(b.tool) ? b.tool : null;
-      const locked = !!kind && !state.unlocked.includes(kind);
-      const active = b.tool === selected;
-      b.bg.clear();
-      b.bg.fillStyle(active ? C.parchment : locked ? 0xd6c49c : 0xefe0bd);
-      b.bg.fillRoundedRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 10);
-      b.bg.lineStyle(active ? 4 : 2, active ? C.gold : C.border, 1);
-      b.bg.strokeRoundedRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 10);
-      b.root.setAlpha(locked ? 0.45 : 1);
+  /** Small coin + number at the bottom of a button. */
+  private costRow(scene: Phaser.Scene, value: string, color: string): [Phaser.GameObjects.Image, Phaser.GameObjects.Text] {
+    const coin = scene.add.image(0, BTN / 2 - 15, TEX.icon('silver')).setScale(0.4);
+    const t = text(scene, 0, BTN / 2 - 15, value, 16, color, true).setOrigin(0, 0.5);
+    this.centerCost(coin, t);
+    return [coin, t];
+  }
 
-      let cost = '';
-      let color: string = CSS.muted;
-      if (kind && locked) cost = T.lockedCost(unlockingGoal(kind) ?? 0);
-      else if (b.tool === 'clear') cost = T.treeCost;
-      else if (kind) {
-        cost = `${costOf(kind)} prata`;
-        color = state.silver < costOf(kind) ? CSS.bad : CSS.ink;
+  private centerCost(coin: Phaser.GameObjects.Image, t: Phaser.GameObjects.Text) {
+    const w = coin.visible ? 18 + t.width : t.width;
+    coin.setX(-w / 2 + 8);
+    t.setX(coin.visible ? -w / 2 + 18 : -w / 2);
+  }
+
+  refresh(state: GameState, selected: Tool) {
+    for (const [tool, btn] of this.tools) btn.setLook(tool === selected ? 'active' : 'normal');
+    const roadColor = state.silver < RULES.roadCost ? CSS.bad : CSS.ink;
+    if (this.roadCost.style.color !== roadColor) this.roadCost.setColor(roadColor);
+    for (const b of this.builds) {
+      const locked = !state.unlocked.includes(b.kind);
+      const short = !locked && state.silver < costOf(b.kind);
+      b.btn.setLook(b.kind === selected ? 'active' : locked || short ? 'disabled' : 'normal');
+      b.btn.root.setAlpha(locked ? 0.5 : 1);
+      for (const img of b.thumb) {
+        if (short) img.setTint(SHORT_TINT);
+        else img.clearTint();
+        img.setAlpha(short ? 0.75 : 1);
       }
-      b.cost.setText(cost);
+      const label = locked ? T.lockedCost(unlockingGoal(b.kind) ?? 0) : String(costOf(b.kind));
+      const color = locked ? CSS.muted : short ? CSS.bad : CSS.ink;
+      if (b.cost.text !== label || b.coin.visible === locked) {
+        b.cost.setText(label);
+        b.coin.setVisible(!locked);
+        this.centerCost(b.coin, b.cost);
+      }
       if (b.cost.style.color !== color) b.cost.setColor(color);
     }
   }
 
-  /** Shows colored text segments centered in the info line. */
-  setInfo(segments: Segment[]) {
-    this.info.removeAll(true);
-    let x = 0;
-    for (const seg of segments) {
-      const t = text(this.scene, x, 0, seg.text, 18, seg.color ?? CSS.light, true).setOrigin(0, 0.5);
-      this.info.add(t);
-      x += t.width;
-    }
-    const maxW = GAME_W - 40;
-    this.info.setScale(x > maxW ? maxW / x : 1);
-    this.info.each((c: Phaser.GameObjects.Text) => c.setX(c.x - x / 2));
+  contains(x: number, y: number) {
+    return inRect(LEFT_RAIL, x, y) || inRect(RIGHT_RAIL, x, y);
   }
 }

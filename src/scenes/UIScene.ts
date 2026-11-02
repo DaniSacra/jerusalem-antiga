@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import type { Economy, GameState } from '../core';
 import { Hud, type Speed } from '../render/Hud';
 import type { Segment } from '../render/info';
-import { GAME_H, GAME_W, INFO_Y, TOP_H, TURN } from '../render/layout';
+import { InfoLine } from '../render/InfoLine';
+import { GAME_H, GAME_W } from '../render/layout';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { Toasts, type Tone } from '../render/Toasts';
@@ -12,17 +13,19 @@ import { button, panel, text } from '../render/ui';
 
 export interface UiHost {
   selectTool(tool: Tool): void;
-  cycleSpeed(): void;
+  setSpeed(v: Speed): void;
   turnMap(dir: 1 | -1): void;
   showSilver(): void;
+  showGoal(): void;
   restart(): void;
   attachUi(ui: UIScene): void;
 }
 
-/** Fixed overlay (not affected by the camera): top bar, info line, tool bar, toasts and dialogs. */
+/** Fixed overlay (not affected by the camera): plaque, banners, rails, info line, toasts and dialogs. */
 export class UIScene extends Phaser.Scene {
   private hud!: Hud;
   private toolbar!: Toolbar;
+  private info!: InfoLine;
   private toasts!: Toasts;
   private famineTint!: Phaser.GameObjects.Rectangle;
   private famine = false;
@@ -41,13 +44,11 @@ export class UIScene extends Phaser.Scene {
     const host = data.host;
     this.famine = false;
     this.modal = null;
-    this.famineTint = this.add.rectangle(0, TOP_H, GAME_W, INFO_Y - TOP_H, C.famine, 1).setOrigin(0).setAlpha(0);
-    this.hud = new Hud(this, () => host.cycleSpeed(), () => host.showSilver());
+    this.famineTint = this.add.rectangle(0, 0, GAME_W, GAME_H, C.famine, 1).setOrigin(0).setAlpha(0);
     this.host = host;
-    const half = TURN.size / 2;
-    button(this, TURN.x + half, TURN.y + half, TURN.size, TURN.size, '↺', 40, () => host.turnMap(-1));
-    button(this, TURN.x + TURN.size + TURN.gap + half, TURN.y + half, TURN.size, TURN.size, '↻', 40, () => host.turnMap(1));
-    this.toolbar = new Toolbar(this, (t) => host.selectTool(t));
+    this.hud = new Hud(this, { onSpeed: (v) => host.setSpeed(v), onSilver: () => host.showSilver(), onGoal: () => host.showGoal() });
+    this.toolbar = new Toolbar(this, (t) => host.selectTool(t), (dir) => host.turnMap(dir));
+    this.info = new InfoLine(this);
     this.toasts = new Toasts(this);
     host.attachUi(this);
   }
@@ -58,8 +59,14 @@ export class UIScene extends Phaser.Scene {
     this.setFamine(state.famine);
   }
 
+  /** Empty segments hide the info line. */
   setInfo(segments: Segment[]) {
-    this.toolbar.setInfo(segments);
+    this.info.set(segments);
+  }
+
+  /** True if a screen point is over the plaque, the banners, the rails, the speed or the info line. */
+  isOverUi(x: number, y: number) {
+    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y);
   }
 
   toast(msg: string, tone: Tone = 'info') {

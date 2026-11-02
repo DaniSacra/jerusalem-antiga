@@ -5,8 +5,8 @@ import { text } from './ui';
 
 const DURATION = 2200;
 const MAX = 3;
-/** Toasts sit just above the info line and stack upward, leaving the top for the standing alerts. */
-const Y0 = INFO_Y - 34;
+/** Toasts sit just above the info line and stack upward, leaving the top for the goal and the alert. */
+const Y0 = INFO_Y - 28;
 
 interface Toast {
   msg: string;
@@ -34,7 +34,7 @@ export class Toasts {
     const bg = s.add.graphics();
     bg.fillStyle(C.shadow, 0.3);
     bg.fillRoundedRect(-w / 2 + 2, -h / 2 + 3, w, h, 12);
-    bg.fillStyle(tone === 'bad' ? 0xa8392b : tone === 'good' ? 0x4f7f34 : C.ink, 0.95);
+    bg.fillStyle(tone === 'bad' ? C.ui.alertBad : tone === 'good' ? 0x4f7f34 : C.ink, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
     const root = s.add.container(GAME_W / 2, Y0, [bg, label]).setDepth(30).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });

@@ -1,4 +1,4 @@
-import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type Ground, type NeedKind, type Placeable } from '../core';
+import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type NeedKind, type Placeable } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -10,17 +10,21 @@ export const T = {
     'Cumpra as metas e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mover: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
-  silver: 'Prata',
-  food: 'Comida',
-  residents: 'Moradores',
-  work: 'Trabalho',
-  month: 'Mês',
-  goal: 'Meta',
-  speed: (v: number) => (v === 0 ? '❚❚ Pausa' : `${v === 1 ? '▶' : '▶▶'} ${v}x`),
+  cityName: 'Jerusalém',
+  speed: (v: number) => (v === 0 ? '❚❚' : `${v}x`),
   perMonth: '/mês',
   noJobs: '—',
   idle: (n: number) => `+${n} sem vaga`,
   allGoals: 'Todas as metas cumpridas!',
+  goalBanner: (n: number, goal: GoalDef, progress: number) => `${n}. ${goal.text}  ${Math.min(progress, goal.target)}/${goal.target}`,
+  /** Info line after tapping the goal banner. */
+  goalInfo: (n: number, total: number, goal: GoalDef, progress: number) =>
+    [
+      `Meta ${n} de ${total}: ${goal.text}`,
+      `${Math.min(progress, goal.target)} de ${goal.target}`,
+      goal.victory ? 'vitória' : `prêmio +${goal.reward} prata`,
+      ...(goal.unlock ? [`libera ${toolName(goal.unlock)}`] : []),
+    ].join('  ·  '),
   famine: 'Falta comida: construa campos',
   looseRoad: 'Esta rua não está ligada ao altar',
   noWorkers: 'Sem trabalhadores: faltam moradores',
@@ -80,7 +84,6 @@ export const T = {
   retry: 'Tentar de novo',
   lockedCost: (n: number) => `Meta ${n}`,
   lockedHint: (kind: Placeable) => `${toolName(kind)}: liberado ao cumprir a Meta ${unlockingGoal(kind)}.`,
-  treeCost: `árvore ${RULES.treeClearCost}`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira' } satisfies Record<Feature, string>,
   need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo' } satisfies Record<NeedKind, string>,
@@ -96,21 +99,32 @@ export function fmt(n: number): string {
 
 export const signed = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n));
 
-export function toolHint(tool: Tool): string {
-  if (tool === 'view') return 'Ver: toque para ver detalhes. Arraste para mover o mapa.';
-  if (tool === 'clear') return `Limpar: remove construções e ruas sem reembolso. Cortar árvore custa ${RULES.treeClearCost} prata. Pode arrastar.`;
-  if (tool === 'road') return `Rua (${RULES.roadCost} prata por célula): ligue as construções ao altar. Arraste para construir.`;
+/** Title of the info line when a tool is picked: name, cost and upkeep. */
+export function toolHead(tool: Tool): string {
+  if (tool === 'view') return 'Ver';
+  if (tool === 'clear') return `Limpar · árvore ${RULES.treeClearCost} prata`;
+  if (tool === 'road') return `Rua · ${RULES.roadCost} prata por célula`;
   const d = BUILDINGS[tool];
-  const parts = [`${d.name} (${d.cost} prata${d.upkeep ? `, ${d.upkeep}/mês` : ''})`];
-  if (tool === 'house') parts.push('terreno para uma família. Ao lado de uma rua. Pode arrastar');
+  return `${d.name} · ${d.cost} prata${d.upkeep ? ` · ${d.upkeep}/mês` : ''}`;
+}
+
+/** What the tool does, after its title in the info line. */
+export function toolHint(tool: Tool): string {
+  if (tool === 'view') return 'Toque para ver detalhes. Arraste para mover o mapa.';
+  if (tool === 'clear') return 'Remove construções e ruas sem reembolso. Pode arrastar.';
+  if (tool === 'road') return 'Ligue as construções ao altar. Arraste para construir.';
+  const d = BUILDINGS[tool];
+  const parts: string[] = [];
+  if (tool === 'house') parts.push('terreno para uma família, ao lado de uma rua. Pode arrastar');
   const { w, h } = dimsOf(tool);
   if (w > 1 || h > 1) parts.push(`ocupa ${w}x${h}`);
-  if (canRotate(tool)) parts.push('toque de novo no botão ou tecla R para girar');
+  if (canRotate(tool)) parts.push('toque de novo no botão ou R para girar');
   if (d.jobs) parts.push(`${d.jobs} vagas`);
   const made = [d.food && `${d.food} de comida`, d.silver && `${d.silver} de prata`].filter(Boolean);
   if (made.length) parts.push(`produz ${made.join(' e ')}${T.perMonth}`);
   if (d.radius) parts.push(`raio ${d.radius}`);
   if (tool === 'temple') parts.push('precisa encostar numa rua; os lugares possíveis ficam verdes');
   if (tool === 'field') parts.push('pode arrastar');
-  return parts.join(' · ') + '.';
+  const body = parts.join(' · ');
+  return body.charAt(0).toUpperCase() + body.slice(1) + '.';
 }

@@ -1,6 +1,7 @@
 import { BUILDINGS, computeEconomy, craftOf, houseInfo, indexOf, RULES, type GameState } from '../core';
 import { CSS } from './palette';
-import { fmt, T } from './strings';
+import { fmt, T, toolHead, toolHint } from './strings';
+import type { Tool } from './tools';
 
 export type Segment = { text: string; color?: string };
 
@@ -62,3 +63,6 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
 }
 
 export const hintSegments = (hint: string): Segment[] => [{ text: hint, color: CSS.light }];
+
+/** Info line when a tool is picked: name, cost and upkeep in gold, then what it does. */
+export const toolSegments = (tool: Tool): Segment[] => [title(toolHead(tool)), SEP, { text: toolHint(tool) }];

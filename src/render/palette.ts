@@ -52,6 +52,17 @@ export const C = {
   clothes: [0xc0503c, 0x5a7fb5, 0xe2b544, 0x7fa65a, 0x9a6ab0, 0xe9ddc8],
   skin: [0xd9a77c, 0xc28a5e, 0xe8bf96],
   need: { road: 0xc0392b, well: 0x4a9bd8, market: 0xc0503c, sacred: 0xe8742c },
+  /** Interface: light stone plaques and rails with gold trim. */
+  ui: {
+    stone: 0xf1e8d4,
+    stoneDark: 0xdccdb0,
+    stoneEdge: 0xb8a582,
+    goldLight: 0xf6dc8c,
+    goldDark: 0xa87d22,
+    infoBg: 0x4a3523,
+    alertBad: 0xa8392b,
+    alertWarn: 0xc56a1c,
+  },
 };
 
 export const CSS = {

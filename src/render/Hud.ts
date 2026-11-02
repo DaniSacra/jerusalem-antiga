@@ -1,64 +1,112 @@
 import Phaser from 'phaser';
 import { alerts, currentGoal, goalProgress, type Alert, type Economy, type GameState } from '../core';
-import { GAME_W, TOP_H } from './layout';
+import { ALERT_Y, BANNER_MAX_W, GAME_W, GOAL_H, GOAL_Y, inRect, PLAQUE, plaqueSlot, SPEED, SPEED_BTN, speedButton, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
 import { TEX } from './textures';
-import { button, text } from './ui';
-
-/** Debt, negative balance and unemployment can all show at once. */
-const ALERT_KINDS = 3;
+import { RailButton, stonePanel, text } from './ui';
 
 export const SPEEDS = [1, 3, 0] as const;
 export type Speed = (typeof SPEEDS)[number];
+/** Speed buttons, left to right. */
+const SPEED_ORDER: Speed[] = [0, 1, 3];
+
+type StatKey = 'month' | 'silver' | 'food' | 'residents' | 'work';
+/** Plaque slots, left to right (widths in `plaqueSlot`). */
+const SLOTS: [StatKey, Parameters<typeof TEX.icon>[0]][] = [
+  ['month', 'month'],
+  ['silver', 'silver'],
+  ['food', 'food'],
+  ['residents', 'people'],
+  ['work', 'work'],
+];
+const ROW_Y = 46;
+const TITLE_Y = 15;
+/** The X of a dismissable alert: a touch target bigger than the drawn cross. */
+const CLOSE_W = 64;
 
 interface Stat {
   value: Phaser.GameObjects.Text;
   sub: Phaser.GameObjects.Text;
 }
 
-/** Top bar: resources, workforce, month, goal and speed toggle. */
+export interface HudHandlers {
+  onSpeed(v: Speed): void;
+  onSilver(): void;
+  onGoal(): void;
+}
+
+/** Top of the screen: speed (top left), the city plaque, the goal banner and one alert banner. */
 export class Hud {
-  private stats: Record<'silver' | 'food' | 'residents' | 'work' | 'month', Stat>;
-  private goal: Phaser.GameObjects.Text;
-  private speedLabel: Phaser.GameObjects.Text;
+  private stats = {} as Record<StatKey, Stat>;
+  private speedButtons: [Speed, RailButton][] = [];
   /** Blinking values (food during famine, silver in debt). */
   private blinks = new Map<Phaser.GameObjects.Text, Phaser.Tweens.Tween>();
-  /** Standing warnings stacked under the bar, at the left (debt, negative balance, unemployment). */
-  private chips: Phaser.GameObjects.Text[] = [];
 
-  constructor(private scene: Phaser.Scene, onSpeed: () => void, onSilver: () => void) {
+  private goalBg: Phaser.GameObjects.Graphics;
+  private goalFlag: Phaser.GameObjects.Image;
+  private goal: Phaser.GameObjects.Text;
+  private goalZone: Phaser.GameObjects.Zone;
+  private goalRect: Rect = { x: 0, y: GOAL_Y, w: 0, h: GOAL_H };
+
+  private alertBg: Phaser.GameObjects.Graphics;
+  private alertText: Phaser.GameObjects.Text;
+  private alertMark: Phaser.GameObjects.Text;
+  private closeZone: Phaser.GameObjects.Zone;
+  private alertRect: Rect | null = null;
+  private closeRect: Rect | null = null;
+  private alertKey = '';
+  private shown: Alert | null = null;
+  /** Alerts closed with the X: hidden until they go away and come back. */
+  private dismissed = new Set<Alert['kind']>();
+  private lastAlerts: Alert[] = [];
+
+  constructor(private scene: Phaser.Scene, h: HudHandlers) {
     const g = scene.add.graphics();
-    g.fillStyle(C.shadow, 0.25);
-    g.fillRect(0, TOP_H, GAME_W, 3);
-    g.fillStyle(C.parchment);
-    g.fillRect(0, 0, GAME_W, TOP_H);
-    g.lineStyle(2, C.border, 1);
-    g.lineBetween(0, TOP_H, GAME_W, TOP_H);
 
-    this.stats = {
-      silver: this.stat(14, 'silver', T.silver),
-      food: this.stat(184, 'food', T.food),
-      residents: this.stat(350, 'people', T.residents),
-      work: this.stat(464, 'work', T.work),
-      month: this.stat(684, 'month', T.month),
-    };
-    scene.add.image(784, TOP_H / 2, TEX.icon('goal')).setScale(0.7);
-    text(scene, 802, 5, T.goal, 14, CSS.muted, true);
-    this.goal = text(scene, 802, 22, '', 18, CSS.ink, true);
-    this.speedLabel = button(scene, GAME_W - 72, TOP_H / 2, 132, TOP_H - 6, T.speed(1), 20, onSpeed).label;
-    // Tapping the silver shows where it comes from and where it goes.
-    scene.add.zone(0, 0, 176, TOP_H).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', onSilver);
-    for (let k = 0; k < ALERT_KINDS; k++) {
-      this.chips.push(text(scene, 14, TOP_H + 10 + k * 46, '', 18, CSS.light, true).setPadding(12, 7, 12, 7).setVisible(false));
-    }
-  }
+    // Speed: pause, 1x, 3x; the active one in gold.
+    stonePanel(g, SPEED.x, SPEED.y, SPEED.w, SPEED.h);
+    SPEED_ORDER.forEach((v, k) => {
+      const { x, y } = speedButton(k);
+      const label = text(scene, 0, -2, T.speed(v), v === 0 ? 22 : 26, CSS.ink, true).setOrigin(0.5);
+      this.speedButtons.push([v, new RailButton(scene, x, y, SPEED_BTN, SPEED_BTN, [label], () => h.onSpeed(v))]);
+    });
 
-  private stat(x: number, icon: Parameters<typeof TEX.icon>[0], label: string): Stat {
-    const s = this.scene;
-    s.add.image(x + 16, TOP_H / 2, TEX.icon(icon)).setScale(0.75);
-    text(s, x + 38, 5, label, 14, CSS.muted, true);
-    return { value: text(s, x + 38, 22, '', 22, CSS.ink, true), sub: text(s, x + 38, 27, '', 15, CSS.muted, true) };
+    // Plaque hanging from the top edge: city name, then icon + number for each stat.
+    stonePanel(g, PLAQUE.x, PLAQUE.y - 14, PLAQUE.w, PLAQUE.h + 14, 14);
+    const name = text(scene, GAME_W / 2, TITLE_Y, T.cityName, 17, CSS.ink, true).setOrigin(0.5);
+    const half = name.width / 2 + 14;
+    g.lineStyle(1.5, C.gold, 1);
+    g.lineBetween(GAME_W / 2 - half - 90, TITLE_Y, GAME_W / 2 - half, TITLE_Y);
+    g.lineBetween(GAME_W / 2 + half, TITLE_Y, GAME_W / 2 + half + 90, TITLE_Y);
+    g.fillStyle(C.gold);
+    for (const sx of [-1, 1]) g.fillPoints(diamond(GAME_W / 2 + sx * (half - 6), TITLE_Y, 4), true);
+    SLOTS.forEach(([key, icon], k) => {
+      const { x, w, h: sh } = plaqueSlot(k);
+      scene.add.image(x + 16, ROW_Y, TEX.icon(icon)).setScale(0.7);
+      this.stats[key] = {
+        value: text(scene, x + 36, ROW_Y, '', 22, CSS.ink, true).setOrigin(0, 0.5),
+        sub: text(scene, x + 36, ROW_Y + 2, '', 14, CSS.muted, true).setOrigin(0, 0.5),
+      };
+      // Tapping the silver shows where it comes from and where it goes.
+      if (key === 'silver') scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', h.onSilver);
+    });
+
+    // Goal banner: tapping shows the whole goal in the info line.
+    this.goalBg = scene.add.graphics();
+    this.goalFlag = scene.add.image(0, GOAL_Y + GOAL_H / 2, TEX.icon('goal')).setScale(0.6);
+    this.goal = text(scene, 0, GOAL_Y + GOAL_H / 2, '', 18, CSS.ink, true).setOrigin(0, 0.5);
+    this.goalZone = scene.add.zone(0, GOAL_Y, 10, GOAL_H).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', h.onGoal);
+
+    // One alert banner; every alert but the debt can be closed.
+    this.alertBg = scene.add.graphics();
+    this.alertMark = text(scene, 0, 0, '!', 20, CSS.ink, true).setOrigin(0.5).setVisible(false);
+    this.alertText = text(scene, 0, 0, '', 17, CSS.light, true).setOrigin(0.5).setAlign('center').setVisible(false);
+    this.closeZone = scene.add.zone(0, 0, CLOSE_W, 10).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', () => {
+      if (!this.shown || this.shown.kind === 'debt') return;
+      this.dismissed.add(this.shown.kind);
+      this.showAlert();
+    });
   }
 
   /** Colors a stat value; `blink` makes it pulse (famine, debt). */
@@ -75,31 +123,77 @@ export class Hud {
     }
   }
 
-  private showAlerts(list: Alert[]) {
-    this.chips.forEach((chip, k) => {
-      const a = list[k];
-      chip.setVisible(!!a);
-      if (!a) return;
-      chip.setText(T.alert(a)).setBackgroundColor(a.kind === 'debt' ? CSS.bad : CSS.warn);
-    });
-  }
-
-  /** Long goals shrink the font so they never run into the speed button. */
-  private fitGoal(str: string) {
-    const max = GAME_W - 150 - this.goal.x;
-    let size = 18;
-    this.goal.setText(str).setFontSize(size);
-    while (this.goal.width > max && size > 12) this.goal.setFontSize(--size);
-  }
-
   private set(stat: Stat, value: string, sub = '', subColor: string = CSS.muted) {
     stat.value.setText(value);
-    stat.sub.setText(sub).setX(stat.value.x + stat.value.width + 6);
+    stat.sub.setText(sub).setX(stat.value.x + stat.value.width + 5);
     if (stat.sub.style.color !== subColor) stat.sub.setColor(subColor);
+  }
+
+  /** Gold ribbon centered under the plaque; long goals shrink the font. */
+  private setGoal(str: string) {
+    let size = 18;
+    this.goal.setText(str).setFontSize(size);
+    while (this.goal.width > BANNER_MAX_W - 56 && size > 12) this.goal.setFontSize(--size);
+    const w = Math.round(this.goal.width + 56);
+    const x = (GAME_W - w) / 2;
+    this.goalRect = { x, y: GOAL_Y, w, h: GOAL_H };
+    this.goalFlag.setX(x + 20);
+    this.goal.setX(x + 36);
+    this.goalZone.setPosition(x, GOAL_Y).setSize(w, GOAL_H);
+    const g = this.goalBg.clear();
+    g.fillStyle(C.shadow, 0.25);
+    g.fillRoundedRect(x + 2, GOAL_Y + 3, w, GOAL_H, 10);
+    g.fillStyle(C.ui.goldLight);
+    g.fillRoundedRect(x, GOAL_Y, w, GOAL_H, 10);
+    g.lineStyle(2, C.ui.goldDark, 1);
+    g.strokeRoundedRect(x, GOAL_Y, w, GOAL_H, 10);
+  }
+
+  /** The most important alert not closed by the player. */
+  private showAlert() {
+    const a = this.lastAlerts.find((x) => !this.dismissed.has(x.kind)) ?? null;
+    const key = a ? T.alert(a) : '';
+    this.shown = a;
+    if (key === this.alertKey) return;
+    this.alertKey = key;
+    const g = this.alertBg.clear();
+    this.alertText.setVisible(!!a);
+    this.alertMark.setVisible(!!a);
+    this.closeZone.setVisible(!!a && a.kind !== 'debt');
+    this.alertRect = null;
+    this.closeRect = null;
+    if (!a) return;
+    const closable = a.kind !== 'debt';
+    this.alertText.setText(key).setWordWrapWidth(BANNER_MAX_W - 48 - (closable ? CLOSE_W : 16));
+    const w = Math.round(this.alertText.width + 48 + (closable ? CLOSE_W - 12 : 16));
+    const h = Math.max(40, Math.round(this.alertText.height + 14));
+    const x = (GAME_W - w) / 2;
+    this.alertRect = { x, y: ALERT_Y, w, h };
+    g.fillStyle(C.shadow, 0.25);
+    g.fillRoundedRect(x + 2, ALERT_Y + 3, w, h, 10);
+    g.fillStyle(a.kind === 'debt' ? C.ui.alertBad : C.ui.alertWarn, 0.96);
+    g.fillRoundedRect(x, ALERT_Y, w, h, 10);
+    g.lineStyle(2, C.ui.goldLight, 1);
+    g.strokeRoundedRect(x, ALERT_Y, w, h, 10);
+    // Warning mark at the left, so the banner reads as a problem without relying on color.
+    g.fillStyle(C.ui.goldLight);
+    g.fillCircle(x + 22, ALERT_Y + h / 2, 12);
+    this.alertMark.setPosition(x + 22, ALERT_Y + h / 2);
+    this.alertText.setPosition(x + 40 + this.alertText.width / 2, ALERT_Y + h / 2);
+    if (!closable) return;
+    const cx = x + w - 26;
+    const cy = ALERT_Y + h / 2;
+    g.lineStyle(3, C.ui.goldLight, 1);
+    g.lineBetween(cx - 7, cy - 7, cx + 7, cy + 7);
+    g.lineBetween(cx - 7, cy + 7, cx + 7, cy - 7);
+    const zh = Math.max(h, 60);
+    this.closeRect = { x: x + w - CLOSE_W, y: cy - zh / 2, w: CLOSE_W, h: zh };
+    this.closeZone.setPosition(this.closeRect.x, this.closeRect.y).setSize(CLOSE_W, zh);
   }
 
   refresh(state: GameState, eco: Economy, speed: Speed) {
     const { silver, food, residents, work, month } = this.stats;
+    this.set(month, String(state.month + 1));
     this.set(silver, String(Math.floor(state.silver)), signed(eco.silverDelta) + T.perMonth, eco.silverDelta < 0 ? CSS.bad : CSS.good);
     const debt = state.silver < 0;
     this.tone(silver.value, debt ? CSS.bad : eco.silverDelta < 0 ? CSS.warn : CSS.ink, debt);
@@ -110,11 +204,32 @@ export class Hud {
     if (eco.workers === 0 && eco.jobs === 0) this.set(work, T.noJobs);
     else if (eco.workers > eco.jobs) this.set(work, `${eco.workers}/${eco.jobs}`, T.idle(eco.workers - eco.jobs), CSS.warn);
     else this.set(work, `${eco.workers}/${eco.jobs}`, `${eff}%`, eff < 100 ? CSS.bad : CSS.good);
-    this.set(month, String(state.month + 1));
+
     const goal = currentGoal(state);
-    const goalText = goal ? `${state.goalIndex + 1}. ${goal.text} (${Math.min(goalProgress(state, goal), goal.target)}/${goal.target})` : T.allGoals;
-    if (goalText !== this.goal.text) this.fitGoal(goalText);
-    this.speedLabel.setText(T.speed(speed));
-    this.showAlerts(alerts(state));
+    const goalText = goal ? T.goalBanner(state.goalIndex + 1, goal, goalProgress(state, goal)) : T.allGoals;
+    if (goalText !== this.goal.text) this.setGoal(goalText);
+
+    for (const [v, btn] of this.speedButtons) btn.setLook(v === speed ? 'active' : 'normal');
+
+    this.lastAlerts = alerts(state);
+    for (const kind of this.dismissed) if (!this.lastAlerts.some((a) => a.kind === kind)) this.dismissed.delete(kind);
+    this.showAlert();
+  }
+
+  contains(x: number, y: number) {
+    return (
+      inRect(SPEED, x, y) ||
+      inRect(PLAQUE, x, y) ||
+      inRect(this.goalRect, x, y) ||
+      (!!this.alertRect && inRect(this.alertRect, x, y)) ||
+      (!!this.closeRect && inRect(this.closeRect, x, y))
+    );
   }
 }
+
+const diamond = (x: number, y: number, r: number) => [
+  { x, y: y - r },
+  { x: x + r, y },
+  { x, y: y + r },
+  { x: x - r, y },
+];

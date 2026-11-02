@@ -184,18 +184,37 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
 
 ## Interface
 
-- **Barra superior:** Prata e Comida com variação por mês (+X/mês; vermelho se negativa). O valor
-  da prata fica normal com saldo ≥ 0, laranja com saldo do mês negativo e vermelho piscando em
-  dívida. **Tocar na prata** mostra na linha de informação: impostos, produção por tipo ("Oficina +X · Campo +Y"),
-  "Manutenção: Campo −1, Poço −3…" e saldo.
-  Moradores, Trabalho (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%;
-  "+N sem vaga" em laranja quando sobra gente), Mês, Meta atual com progresso (a fonte encolhe se
-  o texto for longo) e botão de velocidade da altura da barra (▶ 1x → ▶▶ 3x → ❚❚ Pausa). Durante a fome, o valor da Comida fica
-  vermelho e pisca.
-- **Barra de ferramentas:** Ver, Rua, Casa, Campo, Poço, Mercado, Oficina, Templo, Limpar, cada
-  uma com ícone desenhado, nome e custo (vermelho se faltar prata).
-- **Linha de informação:** mostra a dica da ferramenta, com custo e manutenção (ex.: "Campo (15
-  prata, 1/mês) · ocupa 2x2 · 2 vagas · produz 3 de comida e 1 de prata/mês"). Com Ver, mostra o que foi tocado:
+Layout inspirado em Pharaoh: A New Era, com arte própria desenhada em código (pedra clara com
+detalhes dourados, cores e fonte de `palette.ts`). O mapa ocupa quase a tela toda: nada de barras
+de largura total. Posições e tamanhos em `src/render/layout.ts`.
+
+- **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês,
+  Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores e Trabalho
+  (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%; "+N sem vaga" em laranja
+  quando sobra gente). O valor da prata fica normal com saldo ≥ 0, laranja com saldo do mês
+  negativo e vermelho piscando em dívida. Durante a fome, o valor da Comida fica vermelho e pisca.
+  **Tocar na prata** mostra na linha de informação: impostos, produção por tipo ("Oficina +X ·
+  Campo +Y"), "Manutenção: Campo −1, Poço −3…" e saldo (atualizado a cada mês).
+- **Faixa da meta** (dourada, logo abaixo da placa): "1. Tenha 6 casas ligadas à rua  5/6" (a fonte
+  encolhe se o texto for longo). Tocar mostra na linha de informação a meta inteira: "Meta 1 de 9:
+  … · 5 de 6 · prêmio +20 prata · libera Mercado".
+- **Faixa de aviso** (abaixo da meta): só uma, a mais importante da lista do core (dívida, saldo
+  negativo, desemprego), com "!" à esquerda; vermelha na dívida, laranja nas outras. O X fecha o
+  aviso, que fica escondido até sumir e voltar (aparece o próximo da lista, se houver). O aviso
+  de dívida não tem X.
+- **Velocidade** (canto superior esquerdo): 3 botões ❚❚, 1x e 3x; o ativo fica dourado.
+- **Trilho esquerdo** (abaixo da velocidade): Ver (lupa), Rua (com o custo 2), Limpar (picareta),
+  uma divisória dourada e as setas ↺ ↻ de girar o mapa. A ferramenta ativa fica dourada.
+- **Trilho direito:** Casa, Campo, Poço, Mercado, Oficina e Templo, cada um com a miniatura da
+  própria construção e o custo pequeno embaixo (moeda + número). Sem prata suficiente: botão e
+  miniatura acinzentados e custo em vermelho. Bloqueada: apagada, com "Meta N" no lugar do custo.
+  Tocar de novo no Mercado gira a prévia.
+- **Tamanhos:** botões dos trilhos 72 px do jogo (≈ 48 px de tela no celular 844 x 390; o mínimo
+  de toque é 44), botões de velocidade 68 px (≈ 45 px de tela).
+- **Linha de informação:** placa escura e compacta no centro de baixo, só aparece quando tem
+  texto (encolhe para caber entre os trilhos). Ao escolher uma ferramenta mostra o nome, o custo e a
+  manutenção em dourado e depois a dica (ex.: "Campo · 15 prata · 1/mês · Ocupa 2x2 · 2 vagas ·
+  produz 3 de comida e 1 de prata/mês · pode arrastar."). Com Ver, mostra o que foi tocado:
   - casas: nível, moradores, imposto e as exigências do próximo nível em verde/vermelho
     (incluindo "sem rua"); terreno vazio diz se há família a caminho;
   - outras construções: nome (a oficina com o ofício, ex.: "Oficina (Olaria)"), estado de conexão,
@@ -213,12 +232,12 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
   e destaca em verde todas as posições onde cabe (6 x 6 livre encostado em rua conectada, sem
   olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o templo: abra
   uma rua ao lado de um terreno livre 6 x 6".
-- **Toasts** (mensagens curtas logo acima da linha de informação, empilhando para cima): prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, meta
+- **Toasts** (mensagens curtas no centro de baixo, logo acima da linha de informação, empilhando para cima): prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, meta
   cumprida, "Oficina liberada: …" e "Falta comida: construa campos" (uma vez por episódio de fome).
 - Durante a fome, leve tom avermelhado sobre o mapa.
 - Tela inicial com 3 passos numerados (casas e campos ao lado das ruas do altar, campos dão comida e trabalho; poço, mercado e altar
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
-  botão "Começar". Botões principais têm pelo menos 80 px de altura (setas de girar 80 x 80).
+  botão "Começar" (84 px de altura).
 
 ## Câmera e controles (estilo Pocket City)
 
@@ -231,19 +250,21 @@ Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
 - **Tamanho da tela:** a largura do jogo é 1280 e a altura acompanha o formato da tela, entre
   560 e 720 (celular 844 x 390 → 1280 x 591, sem faixas laterais e com tudo ~22% maior).
 - Zoom entre 0,5x e 2x. A câmera começa centralizada no altar.
-- **Girar o mapa:** duas setas (↺ ↻) no canto superior direito, logo abaixo da barra, giram a
-  visão 90° (Q e E no PC). Só a visão gira; as regras não mudam. A câmera continua olhando o mesmo
+- **Girar o mapa:** duas setas (↺ ↻) no fim do trilho esquerdo giram a visão 90° (Q e E no PC). Só a visão gira; as regras não mudam. A câmera continua olhando o mesmo
   ponto, as junções das ruas e a ordem de desenho acompanham o giro, e as construções mantêm a luz
   do mesmo lado (o Mercado troca entre o desenho 2 x 4 e 4 x 2 conforme fica na tela).
 - Rua, Casa, Campo e Limpar constroem arrastando; o arraste preenche as células em passos
   ortogonais, então a rua fica sempre conectada.
 - Poço, Mercado, Oficina e Templo são colocados **ao soltar o dedo**: dá para arrastar para
   ajustar a prévia, e o segundo dedo de uma pinça nunca constrói por engano. No toque, eles miram
-  90 px acima do dedo, para a prévia não ficar escondida; soltar sobre a interface cancela.
+  90 px acima do dedo, para a prévia não ficar escondida; se o ponto mirado cair sob a interface,
+  não há prévia (a prévia nunca fica escondida sob a placa, as faixas ou os trilhos); soltar sobre a
+  interface cancela.
 - No toque, o arraste só começa a construir depois de 150 ms com um dedo só (a pinça não
-  constrói). Nada é construído sob a barra superior, as setas, a linha de informação ou a barra
-  de ferramentas. Continuar uma rua a partir de uma rua existente não mostra "Local inválido".
-- Atalhos no PC: 1–9 escolhem a ferramenta, R gira o Mercado, Q e E giram o mapa, Espaço troca a
+  constrói). Nada é construído nem começa um gesto sob a placa, a faixa da meta, a faixa de aviso,
+  a velocidade, os trilhos ou a linha de informação (quando aparece). Continuar uma rua a partir de uma rua existente não mostra "Local inválido".
+- Atalhos no PC: 1–9 escolhem a ferramenta (Ver, Rua, Casa, Campo, Poço, Mercado, Oficina, Templo,
+  Limpar), R gira o Mercado, Q e E giram o mapa, Espaço troca a
   velocidade, Esc volta para Ver.
 
 ## Vida na cidade

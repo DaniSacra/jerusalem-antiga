@@ -6,6 +6,9 @@ import {
   computeEconomy,
   createGame,
   createRng,
+  currentGoal,
+  GOALS,
+  goalProgress,
   indexOf,
   place,
   RULES,
@@ -21,12 +24,12 @@ import {
 import { CameraRig } from '../render/CameraRig';
 import { Effects } from '../render/Effects';
 import { SPEEDS, type Speed } from '../render/Hud';
-import { describeCell, hintSegments } from '../render/info';
+import { describeCell, hintSegments, toolSegments } from '../render/info';
 import { footCenter, getRotation, gridToWorld, setRotation, worldToCell, worldToGrid } from '../render/iso';
-import { INFO_Y, TOP_H, isOverUi } from '../render/layout';
+import { VIEW_CY } from '../render/layout';
 import { MapView, originFor } from '../render/MapView';
 import { C, CSS } from '../render/palette';
-import { T, toolHint } from '../render/strings';
+import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { DRAG_TOOLS, isPlaceTool, TOOLS, type Tool } from '../render/tools';
 import { Walkers } from '../render/Walkers';
@@ -87,8 +90,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private clock = 0;
   private hover: Cell | null = null;
   private selected: Cell | null = null;
-  /** The info line shows the silver breakdown (after tapping the silver). */
-  private silverInfo = false;
+  /** The info line shows the silver breakdown or the whole goal (after tapping them), kept up to date. */
+  private infoMode: 'silver' | 'goal' | null = null;
   private gesture: Gesture | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
@@ -113,7 +116,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = 0;
     this.ui = null;
     this.selected = null;
-    this.silverInfo = false;
+    this.infoMode = null;
 
     setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
@@ -123,12 +126,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.rig = new CameraRig(this.cameras.main);
     const a = this.state.buildings.find((b) => b.kind === 'altar')!;
     const altar = footCenter(a.x, a.y, a.w, a.h);
-    this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, (TOP_H + INFO_Y) / 2);
+    this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, VIEW_CY);
 
     this.setupInput();
     this.scene.launch('ui', { host: this });
     if (import.meta.env.DEV) {
-      Promise.all([import('../core'), import('../render/iso')]).then(([core, iso]) => Object.assign(window, { game: this, state: this.state, core, iso }));
+      Promise.all([import('../core'), import('../render/iso'), import('../render/layout')]).then(([core, iso, layout]) =>
+        Object.assign(window, { game: this, state: this.state, core, iso, layout }),
+      );
     }
   }
 
@@ -155,7 +160,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
     this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
-    else if (this.tool === 'view' && this.silverInfo) this.ui?.setInfo(hintSegments(T.silverBreakdown(this.eco)));
+    else if (this.tool === 'view' && this.infoMode === 'silver') this.ui?.setInfo(hintSegments(T.silverBreakdown(this.eco)));
+    else if (this.infoMode === 'goal') this.ui?.setInfo(hintSegments(this.goalInfo()));
+  }
+
+  private goalInfo(): string {
+    const goal = currentGoal(this.state);
+    if (!goal) return T.allGoals;
+    return T.goalInfo(this.state.goalIndex + 1, GOALS.length, goal, goalProgress(this.state, goal));
   }
 
   private handleEvents(events: GameEvent[]) {
@@ -214,8 +226,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     }
     this.tool = tool;
     this.selected = null;
-    this.silverInfo = false;
-    this.ui?.setInfo(hintSegments(toolHint(tool)));
+    this.infoMode = null;
+    this.ui?.setInfo(toolSegments(tool));
     if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.setInfo([{ text: T.noTempleSpot, color: CSS.badLight }]);
     this.refresh();
   }
@@ -232,7 +244,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.ui?.modalOpen) return;
     const cam = this.cameras.main;
     const sx = cam.width / 2;
-    const sy = (TOP_H + INFO_Y) / 2;
+    const sy = VIEW_CY;
     const w = this.rig.toWorld(sx, sy);
     const g = worldToGrid(w.x, w.y);
     setRotation(getRotation() + dir);
@@ -248,7 +260,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.ui?.modalOpen) return;
     if (this.tool !== 'view') this.selectTool('view');
     this.selected = null;
-    this.silverInfo = true;
+    this.infoMode = 'silver';
+    this.refresh();
+  }
+
+  /** Shows the whole current goal, its progress, reward and unlock in the info line (kept up to date). */
+  showGoal() {
+    if (this.ui?.modalOpen) return;
+    this.selected = null;
+    this.infoMode = 'goal';
     this.refresh();
   }
 
@@ -259,16 +279,26 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   cycleSpeed() {
+    this.setSpeed(SPEEDS[(this.speedIndex + 1) % SPEEDS.length]);
+  }
+
+  setSpeed(v: Speed) {
     if (this.ui?.modalOpen) return;
-    this.speedIndex = (this.speedIndex + 1) % SPEEDS.length;
+    this.speedIndex = SPEEDS.indexOf(v);
     this.refresh();
   }
 
   // ---------- input ----------
 
-  /** Cell a pointer aims at: lifted above the finger for single buildings on touch. */
+  private overUi(sx: number, sy: number) {
+    return this.ui?.isOverUi(sx, sy) ?? false;
+  }
+
+  /** Cell a pointer aims at: lifted above the finger for single buildings on touch; none if the
+   * finger or the aimed point is under the interface (the preview is never hidden by it). */
   private aimAt(p: Phaser.Input.Pointer): Cell | null {
     const lift = p.wasTouch && isPlaceTool(this.tool) && !DRAG_TOOLS.has(this.tool) ? TOUCH_LIFT : 0;
+    if (this.overUi(p.x, p.y) || (lift && this.overUi(p.x, p.y - lift))) return null;
     return this.cellAt(p.x, p.y - lift);
   }
 
@@ -304,7 +334,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   private onDown(p: Phaser.Input.Pointer) {
-    if (this.ui?.modalOpen || isOverUi(p.x, p.y)) return;
+    if (this.ui?.modalOpen || this.overUi(p.x, p.y)) return;
     if (p.rightButtonDown() || p.middleButtonDown()) {
       this.rightPan = { id: p.id, x: p.x, y: p.y };
       return;
@@ -358,7 +388,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
     const g = this.gesture;
     if (!g || g.id !== p.id || !p.isDown) {
-      if (!p.isDown && !p.wasTouch) this.setHover(isOverUi(p.x, p.y) ? null : this.cellAt(p.x, p.y));
+      if (!p.isDown && !p.wasTouch) this.setHover(this.overUi(p.x, p.y) ? null : this.cellAt(p.x, p.y));
       return;
     }
     if (g.cancelled) return;
@@ -367,8 +397,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool === 'view') {
       if (g.moved) this.rig.panBy(p.x - g.lastX, p.y - g.lastY);
     } else {
-      const overUi = isOverUi(p.x, p.y);
-      const cell = overUi ? null : this.aimAt(p);
+      const cell = this.aimAt(p);
       this.setHover(cell);
       // Never build under the UI, and give a second finger time to land before a touch drag builds.
       const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
@@ -399,7 +428,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       } else if (!g.applied) {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
         // Releasing a single building over the UI cancels it.
-        const cell = DRAG_TOOLS.has(this.tool) ? g.start : isOverUi(p.x, p.y) ? null : this.aimAt(p);
+        const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
         if (cell) this.apply(cell, true);
       }
       this.warnLooseRoads(g.roads);
@@ -415,7 +444,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private select(cell: Cell) {
     this.selected = cell;
-    this.silverInfo = false;
+    this.infoMode = null;
     this.refresh();
   }
 

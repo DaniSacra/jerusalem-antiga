@@ -59,10 +59,12 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `town-art` | monta uma cidade com todos os níveis e prédios; templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
 | `field-work` | pausado: 8 campos ligados (4 plantações, normal e espelhado) e 1 sem rua; 2 agricultores por campo com eficiência 100%, nenhum no campo sem rua; zoom máximo (dois momentos do trabalho) e mínimo; mapa girado com 1 agricultor por campo quando só parte das vagas está ocupada | `field-work-zoom-max`, `field-work-zoom-max-later`, `field-work-zoom-min`, `field-work-turned` |
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
-| `touch` | celular deitado com toque real: um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
-| `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na barra; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
-| `turn-map` | mercado, casa e poço; clica ↻ (não constrói nada), arrasta rua no mapa girado e confere as células; E/E e Q | `turn-0`, `turn-1`, `turn-3`, `turn-2` |
-| `debt` | pausado em dívida com fome: etiquetas de aviso, prata vermelha, toast ao tentar construir, família saindo a pé; toque na prata (detalhe na linha de informação); a 1x chega à derrota; "Tentar de novo" começa um mapa novo | `debt-alerts`, `debt-silver-info`, `defeat`, `defeat-retry` |
+| `touch` | celular deitado com toque real: toque no botão Rua do trilho esquerdo; um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
+| `hud-phone` | celular deitado 844 x 390 (jogo 1280 x 591), pausado com avisos de saldo negativo e desemprego: botões dos trilhos ≥ 44 px de tela; toque no Poço do trilho direito; prévia mirada acima do dedo; deslizar até o trilho e soltar cancela; sem prévia nem construção quando o ponto mirado cai sob a interface; X fecha o aviso (aparece o próximo); toque na meta mostra a meta inteira | `hud-phone`, `hud-phone-preview`, `hud-phone-goal` |
+| `hud-pc` | PC 1366 x 768 (jogo 1280 x 720), mesma cidade: clique no Mercado do trilho direito e prévia seguindo o mouse; botões 3x e pausa; arrastar rua começando na placa não constrói; X fecha o aviso e ele continua escondido; clique na prata (detalhe) e na meta; aviso de dívida sem X | `hud-pc`, `hud-pc-silver`, `hud-pc-goal`, `hud-pc-debt` |
+| `clarity` | pausado: rua arrastada longe da rede (apagada, tracejada, aviso); campo sem moradores com balão "sem trabalhadores"; fome na placa; posições do templo; mapa sem espaço para o templo | `clarity-loose-road`, `clarity-famine`, `overlay-temple-spots`, `temple-no-spot` |
+| `turn-map` | mercado, casa e poço; clica ↻ no trilho esquerdo (não constrói nada), arrasta rua no mapa girado e confere as células; E/E e Q | `turn-0`, `turn-1`, `turn-3`, `turn-2` |
+| `debt` | pausado em dívida com fome: faixa de aviso da dívida, prata vermelha, custos em vermelho nos trilhos, toast ao tentar construir, família saindo a pé; toque na prata (detalhe na linha de informação); a 1x chega à derrota; "Tentar de novo" começa um mapa novo | `debt-alerts`, `debt-silver-info`, `defeat`, `defeat-retry` |
 | `victory` | constrói o templo e espera a vitória | `temple-celebration`, `victory` |
 
 ### Ganchos de desenvolvimento
@@ -75,7 +77,12 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.state` — o `GameState` atual;
 - `window.core` — todas as funções do core (`core.place`, `core.clearCell`, `core.stepMonth`...);
 - `window.iso` — projeção e giro do mapa (`iso.gridToWorld`, `iso.getRotation()`); o
-  `cellToScreen` do script já usa o giro atual.
+  `cellToScreen` do script já usa o giro atual;
+- `window.layout` — posições da interface (`src/render/layout.ts`): `speedButton(k)` (0 pausa,
+  1 1x, 2 3x), `leftButton(k)` (0 Ver, 1 Rua, 2 Limpar, 3 ↺, 4 ↻), `buildButton(k)` (0 Casa …
+  5 Templo), `plaqueSlot(k)` (0 mês, 1 prata, 2 comida, 3 moradores, 4 trabalho), `GOAL_Y`, `BTN`.
+  `window.game.ui.isOverUi(x, y)` diz se um ponto está sob a interface; `window.game.ui.hud.shown`
+  é o aviso mostrado e `hud.closeRect` o X dele.
 
 Use-os para montar situações rapidamente em vez de jogar até lá. Depois de mudar o estado
 diretamente, chame `window.game.refresh()`. Se mudar conexões à mão (ruas, construções), prefira
@@ -96,9 +103,18 @@ async 'meu-cenario'(page) {
 },
 ```
 
-- `cellToScreen(page, x, y)` converte uma célula da grade para a posição na tela usando a câmera atual.
-- Para celular, use a forma `{ context: {...}, run(page) {...} }` (veja o cenário `touch`), com
-  eventos de toque enviados pelo protocolo do Chrome.
+- `cellToScreen(page, x, y)` converte uma célula da grade para a posição no jogo (1280 x altura)
+  usando a câmera atual; `gameToPage` e `cellToPage` convertem para a página (o canvas é escalado
+  quando a janela não é 1280 x 720).
+- `clickUi(page, 'buildButton', 3)` clica num elemento da interface pelo `window.layout`;
+  `uiPoint(page, ...)` dá a posição no jogo (para toque).
+- `mouseDrag` falha se alguma célula do arraste estiver sob a interface: escolha células no mapa
+  aberto (os trilhos ocupam as laterais, a placa e as faixas o centro do topo).
+- Para celular ou PC, use a forma `{ context: PHONE | PC, run(page) {...} }` (veja `hud-phone` e
+  `hud-pc`). No celular, `touchInput(page)` dá `touch(type, pontos)` e `tap(ponto)` com toque real
+  pelo protocolo do Chrome, em coordenadas do jogo.
+- No PC, o primeiro movimento do mouse depois de sair de um botão vai para a interface (evento
+  "out" do Phaser); mova duas vezes antes de conferir a prévia.
 - O navegador sem placa de vídeo é lento: prefira `page.waitForFunction(...)` esperando um estado
   do jogo em vez de tempos fixos longos.
 
