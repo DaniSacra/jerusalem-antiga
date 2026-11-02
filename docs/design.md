@@ -10,8 +10,9 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 5. Uma mecânica nova por vez, sempre liberada por meta.
 
 ## Estado atual (após o pacote "Mapa maior e construções grandes", 2026-11-02)
-- Mapa 48 x 48. Altar 4 x 4 fixo no centro (canto em 22,22) e uma rua inicial
-  na coluna 24 até a entrada da cidade na borda sul (24,47)
+- Mapa 48 x 48. Altar 4 x 4 fixo no centro (canto em 22,22), cercado por um anel
+  de rua (x e y de 21 a 26), e uma rua inicial na coluna 24 do anel até a entrada
+  da cidade na borda sul (24,47); 41 células de rua de graça
 - Tamanhos: rua 1 x 1, casa 2 x 2, poço 2 x 2, campo 2 x 2, mercado 2 x 4
   (gira para 4 x 2 antes de construir: botão ou tecla R), oficina 3 x 3,
   altar 4 x 4, templo 6 x 6
@@ -32,24 +33,99 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   campo e mercado têm 3 vagas, oficina 3
 - As 3 primeiras casas ligadas à rua recebem família com certeza; depois, 35% por mês
 - Templo 6 x 6 custa 800 e é a meta final
-- 8 metas em sequência; metas liberam construções:
+- 9 metas em sequência; metas liberam construções:
   1. 6 casas ligadas à rua (tenda ou melhor): +20
   2. 20 moradores: +30, libera Mercado
   3. 5 casas de barro ou melhores: +40, libera Oficina
-  4. 80 moradores: +60
-  5. 6 casas de pedra ou melhores: +80
-  6. 150 moradores: +120
-  7. 4 casas grandes: +150, libera Templo
-  8. Construa o Templo: vitória
-- Metas de casas contam só casas ligadas à rua
+  4. Construa 2 oficinas: +40
+  5. 80 moradores: +60
+  6. 6 casas de pedra ou melhores: +80
+  7. 150 moradores: +120
+  8. 4 casas grandes: +150, libera Templo
+  9. Construa o Templo: vitória
+- Metas de casas e de construir contam só construções ligadas à rua
+- Aviso de desemprego (Oficina liberada e 6+ pessoas sem trabalho) numa etiqueta
+  abaixo da barra superior; mensagem própria ao liberar a Oficina
+- Oficina com 6 ofícios (olaria, ferraria, carpintaria, tecelagem, tinturaria,
+  curtume), só aparência; o artesão carrega um objeto do ofício
 - Barra no topo com prata, comida (pisca vermelha durante a fome), moradores,
   trabalho, mês e meta atual
 - Clareza: rua sem ligação ao altar desenhada apagada e tracejada, com aviso
   ao construir; balão "sem rua" com ícone próprio; balão "sem trabalhadores"
   em locais de trabalho com eficiência 0; com a ferramenta Templo, destaque
   dos lugares onde ele cabe
+- Variedade visual (só aparência): 6 variantes por nível de casa (tenda,
+  barro, pedra, casa grande) e 2 de terreno vazio, espelháveis, com pequeno
+  deslocamento e tom; sorteadas ao construir e a cada mudança de nível; duas
+  casas vizinhas do mesmo nível nunca repetem variante quando há outra
+- Campo com 4 plantações diferentes (trigo, cevada, hortaliças e uma quarta),
+  sorteadas ao construir; campos vizinhos não repetem a plantação
+- 10 tipos de morador andando pelas ruas (aguadeira, agricultor, cesteira,
+  carregador, artesão, idoso, criança, homem com jumento, pastor, sacerdote),
+  cada um com destino, velocidade e pausa próprios (`walkers.json`); um tipo só
+  aparece quando a construção dele existe
+
+## Em andamento: pacote "Manutenção e falência" (aprovado 2026-11-02; implementado, falta o equilíbrio do sim-tester e o fun-critic)
+Única mecânica nova: manutenção, com dívida e derrota como consequência. O resto
+é ajuste de regras que já existem ou interface.
+- Manutenção mensal (`upkeep` em `buildings.json`): poço 1, campo 1, mercado 3,
+  oficina 2, templo 10; rua, casa e altar 0. Cobrada todo mês, inclusive de
+  construções desconectadas, também depois da vitória
+- Mês: prata += impostos + oficinas − manutenção. O +X/mês da barra já desconta
+- Prata pode ficar negativa só pela manutenção. Construir continua exigindo
+  prata ≥ custo (com prata negativa nada é construído; demolir continua grátis)
+- Dívida: contador de meses seguidos com prata < 0 ao fim do mês; zera com
+  prata ≥ 0. Ao chegar a `debtMonthsToLose` (`rules.json`, 24): derrota
+- Ao entrar em dívida, a velocidade 3x cai para 1x (uma vez por episódio)
+- Tela de derrota "Jerusalém foi abandonada": meses jogados, maior população,
+  botão "Tentar de novo" (seed nova, reinício completo, como um jogo novo)
+- Fome: a regra de cair de nível passa a valer para tendas com chance própria
+  (`famineLeaveChance` 0,2 em `rules.json`); tenda que cai vira terreno vazio
+- Comida por morador por nível (`food` em `houses.json`): tenda 0,2, barro 0,2,
+  pedra 0,25, casa grande 0,3
+- Família que sai: só aparência. O core emite um evento com a casa; o render
+  faz a família andar pela rede até a entrada e sumir (sem rota: some no lugar)
+- Interface, sem painel de estatísticas:
+  - avisos numa lista do core (`alerts`), mostrados como etiquetas empilhadas
+    abaixo da barra, nesta ordem: dívida ("A cidade está em dívida: N meses"),
+    saldo negativo ("Gastando mais do que ganha: maior custo Mercados 9/mês;
+    demolir serviços que atendem poucas casas"), desemprego
+  - tocar na prata mostra na linha de informação: impostos, oficinas,
+    manutenção por tipo e saldo
+  - dica e prévia da ferramenta: "Mercado: 40 prata, 3/mês"; Ver numa
+    construção mostra "Manutenção 3/mês"
+  - valor da prata: normal com saldo ≥ 0, laranja com saldo do mês negativo,
+    vermelho piscando em dívida
+- Alvos do sim-tester (3 jogadores automáticos, antes e depois): Eficiente vence
+  sem nunca entrar em dívida e aguenta 24 meses após o templo; Comum entra em
+  aperto ao menos uma vez, se recupera e vence; Distraído perde na maioria.
+  Ajusta só manutenção, consumo e `debtMonthsToLose`. Depois, fun-critic
 
 ## Decisões
+- 2026-11-02 — Pacote "Manutenção e falência" (pedido do usuário) aprovado com
+  ajustes. Motivo: não existia forma de perder; manutenção faz serviço mal
+  posicionado custar todo mês (pilar 3) e cabe numa frase na dica (pilar 1).
+  Dívida e derrota são a consequência da manutenção, não outra mecânica.
+- 2026-11-02 — `debtMonthsToLose` 12 → 24 e 3x cai para 1x ao entrar em dívida.
+  Motivo: 12 meses são 14 s a 1x e menos de 5 s a 3x; um jovem de 12 anos não
+  percebe e reage a tempo. O sim-tester pode baixar se Distraído não perder.
+- 2026-11-02 — Abandono de tenda na fome é a regra de cair de nível estendida à
+  tenda, não mecânica nova. A família saindo é só um efeito do render.
+- 2026-11-02 — Painel de estatísticas continua para depois (candidato 7). O
+  essencial vai para etiquetas de aviso e para o toque na prata. A lista de
+  avisos do core será a lista de "principais problemas" do painel.
+- 2026-11-02 — Manutenção vale também para construção desconectada. Motivo:
+  ensina a ligar à rua; o balão "sem rua" já mostra o problema. Valores baixos
+  (poço e campo 1) mantêm o começo leve: 200 de prata e 3 famílias garantidas.
+- 2026-11-02 — "Trabalho 0/0 100%" e o layout no celular (revisão do
+  ui-designer) ficam fora deste pacote; as etiquetas empilhadas precisam caber
+  na tela do celular deitado.
+- 2026-11-02 — O usuário aprovou as sugestões do ui-designer junto com este
+  pacote: bugs de toque (pinça, arrastar sob a interface, "Local inválido"
+  falso), botões ≥ 80 px, balões que crescem no zoom afastado, Trabalho com
+  "—" e "+N sem vaga", prévia acima do dedo, tela inicial em 3 passos, ajustes
+  de arte (idoso × sacerdote, pedra, ruas) e, por último, layout do celular.
+
 - 2026-11-02 — Pacote "Mapa maior e construções grandes" (decisão do usuário):
   mapa 32 → 48, construções com tamanhos próprios, mercado girável, depois a
   arte é redesenhada nos tamanhos novos. Motivo: mais variedade visual e
@@ -98,6 +174,16 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   Alvo deste pacote: jogador planejado vence em 120–200 meses (2,5–4 min de
   simulação), apressado não trava no templo, e sessão humana ≥ 8 min.
 
+- 2026-11-02 — Pacote "Variedade visual" (pedido do usuário): variantes de
+  casa e tipos de morador. Só aparência e destino dos andarilhos; nenhuma regra
+  de economia muda (pilar 2, cidade viva).
+
+- 2026-11-02 — Pacote "Oficina" (pedido do usuário): meta "construa 2
+  oficinas" (+40) logo depois da meta que libera a Oficina, aviso de
+  desemprego (limite 6) e 6 ofícios só de aparência. Motivo: dar sentido à
+  oficina (trabalho para o povo). Produção da oficina não muda. Sem painel de
+  estatísticas ainda, o aviso fica numa etiqueta abaixo da barra superior.
+
 ## Próximos candidatos
 Em ordem, um pacote por vez.
 1. Fé/felicidade: aumenta perto do altar, do templo e de jardins; diminui
@@ -112,7 +198,9 @@ Em ordem, um pacote por vez.
 6. Nível da cidade = metas cumpridas + 1
 7. Painel de estatísticas com prata, comida, casas por nível, trabalho,
    gráficos e principais problemas (inclui fome como primeiro problema com
-   dica "construa campos")
+   dica "construa campos"). Absorve a lista de avisos do core e o detalhe da
+   prata (impostos, oficinas, manutenção por tipo, saldo) do pacote
+   "Manutenção e falência"
 
 Ajustes de equilíbrio em espera (dependem do sim-tester): oficina 8 de prata,
 imposto menor de pedra/casa grande.

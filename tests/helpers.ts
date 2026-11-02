@@ -2,8 +2,9 @@ import { createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, typ
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
- * everything unlocked. The 4x4 altar covers x, y = 22..25 and the starting road runs south along
- * x = 24, from y = 26 to the entrance at (24, 47).
+ * everything unlocked. The 4x4 altar covers x, y = 22..25, a road ring surrounds it (x, y = 21..26)
+ * and the starting road runs south along x = 24, from the ring (y = 26) to the entrance at (24, 47).
+ * Buildings beside the starting road go at y >= 27 so they stay off the ring.
  */
 export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   const s = createGame(createRng(1));
@@ -38,7 +39,7 @@ export function road(s: GameState, cells: [number, number][]) {
 }
 
 export const constRng = (v: number): Rng => () => v;
-/** The starting road column (x = 24) and its first cell below the altar (y = 26). */
+/** The starting road column (x = 24) and its first cell below the altar (y = 26, on the ring). */
 export { ROAD_X };
 export const ROAD_TOP = 26;
 /** Left column of a 2x2 house touching the starting road on its west side (x = 22..23). */

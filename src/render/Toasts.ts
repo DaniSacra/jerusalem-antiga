@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { GAME_W, TOP_H } from './layout';
+import { GAME_W, INFO_Y } from './layout';
 import { C, CSS } from './palette';
 import { text } from './ui';
 
 const DURATION = 2200;
 const MAX = 3;
-const Y0 = TOP_H + 30;
+/** Toasts sit just above the info line and stack upward, leaving the top for the standing alerts. */
+const Y0 = INFO_Y - 34;
 
 interface Toast {
   msg: string;
@@ -57,6 +58,6 @@ export class Toasts {
   }
 
   private layout() {
-    this.list.forEach((t, k) => this.scene.tweens.add({ targets: t.root, y: Y0 + k * 46, duration: 150 }));
+    this.list.forEach((t, k) => this.scene.tweens.add({ targets: t.root, y: Y0 - k * 46, duration: 150 }));
   }
 }

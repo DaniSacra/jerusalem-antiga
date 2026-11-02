@@ -8,7 +8,7 @@ export const currentGoal = (s: GameState): GoalDef | undefined => GOALS[s.goalIn
 export function goalProgress(s: GameState, goal: GoalDef): number {
   if (goal.type === 'residents') return computeEconomy(s).residents;
   if (goal.type === 'houses') return countHousesAtLeast(s, goal.level ?? 0);
-  return s.buildings.filter((b) => b.kind === goal.kind).length;
+  return s.buildings.filter((b) => b.kind === goal.kind && b.connected).length;
 }
 
 /** 1-based number of the goal that unlocks something, or null if it starts unlocked. */

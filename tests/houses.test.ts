@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, clearCell, houseInfo, stepMonth } from '../src/core';
+import { balloonNeed, clearCell, houseInfo, RULES, stepMonth } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
@@ -22,10 +22,10 @@ describe('house evolution', () => {
   it('is served when any cell of its footprint is covered', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 36, 1); // rows 36..37
-    put(s, 'well', ROADSIDE, 26); // radius 4 covers rows 22..31 only
+    put(s, 'well', ROADSIDE, 27); // radius 4 covers rows 23..32 only
     run(s, 3);
     expect(b.level).toBe(1);
-    clearCell(s, ROADSIDE, 26);
+    clearCell(s, ROADSIDE, 27);
     put(s, 'well', ROADSIDE, 28); // now covers rows 24..33: still short of row 36
     run(s, 3);
     expect(b.level).toBe(1);
@@ -53,9 +53,9 @@ describe('house evolution', () => {
 
   it('becomes a big house within the radius of the altar', () => {
     const s = emptyGame();
-    const b = put(s, 'house', ROADSIDE, 26, 3);
-    put(s, 'well', ROADSIDE, 28);
-    put(s, 'market', westOf('market'), 30);
+    const b = put(s, 'house', ROADSIDE, 27, 3);
+    put(s, 'well', ROADSIDE, 29);
+    put(s, 'market', westOf('market'), 31);
     run(s, 3);
     expect(b.level).toBe(4);
   });
@@ -81,7 +81,25 @@ describe('house evolution', () => {
     expect(tent.level).toBe(1);
     expect(mud.level).toBe(2);
     expect(run(s, 1, constRng(0.1))).toContainEqual({ type: 'houseDown', x: ROADSIDE, y: 34, level: 1, delta: -3, famine: true });
+  });
+
+  it('during famine a tent is abandoned with famineLeaveChance and its family walks away', () => {
+    expect(RULES.famineLeaveChance).toBe(0.2);
+    const s = emptyGame({ famine: true, food: 0 });
+    const tent = put(s, 'house', ROADSIDE, 32, 1);
+    run(s, 3, constRng(0.2)); // not below the chance: stays
     expect(tent.level).toBe(1);
+    const events = run(s, 1, constRng(0.19));
+    expect(tent.level).toBe(0);
+    expect(events).toContainEqual({ type: 'houseDown', x: ROADSIDE, y: 32, level: 0, delta: -3, famine: true });
+    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 32 });
+  });
+
+  it('without famine tents are never abandoned', () => {
+    const s = emptyGame({ food: 1000 });
+    const tent = put(s, 'house', ROADSIDE, 32, 1);
+    run(s, 6, constRng(0));
+    expect(tent.level).toBeGreaterThanOrEqual(1);
   });
 });
 

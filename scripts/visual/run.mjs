@@ -38,6 +38,16 @@ function cellToScreen(page, x, y) {
   }, [x, y]);
 }
 
+/** Presses Space until the game runs at the given speed (a key press can be lost or doubled). */
+async function setSpeed(page, speed) {
+  for (let k = 0; k < 6; k++) {
+    if (await page.evaluate((v) => window.game.speed === v, speed)) return;
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`setSpeed: could not reach ${speed}x`);
+}
+
 /** Opens the game, leaves the title screen and waits for the UI to be attached. */
 async function startGame(page) {
   await page.goto(URL);
@@ -85,14 +95,14 @@ const scenarios = {
   async 'build-with-mouse'(page) {
     await startGame(page);
     const before = await stats(page);
-    assert(before.roads === 22, `starting road has 22 cells (got ${before.roads})`);
+    assert(before.roads === 41, `starting roads (ring + road south) have 41 cells (got ${before.roads})`);
     assert(before.buildings.join() === 'altar', 'only the altar at start');
 
     await tool(page, 2); // Rua
-    await mouseDrag(page, [[26, 24], [31, 24]]);
+    await mouseDrag(page, [[27, 24], [32, 24]]);
     await tool(page, 3); // Casa: 2x2, so dragging 6 cells places 3 houses
-    await mouseDrag(page, [[26, 25], [31, 25]]);
-    await tool(page, 4); // Campo: 3x3 centered on the click
+    await mouseDrag(page, [[27, 25], [32, 25]]);
+    await tool(page, 4); // Campo: 2x2 at the clicked cell
     await page.mouse.click(...(await cellToScreen(page, 22, 29)));
     await tool(page, 5); // Poço
     await page.mouse.click(...(await cellToScreen(page, 22, 32)));
@@ -101,7 +111,7 @@ const scenarios = {
     await shot(page, 'build-with-mouse');
 
     const after = await stats(page);
-    assert(after.roads === 28, `dragged road adds 6 cells (got ${after.roads})`);
+    assert(after.roads === 47, `dragged road adds 6 cells (got ${after.roads})`);
     assert(after.houses.length === 3, `dragged 3 houses (got ${after.houses.length})`);
     assert(after.buildings.includes('field') && after.buildings.includes('well'), 'field and well placed');
   },
@@ -110,7 +120,7 @@ const scenarios = {
     await startGame(page);
     await tool(page, 3);
     await mouseDrag(page, [[22, 28], [22, 36]]);
-    await page.keyboard.press('Space'); // 3x
+    await setSpeed(page, 3);
     await tool(page, 1);
     await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 20000 });
     await page.waitForTimeout(400);
@@ -135,7 +145,7 @@ const scenarios = {
         core.place(s, 'road', 12, y);
         core.place(s, 'road', 36, y);
       }
-      for (let x = 26; x <= 36; x++) core.place(s, 'road', x, 24);
+      for (let x = 27; x <= 36; x++) core.place(s, 'road', x, 24);
       const put = (k, x, y, level = 0, rotated = false) => {
         const r = core.place(s, k, x, y, rotated);
         if (!r.ok) throw new Error(`town-art: cannot place ${k} at ${x},${y}: ${r.reason}`);
@@ -143,9 +153,9 @@ const scenarios = {
       };
       for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 19, (k % 4) + 1);
       for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 29, (k + 2) % 5);
-      put('well', 26, 25);
-      put('market', 28, 25, 0, true); // rotated 4x2
-      put('workshop', 32, 25);
+      put('well', 27, 25);
+      put('market', 29, 25, 0, true); // rotated 4x2
+      put('workshop', 33, 25);
       put('field', 26, 29);
       put('field', 29, 29);
       put('house', 32, 29, 4);
@@ -198,7 +208,9 @@ const scenarios = {
     context: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 },
     async run(page) {
       const cdp = await page.context().newCDPSession(page);
-      const scale = 390 / GAME_H;
+      // Same rule as src/render/layout.ts: the game height follows the screen shape (1280 x 591 here).
+      const phoneH = Math.round(Math.min(720, Math.max(560, (GAME_W * 390) / 844)));
+      const scale = 390 / phoneH;
       const offsetX = (844 - GAME_W * scale) / 2;
       const toPage = ([x, y]) => ({ x: offsetX + x * scale, y: y * scale });
       const touch = (type, pts) =>
@@ -213,13 +225,14 @@ const scenarios = {
       await page.goto(URL);
       await page.waitForTimeout(1200);
       await shot(page, 'touch-title');
-      await tap([640, 570]); // Começar
+      await tap([640, (phoneH - 520) / 2 + 520 - 62]); // Começar (title panel 520 tall, button 62 above its bottom)
       await page.waitForFunction(() => window.game?.ui && window.state, null, { timeout: 15000 });
       await page.waitForTimeout(500);
 
-      await tap([12 + 138 + 66, 672]); // Rua (2nd toolbar button)
-      const a = await cellToScreen(page, 26, 23);
-      const b = await cellToScreen(page, 30, 23);
+      await tap([12 + 138 + 66, phoneH - 48]); // Rua (2nd toolbar button)
+      assert(await page.evaluate((h) => window.game.scale.height === h, phoneH), `phone game height is ${phoneH}`);
+      const a = await cellToScreen(page, 27, 23);
+      const b = await cellToScreen(page, 31, 23);
       const s0 = await stats(page);
       await touch('touchStart', [a]);
       for (let k = 1; k <= 10; k++) {
@@ -320,7 +333,7 @@ const scenarios = {
     await page.mouse.click(1280 - 128 + 27 + 54 + 8, 56 + 10 + 27); // ↻
     await page.waitForTimeout(300);
     assert((await page.evaluate(() => window.iso.getRotation())) === 1, 'the clockwise arrow turns the view');
-    assert((await stats(page)).roads === 22, 'clicking the arrow builds nothing');
+    assert((await stats(page)).roads === 41, 'clicking the arrow builds nothing');
     await tool(page, 2); // Rua: picking must follow the turned view
     await mouseDrag(page, [[25, 36], [28, 36]]);
     const built = await page.evaluate(() => [25, 26, 27, 28].every((x) => window.state.roads[36 * window.state.cols + x]));
@@ -338,12 +351,61 @@ const scenarios = {
     assert(rot === 2, `Q turns back (rotation ${rot})`);
     await shot(page, 'turn-2');
   },
+  async debt(page) {
+    await startGame(page);
+    await page.evaluate(() => {
+      const { state: s, core } = window;
+      s.silver = 1e4;
+      s.feature = s.feature.map(() => null);
+      s.unlocked.push('market', 'workshop');
+      core.place(s, 'market', 25, 27);
+      core.place(s, 'field', 25, 31);
+      core.place(s, 'workshop', 30, 34); // off the road: makes nothing but still pays its upkeep
+      for (let y = 27; y <= 35; y += 2) {
+        core.place(s, 'house', 22, y);
+        s.grid[y * s.cols + 22].level = 1;
+      }
+      s.silver = -5;
+      s.debtMonths = 20;
+      s.famine = true;
+      s.food = 0;
+      window.game.walkers.leave(s, 22, 29); // a family walking out, as when a tent is abandoned
+      window.game.cycleSpeed();
+      window.game.cycleSpeed(); // pause
+      window.game.refresh();
+      window.game.cameras.main.centerOn(0, 920);
+    });
+    await tool(page, 2); // Rua: building is blocked in debt
+    await page.mouse.click(...(await cellToScreen(page, 24, 20)));
+    await page.waitForTimeout(700);
+    await shot(page, 'debt-alerts');
+    const chips = await page.evaluate(() => window.core.alerts(window.state).map((a) => a.kind));
+    assert(chips[0] === 'debt' && chips.includes('deficit'), `debt and deficit alerts (${chips})`);
+    assert(await page.evaluate(() => !window.state.roads[20 * window.state.cols + 24]), 'no road is built in debt');
+
+    await page.mouse.click(60, 28); // tap the silver
+    await page.waitForTimeout(200);
+    await shot(page, 'debt-silver-info');
+
+    await page.evaluate(() => (window.state.debtMonths = window.core.RULES.debtMonthsToLose - 1));
+    await setSpeed(page, 1);
+    await page.waitForFunction(() => window.state.lost, null, { timeout: 5000 });
+    await page.waitForTimeout(400);
+    assert(await page.evaluate(() => window.game.ui.modalOpen), 'the defeat screen is open');
+    await shot(page, 'defeat');
+
+    await page.mouse.click(GAME_W / 2, GAME_H / 2 + 80); // Tentar de novo
+    await page.waitForFunction(() => window.state && !window.state.lost && window.state.month === 0 && window.state.silver >= 0, null, { timeout: 5000 });
+    await page.waitForTimeout(600);
+    assert(await page.evaluate(() => !window.game.ui?.modalOpen), 'a new game starts without the dialog');
+    await shot(page, 'defeat-retry');
+  },
   async victory(page) {
     await startGame(page);
     await page.evaluate(() => {
       const s = window.state;
       s.silver = 900;
-      s.goalIndex = 7;
+      s.goalIndex = window.core.GOALS.length - 1; // last goal: build the temple
       s.unlocked.push('temple');
       s.feature = s.feature.map(() => null);
       window.game.refresh();

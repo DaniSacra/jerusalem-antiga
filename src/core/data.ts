@@ -2,12 +2,14 @@ import buildings from '../data/buildings.json';
 import houses from '../data/houses.json';
 import goals from '../data/goals.json';
 import rules from '../data/rules.json';
-import type { BuildingDef, BuildingKind, Dims, GoalDef, HouseLevelDef, Rules } from './types';
+import walkers from '../data/walkers.json';
+import type { BuildingDef, BuildingKind, Dims, GoalDef, HouseLevelDef, Rules, WalkerDef } from './types';
 
 export const BUILDINGS = buildings as Record<BuildingKind, BuildingDef>;
 export const HOUSE_LEVELS = houses as unknown as HouseLevelDef[];
 export const GOALS = goals as unknown as GoalDef[];
 export const RULES = rules as unknown as Rules;
+export const WALKERS = walkers as unknown as WalkerDef[];
 export const MAX_HOUSE_LEVEL = HOUSE_LEVELS.length - 1;
 
 /** Footprint of a building kind; rotated swaps width and height. */

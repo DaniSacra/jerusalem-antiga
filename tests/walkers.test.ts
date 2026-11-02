@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import { craftOf, createRng, doorsOf, edgeCells, mainRoadCells, pickWalkerType, walkerGoal, walkerStart, walkerTypesAvailable, type Building, type WalkerGoal } from '../src/core';
+import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+
+const inDoors = (s: Parameters<typeof doorsOf>[0], b: Building, goal: WalkerGoal | null) => {
+  const doors = doorsOf(s, b);
+  return !!goal && goal.target === b && goal.cells.length > 0 && goal.cells.every((c) => doors.some((d) => d.x === c.x && d.y === c.y));
+};
+
+describe('walker types', () => {
+  it('only offers types whose buildings exist and are connected', () => {
+    const s = emptyGame();
+    expect(walkerTypesAvailable(s).sort()).toEqual(['child', 'donkeyMan', 'elder', 'priest', 'shepherd']);
+    put(s, 'workshop', 1, 1); // disconnected: no artisan yet
+    expect(walkerTypesAvailable(s)).not.toContain('artisan');
+    put(s, 'workshop', westOf('workshop'), 30);
+    put(s, 'well', ROADSIDE, 27);
+    expect(walkerTypesAvailable(s)).toEqual(expect.arrayContaining(['artisan', 'waterCarrier']));
+    expect(walkerTypesAvailable(s)).not.toContain('farmer');
+  });
+
+  it('the porter needs both a field and a market', () => {
+    const s = emptyGame();
+    put(s, 'field', ROADSIDE, 27);
+    expect(walkerTypesAvailable(s)).toContain('farmer');
+    expect(walkerTypesAvailable(s)).not.toContain('porter');
+    put(s, 'market', westOf('market'), 29);
+    expect(walkerTypesAvailable(s)).toEqual(expect.arrayContaining(['porter', 'basketWoman']));
+  });
+
+  it('picks a type deterministically from the injected rng', () => {
+    const s = emptyGame();
+    const seq = (seed: number) => {
+      const rng = createRng(seed);
+      return Array.from({ length: 8 }, () => pickWalkerType(s, rng));
+    };
+    expect(seq(4)).toEqual(seq(4));
+    expect(new Set(seq(4).concat(seq(5), seq(6)))).toEqual(new Set(walkerTypesAvailable(s)));
+  });
+});
+
+describe('walker destinations', () => {
+  it('sends each type to its building', () => {
+    const s = emptyGame();
+    const well = put(s, 'well', ROADSIDE, 27);
+    const field = put(s, 'field', ROADSIDE, 29);
+    const market = put(s, 'market', westOf('market'), 31);
+    const workshop = put(s, 'workshop', westOf('workshop'), 35);
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const rng = createRng(1);
+    expect(inDoors(s, well, walkerGoal(s, 'waterCarrier', rng))).toBe(true);
+    expect(inDoors(s, field, walkerGoal(s, 'farmer', rng))).toBe(true);
+    expect(inDoors(s, market, walkerGoal(s, 'basketWoman', rng))).toBe(true);
+    expect(inDoors(s, market, walkerGoal(s, 'porter', rng))).toBe(true);
+    expect(inDoors(s, field, walkerGoal(s, 'porter', rng, true))).toBe(true); // and back to the field
+    expect(inDoors(s, well, walkerGoal(s, 'waterCarrier', rng, true))).toBe(true); // no "from": same goal
+    expect(inDoors(s, workshop, walkerGoal(s, 'artisan', rng))).toBe(true);
+    expect(inDoors(s, altar, walkerGoal(s, 'elder', rng))).toBe(true);
+  });
+
+  it('priests go to the altar or the temple', () => {
+    const s = emptyGame();
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const temple = put(s, 'temple', EAST, 30);
+    const seen = new Set<string>();
+    const rng = createRng(2);
+    for (let k = 0; k < 20; k++) {
+      const g = walkerGoal(s, 'priest', rng);
+      seen.add(inDoors(s, altar, g) ? 'altar' : inDoors(s, temple, g) ? 'temple' : 'other');
+    }
+    expect([...seen].sort()).toEqual(['altar', 'temple']);
+  });
+
+  it('the donkey man walks main roads and the shepherd the edge of the city', () => {
+    const s = emptyGame();
+    const main = mainRoadCells(s);
+    expect(main.every((c) => c.x === 24)).toBe(true);
+    const g = walkerGoal(s, 'donkeyMan', constRng(0.5))!;
+    expect(g.cells).toHaveLength(1);
+    expect(g.target).toBeNull();
+    expect(main).toContainEqual(g.cells[0]);
+    expect(edgeCells(s).map((c) => c.y).sort()).toEqual([43, 44, 45, 46, 47]);
+    expect(walkerGoal(s, 'shepherd', constRng(0.99))!.cells[0].y).toBeGreaterThanOrEqual(43);
+  });
+
+  it('children go anywhere, and missing destinations fall back to a random building', () => {
+    const s = emptyGame();
+    const house = put(s, 'house', ROADSIDE, 30, 1);
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const g = walkerGoal(s, 'child', createRng(1));
+    expect(inDoors(s, house, g) || inDoors(s, altar, g)).toBe(true);
+    const f = walkerGoal(s, 'artisan', createRng(1)); // no workshop
+    expect(inDoors(s, house, f) || inDoors(s, altar, f)).toBe(true);
+  });
+
+  it('starts at home, or at a field for the porter', () => {
+    const s = emptyGame();
+    expect(walkerStart(s, 'child', createRng(1))).toBeNull(); // nobody lives here yet
+    const home = put(s, 'house', ROADSIDE, 30, 1);
+    put(s, 'house', ROADSIDE, 32); // empty plot: not a home
+    const field = put(s, 'field', ROADSIDE, 36);
+    const start = walkerStart(s, 'child', createRng(1))!;
+    expect(doorsOf(s, home)).toContainEqual(start);
+    expect(doorsOf(s, field)).toContainEqual(walkerStart(s, 'porter', createRng(1)));
+  });
+
+  it("the artisan's goal names the workshop, so he can carry its craft", () => {
+    const s = emptyGame();
+    const shop = put(s, 'workshop', westOf('workshop'), 30);
+    shop.variant = 4;
+    const g = walkerGoal(s, 'artisan', createRng(3))!;
+    expect(g.target).toBe(shop);
+    expect(craftOf(g.target!)).toBe('dyeing');
+  });
+});

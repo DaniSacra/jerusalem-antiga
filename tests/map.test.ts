@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGame, createRng, generateTerrain, indexOf, isReserved, isRiver, RULES } from '../src/core';
+import { altarRing, createGame, createRng, findPath, generateTerrain, indexOf, isReserved, isRiver, RULES } from '../src/core';
 
 const { cols, rows } = RULES.map;
 
@@ -46,5 +46,26 @@ describe('map generation', () => {
     expect(s.entrance).toEqual({ x: 24, y: 47 });
     for (let y = 26; y < 48; y++) expect(s.network[indexOf(s, 24, y)]).toBe(true);
     expect(s.network[indexOf(s, 22, 22)]).toBe(true); // altar cells start the network
+  });
+
+  it.each([1, 5, 42])('starts with a free, connected road ring around the altar (seed %i)', (seed) => {
+    const s = createGame(createRng(seed));
+    const ring = altarRing();
+    expect(ring).toHaveLength(20); // the 6 x 6 perimeter of x, y = 21..26
+    for (let y = 21; y <= 26; y++) {
+      for (let x = 21; x <= 26; x++) {
+        const i = indexOf(s, x, y);
+        const onRing = x === 21 || x === 26 || y === 21 || y === 26;
+        expect(ring.some((c) => c.x === x && c.y === y)).toBe(onRing);
+        if (!onRing) continue;
+        expect(s.roads[i] && s.network[i]).toBe(true);
+        expect(s.feature[i]).toBeNull();
+        expect(isReserved(x, y)).toBe(true);
+      }
+    }
+    // Every ring cell is walkable from the entrance, and the south road still reaches it.
+    for (const c of ring) expect(findPath(s, s.entrance, [c])).not.toBeNull();
+    expect(findPath(s, s.entrance, [{ x: 24, y: 26 }])).toHaveLength(22);
+    expect(s.silver).toBe(RULES.startSilver); // the starting roads are free
   });
 });

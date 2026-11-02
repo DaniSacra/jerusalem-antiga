@@ -3,7 +3,7 @@ import { GAME_H, GAME_W } from '../render/layout';
 import { cellHash, HH, HW } from '../render/iso';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
-import { generateTextures, ORIGIN, TEX, VARIANTS, wheatImages } from '../render/textures';
+import { generateTextures, ORIGIN, TEX, VARIANTS, cropImages } from '../render/textures';
 import { button, panel, text } from '../render/ui';
 
 export class TitleScene extends Phaser.Scene {
@@ -41,7 +41,7 @@ export class TitleScene extends Phaser.Scene {
     ];
     deco.forEach(([key, x, y, k]) => {
       this.add.image(x, y, key).setOrigin(...(ORIGIN[key] ?? [0.5, 1])).setScale(k);
-      if (key === TEX.building('field')) wheatImages(this, x, y, k);
+      if (key === TEX.building('field')) cropImages(this, x, y, k);
     });
 
     const w = 760;
@@ -50,13 +50,13 @@ export class TitleScene extends Phaser.Scene {
     const py = (GAME_H - h) / 2;
     panel(this.add.graphics(), px, py, w, h, C.parchment, 18);
     text(this, GAME_W / 2, py + 50, T.title, 46, CSS.ink, true).setOrigin(0.5);
-    let y = py + 102;
+    let y = py + 110;
     T.howTo.forEach((line, k) => {
-      const tip = k === T.howTo.length - 1;
-      const t = text(this, px + 56, y, `•  ${line}`, 19, tip ? CSS.muted : CSS.ink, !tip).setWordWrapWidth(w - 100);
-      y += t.height + 12;
+      const t = text(this, px + 56, y, `${k + 1}.  ${line}`, 26, CSS.ink, true).setWordWrapWidth(w - 100);
+      y += t.height + 18;
     });
-    button(this, GAME_W / 2, py + h - 50, 240, 60, T.start, 26, () => this.scene.start('game'));
+    text(this, GAME_W / 2, y + 8, T.controls, 21, CSS.muted, true).setOrigin(0.5, 0).setWordWrapWidth(w - 80);
+    button(this, GAME_W / 2, py + h - 62, 300, 84, T.start, 32, () => this.scene.start('game'));
     this.input.keyboard?.once('keydown-ENTER', () => this.scene.start('game'));
   }
 }

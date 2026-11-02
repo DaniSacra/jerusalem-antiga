@@ -2,7 +2,9 @@ import { BUILDINGS, dimsOf, RULES } from './data';
 import { cellsOf, footprint, inBounds, indexOf } from './grid';
 import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
-import type { ActionResult, Building, Cell, Dims, FailReason, GameState, Placeable } from './types';
+import { rollLook } from './looks';
+import { createRng } from './rng';
+import type { ActionResult, Building, Cell, Dims, FailReason, GameState, Placeable, Rng } from './types';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -26,6 +28,7 @@ export function checkPlace(s: GameState, kind: Placeable, x: number, y: number, 
   const d = placeSize(kind, rotated);
   if (!isFreeRect(s, x, y, d)) return fail('invalid');
   if (kind === 'temple' && !touchesNetwork(s, { x, y, ...d })) return fail('noRoad');
+  if (s.silver < 0) return fail('debt');
   if (s.silver < costOf(kind)) return fail('silver');
   return OK;
 }
@@ -42,16 +45,19 @@ export function templeSpots(s: GameState): Cell[] {
   return out;
 }
 
-export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false): ActionResult {
+/** Builds a road or building. `rng` draws the look of houses (seeded from the id if not given). */
+export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false, rng?: Rng): ActionResult {
   const r = checkPlace(s, kind, x, y, rotated);
   if (!r.ok) return r;
   s.silver -= costOf(kind);
   if (kind === 'road') {
     s.roads[indexOf(s, x, y)] = true;
   } else {
-    const b: Building = { id: s.nextId++, kind, x, y, ...placeSize(kind, rotated), level: 0, upStreak: 0, downStreak: 0, connected: false };
+    const id = s.nextId++;
+    const b: Building = { id, kind, x, y, ...placeSize(kind, rotated), level: 0, upStreak: 0, downStreak: 0, connected: false, variant: 0, mirrored: false };
     s.buildings.push(b);
     for (const c of cellsOf(b)) s.grid[indexOf(s, c.x, c.y)] = b;
+    rollLook(s, b, rng ?? createRng(id));
   }
   refreshCity(s);
   return r;
@@ -64,6 +70,7 @@ export function checkClear(s: GameState, x: number, y: number): ActionResult {
   if (b) return BUILDINGS[b.kind].protected ? fail('protected') : OK;
   if (s.roads[i]) return OK;
   if (s.feature[i] !== 'palm' && s.feature[i] !== 'olive') return fail('invalid');
+  if (s.silver < 0) return fail('debt');
   return s.silver < RULES.treeClearCost ? fail('silver') : OK;
 }
 

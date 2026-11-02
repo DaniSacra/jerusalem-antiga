@@ -1,5 +1,6 @@
 import { HOUSE_LEVELS, RULES } from './data';
 import { indexOf } from './grid';
+import { rollLook } from './looks';
 import { doorsOf, findPath } from './network';
 import type { Building, Cell, GameEvent, GameState, Rng } from './types';
 
@@ -42,7 +43,7 @@ function routeIntact(s: GameState, path: Cell[], from: number): boolean {
 }
 
 /** Moves families along the roads; arrivals turn the plot into a tent. Broken routes are recalculated. */
-export function moveFamilies(s: GameState, events: GameEvent[]): void {
+export function moveFamilies(s: GameState, events: GameEvent[], rng: Rng): void {
   s.families = s.families.filter((f) => {
     const house = s.buildings.find((b) => b.id === f.houseId);
     if (!house || house.level !== 0 || !house.connected) return false;
@@ -58,6 +59,7 @@ export function moveFamilies(s: GameState, events: GameEvent[]): void {
     house.level = 1;
     house.upStreak = 0;
     house.downStreak = 0;
+    rollLook(s, house, rng);
     events.push({ type: 'houseUp', x: house.x, y: house.y, level: 1, delta: HOUSE_LEVELS[1].residents });
     return false;
   });

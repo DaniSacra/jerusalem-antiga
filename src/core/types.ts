@@ -15,6 +15,33 @@ export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred'
 
 export type Rng = () => number;
 
+export type WalkerType =
+  | 'waterCarrier'
+  | 'farmer'
+  | 'basketWoman'
+  | 'porter'
+  | 'artisan'
+  | 'elder'
+  | 'child'
+  | 'donkeyMan'
+  | 'shepherd'
+  | 'priest';
+
+/**
+ * A kind of resident walker. `to` lists the building kinds it heads for (any of them), or a
+ * special target: "any" connected building, a "mainRoad" cell or a road near the city "edge".
+ * `from` makes it start at a building of that kind instead of at home.
+ */
+export interface WalkerDef {
+  type: WalkerType;
+  to: BuildingKind[] | 'any' | 'mainRoad' | 'edge';
+  from?: BuildingKind;
+  /** Pace multiplier (render only). */
+  speed: number;
+  /** Chance of stopping a moment on arrival (render only). */
+  pauseChance: number;
+}
+
 export interface Cell {
   x: number;
   y: number;
@@ -31,6 +58,9 @@ export interface Dims {
   h: number;
 }
 
+/** Trade shown by a workshop variant. */
+export type Craft = 'pottery' | 'smithy' | 'carpentry' | 'weaving' | 'dyeing' | 'tannery';
+
 export interface BuildingDef {
   name: string;
   cost: number;
@@ -39,6 +69,12 @@ export interface BuildingDef {
   w?: number;
   h?: number;
   radius?: number;
+  /** Silver charged every month, connected or not; default 0. */
+  upkeep?: number;
+  /** Number of drawn looks (variant 0..n-1); default 1. */
+  variants?: number;
+  /** Workshop trades, one per variant (the variant is the index of the craft). */
+  crafts?: Craft[];
   food?: number;
   silver?: number;
   protected?: boolean;
@@ -48,6 +84,10 @@ export interface HouseLevelDef {
   name: string;
   residents: number;
   tax: number;
+  /** Food eaten per resident per month. */
+  food: number;
+  /** Number of drawn variants for this level. */
+  variants: number;
   needs: NeedKind[];
 }
 
@@ -70,7 +110,8 @@ export interface Rules {
   startUnlocked: Placeable[];
   monthSeconds: number;
   workerShare: number;
-  foodPerResident: number;
+  /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
+  unemploymentAlert: number;
   familyChance: number;
   /** The first plots get a family for sure (tents or better plus families on the way below this). */
   guaranteedFamilies: number;
@@ -78,6 +119,10 @@ export interface Rules {
   monthsToChange: number;
   famineDropChance: number;
   treeClearCost: number;
+  /** Chance per month, during famine, that a tent is abandoned (back to an empty plot). */
+  famineLeaveChance: number;
+  /** Consecutive months with negative silver that lose the game. */
+  debtMonthsToLose: number;
   roadCost: number;
   map: {
     cols: number;
@@ -109,6 +154,10 @@ export interface Building {
   downStreak: number;
   /** Touches the road network connected to the altar. */
   connected: boolean;
+  /** Drawn variant: house look for its level, field crop or workshop craft (0 for single-look kinds). */
+  variant: number;
+  /** Drawn mirrored. */
+  mirrored: boolean;
 }
 
 /** A family walking from the city entrance to an empty plot. */
@@ -147,6 +196,11 @@ export interface GameState {
   goalIndex: number;
   unlocked: Placeable[];
   won: boolean;
+  /** Consecutive months ended with negative silver (0 when out of debt). */
+  debtMonths: number;
+  /** Most residents the city ever had (shown on the defeat screen). */
+  peakPopulation: number;
+  lost: boolean;
   nextId: number;
 }
 
@@ -156,7 +210,12 @@ export type GameEvent =
   | { type: 'famineStart' }
   | { type: 'famineEnd' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
-  | { type: 'victory'; month: number; residents: number };
+  | { type: 'victory'; month: number; residents: number }
+  /** A family abandoned its tent during famine and walks out of the city from (x, y). */
+  | { type: 'familyLeft'; x: number; y: number }
+  | { type: 'debtStart' }
+  | { type: 'debtEnd' }
+  | { type: 'defeat'; month: number; peak: number };
 
-export type FailReason = 'locked' | 'invalid' | 'silver' | 'noRoad' | 'protected';
+export type FailReason = 'locked' | 'invalid' | 'silver' | 'debt' | 'noRoad' | 'protected';
 export type ActionResult = { ok: true } | { ok: false; reason: FailReason };

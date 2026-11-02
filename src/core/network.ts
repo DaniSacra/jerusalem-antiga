@@ -65,9 +65,11 @@ export function findPath(s: GameState, from: Cell, goals: Cell[]): Cell[] | null
   return null;
 }
 
-/** Bitmask of road-like neighbours (road or altar): 1 = N (y-1), 2 = E (x+1), 4 = S (y+1), 8 = W (x-1). */
+/**
+ * Bitmask of road neighbours: 1 = N (y-1), 2 = E (x+1), 4 = S (y+1), 8 = W (x-1). The altar does not
+ * count: the starting ring runs around it, so ring cells draw as a loop instead of stubs into its wall.
+ */
 export function roadMask(s: GameState, x: number, y: number): number {
-  const isRoadLike = (cx: number, cy: number) =>
-    inBounds(s, cx, cy) && (s.roads[indexOf(s, cx, cy)] || isAltar(s, indexOf(s, cx, cy)));
-  return (isRoadLike(x, y - 1) ? 1 : 0) | (isRoadLike(x + 1, y) ? 2 : 0) | (isRoadLike(x, y + 1) ? 4 : 0) | (isRoadLike(x - 1, y) ? 8 : 0);
+  const isRoad = (cx: number, cy: number) => inBounds(s, cx, cy) && s.roads[indexOf(s, cx, cy)];
+  return (isRoad(x, y - 1) ? 1 : 0) | (isRoad(x + 1, y) ? 2 : 0) | (isRoad(x, y + 1) ? 4 : 0) | (isRoad(x - 1, y) ? 8 : 0);
 }

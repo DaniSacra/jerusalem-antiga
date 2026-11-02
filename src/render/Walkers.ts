@@ -1,14 +1,20 @@
 import Phaser from 'phaser';
-import { doorsOf, findPath, indexOf, RULES, type Cell, type GameState } from '../core';
+import { craftOf, doorsOf, findPath, indexOf, pickWalkerType, RULES, walkerDef, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type WalkerType } from '../core';
 import { depthAt, gridToWorld } from './iso';
-import { TEX, WALKER_VARIANTS } from './textures';
+import { TEX, WALKER_LOOKS } from './textures';
 
 const MAX_WALKERS = 60;
 const PER_WALKER = 5;
-/** Cells per second at 1x. */
+/** Cells per second at 1x, before the type's own pace. */
 const WALK_SPEED = 1.6;
+/** Seconds a walker may stop on arrival (drawing water, talking at the market). */
+const PAUSE = { min: 1, max: 2 };
 
 interface Walker {
+  type: WalkerType;
+  look: number;
+  /** Craft of the workshop an artisan heads to (shown by what he carries), else null. */
+  craft: Craft | null;
   img: Phaser.GameObjects.Image;
   path: Cell[];
   /** Index of the cell being left. */
@@ -19,9 +25,12 @@ interface Walker {
   lane: number;
   phase: number;
   idle: number;
+  /** Next walk is a return leg (types that shuttle between two buildings). */
+  back: boolean;
 }
 
-const pick = <T>(arr: T[]): T | undefined => arr[Math.floor(Math.random() * arr.length)];
+/** Render-side randomness (which walker, small pace differences). Game rules stay seeded in core. */
+const rand = Math.random;
 
 /** Position along a cell path at a fractional step, with a sideways lane offset. */
 function along(path: Cell[], step: number, lane: number) {
@@ -39,20 +48,49 @@ function along(path: Cell[], step: number, lane: number) {
 function place(img: Phaser.GameObjects.Image, gx: number, gy: number, dx: number, dy: number, bob: number) {
   const w = gridToWorld(gx, gy);
   img.setPosition(w.x, w.y - bob).setDepth(depthAt(gx, gy) + 5);
-  const screenDx = dx - dy;
-  if (screenDx !== 0) img.setFlipX(screenDx < 0);
+  // Facing follows the screen direction, so it stays right when the map is turned.
+  const a = gridToWorld(gx, gy);
+  const b = gridToWorld(gx + dx, gy + dy);
+  if (b.x !== a.x) img.setFlipX(b.x < a.x);
 }
 
-/** Residents strolling between buildings, and families heading to their new homes. Roads only. */
+/** Residents of 10 types walking to the places of their trade, and families heading home. Roads only. */
 export class Walkers {
   private list: Walker[] = [];
   private families = new Map<number, Phaser.GameObjects.Image>();
+  /** Families who abandoned their tent, walking out to the city entrance (only a sight, no rules). */
+  private leaving: { img: Phaser.GameObjects.Image; path: Cell[]; step: number }[] = [];
 
   constructor(private scene: Phaser.Scene) {}
 
   update(dtMs: number, s: GameState, residents: number, speed: number, monthFrac: number) {
     this.updateResidents(dtMs / 1000, s, residents, speed);
     this.updateFamilies(s, monthFrac);
+    this.updateLeaving(dtMs / 1000, speed);
+  }
+
+  /** A family leaves the house at (x, y) on foot; with no route out they just fade away. */
+  leave(s: GameState, x: number, y: number) {
+    const house = s.grid[indexOf(s, x, y)];
+    const door = house && doorsOf(s, house)[0];
+    const path = door ? findPath(s, door, [s.entrance]) : null;
+    const start = door ?? { x, y };
+    const img = this.scene.add.image(0, 0, TEX.family).setOrigin(0.5, 1);
+    this.leaving.push({ img, path: path && path.length > 1 ? path : [start], step: 0 });
+  }
+
+  private updateLeaving(dt: number, speed: number) {
+    this.leaving = this.leaving.filter((f) => {
+      const end = f.path.length - 1;
+      f.step = Math.min(end, f.step + dt * speed * WALK_SPEED);
+      const p = along(f.path, f.step, 0);
+      place(f.img, p.gx, p.gy, p.dx, p.dy, f.step < end ? Math.abs(Math.sin(f.step * Math.PI * 2)) * 1.5 : 0);
+      if (f.step < end) return true;
+      f.img.setAlpha(f.img.alpha - dt * 1.5); // fade out at the entrance (or in place)
+      if (f.img.alpha > 0) return true;
+      f.img.destroy();
+      return false;
+    });
   }
 
   private updateResidents(dt: number, s: GameState, residents: number, speed: number) {
@@ -62,53 +100,56 @@ export class Walkers {
 
     const onNet = (c: Cell) => s.network[indexOf(s, c.x, c.y)];
     this.list = this.list.filter((w) => {
-      if (!onNet(w.path[w.seg])) {
-        w.img.destroy();
-        return false;
-      }
-      return true;
+      if (onNet(w.path[w.seg])) return true;
+      w.img.destroy();
+      return false;
     });
 
     for (const w of this.list) {
       const next = w.path[w.seg + 1];
+      let moving = false;
       if (!next || !onNet(next)) {
         w.idle -= dt * speed;
         if (w.idle <= 0) this.plan(w, s);
       } else {
+        moving = speed > 0;
         w.t += dt * speed * WALK_SPEED * w.pace;
-        w.phase += dt * speed * 11;
+        w.phase += dt * speed * 11 * w.pace;
         while (w.t >= 1 && w.seg < w.path.length - 1) {
           w.t -= 1;
           w.seg++;
         }
         if (w.seg >= w.path.length - 1) {
           w.t = 0;
-          w.idle = 0.5 + Math.random();
+          w.idle = rand() < walkerDef(w.type).pauseChance ? PAUSE.min + rand() * (PAUSE.max - PAUSE.min) : 0.2;
         }
       }
       const p = along(w.path, w.seg + w.t, w.lane);
-      const bob = p.moving && speed > 0 ? Math.abs(Math.sin(w.phase)) * 2 : 0;
+      const bob = moving ? Math.abs(Math.sin(w.phase)) * 2 : 0;
       place(w.img, p.gx, p.gy, p.dx, p.dy, bob);
-      w.img.setAngle(p.moving && speed > 0 ? Math.sin(w.phase) * 5 : 0);
+      w.img.setTexture(TEX.walker(w.type, w.look, moving && Math.sin(w.phase) > 0 ? 1 : 0, w.craft));
+      w.img.setAngle(moving ? Math.sin(w.phase) * 4 : 0);
     }
   }
 
   private spawn(s: GameState) {
-    const homes = s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && b.connected);
-    const home = pick(homes);
-    const door = home && pick(doorsOf(s, home));
-    if (!door) return;
-    const img = this.scene.add.image(0, 0, TEX.walker(Math.floor(Math.random() * WALKER_VARIANTS))).setOrigin(0.5, 1);
-    const w: Walker = { img, path: [door], seg: 0, t: 0, pace: 0.8 + Math.random() * 0.4, lane: (Math.random() - 0.5) * 0.3, phase: Math.random() * 6, idle: Math.random() };
-    this.list.push(w);
+    const type = pickWalkerType(s, rand);
+    const door = type && walkerStart(s, type, rand);
+    if (!type || !door) return;
+    const look = Math.floor(rand() * WALKER_LOOKS);
+    const img = this.scene.add.image(0, 0, TEX.walker(type, look, 0)).setOrigin(0.5, 1);
+    const pace = walkerDef(type).speed * (0.9 + rand() * 0.2);
+    this.list.push({ type, look, craft: null, img, path: [door], seg: 0, t: 0, pace, lane: (rand() - 0.5) * 0.3, phase: rand() * 6, idle: rand(), back: false });
   }
 
-  /** Breadth-first route over the network to a random connected building. */
+  /** Breadth-first route over the roads to the next destination of the walker's type. */
   private plan(w: Walker, s: GameState) {
     const from = w.path[w.seg];
-    const dest = pick(s.buildings.filter((b) => b.connected));
-    const path = dest && findPath(s, from, doorsOf(s, dest));
+    const goal = walkerGoal(s, w.type, rand, w.back);
+    const path = goal && findPath(s, from, goal.cells);
     w.path = path && path.length > 1 ? path : [from];
+    w.craft = w.type === 'artisan' && goal?.target ? craftOf(goal.target) : null;
+    w.back = !w.back;
     w.seg = 0;
     w.t = 0;
     w.idle = 0.6;

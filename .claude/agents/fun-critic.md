@@ -45,8 +45,8 @@ COMO RESPONDER (no máximo 25 linhas)
   onde a diversão cai
 - As 3 melhorias de maior impacto na diversão, em ordem, cada uma com:
   o problema, a proposta mais simples e o efeito esperado
-- Ajustes de equilíbrio sugeridos, só em valores de src/data
-  (antes e depois)
+- Ajustes de equilíbrio sugeridos para o sim-tester medir, só em
+  valores de src/data (antes e depois)
 - Uma ideia ousada opcional, claramente marcada como opcional
 
 REGRAS
@@ -58,4 +58,6 @@ REGRAS
   a outros jogos servem só para explicar a sensação desejada
 - Não implemente nada; entregue as recomendações para o game-director
   decidir
+- Use os números do último relatório do sim-tester quando falar de
+  ritmo; não meça você mesmo
 - Nunca faça commit nem push

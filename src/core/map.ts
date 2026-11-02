@@ -17,8 +17,19 @@ const ALTAR = dimsOf('altar');
 export const ROAD_X = altar.x + Math.floor(ALTAR.w / 2);
 const ROAD_Y0 = altar.y + ALTAR.h;
 
-/** The starting road runs straight south from the altar to the map edge. */
-export const startRoad = (): Cell[] => Array.from({ length: rows - ROAD_Y0 }, (_, k) => ({ x: ROAD_X, y: ROAD_Y0 + k }));
+/** One-cell road ring around the altar (its footprint grown by one on every side). */
+export function altarRing(): Cell[] {
+  const [x0, y0, x1, y1] = [altar.x - 1, altar.y - 1, altar.x + ALTAR.w, altar.y + ALTAR.h];
+  const cells: Cell[] = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x === x0 || x === x1 || y === y0 || y === y1) cells.push({ x, y });
+  return cells;
+}
+
+/** Starting roads: the ring around the altar, and a straight road south from it to the map edge. */
+export const startRoad = (): Cell[] => [
+  ...altarRing(),
+  ...Array.from({ length: rows - ROAD_Y0 - 1 }, (_, k) => ({ x: ROAD_X, y: ROAD_Y0 + 1 + k })),
+];
 export const entranceCell = (): Cell => ({ x: ROAD_X, y: rows - 1 });
 
 /** Chebyshev distance from a cell to the altar footprint (0 inside it). */

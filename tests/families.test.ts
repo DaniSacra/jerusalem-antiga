@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearCell, place, RULES, stepMonth } from '../src/core';
+import { clearCell, doorsOf, indexOf, place, RULES, stepMonth } from '../src/core';
 import { constRng, emptyGame, put, ROADSIDE } from './helpers';
 
 const always = constRng(0);
@@ -26,15 +26,15 @@ describe('families', () => {
 
   it('the first 3 families come for sure', () => {
     const s = emptyGame();
-    for (let y = 26; y <= 32; y += 2) put(s, 'house', ROADSIDE, y);
+    for (let y = 27; y <= 33; y += 2) put(s, 'house', ROADSIDE, y);
     stepMonth(s, never);
     expect(s.families).toHaveLength(3);
     stepMonth(s, never);
     expect(s.families).toHaveLength(3); // the 4th plot is back to 35%
 
     const t = emptyGame();
-    for (const y of [26, 28]) put(t, 'house', ROADSIDE, y, 1); // 2 tents already settled
-    for (const y of [30, 32]) put(t, 'house', ROADSIDE, y);
+    for (const y of [27, 29]) put(t, 'house', ROADSIDE, y, 1); // 2 tents already settled
+    for (const y of [31, 33]) put(t, 'house', ROADSIDE, y);
     stepMonth(t, never);
     expect(t.families).toHaveLength(1);
   });
@@ -42,7 +42,7 @@ describe('families', () => {
   it('after the first 3, dispatches with 35% chance, one family per plot at a time', () => {
     const s = emptyGame();
     for (const y of [34, 36, 38]) put(s, 'house', ROADSIDE, y, 1);
-    put(s, 'house', ROADSIDE, 26);
+    put(s, 'house', ROADSIDE, 27);
     stepMonth(s, constRng(0.36));
     expect(s.families).toHaveLength(0);
     stepMonth(s, constRng(0.34));
@@ -65,14 +65,14 @@ describe('families', () => {
 
   it('cancels the family if the plot is demolished or cut off, and reroutes around changes', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 26);
+    put(s, 'house', ROADSIDE, 27);
     stepMonth(s, always);
-    clearCell(s, ROADSIDE, 26);
+    clearCell(s, ROADSIDE, 27);
     stepMonth(s, never);
     expect(s.families).toHaveLength(0);
 
     const r = emptyGame();
-    const plot = put(r, 'house', ROADSIDE, 26);
+    const plot = put(r, 'house', ROADSIDE, 27);
     stepMonth(r, always);
     // Build a detour, then cut the straight road ahead of the family.
     for (let y = 27; y <= 38; y++) place(r, 'road', 25, y);
@@ -87,6 +87,9 @@ describe('families', () => {
     clearCell(s, 24, 47);
     put(s, 'house', ROADSIDE, 30);
     stepMonth(s, always);
-    expect(s.families[0].path[0]).toEqual({ x: 24, y: 26 });
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const start = s.families[0].path[0];
+    expect(doorsOf(s, altar)).toContainEqual(start); // a ring cell, outside the altar
+    expect(s.grid[indexOf(s, start.x, start.y)]).toBeNull();
   });
 });

@@ -27,10 +27,13 @@ export function createGame(rng: Rng): GameState {
     goalIndex: 0,
     unlocked: [...RULES.startUnlocked],
     won: false,
+    debtMonths: 0,
+    peakPopulation: 0,
+    lost: false,
     nextId: 1,
   };
   for (const c of startRoad()) s.roads[indexOf(s, c.x, c.y)] = true;
-  const altarB: Building = { id: s.nextId++, kind: 'altar', x: altar.x, y: altar.y, ...dimsOf('altar'), level: 0, upStreak: 0, downStreak: 0, connected: true };
+  const altarB: Building = { id: s.nextId++, kind: 'altar', x: altar.x, y: altar.y, ...dimsOf('altar'), level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false };
   s.buildings.push(altarB);
   for (const c of cellsOf(altarB)) s.grid[indexOf(s, c.x, c.y)] = altarB;
   refreshCity(s);

@@ -1,4 +1,4 @@
-import { BUILDINGS, computeEconomy, houseInfo, indexOf, RULES, type GameState } from '../core';
+import { BUILDINGS, computeEconomy, craftOf, houseInfo, indexOf, RULES, type GameState } from '../core';
 import { CSS } from './palette';
 import { fmt, T } from './strings';
 
@@ -46,10 +46,12 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
 
   const def = BUILDINGS[b.kind];
   const eff = computeEconomy(s).efficiency;
-  const segs: Segment[] = [title(def.name)];
+  const craft = craftOf(b);
+  const segs: Segment[] = [title(craft ? `${def.name} (${T.craft[craft]})` : def.name)];
   if (b.kind === 'altar') return [...segs, SEP, { text: `raio ${def.radius}` }, SEP, { text: 'centro da cidade, onde as ruas começam' }];
   segs.push(SEP, ok(b.connected, b.connected ? 'ligado à rua' : 'sem rua'));
-  if (!b.connected) return [...segs, SEP, bad(def.radius ? 'não atende ninguém' : 'não funciona')];
+  if (def.upkeep) segs.push(SEP, { text: T.upkeep(def.upkeep) });
+  if (!b.connected) return [...segs, SEP, bad(def.radius ? 'não atende ninguém, mas paga manutenção' : 'não funciona, mas paga manutenção')];
   if (def.jobs) segs.push(SEP, { text: `${def.jobs} vagas` });
   if (def.food) segs.push(SEP, { text: `${fmt(def.food * eff)} de comida${T.perMonth}` });
   if (def.silver) segs.push(SEP, { text: `${fmt(def.silver * eff)} de prata${T.perMonth}` });

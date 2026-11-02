@@ -33,6 +33,10 @@ import { Walkers } from '../render/Walkers';
 import type { UIScene, UiHost } from './UIScene';
 
 const TAP_SLOP = 10;
+/** A touch drag only starts building after this long with one finger, so a pinch never builds. */
+const TOUCH_BUILD_DELAY = 150;
+/** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
+const TOUCH_LIFT = 90;
 const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
 
 /** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
@@ -53,6 +57,9 @@ interface Gesture {
   last: Cell | null;
   downX: number;
   downY: number;
+  /** Time of the press (ms), for TOUCH_BUILD_DELAY. */
+  downAt: number;
+  touch: boolean;
   lastX: number;
   lastY: number;
   moved: boolean;
@@ -80,6 +87,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private clock = 0;
   private hover: Cell | null = null;
   private selected: Cell | null = null;
+  /** The info line shows the silver breakdown (after tapping the silver). */
+  private silverInfo = false;
   private gesture: Gesture | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
@@ -103,6 +112,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.speedIndex = 0;
     this.clock = 0;
     this.ui = null;
+    this.selected = null;
+    this.silverInfo = false;
 
     setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
@@ -132,7 +143,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
-    this.map.update(this.time.now);
+    this.map.update(this.time.now, this.rig.zoom);
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds);
   }
 
@@ -144,6 +155,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
     this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
+    else if (this.tool === 'view' && this.silverInfo) this.ui?.setInfo(hintSegments(T.silverBreakdown(this.eco)));
   }
 
   private handleEvents(events: GameEvent[]) {
@@ -166,9 +178,23 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'goal':
           this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
+          if (e.unlock && T.unlocked[e.unlock]) this.ui?.toast(T.unlocked[e.unlock]!, 'good');
           break;
         case 'victory':
           this.ui?.showVictory(e.month, e.residents);
+          break;
+        case 'familyLeft':
+          this.walkers.leave(this.state, e.x, e.y);
+          break;
+        case 'debtStart':
+          this.ui?.toast(T.debtStart, 'bad');
+          if (this.speed === 3) this.speedIndex = SPEEDS.indexOf(1); // slow down once so the player can react
+          break;
+        case 'debtEnd':
+          this.ui?.toast(T.debtEnd, 'good');
+          break;
+        case 'defeat':
+          this.ui?.showDefeat(e.month, e.peak);
           break;
       }
     }
@@ -188,6 +214,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     }
     this.tool = tool;
     this.selected = null;
+    this.silverInfo = false;
     this.ui?.setInfo(hintSegments(toolHint(tool)));
     if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.setInfo([{ text: T.noTempleSpot, color: CSS.badLight }]);
     this.refresh();
@@ -216,6 +243,21 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
+  /** Shows taxes, workshops, upkeep per kind and balance in the info line (kept up to date). */
+  showSilver() {
+    if (this.ui?.modalOpen) return;
+    if (this.tool !== 'view') this.selectTool('view');
+    this.selected = null;
+    this.silverInfo = true;
+    this.refresh();
+  }
+
+  /** New map, new seed: back to the start of the game. */
+  restart() {
+    this.scene.stop('ui');
+    this.scene.restart();
+  }
+
   cycleSpeed() {
     if (this.ui?.modalOpen) return;
     this.speedIndex = (this.speedIndex + 1) % SPEEDS.length;
@@ -223,6 +265,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   // ---------- input ----------
+
+  /** Cell a pointer aims at: lifted above the finger for single buildings on touch. */
+  private aimAt(p: Phaser.Input.Pointer): Cell | null {
+    const lift = p.wasTouch && isPlaceTool(this.tool) && !DRAG_TOOLS.has(this.tool) ? TOUCH_LIFT : 0;
+    return this.cellAt(p.x, p.y - lift);
+  }
 
   private cellAt(sx: number, sy: number): Cell | null {
     const w = this.rig.toWorld(sx, sy);
@@ -268,13 +316,15 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.rig.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
       return;
     }
-    const cell = this.cellAt(p.x, p.y);
+    const cell = this.aimAt(p);
     this.gesture = {
       id: p.id,
       start: cell,
       last: cell,
       downX: p.x,
       downY: p.y,
+      downAt: this.time.now,
+      touch: p.wasTouch,
       lastX: p.x,
       lastY: p.y,
       moved: false,
@@ -317,9 +367,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool === 'view') {
       if (g.moved) this.rig.panBy(p.x - g.lastX, p.y - g.lastY);
     } else {
-      const cell = this.cellAt(p.x, p.y);
+      const overUi = isOverUi(p.x, p.y);
+      const cell = overUi ? null : this.aimAt(p);
       this.setHover(cell);
-      if (DRAG_TOOLS.has(this.tool) && cell && !sameCell(cell, g.last)) {
+      // Never build under the UI, and give a second finger time to land before a touch drag builds.
+      const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
+      if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
         if (!g.applied && g.start) this.apply(g.start, true);
         for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false);
         g.last = cell;
@@ -345,7 +398,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
         if (!g.moved && g.start) this.select(g.start);
       } else if (!g.applied) {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
-        const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.cellAt(p.x, p.y);
+        // Releasing a single building over the UI cancels it.
+        const cell = DRAG_TOOLS.has(this.tool) ? g.start : isOverUi(p.x, p.y) ? null : this.aimAt(p);
         if (cell) this.apply(cell, true);
       }
       this.warnLooseRoads(g.roads);
@@ -361,6 +415,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private select(cell: Cell) {
     this.selected = cell;
+    this.silverInfo = false;
     this.refresh();
   }
 
@@ -368,7 +423,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool === 'view') return;
     const s = this.state;
     const o = originFor(this.tool, cell, this.rotated);
-    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated) : clearCell(s, o.x, o.y);
+    // Continuing a road from an existing one: nothing to build there, and nothing wrong either.
+    if (this.tool === 'road' && s.roads[indexOf(s, o.x, o.y)]) return;
+    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated, this.rng) : clearCell(s, o.x, o.y);
     if (r.ok) {
       if (this.tool === 'road') {
         if (this.gesture) this.gesture.roads.push(o);

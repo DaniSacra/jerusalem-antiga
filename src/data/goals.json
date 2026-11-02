@@ -2,6 +2,7 @@
   { "type": "houses",    "target": 6,   "level": 1, "reward": 20,  "text": "Tenha 6 casas ligadas à rua" },
   { "type": "residents", "target": 20,  "reward": 30,  "unlock": "market",   "text": "Chegue a 20 moradores" },
   { "type": "houses",    "target": 5,   "level": 2, "reward": 40,  "unlock": "workshop", "text": "Tenha 5 casas de barro" },
+  { "type": "build",     "target": 2,   "kind": "workshop", "reward": 40, "text": "O povo precisa de trabalho: construa 2 oficinas" },
   { "type": "residents", "target": 80,  "reward": 60,  "text": "Chegue a 80 moradores" },
   { "type": "houses",    "target": 6,   "level": 3, "reward": 80,  "text": "Tenha 6 casas de pedra" },
   { "type": "residents", "target": 150, "reward": 120, "text": "Chegue a 150 moradores" },

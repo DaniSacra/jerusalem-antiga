@@ -7,9 +7,10 @@
  * east faces (+x, right on screen) are in shade, and shadows fall toward the east.
  */
 import Phaser from 'phaser';
-import { createRng, dimsOf, type BuildingKind, type Feature, type Ground, type BalloonKind } from '../core';
+import { BUILDINGS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type WalkerType } from '../core';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
+import { drawResident, residentSize } from './residents';
 
 type G = Phaser.GameObjects.Graphics;
 type P3 = [number, number, number?];
@@ -18,35 +19,59 @@ export const TEX = {
   ground: (g: Ground, v: number) => `ground-${g}-${v}`,
   road: (mask: number) => `road-${mask}`,
   feature: (f: Feature, v: number) => `${f}-${v}`,
-  /** Houses have one texture per level; non-square buildings have their own rotated drawing. */
-  building: (kind: BuildingKind, level = 0, rotated = false) => (kind === 'house' ? `house-${level}` : rotated ? `${kind}-rotated` : kind),
-  wheat: 'wheat',
+  /**
+   * Houses have one texture per level and variant, fields one per crop and workshops one per craft,
+   * all also drawn mirrored (so light and shadows keep their side); non-square buildings have their
+   * own rotated drawing.
+   */
+  building: (kind: BuildingKind, level = 0, rotated = false, variant = 0, mirrored = false) =>
+    kind === 'house'
+      ? `house-${level}-${variant}${mirrored ? '-m' : ''}`
+      : kind === 'field' || kind === 'workshop'
+        ? `${kind}-${variant}${mirrored ? '-m' : ''}`
+        : rotated
+          ? `${kind}-rotated`
+          : kind,
+  /** Crop tuft of a field variant (wheat, barley, lentils, flax). */
+  crop: (variant: number) => `crop-${variant}`,
   flame: 'flame',
   soft: 'soft',
   ring: 'ring',
   balloon: 'balloon',
   need: (k: BalloonKind) => `need-${k}`,
-  walker: (v: number) => `walker-${v}`,
+  /**
+   * A resident of a type, in one of WALKER_LOOKS skin/clothes looks, at step frame 0 or 1. Artisans
+   * also have one texture per craft, carrying its goods (no craft: a small pot).
+   */
+  walker: (type: WalkerType, look: number, frame: number, craft: Craft | null = null) =>
+    `walker-${type}-${look}-${frame}${craft ? `-${craft}` : ''}`,
   family: 'family',
   icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal') => `icon-${name}`,
 };
 export const VARIANTS = 4;
-export const WALKER_VARIANTS = 6;
+/** Skin and clothes combinations drawn for each walker type. */
+export const WALKER_LOOKS = 3;
 
 /** Texture origin (anchor = ground point at the footprint center), as Phaser origin fractions. */
 export const ORIGIN: Record<string, [number, number]> = {};
 /** Height in pixels above the ground, for balloons. */
 export const HEIGHT: Record<string, number> = {};
 
+type Spot = { x: number; y: number; z: number };
+
 /**
  * Animated parts, in local grid units from the footprint center (z in pixels): wheat tufts in rows
- * over the 2 x 2 field (back to front), the workshop kiln chimney and the altar fire (with scale).
+ * over the 2 x 2 field (back to front), the chimney smoke and fire glow of the workshop crafts that
+ * burn (unmirrored drawing; a mirrored one swaps x and y) and the altar fire (with scale).
  */
 export const PARTS = {
   wheat: [-0.66, -0.33, 0, 0.33, 0.66]
     .flatMap((y, row) => [-0.68, -0.34, 0, 0.34, 0.68].map((x) => ({ x: x + (row % 2 ? 0.08 : -0.04), y, z: 4 })))
     .sort((a, b) => a.x + a.y - b.x - b.y),
-  chimney: { x: 0.78, y: -0.78, z: 44 },
+  craftFire: {
+    pottery: { smoke: { x: 0.78, y: -0.78, z: 44 }, glow: { x: 0.58, y: -0.43, z: 4 } },
+    smithy: { smoke: { x: 1.04, y: -1.12, z: 48 }, glow: { x: 0.74, y: -0.86, z: 14 } },
+  } as Partial<Record<Craft, { smoke: Spot; glow: Spot }>>,
   altarFire: { x: 0, y: -0.2, z: 24, scale: 2.2 },
 };
 
@@ -54,10 +79,30 @@ const SHADOW_K = 0.016;
 const SQRT2 = Math.SQRT2;
 
 class Pen {
-  constructor(readonly g: G, readonly ax: number, readonly ay: number) {}
+  /**
+   * A mirrored pen swaps the local x and y axes, so the drawing comes out mirrored on screen while
+   * box faces and shadows stay lit from the same side (unlike flipping the finished image).
+   */
+  constructor(readonly g: G, readonly ax: number, readonly ay: number, readonly mirror = false) {}
 
   p(x: number, y: number, z = 0) {
+    if (this.mirror) [x, y] = [y, x];
     return { x: this.ax + (x - y) * HW, y: this.ay + (x + y) * HH - z };
+  }
+
+  /** Colour of a face that is lit when it faces south (+y), shaded when mirrored. */
+  south(color: number, lit = 0.88, dark = 0.66) {
+    return shade(color, this.mirror ? dark : lit);
+  }
+
+  /** Colour of a face that is shaded when it faces east (+x), lit when mirrored. */
+  east(color: number, lit = 0.88, dark = 0.66) {
+    return shade(color, this.mirror ? lit : dark);
+  }
+
+  /** A local point moved d units toward where shadows fall (screen right). */
+  away(x: number, y: number, d: number): [number, number] {
+    return this.mirror ? [x - d * 0.25, y + d] : [x + d, y - d * 0.25];
   }
 
   poly(color: number, pts: P3[], alpha = 1) {
@@ -79,6 +124,7 @@ class Pen {
 
   /** Box with a top, a lit south face and a shaded east face. */
   box(x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, top: number, lit = shade(top, 0.88), dark = shade(top, 0.66)) {
+    if (this.mirror) [lit, dark] = [dark, lit];
     this.poly(lit, [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]);
     this.poly(dark, [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]);
     this.rect(top, x0, y0, x1, y1, z1);
@@ -89,7 +135,7 @@ class Pen {
     const d = h * SHADOW_K;
     for (const [grow, a] of [[0.07, alpha * 0.45], [0, alpha * 0.7]]) {
       const corners: P3[] = [[x0 - grow, y0 - grow], [x1 + grow, y0 - grow], [x1 + grow, y1 + grow], [x0 - grow, y1 + grow]];
-      const shifted = corners.map(([x, y]) => [x + d, y - d * 0.25] as P3);
+      const shifted = corners.map(([x, y]) => this.away(x, y, d) as P3);
       this.g.fillStyle(C.shadow, a);
       this.g.fillPoints(hull([...corners, ...shifted].map(([x, y]) => this.p(x, y))), true);
     }
@@ -141,12 +187,12 @@ function hull(pts: { x: number; y: number }[]) {
 const SMALL = { w: 108, h: 128, ax: 40, ay: 96 };
 const TILE = { w: TW + 2, h: TH + 2, ax: TW / 2 + 1, ay: TH / 2 + 1 };
 
-function make(scene: Phaser.Scene, key: string, size: { w: number; h: number; ax: number; ay: number }, draw: (p: Pen) => void, height = 0) {
+function make(scene: Phaser.Scene, key: string, size: { w: number; h: number; ax: number; ay: number }, draw: (p: Pen) => void, height = 0, mirror = false) {
   ORIGIN[key] = [size.ax / size.w, size.ay / size.h];
   HEIGHT[key] = height;
   if (scene.textures.exists(key)) return;
   const g = new Phaser.GameObjects.Graphics(scene);
-  draw(new Pen(g, size.ax, size.ay));
+  draw(new Pen(g, size.ax, size.ay, mirror));
   g.generateTexture(key, size.w, size.h);
   g.destroy();
 }
@@ -244,8 +290,9 @@ function road(p: Pen, mask: number) {
       p.rect(color, x0 - gx, y0 - gy, x1 + gx, y1 + gy, 0, alpha);
     });
   };
-  draw(C.roadEdge, 0.1, 0.25);
-  draw(C.roadEdge, 0.05, 0.55);
+  // A soft trodden verge, then a crisp dark kerb line so streets read on sand at the minimum zoom.
+  draw(C.roadEdge, 0.13, 0.28);
+  draw(C.roadEdge, 0.055, 1);
   draw(C.road, 0, 1);
   draw(shade(C.road, 1.08), -0.08, 0.7);
   const rut = shade(C.road, 0.82);
@@ -382,7 +429,7 @@ function person(p: Pen, x: number, y: number, z: number, v: number, scale = 0.9)
 
 /** Terracotta jar with a lit rim. */
 function jar(p: Pen, x: number, y: number, z: number, r = 3, color = C.terracotta) {
-  p.ball(C.shadow, x + 0.04, y - 0.01, z, r * 0.8, 0.25);
+  p.ball(C.shadow, ...p.away(x, y, 0.04), z, r * 0.8, 0.25);
   p.ball(shade(color, 0.8), x, y, z + r, r);
   p.ball(color, x - 0.012, y - 0.012, z + r + 0.6, r * 0.82);
   p.ball(shade(color, 0.6), x, y, z + r * 2 + 0.5, r * 0.45);
@@ -435,7 +482,7 @@ function dome(p: Pen, x: number, y: number, z: number, r: number, h: number, col
 /** Small fig or olive tree with a trunk, layered round foliage and a soft shadow. */
 function tree(p: Pen, x: number, y: number, z: number, size: number, leaf = C.leaf) {
   const t = p.p(x, y, z);
-  p.disc(C.shadow, x + 0.2 * size, y - 0.05 * size, z, 0.22 * size, 0.2);
+  p.disc(C.shadow, ...p.away(x, y, 0.2 * size), z, 0.22 * size, 0.2);
   p.g.lineStyle(3 * size, C.trunk);
   p.g.lineBetween(t.x, t.y, t.x + 1.5 * size, t.y - 14 * size);
   p.g.lineStyle(2 * size, C.trunk);
@@ -474,10 +521,11 @@ function roofTop(p: Pen, x0: number, y0: number, x1: number, y1: number, z: numb
 function bricks(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, color: number, alpha = 0.3) {
   let row = 0;
   for (let z = z0 + 3.5; z < z1 - 1; z += 3.5, row++) {
-    p.line(shade(color, 0.72), 1, [x0, y1, z], [x1, y1, z], alpha);
-    p.line(shade(color, 0.48), 1, [x1, y0, z], [x1, y1, z], alpha);
-    for (let x = x0 + (row % 2 ? 0.09 : 0.18); x < x1 - 0.02; x += 0.18) p.line(shade(color, 0.72), 1, [x, y1, z - 3.5], [x, y1, z], alpha * 0.8);
-    for (let y = y0 + (row % 2 ? 0.09 : 0.18); y < y1 - 0.02; y += 0.18) p.line(shade(color, 0.48), 1, [x1, y, z - 3.5], [x1, y, z], alpha * 0.8);
+    const [s, e] = [p.south(color, 0.72, 0.48), p.east(color, 0.72, 0.48)];
+    p.line(s, 1, [x0, y1, z], [x1, y1, z], alpha);
+    p.line(e, 1, [x1, y0, z], [x1, y1, z], alpha);
+    for (let x = x0 + (row % 2 ? 0.09 : 0.18); x < x1 - 0.02; x += 0.18) p.line(s, 1, [x, y1, z - 3.5], [x, y1, z], alpha * 0.8);
+    for (let y = y0 + (row % 2 ? 0.09 : 0.18); y < y1 - 0.02; y += 0.18) p.line(e, 1, [x1, y, z - 3.5], [x1, y, z], alpha * 0.8);
   }
 }
 
@@ -488,9 +536,9 @@ function bricks(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: numb
 function rubble(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, color: number, seed: number, course = 5) {
   const r = createRng(seed);
   const j = (a: number) => (r() - 0.5) * a;
-  const lit = shade(color, 0.92);
-  const dark = shade(color, 0.64);
-  p.box(x0, y0, x1, y1, z0, z1, shade(color, 0.7), shade(lit, 0.62), shade(dark, 0.62));
+  const lit = p.south(color, 0.92, 0.64);
+  const dark = p.east(color, 0.92, 0.64);
+  p.box(x0, y0, x1, y1, z0, z1, shade(color, 0.7), shade(color, 0.92 * 0.62), shade(color, 0.64 * 0.62));
   for (let z = z0; z < z1 - 1; z += course) {
     const zt = Math.min(z1, z + course);
     for (const face of ['south', 'east'] as const) {
@@ -524,144 +572,146 @@ function footCanvas(w: number, h: number, height: number) {
 }
 
 // ---------- houses (2 x 2: local x, y in [-1, 1]) ----------
+// Every level has its own look so it reads at a glance even zoomed out: dark cloth tents, ochre
+// mud cubes, stone-and-mud houses, big limestone houses. Variants change the shape, not only colour.
 
-/** Level 0: a staked plot with the foundation stones laid out and a pile of mud bricks. */
-function plot(p: Pen) {
-  const s = 0.82;
-  p.rect(0xcfa874, -s, -s, s, s, 0, 0.7);
-  p.rect(shade(0xcfa874, 0.94), -0.6, -0.6, 0.3, 0.2, 0, 0.8);
-  const r = createRng(17);
-  const stones: [number, number][] = [];
-  for (let t = -0.6; t <= 0.3; t += 0.11) stones.push([t, -0.6], [t, 0.2]);
-  for (let t = -0.49; t < 0.2; t += 0.11) stones.push([-0.6, t], [0.3, t]);
-  stones.sort((a, b) => a[0] + a[1] - b[0] - b[1]).forEach(([x, y]) => {
-    const h = 2 + r() * 2;
-    p.box(x - 0.045, y - 0.04, x + 0.045, y + 0.04, 0, h, shade(C.rock, 1.05 + r() * 0.1));
-  });
-  const corners: P3[] = [[-s, -s], [s, -s], [s, s], [-s, s]];
-  corners.forEach((c, k) => p.line(C.rope, 1.2, [c[0], c[1], 4], [corners[(k + 1) % 4][0], corners[(k + 1) % 4][1], 4]));
-  corners.forEach(([x, y]) => p.box(x - 0.035, y - 0.035, x + 0.035, y + 0.035, 0, 8, C.wood));
-  // Pile of sun-dried bricks and a brick mould with a water jar.
-  for (let layer = 0; layer < 3; layer++) {
-    for (let i = 0; i < 3 - layer; i++) {
-      for (let k = 0; k < 2; k++) {
-        const x = 0.4 + i * 0.13 + layer * 0.06;
-        const y = 0.36 + k * 0.09;
-        p.box(x, y, x + 0.12, y + 0.08, layer * 3, layer * 3 + 3, shade(C.mud, 1.05), shade(C.mud, 0.92), shade(C.mud, 0.68));
-      }
-    }
-  }
-  p.box(-0.5, 0.45, -0.25, 0.6, 0, 2, C.wood);
-  p.rect(shade(C.mud, 0.85), -0.47, 0.48, -0.28, 0.57, 2);
-  jar(p, -0.12, 0.62, 0, 3.2);
+const HOLE = 0x3a2818;
+const REED = [0xc2a463, 0xa98a4c, 0x8a6f3a] as const;
+
+/** Point inside quad q at (u, v): u runs from q[0] to q[1], v from q[0] to q[3]. */
+function inQuad(q: P3[], u: number, v: number): P3 {
+  const w = [(1 - u) * (1 - v), u * (1 - v), u * v, (1 - u) * v];
+  return [0, 1, 2].map((i) => q.reduce((sum, c, k) => sum + (c[i] ?? 0) * w[k], 0)) as P3;
 }
 
-/** Level 1: a long low tent of dark goat-hair cloth, open at the front, with a fire pit and a goat. */
-function tent(p: Pen) {
-  const x0 = -0.82;
-  const x1 = 0.5;
-  const yb = -0.62;
-  const yf = 0.22;
-  const ry = -0.2;
-  const zr = 27;
-  const ze = 12;
-  const cloth = C.tentCloth;
-  p.rect(shade(C.sand[0], 0.92), -0.9, -0.9, 0.9, 0.9, 0, 0.5);
-  p.shadow(x0, yb, x1, yf, zr * 0.8);
-  // Back guy ropes.
-  for (const x of [x0 + 0.1, -0.16, x1 - 0.1]) p.line(C.rope, 1, [x, yb, ze], [x, yb - 0.22, 0], 0.8);
-  // Back roof slope, then the dark open interior with a rug and cushions.
-  p.poly(shade(cloth, 0.9), [[x0, yb, ze], [x1, yb, ze], [x1, ry, zr], [x0, ry, zr]]);
-  p.southQuad(0x231a12, yb, x0, x1, 0, ze);
-  p.rect(0x2e231a, x0, yb, x1, yf);
-  p.rect(C.red, x0 + 0.15, ry - 0.2, x1 - 0.2, yf - 0.06, 0, 0.9);
-  for (let x = x0 + 0.22; x < x1 - 0.2; x += 0.14) p.line(C.cream, 1, [x, ry - 0.2], [x, yf - 0.06], 0.5);
-  p.ball(C.cream, x0 + 0.3, -0.3, 3, 3);
-  p.ball(C.gold, x0 + 0.5, -0.32, 3, 3);
-  // Front slope with woven strips running front to back.
-  p.poly(shade(cloth, 1.18), [[x0, ry, zr], [x1, ry, zr], [x1, yf, ze], [x0, yf, ze]]);
-  for (let x = x0 + 0.22; x < x1; x += 0.22) p.line(shade(cloth, 0.75), 1.5, [x, ry, zr], [x, yf, ze], 0.8);
-  p.line(shade(cloth, 1.5), 1, [x0, yf, ze], [x1, yf, ze], 0.8);
-  p.line(C.woodDark, 2, [x0, ry, zr], [x1, ry, zr]);
-  // East end curtain.
-  p.poly(shade(cloth, 0.72), [[x1, yb, 0], [x1, yf, 0], [x1, yf, ze], [x1, ry, zr], [x1, yb, ze]]);
-  p.line(shade(cloth, 0.55), 1.5, [x1, ry, 0], [x1, ry, zr], 0.8);
-  // Front poles and guy ropes.
-  for (const x of [x0 + 0.04, -0.16, x1 - 0.04]) p.line(C.wood, 2, [x, yf, 0], [x, yf, ze + 1]);
-  for (const x of [x0 + 0.04, x1 - 0.04]) p.line(C.rope, 1, [x, yf, ze], [x, yf + 0.3, 0], 0.9);
-  p.line(C.rope, 1, [x1, ry, zr], [x1 + 0.32, ry, 0], 0.9);
-  // Fire pit with a cooking pot, a jar and a goat in the yard.
-  const fx = 0.5;
-  const fy = 0.62;
-  p.disc(0x3a2c20, fx, fy, 0, 0.12);
+/** Part of quad q between u0..u1 and v0..v1 (stripes, patches, panels on any face). */
+function subQuad(q: P3[], u0: number, u1: number, v0: number, v1: number): P3[] {
+  return [inQuad(q, u0, v0), inQuad(q, u1, v0), inQuad(q, u1, v1), inQuad(q, u0, v1)];
+}
+
+/** Trodden earth under a house. */
+function yard(p: Pen, s = 0.84, alpha = 0.85) {
+  p.rect(shade(C.sand[0], 0.9), -s, -s, s, s, 0, alpha);
+}
+
+/** Door on the south face (plane y), with an optional frame or lintel colour. */
+function doorS(p: Pen, y: number, x0: number, x1: number, h: number, frame?: number) {
+  if (frame !== undefined) p.southQuad(frame, y + 0.001, x0 - 0.03, x1 + 0.03, 0, h + 2.5);
+  p.southQuad(C.door, y + 0.002, x0, x1, 0, h);
+}
+
+/** Small window on the south face, optionally framed in limestone. */
+function winS(p: Pen, y: number, x: number, z: number, w = 0.12, h = 6, frame?: number) {
+  if (frame !== undefined) p.southQuad(frame, y + 0.002, x - 0.025, x + w + 0.025, z - 1.5, z + h + 1.5);
+  p.southQuad(HOLE, y + 0.003, x, x + w, z, z + h);
+}
+
+/** Small window on the east face. */
+function winE(p: Pen, x: number, y: number, z: number, w = 0.12, h = 6, frame?: number) {
+  if (frame !== undefined) p.eastQuad(frame, x + 0.002, y - 0.025, y + w + 0.025, z - 1.5, z + h + 1.5);
+  p.eastQuad(HOLE, x + 0.003, y, y + w, z, z + h);
+}
+
+/** Reed mat roof or shade on top of a box. */
+function reedTop(p: Pen, x0: number, y0: number, x1: number, y1: number, z: number) {
+  p.box(x0, y0, x1, y1, z, z + 2, REED[0], REED[1], REED[2]);
+  for (let y = y0 + 0.04; y < y1 - 0.02; y += 0.06) p.line(0x9c7f45, 1, [x0 + 0.02, y, z + 2], [x1 - 0.02, y, z + 2], 0.7);
+}
+
+/** Reed shade on four poles over a roof at height z. */
+function reedShade(p: Pen, x0: number, y0: number, x1: number, y1: number, z: number, high = 14) {
+  for (const [x, y] of [[x0 + 0.04, y0 + 0.04], [x1 - 0.04, y0 + 0.04], [x0 + 0.04, y1 - 0.04], [x1 - 0.04, y1 - 0.04]] as const)
+    p.line(C.woodDark, 1.5, [x, y, z], [x, y, z + high]);
+  reedTop(p, x0, y0, x1, y1, z + high);
+}
+
+/** Puffs of pale smoke rising from (x, y, z). */
+function smoke(p: Pen, x: number, y: number, z: number) {
+  [[0, 0, 3.5, 0.45], [0.05, -0.04, 4.5, 0.35], [0.12, -0.08, 5.5, 0.25]].forEach(([dx, dy, r, a], k) =>
+    p.ball(0xf0ebe2, x + dx, y + dy, z + 5 + k * 7, r, a * 0.8),
+  );
+}
+
+/** Ring of stones with burning logs, a tripod and a pot. */
+function campfire(p: Pen, x: number, y: number, big = false) {
   const r = createRng(5);
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    p.ball(shade(C.rock, 0.9 + r() * 0.2), fx + Math.cos(a) * 0.13, fy + Math.sin(a) * 0.13, 1.5, 2);
+  const rr = big ? 0.17 : 0.12;
+  p.disc(0x3a2c20, x, y, 0, rr);
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2;
+    p.ball(shade(C.rock, 0.9 + r() * 0.2), x + Math.cos(a) * rr, y + Math.sin(a) * rr, 1.5, big ? 2.4 : 2);
   }
-  p.ball(0xe8742c, fx - 0.02, fy, 2, 2);
-  p.ball(0x3a3330, fx, fy, 5, 3.4);
-  jar(p, -0.66, 0.55, 0, 3.4);
-  jar(p, -0.52, 0.66, 0, 2.6);
-  const g = p.p(-0.05, 0.62, 0);
+  p.line(C.woodDark, 2, [x - 0.08, y + 0.05, 1], [x + 0.08, y - 0.05, 2]);
+  p.line(C.woodDark, 2, [x - 0.06, y - 0.07, 2], [x + 0.07, y + 0.06, 1]);
+  const c = p.p(x, y, 2);
+  const h = big ? 15 : 9;
+  p.g.fillStyle(0xe8742c, 0.9);
+  p.g.fillTriangle(c.x - 5, c.y, c.x + 5, c.y, c.x - 1, c.y - h);
+  p.g.fillTriangle(c.x - 3, c.y, c.x + 6, c.y, c.x + 3, c.y - h * 0.75);
+  p.g.fillStyle(0xf6c84c);
+  p.g.fillTriangle(c.x - 3, c.y, c.x + 3, c.y, c.x, c.y - h * 0.6);
+  p.g.fillStyle(0xfff3c4);
+  p.g.fillCircle(c.x, c.y - 1.5, 1.6);
+  if (!big) return;
+  // Tripod with a hanging pot.
+  for (const [dx, dy] of [[-0.2, 0.1], [0.2, 0.1], [0, -0.22]] as const) p.line(C.woodDark, 1.5, [x + dx, y + dy, 0], [x, y, 26]);
+  p.line(0x2a2420, 1, [x, y, 26], [x, y, 18]);
+  p.ball(0x3a3330, x, y, 15, 4);
+  p.ball(0x5a524c, x - 0.03, y - 0.03, 17, 1.6);
+  smoke(p, x + 0.05, y - 0.05, 26);
+}
+
+/** A goat standing on the ground point (x, y), seen from the side. */
+function goat(p: Pen, x: number, y: number, coat: number, patch: number, face = -1) {
+  const g = p.p(x, y, 0);
   p.g.fillStyle(C.shadow, 0.22);
   p.g.fillEllipse(g.x + 1, g.y, 14, 4);
   p.g.lineStyle(1.5, 0x3a2c20);
   for (const dx of [-4, -2, 3, 5]) p.g.lineBetween(g.x + dx, g.y - 4, g.x + dx, g.y);
-  p.g.fillStyle(0xe9ddc8);
+  p.g.fillStyle(coat);
   p.g.fillEllipse(g.x, g.y - 6, 13, 6);
-  p.g.fillStyle(0x6b4a30);
-  p.g.fillEllipse(g.x + 1, g.y - 6.5, 5, 4);
-  p.g.fillStyle(0xe9ddc8);
-  p.g.fillCircle(g.x - 7, g.y - 8, 2.5);
+  p.g.fillStyle(patch);
+  p.g.fillEllipse(g.x - face, g.y - 6.5, 5, 4);
+  p.g.fillStyle(coat);
+  p.g.fillCircle(g.x + 7 * face, g.y - 8, 2.5);
   p.g.lineStyle(1, 0x3a2c20);
-  p.g.lineBetween(g.x - 8, g.y - 10, g.x - 10, g.y - 12);
+  p.g.lineBetween(g.x + 8 * face, g.y - 10, g.x + 10 * face, g.y - 12);
+  p.g.lineBetween(g.x - 6 * face, g.y - 7, g.x - 8 * face, g.y - 9);
 }
 
-/** Level 2: a small one-room mud-brick house with roof beams, a reed shed and a walled yard. */
-function mudHouse(p: Pen) {
-  const [x0, y0, x1, y1, h] = [-0.8, -0.8, 0.3, 0.08, 28];
-  const wallH = 9;
-  p.rect(shade(C.sand[0], 0.9), -0.82, -0.82, 0.82, 0.82, 0, 0.85);
-  p.shadow(x0, y0, x1, y1, h);
-  // Back-left yard wall.
-  p.box(-0.82, y1, -0.74, 0.82, 0, wallH, shade(C.mud, 0.95));
-  // House body.
-  p.box(x0, y0, x1, y1, 0, h, shade(C.mud, 1.06), C.mud, shade(C.mud, 0.66));
-  bricks(p, x0, y0, x1, y1, 0, h, C.mud);
-  roofTop(p, x0, y0, x1, y1, h, C.mud);
-  for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.16) p.box(x, y1, x + 0.05, y1 + 0.05, h - 6, h - 3, C.woodDark);
-  p.southQuad(shade(C.mud, 0.8), y1 + 0.001, -0.42, -0.16, 0, 17);
-  p.southQuad(C.door, y1 + 0.002, -0.39, -0.19, 0, 15);
-  p.southQuad(0x3a2818, y1 + 0.002, 0.02, 0.14, 15, 20);
-  p.eastQuad(0x3a2818, x1 + 0.002, -0.45, -0.32, 15, 20);
-  // Roof: a mat of drying figs, jars and a rolled sleeping mat.
-  p.rect(0xc9a46a, -0.65, -0.62, -0.25, -0.3, h);
-  for (let k = 0; k < 9; k++) p.ball(0x7a4f6a, -0.6 + (k % 3) * 0.13, -0.57 + Math.floor(k / 3) * 0.1, h + 1, 1.4);
-  jar(p, 0.12, -0.6, h, 3.2);
-  jar(p, 0.15, -0.42, h, 2.6);
-  p.box(-0.1, -0.15, 0.15, -0.05, h, h + 3, C.red);
-  // Reed shed for the animals on the east side.
-  p.box(x1, -0.8, 0.78, -0.3, 0, 15, shade(C.mud, 0.98), shade(C.mud, 0.88), shade(C.mud, 0.62));
-  p.box(x1 - 0.02, -0.82, 0.82, -0.26, 15, 17, 0xc2a463, 0xa98a4c, 0x8a6f3a);
-  for (let y = -0.78; y < -0.3; y += 0.06) p.line(0x9c7f45, 1, [x1, y, 17], [0.8, y, 17], 0.7);
-  p.eastQuad(0x3a2818, 0.781, -0.66, -0.44, 0, 10);
-  // Ladder to the roof.
-  for (const x of [0.12, 0.22]) p.line(C.woodDark, 1.5, [x, y1 + 0.28, 0], [x, y1 + 0.02, h + 5]);
-  for (let k = 1; k < 7; k++) p.line(C.wood, 1, [0.12, y1 + 0.28 - k * 0.04, k * 4.5], [0.22, y1 + 0.28 - k * 0.04, k * 4.5]);
-  // Yard: bread oven, grinding stone, jars.
-  dome(p, 0.48, 0.22, 0, 0.13, 12, shade(C.mud, 0.9));
-  p.ball(0x2a1f17, 0.42, 0.33, 4, 2);
-  p.disc(shade(C.rock, 0.8), -0.42, 0.5, 0, 0.1);
-  p.disc(C.rock, -0.42, 0.48, 3, 0.09);
-  p.ball(C.rockLight, -0.4, 0.46, 5, 2);
-  jar(p, -0.62, 0.32, 0, 3.4);
-  jar(p, 0.52, 0.55, 0, 2.8);
-  // Front and east yard walls with a gap for the gate.
-  p.box(0.74, -0.26, 0.82, 0.74, 0, wallH, shade(C.mud, 0.95));
-  p.box(-0.82, 0.74, -0.14, 0.82, 0, wallH, shade(C.mud, 0.95));
-  p.box(0.14, 0.74, 0.82, 0.82, 0, wallH, shade(C.mud, 0.95));
-  for (const x of [-0.14, 0.14]) p.box(x - 0.04, 0.73, x + 0.04, 0.83, 0, wallH + 3, shade(C.mud, 1.05));
+/** Small hen pecking. */
+function hen(p: Pen, x: number, y: number, color: number) {
+  const c = p.p(x, y, 0);
+  p.g.fillStyle(C.shadow, 0.2);
+  p.g.fillEllipse(c.x + 1, c.y, 6, 2);
+  p.g.fillStyle(color);
+  p.g.fillEllipse(c.x, c.y - 2.5, 5, 3.5);
+  p.g.fillCircle(c.x + 2.2, c.y - 4.2, 1.5);
+  p.g.fillStyle(C.red);
+  p.g.fillCircle(c.x + 2.4, c.y - 5.6, 0.8);
+}
+
+/** Pile of fieldstones stacked in layers around (x, y). */
+function stonePile(p: Pen, x: number, y: number, layers: number, seed: number) {
+  const r = createRng(seed);
+  p.shadow(x - 0.18, y - 0.14, x + 0.18, y + 0.14, layers * 4, 0.18);
+  for (let l = 0; l < layers; l++) {
+    const n = layers - l;
+    for (let i = 0; i < n; i++) {
+      for (let k = 0; k < 2; k++) {
+        const sx = x - n * 0.06 + i * 0.12 + (r() - 0.5) * 0.02;
+        const sy = y - 0.08 + k * 0.1;
+        const h = 3.2 + r() * 1.2;
+        p.box(sx, sy, sx + 0.11, sy + 0.09, l * 3.6, l * 3.6 + h, shade(C.rock, 1.0 + r() * 0.16));
+      }
+    }
+  }
+}
+
+/** Water jar and a smaller one beside it. */
+function jars(p: Pen, x: number, y: number, z = 0, color = C.terracotta) {
+  jar(p, x, y, z, 3.4, color);
+  jar(p, x + 0.12, y + 0.1, z, 2.6, color);
 }
 
 /** Clothesline between two posts on a roof at height z, with drying cloths. */
@@ -679,74 +729,10 @@ function clothesline(p: Pen, a: [number, number], b: [number, number], z: number
   });
 }
 
-/**
- * Level 3: stone ground floor with mud brick above, a framed window, an outside stair to the flat
- * roof (clothesline, jars, plants, a reed shade) and a yard behind a low stone wall.
- */
-function stoneHouse(p: Pen) {
-  const [x0, y0, x1, y1] = [-0.86, -0.86, 0.38, 0.16];
-  const base = 16;
-  const h = 36;
-  const wallH = 10;
-  p.rect(shade(C.sand[0], 0.9), -0.84, -0.84, 0.84, 0.84, 0, 0.85);
-  p.shadow(x0, y0, x1, y1, h);
-  p.box(-0.86, y1, -0.76, 0.86, 0, wallH, C.stone);
-  // Body: stone below, mud brick above.
-  p.box(x0, y0, x1, y1, 0, base, C.stone, shade(C.stone, 0.9), shade(C.stone, 0.62));
-  masonry(p, x0, y0, x1, y1, 0, base, C.stone);
-  p.box(x0, y0, x1, y1, base, h, shade(C.mud, 1.08), C.mud, shade(C.mud, 0.66));
-  bricks(p, x0, y0, x1, y1, base, h, C.mud, 0.22);
-  roofTop(p, x0, y0, x1, y1, h, C.mud);
-  // Door with a lintel, framed windows.
-  p.southQuad(C.limestone, y1 + 0.002, -0.22, 0.0, 12, 15);
-  p.southQuad(C.door, y1 + 0.002, -0.19, -0.03, 0, 12);
-  for (const x of [0.1]) {
-    p.southQuad(C.limestone, y1 + 0.002, x, x + 0.18, 21, 31);
-    p.southQuad(0x3a2818, y1 + 0.003, x + 0.025, x + 0.155, 22.5, 29.5);
-    p.southQuad(C.woodDark, y1 + 0.004, x + 0.08, x + 0.1, 22.5, 29.5);
-  }
-  p.eastQuad(C.limestone, x1 + 0.002, -0.5, -0.32, 21, 31);
-  p.eastQuad(0x3a2818, x1 + 0.003, -0.475, -0.345, 22.5, 29.5);
-  p.eastQuad(0x3a2818, x1 + 0.002, -0.1, 0.0, 7, 12);
-  // Outside stair against the south face, rising toward the west.
-  const steps = 8;
-  for (let k = 0; k < steps; k++) {
-    const sx = -0.86 + (steps - 1 - k) * 0.06;
-    const z = (k + 1) * (h / steps);
-    p.box(sx, y1, sx + 0.06, y1 + 0.13, 0, z, shade(C.stone, 1.02), shade(C.stone, 0.9), shade(C.stone, 0.64));
-  }
-  // Roof life: a reed shade on poles, clothesline, jars and a potted plant.
-  for (const [x, y] of [[0.02, -0.8], [0.32, -0.8], [0.02, -0.4], [0.32, -0.4]] as const) p.line(C.woodDark, 1.5, [x, y, h], [x, y, h + 14]);
-  p.box(-0.02, -0.84, 0.36, -0.36, h + 14, h + 16, 0xc2a463, 0xa98a4c, 0x8a6f3a);
-  for (let y = -0.82; y < -0.38; y += 0.06) p.line(0x9c7f45, 1, [-0.02, y, h + 16], [0.36, y, h + 16], 0.7);
-  p.rect(C.red, 0.06, -0.74, 0.28, -0.46, h, 0.9);
-  clothesline(p, [-0.72, -0.72], [-0.72, -0.05], h, [C.clothes[1], C.cream, C.clothes[0]]);
-  jar(p, -0.3, -0.6, h, 3.4);
-  jar(p, -0.42, -0.5, h, 2.8);
-  p.box(-0.32, -0.15, -0.2, -0.03, h, h + 4, C.terracotta);
-  p.ball(C.leaf, -0.26, -0.09, h + 9, 5);
-  p.ball(shade(C.leaf, 1.3), -0.28, -0.11, h + 11, 2);
-  // Yard: olive tree, bench, jars.
-  tree(p, 0.58, -0.4, 0, 0.9, C.olive);
-  p.box(-0.1, 0.42, 0.3, 0.52, 0, 5, C.stone);
-  jar(p, 0.55, 0.3, 0, 3.4);
-  jar(p, 0.64, 0.42, 0, 2.6);
-  p.ball(C.wheat, -0.42, 0.5, 4, 4);
-  p.ball(shade(C.wheat, 0.8), -0.42, 0.5, 2, 4);
-  // Low stone yard walls with a gate.
-  const sw = (a: number, b: number, c: number, d: number) => {
-    p.box(a, b, c, d, 0, wallH, C.stone, shade(C.stone, 0.9), shade(C.stone, 0.62));
-    masonry(p, a, b, c, d, 0, wallH, C.stone, 0.7);
-  };
-  sw(0.76, -0.4, 0.86, 0.76);
-  sw(-0.86, 0.76, -0.16, 0.86);
-  sw(0.16, 0.76, 0.86, 0.86);
-}
-
 /** Courses of stone blocks on the lit (south) and shaded (east) faces of a box. */
 function masonry(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, color: number, alpha = 1) {
-  const lit = shade(color, 0.8);
-  const dark = shade(color, 0.5);
+  const lit = p.south(color, 0.8, 0.5);
+  const dark = p.east(color, 0.8, 0.5);
   let row = 0;
   for (let z = z0 + 4; z < z1; z += 4, row++) {
     p.line(lit, 1, [x0, y1, z], [x1, y1, z], 0.55 * alpha);
@@ -756,107 +742,829 @@ function masonry(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: num
   }
 }
 
+// ----- level 0: plots -----
+
+/** Plot, variant 0: the plan staked out with pegs and ropes, wall trenches dug along them. */
+function plotStakes(p: Pen) {
+  const s = 0.82;
+  const earth = 0xcfa874;
+  p.rect(earth, -s, -s, s, s, 0, 0.7);
+  const [x0, x1, y0, y1] = [-0.62, 0.5, -0.62, 0.36];
+  const lines: [P3, P3][] = [
+    [[x0, y0], [x1, y0]], [[x0, y0], [x0, y1]], [[x1, y0], [x1, y1]], [[x0, y1], [-0.12, y1]], [[0.12, y1], [x1, y1]],
+    [[x0, -0.3], [x1, -0.3]], [[-0.25, -0.3], [-0.25, y1]], [[0.13, -0.3], [0.13, y1]],
+  ];
+  for (const [a, b] of lines) p.line(shade(earth, 0.7), 4, a, b, 0.7);
+  for (const [a, b] of lines) p.line(shade(earth, 1.15), 1, [a[0] - 0.04, a[1] + 0.04], [b[0] - 0.04, b[1] + 0.04], 0.6);
+  const corners: P3[] = [[-s, -s], [s, -s], [s, s], [-s, s]];
+  corners.forEach((c, k) => p.line(C.rope, 1.4, [c[0], c[1], 6], [corners[(k + 1) % 4][0], corners[(k + 1) % 4][1], 6]));
+  corners.forEach(([x, y]) => p.box(x - 0.04, y - 0.04, x + 0.04, y + 0.04, 0, 11, C.wood));
+  const flag = p.p(s, -s, 11);
+  p.g.fillStyle(C.red);
+  p.g.fillTriangle(flag.x, flag.y, flag.x + 9, flag.y + 2, flag.x, flag.y + 5);
+  for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1], [-0.25, -0.3], [0.13, -0.3]] as const) p.box(x - 0.025, y - 0.025, x + 0.025, y + 0.025, 0, 5, C.woodDark);
+  // Earth thrown out of the trenches, a basket of pegs, a coil of rope and a mallet.
+  for (const [x, y] of [[-0.72, 0.1], [-0.4, -0.72], [0.6, -0.1]] as const) dome(p, x, y, 0, 0.09, 4, shade(earth, 0.9));
+  cylinder(p, 0.52, 0.62, 0.09, 0, 6, 0xb08a52);
+  for (const dx of [-0.03, 0, 0.03]) p.line(C.woodDark, 1.5, [0.52 + dx, 0.62 - dx, 5], [0.52 + dx, 0.62 - dx, 10]);
+  p.disc(shade(C.rope, 0.8), -0.4, 0.62, 0, 0.1);
+  p.disc(C.rope, -0.4, 0.62, 1.5, 0.07);
+  p.disc(shade(C.rope, 0.8), -0.4, 0.62, 1.6, 0.03);
+  p.line(C.wood, 2, [0.05, 0.58], [0.25, 0.66]);
+  p.box(0.0, 0.53, 0.08, 0.62, 0, 3, C.woodDark);
+}
+
+/** Plot, variant 1: a foundation course laid and fieldstones stacked ready to build. */
+function plotStones(p: Pen) {
+  const s = 0.82;
+  p.rect(0xcfa874, -s, -s, s, s, 0, 0.7);
+  p.rect(shade(0xcfa874, 0.92), -0.62, -0.62, 0.36, 0.22, 0, 0.8);
+  const r = createRng(17);
+  const stones: [number, number][] = [];
+  for (let t = -0.62; t <= 0.36; t += 0.11) stones.push([t, -0.62], [t, 0.22]);
+  for (let t = -0.51; t < 0.22; t += 0.11) stones.push([-0.62, t], [0.36, t]);
+  stones.sort((a, b) => a[0] + a[1] - b[0] - b[1]).forEach(([x, y]) => {
+    if (y === 0.22 && x > -0.2 && x < 0.0) return; // door gap
+    const h = 3 + r() * 2.5;
+    p.box(x - 0.05, y - 0.045, x + 0.05, y + 0.045, 0, h, shade(C.rock, 1.04 + r() * 0.12));
+  });
+  stonePile(p, 0.55, -0.45, 3, 31);
+  stonePile(p, 0.52, 0.5, 4, 37);
+  stonePile(p, -0.48, 0.58, 2, 39);
+  // Wooden sledge for hauling stones and a water jar.
+  p.box(-0.05, 0.48, 0.25, 0.64, 0, 2.5, C.wood);
+  p.box(0.02, 0.51, 0.13, 0.61, 2.5, 6, shade(C.rock, 1.1));
+  jar(p, -0.72, 0.3, 0, 3.2);
+  for (const [x, y] of [[-0.1, -0.2], [0.1, -0.35]] as const) p.ball(shade(C.rock, 0.95), x, y, 1.5, 2);
+}
+
+// ----- level 1: tents -----
+
+interface Cloth {
+  color: number;
+  /** Long strips sewn along the ridge, in alternating shades. */
+  stripes?: boolean;
+  /** Number of patches sewn on the cloth. */
+  patches?: number;
+}
+
+/** Stripes and patches over a cloth face q (u along the ridge). */
+function clothDetail(p: Pen, q: P3[], c: Cloth, base: number, seed: number) {
+  if (c.stripes) {
+    const n = 5;
+    for (let k = 0; k < n; k += 2) p.poly(shade(base, 0.8), subQuad(q, 0, 1, k / n, (k + 0.7) / n));
+    for (let k = 1; k < n; k += 2) p.poly(shade(base, 1.15), subQuad(q, 0, 1, k / n + 0.04, k / n + 0.1), 0.8);
+  }
+  const r = createRng(seed);
+  for (let k = 0; k < (c.patches ?? 0); k++) {
+    const u = 0.08 + r() * 0.7;
+    const v = 0.1 + r() * 0.55;
+    const pc = [shade(base, 0.74), 0x8a5a3c, shade(base, 1.12), 0x6e4a32][k % 4];
+    const quad = subQuad(q, u, u + 0.12 + r() * 0.08, v, v + 0.25 + r() * 0.15);
+    p.poly(pc, quad);
+    p.g.lineStyle(1, shade(base, 0.55), 0.6);
+    p.g.strokePoints(quad.map(([x, y, z]) => p.p(x, y, z ?? 0)), true);
+  }
+}
+
 /**
- * Level 4: a large two-storey "four-room house" of light limestone filling the plot. A broad back
- * range with an upper floor, two pillared side wings and a front wall with a gate enclose an open
- * courtyard with a bread oven, a cistern and a fig tree.
+ * Long low tent with the ridge along x, its front slope raised on poles so the south side is open:
+ * the dark interior shows a rug and cushions.
  */
-function bigHouse(p: Pen) {
+function longTent(p: Pen, x0: number, x1: number, yb: number, yf: number, zr: number, ze: number, c: Cloth, seed = 3) {
+  const ry = (yb + yf) / 2;
+  const cloth = c.color;
+  p.shadow(x0, yb, x1, yf, zr * 0.8);
+  for (let x = x0 + 0.1; x < x1; x += Math.max(0.3, (x1 - x0 - 0.2) / 2)) p.line(C.rope, 1, [x, yb, ze], [x, yb - 0.2, 0], 0.8);
+  p.poly(shade(cloth, 0.9), [[x0, yb, ze], [x1, yb, ze], [x1, ry, zr], [x0, ry, zr]]);
+  p.southQuad(0x231a12, yb, x0, x1, 0, ze);
+  p.rect(0x2e231a, x0, yb, x1, yf);
+  p.rect(C.red, x0 + 0.12, ry - 0.18, x1 - 0.16, yf - 0.06, 0, 0.9);
+  for (let x = x0 + 0.2; x < x1 - 0.16; x += 0.14) p.line(C.cream, 1, [x, ry - 0.18], [x, yf - 0.06], 0.5);
+  p.ball(C.cream, x0 + 0.28, ry - 0.1, 3, 3);
+  p.ball(C.gold, x0 + 0.48, ry - 0.12, 3, 3);
+  const front: P3[] = [[x0, ry, zr], [x1, ry, zr], [x1, yf, ze], [x0, yf, ze]];
+  const lit = p.south(cloth, 1.18, 0.86);
+  p.poly(lit, front);
+  clothDetail(p, front, c, lit, seed);
+  p.line(shade(cloth, 1.5), 1, [x0, yf, ze], [x1, yf, ze], 0.8);
+  p.line(C.woodDark, 2, [x0, ry, zr], [x1, ry, zr]);
+  // East end curtain.
+  p.poly(p.east(cloth, 1.05, 0.72), [[x1, yb, 0], [x1, yf, 0], [x1, yf, ze], [x1, ry, zr], [x1, yb, ze]]);
+  p.line(shade(cloth, 0.55), 1.5, [x1, ry, 0], [x1, ry, zr], 0.8);
+  for (const x of [x0 + 0.04, (x0 + x1) / 2, x1 - 0.04]) p.line(C.wood, 2, [x, yf, 0], [x, yf, ze + 1]);
+  for (const x of [x0 + 0.04, x1 - 0.04]) p.line(C.rope, 1, [x, yf, ze], [x, yf + 0.26, 0], 0.9);
+  p.line(C.rope, 1, [x1, ry, zr], [x1 + 0.28, ry, 0], 0.9);
+}
+
+/** Tent with the ridge along y: a tall triangular door end faces south. */
+function gableTent(p: Pen, xc: number, y0: number, y1: number, half: number, zr: number, c: Cloth, seed = 7) {
+  const [xa, xb] = [xc - half, xc + half];
+  const cloth = c.color;
+  p.shadow(xa, y0, xb, y1, zr * 0.7);
+  p.line(C.rope, 1, [xc, y0, zr], [xc, y0 - 0.25, 0], 0.8);
+  p.poly(shade(cloth, 0.9), [[xa, y0, 1], [xc, y0, zr], [xc, y1, zr], [xa, y1, 1]]);
+  const east: P3[] = [[xc, y1, zr], [xc, y0, zr], [xb, y0, 1], [xb, y1, 1]];
+  const side = p.east(cloth, 1.15, 0.74);
+  p.poly(side, east);
+  clothDetail(p, east, c, side, seed);
+  p.line(shade(cloth, 0.5), 1, [xb, y0, 1], [xb, y1, 1], 0.8);
+  const gable = p.south(cloth, 1.02, 0.7);
+  p.poly(gable, [[xa, y1, 1], [xb, y1, 1], [xc, y1, zr]]);
+  p.poly(0x231a12, [[xc - half * 0.38, y1 + 0.002, 0], [xc + half * 0.38, y1 + 0.002, 0], [xc, y1 + 0.002, zr * 0.66]]);
+  p.poly(shade(gable, 1.15), [[xc + half * 0.38, y1 + 0.004, 0], [xc + half * 0.62, y1 + 0.004, 0], [xc + 0.01, y1 + 0.004, zr * 0.66]]);
+  p.line(C.woodDark, 2, [xc, y1, zr - 2], [xc, y1, zr + 4]);
+  p.line(C.rope, 1, [xc, y1, zr], [xc, y1 + 0.3, 0], 0.9);
+  for (const x of [xa + 0.05, xb - 0.05]) p.box(x - 0.02, y1 + 0.04, x + 0.02, y1 + 0.08, 0, 3, C.woodDark);
+}
+
+const DARK_CLOTH: Cloth = { color: C.tentCloth, stripes: true };
+
+/** Tent 0: the long dark goat-hair tent with striped cloth. */
+function tentStriped(p: Pen) {
+  yard(p, 0.9, 0.5);
+  longTent(p, -0.84, 0.55, -0.72, 0.18, 28, 12, DARK_CLOTH);
+  jars(p, -0.66, 0.5);
+  logs(p, 0.66, 0.42, 0, 3);
+  p.box(-0.25, 0.48, 0.05, 0.6, 0, 3, 0xd8c08a);
+  p.disc(shade(C.rock, 0.85), 0.22, 0.62, 0, 0.08);
+  p.disc(C.rock, 0.22, 0.62, 3, 0.06);
+}
+
+/** Tent 1: a gable tent of light, much-patched cloth with a water skin on a tripod. */
+function tentPatched(p: Pen) {
+  yard(p, 0.9, 0.5);
+  gableTent(p, -0.15, -0.8, 0.3, 0.5, 31, { color: 0xa88f6a, patches: 6 });
+  p.rect(0xc9a46a, -0.5, 0.42, 0.1, 0.78);
+  for (let x = -0.46; x < 0.1; x += 0.08) p.line(0xa98a4c, 1, [x, 0.44], [x, 0.76], 0.7);
+  cylinder(p, -0.3, 0.6, 0.08, 0, 6, 0xb08a52);
+  for (const k of [0, 1, 2]) p.ball([C.red, C.gold, 0x7a4f6a][k], -0.32 + k * 0.03, 0.58, 7, 1.6);
+  const [tx, ty] = [0.55, 0.45];
+  for (const [dx, dy] of [[-0.12, 0.08], [0.12, 0.08], [0, -0.13]] as const) p.line(C.woodDark, 1.5, [tx + dx, ty + dy, 0], [tx, ty, 22]);
+  p.ball(0x6e4b2e, tx, ty, 12, 4.5);
+  p.ball(0x8a6040, tx - 0.03, ty - 0.03, 14, 2);
+  jar(p, 0.6, -0.4, 0, 3.4);
+}
+
+/** Tent 2: two tents, a long one at the back and a small gable tent in front. */
+function tentDouble(p: Pen) {
+  yard(p, 0.9, 0.5);
+  longTent(p, -0.88, 0.25, -0.86, -0.16, 24, 10, DARK_CLOTH, 4);
+  gableTent(p, 0.45, -0.42, 0.55, 0.32, 23, { color: shade(C.tentCloth, 1.3), patches: 2 }, 9);
+  p.line(C.rope, 1, [-0.7, 0.0, 10], [0.2, 0.5, 12], 0.9);
+  p.poly(C.clothes[1], [[-0.5, 0.11, 10.5], [-0.35, 0.19, 10.8], [-0.35, 0.19, 4], [-0.5, 0.11, 4]]);
+  p.poly(C.cream, [[-0.2, 0.28, 11.2], [-0.05, 0.36, 11.4], [-0.05, 0.36, 5], [-0.2, 0.28, 5]]);
+  jars(p, -0.72, 0.5);
+  campfire(p, -0.2, 0.62);
+}
+
+/** Tent 3: a dark tent with a striped awning stretched in front over a mat and cushions. */
+function tentAwning(p: Pen) {
+  yard(p, 0.9, 0.5);
+  const [x0, x1, yf, ya] = [-0.84, 0.5, 0.0, 0.62];
+  longTent(p, x0, x1, -0.86, yf, 26, 12, { color: C.tentCloth, patches: 2 }, 5);
+  p.rect(0xb8653e, x0 + 0.08, yf + 0.04, x1 - 0.1, ya - 0.06, 0, 0.9);
+  for (let x = x0 + 0.16; x < x1 - 0.1; x += 0.12) p.line(C.cream, 1, [x, yf + 0.04], [x, ya - 0.06], 0.45);
+  p.ball(C.gold, -0.5, 0.3, 3, 3.2);
+  p.ball(C.cream, -0.3, 0.36, 3, 3.2);
+  jar(p, 0.2, 0.3, 0, 3);
+  const aw: P3[] = [[x0, yf, 12], [x1, yf, 12], [x1, ya, 11], [x0, ya, 11]];
+  const n = 8;
+  for (let k = 0; k < n; k++) p.poly(k % 2 ? C.cream : 0x8a5d3b, subQuad(aw, k / n, (k + 1) / n, 0, 1), 0.95);
+  p.line(shade(C.cream, 0.7), 1, [x0, ya, 11], [x1, ya, 11]);
+  for (const x of [x0 + 0.03, x1 - 0.03]) {
+    p.line(C.wood, 2, [x, ya, 0], [x, ya, 12]);
+    p.line(C.rope, 1, [x, ya, 11], [x, ya + 0.24, 0], 0.9);
+  }
+  jars(p, 0.66, 0.2);
+}
+
+/** Tent 4: a gable tent with a big campfire, a cooking pot on a tripod and log seats. */
+function tentFire(p: Pen) {
+  yard(p, 0.9, 0.5);
+  gableTent(p, -0.38, -0.86, 0.22, 0.46, 29, { color: C.tentCloth, stripes: true }, 11);
+  logs(p, 0.25, -0.5, 0, 3);
+  p.line(C.wood, 4, [0.12, 0.26], [0.36, 0.2]);
+  p.line(C.wood, 4, [0.72, 0.42], [0.74, 0.66]);
+  campfire(p, 0.42, 0.52, true);
+  jars(p, -0.66, 0.5);
+}
+
+/** Tent 5: a long tent with two goats tethered to a stake and a manger of hay. */
+function tentGoats(p: Pen) {
+  yard(p, 0.9, 0.5);
+  longTent(p, -0.84, 0.4, -0.84, 0.02, 25, 11, { color: C.tentCloth, stripes: true, patches: 1 }, 6);
+  p.box(0.52, -0.6, 0.78, -0.2, 0, 6, C.wood);
+  p.rect(C.wheat, 0.55, -0.57, 0.75, -0.23, 6);
+  for (let k = 0; k < 5; k++) p.ball(shade(C.wheat, 0.9 + k * 0.05), 0.58 + (k % 3) * 0.07, -0.52 + k * 0.06, 7.5, 2);
+  const stake: P3 = [0.3, 0.5, 0];
+  p.line(C.woodDark, 2, stake, [0.3, 0.5, 7]);
+  p.line(C.rope, 1, [0.3, 0.5, 5], [0.0, 0.66, 6], 0.9);
+  p.line(C.rope, 1, [0.3, 0.5, 5], [0.62, 0.62, 6], 0.9);
+  goat(p, -0.02, 0.66, 0xe9ddc8, 0x6b4a30, -1);
+  goat(p, 0.64, 0.64, 0x4a3a2c, 0x2e231a, 1);
+  jar(p, -0.66, 0.46, 0, 3.4);
+}
+
+// ----- level 2: mud houses -----
+
+const MUD_H = 28;
+
+/** A mud-brick block with brick courses and a flat roof with a parapet. */
+function mudBlock(p: Pen, x0: number, y0: number, x1: number, y1: number, h: number, color = C.mud) {
+  p.box(x0, y0, x1, y1, 0, h, shade(color, 1.06), color, shade(color, 0.66));
+  bricks(p, x0, y0, x1, y1, 0, h, color);
+  roofTop(p, x0, y0, x1, y1, h, color);
+}
+
+/** Roof beam ends sticking out of the south face. */
+function beamEnds(p: Pen, x0: number, x1: number, y: number, h: number) {
+  for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.16) p.box(x, y, x + 0.05, y + 0.05, h - 6, h - 3, C.woodDark);
+}
+
+/** The one-room mud house: body, beam ends, door and a small window on both faces. */
+function mudRoom(p: Pen, x0: number, y0: number, x1: number, y1: number, h = MUD_H, door = 0.35) {
+  mudBlock(p, x0, y0, x1, y1, h);
+  beamEnds(p, x0, x1, y1, h);
+  const dx = x0 + (x1 - x0) * door;
+  p.southQuad(shade(C.mud, 0.8), y1 + 0.001, dx - 0.02, dx + 0.24, 0, 17);
+  doorS(p, y1, dx + 0.01, dx + 0.21, 15);
+  winS(p, y1, x1 - 0.2, 15, 0.1, 5);
+  winE(p, x1, y0 + 0.3, 15, 0.1, 5);
+}
+
+/** Low mud yard wall segment. */
+function mudWall(p: Pen, x0: number, y0: number, x1: number, y1: number, h = 9) {
+  p.box(x0, y0, x1, y1, 0, h, shade(C.mud, 0.98), shade(C.mud, 0.9), shade(C.mud, 0.64));
+}
+
+/** Mud 0: a plain cube with a rolled mat on the roof and a threshold stone. */
+function mudPlain(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.62, -0.66, 0.44, 0.3];
+  p.shadow(x0, y0, x1, y1, MUD_H);
+  mudRoom(p, x0, y0, x1, y1);
+  p.box(-0.3, -0.4, 0.0, -0.3, MUD_H, MUD_H + 3, C.red);
+  jar(p, 0.2, -0.45, MUD_H, 3);
+  p.box(-0.3, y1, 0.02, y1 + 0.1, 0, 1.5, C.rock);
+  jar(p, 0.58, 0.48, 0, 3.4);
+  p.disc(shade(C.rock, 0.8), -0.5, 0.56, 0, 0.1);
+  p.disc(C.rock, -0.5, 0.54, 3, 0.09);
+}
+
+/** Mud 1: the room with a lower side annex roofed with reeds for the animals. */
+function mudAnnex(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.86, -0.82, 0.08, 0.14];
+  p.shadow(x0, y0, x1, y1, MUD_H);
+  p.shadow(x1, -0.6, 0.78, 0.3, 17);
+  mudRoom(p, x0, y0, x1, y1, MUD_H, 0.25);
+  mudBlock(p, x1, -0.6, 0.78, 0.3, 16, shade(C.mud, 0.96));
+  reedTop(p, x1 - 0.02, -0.64, 0.82, 0.34, 16);
+  p.southQuad(HOLE, 0.301, 0.3, 0.56, 0, 11);
+  p.line(C.wood, 1.5, [0.3, 0.302, 5], [0.56, 0.302, 5]);
+  jar(p, -0.2, -0.55, MUD_H, 3);
+  p.rect(0xc9a46a, -0.66, -0.6, -0.36, -0.3, MUD_H);
+  p.ball(0xd8c08a, -0.62, 0.48, 4, 4.5);
+  p.ball(shade(0xd8c08a, 0.85), -0.5, 0.56, 3, 4);
+  goat(p, 0.5, 0.62, 0xe9ddc8, 0x6b4a30, 1);
+}
+
+/** Mud 2: a mud-brick stair against the east wall climbing to the roof. */
+function mudStair(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.82, -0.8, 0.22, 0.18];
+  p.shadow(x0, y0, x1 + 0.22, y1, MUD_H);
+  mudRoom(p, x0, y0, x1, y1, MUD_H, 0.3);
+  const n = 7;
+  const d = (y1 - y0 - 0.1) / n;
+  for (let k = n - 1; k >= 0; k--) {
+    const ya = y1 - (k + 1) * d;
+    p.box(x1, ya, x1 + 0.2, ya + d, 0, ((k + 1) * MUD_H) / n, shade(C.mud, 1.04), shade(C.mud, 0.92), shade(C.mud, 0.64));
+  }
+  p.rect(0xc9a46a, -0.65, -0.62, -0.25, -0.3, MUD_H);
+  for (let k = 0; k < 9; k++) p.ball(0x7a4f6a, -0.6 + (k % 3) * 0.13, -0.57 + Math.floor(k / 3) * 0.1, MUD_H + 1, 1.4);
+  person(p, -0.05, -0.2, MUD_H, 3, 0.8);
+  jars(p, 0.55, 0.45);
+  jar(p, -0.6, 0.5, 0, 3);
+}
+
+/** Mud 3: a big clay bread oven smoking in the front yard, with firewood and loaves. */
+function mudOven(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.86, -0.86, 0.2, 0.02];
+  p.shadow(x0, y0, x1, y1, MUD_H);
+  mudRoom(p, x0, y0, x1, y1);
+  jar(p, 0.0, -0.6, MUD_H, 3);
+  mudWall(p, 0.0, 0.16, 0.7, 0.24, 8);
+  // Round clay oven (tabun) with a glowing mouth and a lid on top.
+  dome(p, 0.36, 0.5, 0, 0.26, 15, shade(C.mud, 0.92));
+  p.disc(shade(C.mud, 0.7), 0.36, 0.5, 15, 0.07);
+  p.disc(0x2a1f17, 0.36, 0.5, 15.5, 0.045);
+  const m = p.p(0.26, 0.72, 4);
+  p.g.fillStyle(0x2a1f17);
+  p.g.fillEllipse(m.x, m.y, 8, 6);
+  p.g.fillStyle(0xe8742c);
+  p.g.fillEllipse(m.x, m.y + 1, 5, 3);
+  p.g.fillStyle(0xf6c84c);
+  p.g.fillEllipse(m.x, m.y + 1.4, 2.4, 1.4);
+  smoke(p, 0.36, 0.5, 14);
+  logs(p, 0.72, 0.1, 0, 3);
+  for (let k = 0; k < 3; k++) p.disc(shade(C.cream, 0.92 - k * 0.04), -0.3, 0.55, k * 1.4, 0.1);
+  p.box(-0.42, 0.44, -0.18, 0.66, 0, 0.1, C.wood);
+  jar(p, -0.66, 0.36, 0, 3.4);
+}
+
+/** Mud 4: a yard fenced with brushwood and thorns, with hens. */
+function mudFence(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.72, -0.86, 0.32, 0.0];
+  p.shadow(x0, y0, x1, y1, MUD_H);
+  mudRoom(p, x0, y0, x1, y1, MUD_H, 0.4);
+  jar(p, 0.1, -0.6, MUD_H, 3);
+  p.box(-0.5, -0.5, -0.2, -0.4, MUD_H, MUD_H + 3, C.clothes[1]);
+  hen(p, -0.2, 0.4, 0xe9ddc8);
+  hen(p, 0.1, 0.55, 0x9a6a40);
+  hen(p, 0.25, 0.3, 0xc28a5e);
+  jar(p, -0.55, 0.18, 0, 3.2);
+  const r = createRng(23);
+  const fence = (a: [number, number], b: [number, number]) => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(2, Math.round(len / 0.07));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const x = a[0] + (b[0] - a[0]) * t;
+      const y = a[1] + (b[1] - a[1]) * t;
+      const h = 8 + r() * 4;
+      const lean = (r() - 0.5) * 0.05;
+      p.line(k % 2 ? 0x7a5636 : 0x8f6a44, 1.5, [x, y, 0], [x + lean, y - lean, h]);
+      p.ball(0x6a6a3a, x + lean, y - lean, h, 1.4, 0.9);
+    }
+    p.line(0x6e4b2e, 1.5, [a[0], a[1], 5], [b[0], b[1], 5]);
+    p.line(0x6e4b2e, 1.2, [a[0], a[1], 8.5], [b[0], b[1], 8.5]);
+  };
+  fence([-0.86, 0.02], [-0.86, 0.86]);
+  fence([0.86, -0.7], [0.86, 0.86]);
+  fence([-0.86, 0.86], [-0.15, 0.86]);
+  fence([0.15, 0.86], [0.86, 0.86]);
+}
+
+/** Mud 5: the flat roof crowded with storage jars, and a big jar by the door. */
+function mudJars(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.76, -0.76, 0.36, 0.24];
+  p.shadow(x0, y0, x1, y1, MUD_H);
+  mudRoom(p, x0, y0, x1, y1, MUD_H, 0.5);
+  const spots: [number, number, number][] = [[-0.6, -0.6, 3.6], [-0.42, -0.6, 3.2], [-0.24, -0.62, 3.6], [-0.06, -0.6, 3], [0.14, -0.58, 3.4], [-0.6, -0.4, 3], [0.2, -0.38, 3.6], [-0.56, -0.2, 3.4], [0.16, -0.14, 3], [0.18, 0.06, 3.4]];
+  spots.forEach(([x, y, r], k) => jar(p, x, y, MUD_H, r, k % 3 === 1 ? shade(C.terracotta, 1.15) : C.terracotta));
+  p.rect(0xc9a46a, -0.4, -0.3, -0.05, 0.05, MUD_H);
+  for (let k = 0; k < 6; k++) p.ball(C.wheat, -0.34 + (k % 3) * 0.1, -0.24 + Math.floor(k / 3) * 0.14, MUD_H + 1, 1.8);
+  jar(p, -0.52, 0.42, 0, 5);
+  jar(p, 0.56, 0.5, 0, 3);
+}
+
+// ----- level 3: stone houses -----
+
+/**
+ * The stone base is pale limestone and takes up most of the wall, so a stone house reads as a light
+ * block with a thin mud-brick top even at the minimum zoom (a mud house is tan all the way up).
+ */
+const STONE_BASE = 26;
+const STONE_H = 38;
+/** Window sill height on the mud-brick upper part. */
+const STONE_WIN = 28;
+
+/** Pale limestone box: lit and shaded faces kept light so the stone reads against mud brick. */
+function paleStone(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number) {
+  p.box(x0, y0, x1, y1, z0, z1, C.limestone, shade(C.limestone, 0.97), shade(C.limestone, 0.74));
+}
+
+/** Stone ground floor with a mud-brick upper part (or all stone when h <= base). */
+function stoneBlock(p: Pen, x0: number, y0: number, x1: number, y1: number, base = STONE_BASE, h = STONE_H) {
+  paleStone(p, x0, y0, x1, y1, 0, Math.min(base, h));
+  masonry(p, x0, y0, x1, y1, 0, Math.min(base, h), C.stone, 0.75);
+  if (h > base) {
+    p.box(x0, y0, x1, y1, base, h, shade(C.mud, 1.08), C.mud, shade(C.mud, 0.66));
+    bricks(p, x0, y0, x1, y1, base, h, C.mud, 0.22);
+    // A dark joint where the mud brick sits on the stone.
+    p.line(p.south(C.mud, 0.5, 0.4), 1.2, [x0, y1, base], [x1, y1, base], 0.8);
+    p.line(p.east(C.mud, 0.5, 0.4), 1.2, [x1, y0, base], [x1, y1, base], 0.8);
+  }
+  roofTop(p, x0, y0, x1, y1, h, h > base ? C.mud : C.stone);
+}
+
+/** Low stone yard wall segment. */
+function stoneWall(p: Pen, x0: number, y0: number, x1: number, y1: number, h = 10) {
+  paleStone(p, x0, y0, x1, y1, 0, h);
+  masonry(p, x0, y0, x1, y1, 0, h, C.stone, 0.6);
+}
+
+/** Potted plant at height z. */
+function pot(p: Pen, x: number, y: number, z: number, size = 1) {
+  p.box(x - 0.06 * size, y - 0.06 * size, x + 0.06 * size, y + 0.06 * size, z, z + 4 * size, C.terracotta);
+  p.ball(C.leaf, x, y, z + 9 * size, 5 * size);
+  p.ball(shade(C.leaf, 1.3), x - 0.02, y - 0.02, z + 11 * size, 2 * size);
+}
+
+/** The usual stone house front: a door with a limestone lintel and framed windows. */
+function stoneFront(p: Pen, y0: number, x1: number, y1: number, door: number) {
+  p.southQuad(C.limestone, y1 + 0.002, door - 0.03, door + 0.19, 12, 15);
+  doorS(p, y1, door, door + 0.16, 12);
+  winS(p, y1, x1 - 0.28, STONE_WIN, 0.13, 7, C.limestone);
+  winE(p, x1, y0 + 0.3, STONE_WIN, 0.13, 7, C.limestone);
+}
+
+/** Stone 0: small framed windows, the outside stair and a bench by the door. */
+function stoneWindow(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.86, -0.86, 0.38, 0.16];
+  p.shadow(x0, y0, x1, y1, STONE_H);
+  stoneBlock(p, x0, y0, x1, y1);
+  stoneFront(p, y0, x1, y1, -0.2);
+  winS(p, y1, -0.55, STONE_WIN + 1, 0.08, 5, C.limestone);
+  winE(p, x1, -0.6, 8, 0.08, 4);
+  const steps = 8;
+  for (let k = 0; k < steps; k++) {
+    const sx = -0.86 + (steps - 1 - k) * 0.06;
+    p.box(sx, y1, sx + 0.06, y1 + 0.13, 0, ((k + 1) * STONE_H) / steps, C.limestone, shade(C.limestone, 0.94), shade(C.limestone, 0.7));
+  }
+  jars(p, -0.3, -0.6, STONE_H);
+  pot(p, 0.2, -0.1, STONE_H);
+  p.box(0.02, 0.36, 0.38, 0.46, 0, 5, C.stone);
+  jars(p, 0.58, 0.38);
+  p.ball(C.wheat, -0.42, 0.52, 4, 4);
+  p.ball(shade(C.wheat, 0.8), -0.42, 0.52, 2, 4);
+}
+
+/** Stone 1: two long clotheslines full of washing across the roof. */
+function stoneLaundry(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.74, -0.84, 0.5, 0.18];
+  p.shadow(x0, y0, x1, y1, STONE_H);
+  stoneBlock(p, x0, y0, x1, y1);
+  stoneFront(p, y0, x1, y1, -0.4);
+  clothesline(p, [-0.62, -0.72], [0.4, -0.72], STONE_H, [C.clothes[0], C.cream, C.clothes[1], C.clothes[2]]);
+  clothesline(p, [-0.62, -0.18], [0.4, -0.18], STONE_H, [C.cream, C.clothes[3], C.clothes[0], C.cream]);
+  cylinder(p, 0.0, -0.45, 0.1, STONE_H, STONE_H + 5, 0xb08a52);
+  p.ball(C.cream, 0.0, -0.45, STONE_H + 6, 3);
+  jars(p, 0.6, 0.4);
+  jar(p, -0.55, 0.4, 0, 3.4);
+}
+
+/** Stone 2: a grapevine climbing the wall onto a pergola over the door. */
+function stoneVine(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.82, -0.86, 0.42, 0.06];
+  p.shadow(x0, y0, x1, y1, STONE_H);
+  stoneBlock(p, x0, y0, x1, y1);
+  stoneFront(p, y0, x1, y1, -0.15);
+  jars(p, -0.5, -0.6, STONE_H);
+  const py = 0.5;
+  p.box(-0.5, 0.26, -0.15, 0.36, 0, 5, C.stone);
+  for (const x of [-0.6, 0.3]) p.line(C.woodDark, 2, [x, py, 0], [x, py, 24]);
+  for (const x of [-0.6, -0.3, 0.0, 0.3]) p.line(C.wood, 1.5, [x, y1, 24], [x, py + 0.04, 24]);
+  p.line(C.wood, 2, [-0.62, py, 24], [0.32, py, 24]);
+  // Vine stem up the wall, leaves over the beams and the wall, hanging grapes.
+  p.line(0x6e4b2e, 2, [-0.62, y1 + 0.01, 0], [-0.6, y1 + 0.01, 24]);
+  const r = createRng(29);
+  for (let k = 0; k < 26; k++) {
+    const x = -0.64 + r() * 0.98;
+    const y = y1 + r() * (py - y1 + 0.05);
+    p.ball(k % 3 ? C.leaf : shade(C.leaf, 0.75), x, y, 24 + r() * 3, 3 + r() * 2);
+  }
+  for (let k = 0; k < 8; k++) p.ball(shade(C.leaf, 1.25), -0.6 + r() * 0.9, y1 + r() * 0.4, 27, 1.5);
+  for (let k = 0; k < 7; k++) {
+    const x = -0.62 + r() * 0.04;
+    p.ball(k % 2 ? C.leaf : shade(C.leaf, 0.8), x, y1 + 0.01, 4 + k * 3, 3);
+  }
+  for (const [x, y] of [[-0.4, 0.4], [-0.1, 0.3], [0.15, 0.45]] as const) {
+    p.ball(0x5e3a6a, x, y, 20, 2.4);
+    p.ball(0x7a4f86, x - 0.01, y - 0.01, 18, 1.8);
+  }
+  jars(p, 0.6, 0.45);
+}
+
+/** Stone 3: a tall arched doorway of dressed limestone with steps and potted plants. */
+function stoneArch(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.74, -0.78, 0.48, 0.24];
+  p.shadow(x0, y0, x1, y1, STONE_H);
+  stoneBlock(p, x0, y0, x1, y1);
+  const cx = -0.12;
+  const arch = (r: number, z0: number, color: number, dy: number) => {
+    const pts: P3[] = [[cx - r, y1 + dy, 0]];
+    for (let k = 0; k <= 12; k++) {
+      const a = Math.PI - (k / 12) * Math.PI;
+      pts.push([cx + Math.cos(a) * r, y1 + dy, z0 + Math.sin(a) * r * 32]);
+    }
+    pts.push([cx + r, y1 + dy, 0]);
+    p.poly(color, pts);
+  };
+  arch(0.2, 15, C.limestone, 0.002);
+  arch(0.14, 13, C.door, 0.003);
+  for (let k = 0; k < 7; k++) {
+    const a = Math.PI - (k / 6) * Math.PI;
+    p.line(shade(C.limestone, 0.75), 1, [cx + Math.cos(a) * 0.14, y1 + 0.004, 13 + Math.sin(a) * 4.5], [cx + Math.cos(a) * 0.2, y1 + 0.004, 15 + Math.sin(a) * 6.4]);
+  }
+  p.box(cx - 0.24, y1, cx + 0.24, y1 + 0.1, 0, 2.5, C.limestone);
+  p.box(cx - 0.18, y1 + 0.1, cx + 0.18, y1 + 0.18, 0, 1.2, C.limestone);
+  winS(p, y1, 0.22, STONE_WIN, 0.12, 7, C.limestone);
+  winE(p, x1, -0.4, STONE_WIN, 0.12, 7, C.limestone);
+  pot(p, cx - 0.36, y1 + 0.14, 0, 1.1);
+  pot(p, cx + 0.36, y1 + 0.14, 0, 1.1);
+  reedShade(p, -0.6, -0.66, -0.1, -0.2, STONE_H, 12);
+  jars(p, 0.15, -0.5, STONE_H);
+  jar(p, 0.62, 0.55, 0, 3.4);
+}
+
+/** Stone 4: two volumes, the tall house and a lower all-stone room with a roof terrace. */
+function stoneTwo(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.9, -0.9, 0.1, 0.02];
+  p.shadow(x0, y0, x1, y1, STONE_H + 4);
+  p.shadow(x1, -0.58, 0.8, 0.36, 20);
+  stoneBlock(p, x0, y0, x1, y1, STONE_BASE, STONE_H + 4);
+  p.southQuad(C.limestone, y1 + 0.002, -0.7, -0.48, 12, 15);
+  doorS(p, y1, -0.67, -0.51, 12);
+  winS(p, y1, -0.3, STONE_WIN + 2, 0.13, 7, C.limestone);
+  stoneBlock(p, x1, -0.58, 0.8, 0.36, 20, 20);
+  doorS(p, 0.36, 0.2, 0.36, 12, C.limestone);
+  winS(p, 0.36, 0.52, 9, 0.1, 5);
+  winE(p, 0.8, -0.3, 9, 0.12, 5);
+  for (let x = x1 + 0.08; x < 0.78; x += 0.12) p.box(x, 0.32, x + 0.06, 0.36, 20, 23, C.limestone);
+  p.rect(C.red, 0.2, -0.45, 0.6, -0.1, 20, 0.9);
+  for (let x = 0.24; x < 0.6; x += 0.08) p.line(C.cream, 1, [x, -0.45, 20], [x, -0.1, 20], 0.5);
+  jars(p, 0.55, 0.05, 20);
+  jars(p, -0.6, -0.7, STONE_H + 4);
+  pot(p, -0.2, -0.3, STONE_H + 4);
+  jar(p, -0.6, 0.45, 0, 3.4);
+}
+
+/** Stone 5: a small yard walled in fieldstone, with an olive tree and a gate. */
+function stoneYard(p: Pen) {
+  yard(p);
+  const [x0, y0, x1, y1] = [-0.86, -0.86, 0.3, 0.1];
+  p.shadow(x0, y0, x1, y1, STONE_H);
+  stoneWall(p, -0.86, y1, -0.76, 0.86);
+  stoneBlock(p, x0, y0, x1, y1);
+  stoneFront(p, y0, x1, y1, -0.4);
+  reedShade(p, -0.1, -0.84, 0.26, -0.36, STONE_H);
+  jars(p, -0.6, -0.6, STONE_H);
+  tree(p, 0.56, -0.42, 0, 0.95, C.olive);
+  p.box(-0.1, 0.36, 0.25, 0.46, 0, 5, C.stone);
+  jars(p, 0.5, 0.3);
+  stoneWall(p, 0.76, -0.4, 0.86, 0.86);
+  stoneWall(p, -0.86, 0.76, -0.16, 0.86);
+  stoneWall(p, 0.16, 0.76, 0.86, 0.86);
+  for (const x of [-0.16, 0.16]) p.box(x - 0.05, 0.74, x + 0.05, 0.88, 0, 14, C.limestone);
+}
+
+// ----- level 4: big limestone houses -----
+
+const TALL = 52;
+const WING = 26;
+
+/** Limewashed block. */
+function lime(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number) {
+  p.box(x0, y0, x1, y1, z0, z1, shade(C.limeWash, 1.04), shade(C.limeWash, 0.9), shade(C.limeWash, 0.64));
+}
+
+/** Two-storey limestone range: masonry below, a string course, windows above and a flat roof. */
+function upperRange(p: Pen, x0: number, y0: number, x1: number, y1: number, h = TALL) {
+  lime(p, x0, y0, x1, y1, 0, h);
+  masonry(p, x0, y0, x1, y1, 0, 22, shade(C.limeWash, 0.95), 0.6);
+  p.line(p.south(C.limeWash, 0.8, 0.5), 1.5, [x0, y1, 24], [x1, y1, 24]);
+  p.line(p.east(C.limeWash, 0.8, 0.5), 1.5, [x1, y0, 24], [x1, y1, 24]);
+  roofTop(p, x0, y0, x1, y1, h, C.limeWash);
+  for (let x = x0 + 0.24; x < x1 - 0.15; x += 0.44) {
+    winS(p, y1, x, 33.5, 0.1, 9.5, C.limestone);
+    p.southQuad(C.woodDark, y1 + 0.004, x + 0.04, x + 0.06, 33.5, 43);
+  }
+  for (let y = y0 + 0.2; y < y1 - 0.15; y += 0.44) winE(p, x1, y, 33.5, 0.1, 9.5, C.limestone);
+}
+
+/** Single-storey limestone wing. */
+function wing(p: Pen, x0: number, y0: number, x1: number, y1: number, h = WING) {
+  lime(p, x0, y0, x1, y1, 0, h);
+  masonry(p, x0, y0, x1, y1, 0, 12, shade(C.limeWash, 0.95), 0.6);
+  roofTop(p, x0, y0, x1, y1, h, C.limeWash);
+  for (let x = x0 + 0.16; x < x1 - 0.1; x += 0.5) winS(p, y1, x, 14, 0.09, 6);
+  for (let y = y0 + 0.3; y < y1 - 0.1; y += 0.5) winE(p, x1, y, 14, 0.09, 6);
+}
+
+/** Front wall with a gate under a stone lintel. */
+function gateWall(p: Pen, x0: number, x1: number, y0: number, y1: number, gate = 0) {
+  lime(p, x0, y0, gate - 0.12, y1, 0, 16);
+  lime(p, gate + 0.12, y0, x1, y1, 0, 16);
+  p.box(gate - 0.14, y0, gate + 0.14, y1, 15, 20, C.limestone, shade(C.limestone, 0.88), shade(C.limestone, 0.66));
+  p.southQuad(C.wood, y1 + 0.002, gate - 0.12, gate + 0.12, 0, 15);
+  p.line(C.woodDark, 1, [gate, y1 + 0.003, 0], [gate, y1 + 0.003, 15]);
+}
+
+/** Striped awning on poles at height z. */
+function awning(p: Pen, x0: number, y0: number, x1: number, y1: number, z: number, n = 7) {
+  for (const [x, y] of [[x1 - 0.03, y0 + 0.03], [x1 - 0.03, y1 - 0.03]] as const) p.line(C.woodDark, 1.5, [x, y, z], [x, y, z + 12]);
+  for (let k = 0; k < n; k++) {
+    const ya = y0 + (k * (y1 - y0)) / n;
+    const yb = ya + (y1 - y0) / n;
+    p.poly(k % 2 ? C.cream : C.red, [[x0, ya, z + 16], [x1, ya, z + 11], [x1, yb, z + 11], [x0, yb, z + 16]]);
+  }
+}
+
+interface Courtyard {
+  tree?: boolean;
+  bigAwning?: boolean;
+}
+
+/**
+ * The "four-room house": a two-storey back range, pillared side wings and a front wall with a
+ * gate around an open courtyard.
+ */
+function fourRoom(p: Pen, o: Courtyard) {
   const s = 0.92;
-  const wing = 26;
-  const tall = 52;
-  const wall = C.limeWash;
-  const back = -0.22; // front edge of the back range
-  const cx0 = -0.36; // courtyard west edge
-  const cx1 = 0.36; // courtyard east edge
-  const front = 0.74; // inner edge of the front wall
-  const lime = (a: number, b: number, c: number, d: number, z0: number, z1: number) =>
-    p.box(a, b, c, d, z0, z1, shade(wall, 1.04), shade(wall, 0.9), shade(wall, 0.64));
-  p.shadow(-s, -s, s, back, tall);
-  p.shadow(-s, back, s, s, wing);
-  // Back range: stone ground floor, plastered upper floor with windows.
-  lime(-s, -s, s, back, 0, tall);
-  masonry(p, -s, -s, s, back, 0, 22, shade(wall, 0.95), 0.6);
-  p.line(shade(wall, 0.8), 1.5, [-s, back, 24], [s, back, 24]);
-  p.line(shade(wall, 0.5), 1.5, [s, -s, 24], [s, back, 24]);
-  roofTop(p, -s, -s, s, back, tall, wall);
-  for (const x of [-0.25, -0.03, 0.19]) {
-    p.southQuad(C.limestone, back + 0.002, x - 0.02, x + 0.12, 32, 45);
-    p.southQuad(0x3a2818, back + 0.003, x, x + 0.1, 33.5, 43);
-    p.southQuad(C.woodDark, back + 0.004, x + 0.04, x + 0.06, 33.5, 43);
-  }
-  for (const y of [-0.78, -0.5]) {
-    p.eastQuad(C.limestone, s + 0.002, y - 0.02, y + 0.12, 32, 45);
-    p.eastQuad(0x3a2818, s + 0.003, y, y + 0.1, 33.5, 43);
-  }
-  // Courtyard floor with oven, cistern mouth and jars.
+  const [back, cx0, cx1, front] = [-0.22, -0.36, 0.36, 0.74];
+  p.shadow(-s, -s, s, back, TALL);
+  p.shadow(-s, back, s, s, WING);
+  upperRange(p, -s, -s, s, back);
   p.rect(shade(C.sand[0], 0.94), cx0, back, cx1, front);
   for (let y = back + 0.16; y < front; y += 0.16) p.line(shade(C.sand[0], 0.84), 1, [cx0, y], [cx1, y], 0.5);
   dome(p, 0.2, -0.05, 0, 0.11, 11, shade(C.mud, 0.9));
   p.ball(0x2a1f17, 0.15, 0.04, 4, 1.8);
   p.disc(C.stone, -0.18, 0.5, 0, 0.1);
   p.disc(0x2a3a44, -0.18, 0.5, 1, 0.055);
-  jar(p, 0.24, 0.55, 0, 3);
-  jar(p, 0.14, 0.62, 0, 2.6);
+  jars(p, 0.14, 0.52);
   // West wing with stone pillars opening onto the courtyard.
-  lime(-s, back, cx0, s, 0, wing);
-  masonry(p, -s, back, cx0, s, 0, 12, shade(wall, 0.95), 0.6);
+  wing(p, -s, back, cx0, s);
   for (let y = back + 0.06; y < front - 0.1; y += 0.24) p.eastQuad(0x4a3a2c, cx0 + 0.002, y + 0.06, y + 0.2, 0, 17);
-  roofTop(p, -s, back, cx0, s, wing, wall);
-  p.southQuad(0x3a2818, s + 0.002, -0.78, -0.66, 13, 20);
-  p.southQuad(0x3a2818, s + 0.002, -0.54, -0.42, 13, 20);
-  // Fig tree in the courtyard.
-  tree(p, -0.06, 0.18, 0, 1.15, C.leaf);
-  // Front wall with a gate and a stone lintel.
-  lime(cx0, front, -0.12, s, 0, 16);
-  lime(0.12, front, cx1, s, 0, 16);
-  p.box(-0.14, front, 0.14, s, 15, 20, C.limestone, shade(C.limestone, 0.88), shade(C.limestone, 0.66));
-  p.southQuad(C.wood, s + 0.002, -0.12, 0.12, 0, 15);
-  p.line(C.woodDark, 1, [0, s + 0.003, 0], [0, s + 0.003, 15]);
-  // East wing.
-  lime(cx1, back, s, s, 0, wing);
-  masonry(p, cx1, back, s, s, 0, 12, shade(wall, 0.95), 0.6);
-  roofTop(p, cx1, back, s, s, wing, wall);
-  p.southQuad(0x3a2818, s + 0.002, 0.5, 0.62, 13, 20);
-  p.southQuad(0x3a2818, s + 0.002, 0.72, 0.84, 13, 20);
-  p.eastQuad(0x3a2818, s + 0.002, 0.1, 0.22, 13, 20);
-  p.eastQuad(0x3a2818, s + 0.002, 0.45, 0.57, 13, 20);
-  // Roof life: striped awning and clothesline up top, plants, jars and drying flax on the wings.
-  for (const [x, y] of [[0.84, -0.84], [0.84, -0.32]] as const) p.line(C.woodDark, 1.5, [x, y, tall], [x, y, tall + 12]);
-  const stripes = 7;
-  for (let k = 0; k < stripes; k++) {
-    const y0 = -0.86 + (k * 0.58) / stripes;
-    const y1 = y0 + 0.58 / stripes;
-    p.poly(k % 2 ? C.cream : C.red, [[0.36, y0, tall + 16], [0.86, y0, tall + 11], [0.86, y1, tall + 11], [0.36, y1, tall + 16]]);
+  if (o.tree) tree(p, -0.04, 0.22, 0, 1.55, C.leaf);
+  else {
+    // A loom with a half-woven cloth.
+    for (const x of [-0.2, 0.1]) p.line(C.woodDark, 1.5, [x, 0.2, 0], [x, 0.2, 18]);
+    p.line(C.wood, 2, [-0.22, 0.2, 18], [0.12, 0.2, 18]);
+    p.poly(C.clothes[1], [[-0.18, 0.2, 17], [0.08, 0.2, 17], [0.08, 0.2, 9], [-0.18, 0.2, 9]]);
+    for (let k = 0; k < 5; k++) p.ball(0x6e6e6e, -0.16 + k * 0.06, 0.2, 2, 1.5);
   }
-  p.rect(C.red, 0.42, -0.8, 0.78, -0.4, tall, 0.85);
-  clothesline(p, [-0.78, -0.76], [-0.78, -0.34], tall, [C.clothes[3], C.clothes[2], C.cream]);
-  jar(p, -0.3, -0.62, tall, 3.4);
-  jar(p, -0.18, -0.7, tall, 2.8);
-  p.box(-0.8, 0.5, -0.62, 0.68, wing, wing + 4, C.terracotta);
-  p.ball(C.leaf, -0.71, 0.59, wing + 10, 6);
-  p.ball(shade(C.leaf, 1.3), -0.74, 0.56, wing + 12, 2.4);
-  p.rect(0xd8c58a, -0.82, -0.1, -0.46, 0.3, wing);
-  for (let y = -0.06; y < 0.3; y += 0.06) p.line(0xb8a46a, 1, [-0.8, y, wing], [-0.48, y, wing], 0.8);
-  jar(p, 0.62, 0.62, wing, 3);
-  jar(p, 0.76, 0.5, wing, 3);
-  p.box(0.5, 0.0, 0.8, 0.2, wing, wing + 3, C.red);
+  gateWall(p, cx0, cx1, front, s);
+  wing(p, cx1, back, s, s);
+  // Roof life.
+  if (o.bigAwning) {
+    awning(p, -0.86, -0.88, 0.86, -0.28, TALL, 11);
+    for (const [x, c] of [[-0.6, C.gold], [-0.3, C.clothes[1]], [0.1, C.cream]] as const) p.box(x, -0.7, x + 0.16, -0.5, TALL, TALL + 3, c);
+    p.rect(C.red, -0.82, 0.4, -0.42, 0.8, WING, 0.9);
+    awning(p, 0.4, -0.15, 0.88, 0.6, WING, 6);
+  } else {
+    awning(p, 0.36, -0.86, 0.86, -0.28, TALL);
+    p.rect(C.red, 0.42, -0.8, 0.78, -0.4, TALL, 0.85);
+    clothesline(p, [-0.78, -0.76], [-0.78, -0.34], TALL, [C.clothes[3], C.clothes[2], C.cream]);
+    jars(p, -0.3, -0.7, TALL);
+    pot(p, -0.71, 0.59, WING, 1.2);
+    p.rect(0xd8c58a, -0.82, -0.1, -0.46, 0.3, WING);
+    for (let y = -0.06; y < 0.3; y += 0.06) p.line(0xb8a46a, 1, [-0.8, y, WING], [-0.48, y, WING], 0.8);
+    jars(p, 0.62, 0.5, WING);
+  }
 }
+
+/** Big 0: the classic courtyard house, with a loom, oven and cistern in the court. */
+const bigCourt = (p: Pen) => fourRoom(p, {});
+/** Big 1: a large fig tree rising out of the courtyard. */
+const bigTree = (p: Pen) => fourRoom(p, { tree: true });
+/** Big 2: a wide striped awning shading the whole upper roof. */
+const bigAwning = (p: Pen) => fourRoom(p, { bigAwning: true });
+
+/** Big 3: a compact two-storey block with a grand outside staircase and a walled forecourt. */
+function bigStair(p: Pen) {
+  yard(p, 0.9);
+  const [x0, y0, x1, y1] = [-0.9, -0.92, 0.55, 0.0];
+  p.shadow(x0, y0, x1, y1, TALL);
+  p.shadow(x1, -0.92, 0.92, 0.2, 24);
+  upperRange(p, x0, y0, x1, y1, 50);
+  doorS(p, y1, 0.2, 0.36, 15, C.limestone);
+  wing(p, x1, -0.92, 0.92, 0.2, 24);
+  // Staircase rising westward along the south face to an upper door.
+  const steps = 10;
+  const sx0 = -0.85;
+  for (let k = 0; k < steps; k++) {
+    const sx = sx0 + (steps - 1 - k) * 0.07;
+    p.box(sx, y1, sx + 0.07, y1 + 0.18, 0, ((k + 1) * 24) / steps, shade(C.limestone, 1.02), shade(C.limestone, 0.88), shade(C.limestone, 0.62));
+  }
+  p.box(sx0, y1 + 0.18, sx0 + steps * 0.07, y1 + 0.21, 0, 4, C.limestone);
+  for (let k = 0; k < steps; k += 3) p.line(C.woodDark, 1, [sx0 + (steps - 1 - k) * 0.07, y1 + 0.2, ((k + 1) * 24) / steps], [sx0 + (steps - 1 - k) * 0.07, y1 + 0.2, ((k + 1) * 24) / steps + 6]);
+  awning(p, -0.4, -0.86, 0.5, -0.4, 50, 6);
+  jars(p, -0.75, -0.75, 50);
+  pot(p, -0.75, -0.25, 50);
+  pot(p, 0.75, -0.1, 24);
+  // Forecourt with a palm, jars and a stone bench behind a low wall.
+  jars(p, 0.2, 0.35);
+  p.box(-0.5, 0.4, -0.1, 0.5, 0, 5, C.limestone);
+  tree(p, 0.68, 0.45, 0, 0.9, C.olive);
+  lime(p, -0.92, 0.82, -0.15, 0.92, 0, 12);
+  lime(p, 0.15, 0.82, 0.92, 0.92, 0, 12);
+  for (const x of [-0.15, 0.15]) p.box(x - 0.05, 0.8, x + 0.05, 0.94, 0, 16, C.limestone);
+}
+
+/** Big 4: an L of a two-storey back range and a long west wing around an open yard. */
+function bigL(p: Pen) {
+  yard(p, 0.9);
+  const s = 0.92;
+  const back = -0.2;
+  p.shadow(-s, -s, s, back, TALL);
+  p.shadow(-s, back, -0.3, s, WING);
+  upperRange(p, -s, -s, s, back);
+  // Yard: cistern, trough, a donkey's manger and a fig tree.
+  p.disc(C.stone, 0.15, 0.1, 0, 0.13);
+  p.disc(0x2a3a44, 0.15, 0.1, 1, 0.07);
+  p.box(0.45, 0.0, 0.8, 0.15, 0, 6, C.stone);
+  p.rect(C.wheat, 0.48, 0.03, 0.77, 0.12, 6);
+  tree(p, 0.5, 0.45, 0, 1.1, C.leaf);
+  wing(p, -s, back, -0.3, s);
+  doorS(p, s, -0.75, -0.6, 14, C.limestone);
+  for (let y = back + 0.15; y < s - 0.1; y += 0.3) p.eastQuad(C.door, -0.3 + 0.002, y, y + 0.14, 0, 14);
+  reedShade(p, -0.85, 0.2, -0.38, 0.8, WING, 12);
+  jars(p, -0.7, -0.05, WING);
+  jars(p, -0.1, 0.45);
+  // Low wall closing the yard on the east and south.
+  lime(p, 0.84, back, s, s, 0, 12);
+  lime(p, -0.3, 0.84, 0.0, s, 0, 12);
+  lime(p, 0.3, 0.84, 0.84, s, 0, 12);
+  clothesline(p, [-0.78, -0.76], [0.2, -0.76], TALL, [C.clothes[0], C.cream, C.clothes[1], C.clothes[3]]);
+  jars(p, 0.55, -0.7, TALL);
+}
+
+/** Big 5: a two-storey house with a walled vegetable garden in rows in front. */
+function bigGarden(p: Pen) {
+  yard(p, 0.9);
+  const s = 0.92;
+  const back = -0.18;
+  p.shadow(-s, -s, s, back, TALL);
+  upperRange(p, -s, -s, s, back, 48);
+  doorS(p, back, -0.15, 0.02, 15, C.limestone);
+  p.rect(C.soilDark, -0.84, back + 0.06, 0.84, 0.84);
+  p.rect(0xc9b58a, -0.12, back + 0.06, 0.04, 0.84);
+  const r = createRng(61);
+  for (const [xa, xb] of [[-0.8, -0.18], [0.1, 0.8]] as const) {
+    for (let y = back + 0.16; y < 0.8; y += 0.14) {
+      p.rect(C.soil, xa, y - 0.04, xb, y + 0.04);
+      for (let x = xa + 0.05; x < xb; x += 0.09) {
+        const leaf = y < 0.3 ? C.leaf : xa < 0 ? 0x7fa65a : 0x5e8a3e;
+        p.ball(shade(leaf, 0.75), x, y, 1, 2.6 + r() * 0.8);
+        p.ball(leaf, x - 0.01, y - 0.01, 2.2, 2 + r() * 0.6);
+      }
+    }
+  }
+  for (const [x, y] of [[0.3, 0.6], [0.5, 0.46], [0.66, 0.6]] as const) p.ball(C.red, x, y, 2.5, 1.5);
+  tree(p, 0.68, 0.0, 0, 0.8, C.olive);
+  jars(p, -0.06, 0.4);
+  awning(p, 0.3, -0.86, 0.86, -0.3, 48, 6);
+  jars(p, -0.6, -0.7, 48);
+  pot(p, -0.2, -0.4, 48);
+  // Low garden wall with a gap.
+  lime(p, -s, back, -0.84, s, 0, 10);
+  lime(p, 0.84, back, s, s, 0, 10);
+  lime(p, -s, 0.84, -0.14, s, 0, 10);
+  lime(p, 0.06, 0.84, s, s, 0, 10);
+}
+
+/** Drawings of each house level and variant: [draw, canvas height above ground, balloon height]. */
+const HOUSE_ART: [((p: Pen) => void)[], number, number][] = [
+  [[plotStakes, plotStones], 16, 12],
+  [[tentStriped, tentPatched, tentDouble, tentAwning, tentFire, tentGoats], 36, 30],
+  [[mudPlain, mudAnnex, mudStair, mudOven, mudFence, mudJars], 44, 36],
+  [[stoneWindow, stoneLaundry, stoneVine, stoneArch, stoneTwo, stoneYard], 62, 52],
+  [[bigCourt, bigTree, bigAwning, bigStair, bigL, bigGarden], 80, 64],
+];
 
 // ---------- other buildings ----------
 
-/** Field (2 x 2): a terrace of ploughed soil held by a fieldstone wall; wheat tufts are sprites. */
-function field(p: Pen) {
+/** Crops of the field variants, in order: their soil and the tuft sprite drawn over each row. */
+const CROPS = [
+  { soil: C.soil, draw: wheat },
+  { soil: C.soil, draw: barley },
+  { soil: 0x6e4a2c, draw: lentils },
+  { soil: 0x8f6a44, draw: flax },
+];
+
+/**
+ * Field (2 x 2): a terrace of ploughed soil held by a fieldstone wall; the crop tufts are sprites.
+ * Variant 3 (flax) has a small water channel along its front edge.
+ */
+function field(p: Pen, v: number) {
   const s = 0.96;
   const z = PARTS.wheat[0].z;
+  const soil = CROPS[v].soil;
   p.shadow(-s, -s, s, s, z);
   rubble(p, -s, -s, s, s, 0, z, C.rock, 41, 4);
-  p.rect(C.soilDark, -s + 0.04, -s + 0.04, s - 0.04, s - 0.04, z);
-  p.rect(C.soil, -s + 0.1, -s + 0.1, s - 0.1, s - 0.1, z);
+  p.rect(shade(soil, 0.78), -s + 0.04, -s + 0.04, s - 0.04, s - 0.04, z);
+  p.rect(soil, -s + 0.1, -s + 0.1, s - 0.1, s - 0.1, z);
   const rows = [...new Set(PARTS.wheat.map((w) => w.y))];
   for (const y of rows) {
-    p.rect(shade(C.soil, 0.82), -s + 0.12, y - 0.03, s - 0.12, y + 0.1, z);
-    p.line(shade(C.soil, 1.18), 1.2, [-s + 0.12, y - 0.08, z], [s - 0.12, y - 0.08, z], 0.7);
+    p.rect(shade(soil, 0.82), -s + 0.12, y - 0.03, s - 0.12, y + 0.1, z);
+    p.line(shade(soil, 1.18), 1.2, [-s + 0.12, y - 0.08, z], [s - 0.12, y - 0.08, z], 0.7);
+  }
+  if (v === 3) {
+    p.rect(shade(C.stone, 0.8), -s + 0.12, s - 0.2, s - 0.12, s - 0.1, z);
+    p.rect(C.water, -s + 0.14, s - 0.18, s - 0.14, s - 0.12, z, 0.95);
+    p.line(C.waterLight, 1, [-s + 0.3, s - 0.16, z], [-s + 0.6, s - 0.16, z], 0.8);
+    p.line(C.waterLight, 1, [0.2, s - 0.15, z], [0.45, s - 0.15, z], 0.8);
   }
   // Grass tufts along the terrace edge.
   const r = createRng(43);
@@ -870,7 +1578,7 @@ function field(p: Pen) {
   }
 }
 
-/** A cluster of five wheat stalks. */
+/** A cluster of five wheat stalks with fat golden ears. */
 function wheat(g: G) {
   g.lineStyle(1.3, C.wheatStem, 1);
   const tips: [number, number][] = [[3, 8], [7, 4], [11, 3], [15, 5], [19, 9]];
@@ -881,6 +1589,53 @@ function wheat(g: G) {
   tips.forEach(([x, y]) => g.fillEllipse(x, y, 3.2, 7));
   g.fillStyle(shade(C.wheat, 1.3));
   tips.forEach(([x, y]) => g.fillEllipse(x - 0.6, y - 1, 1.2, 3.5));
+}
+
+/** A dense tuft of barley: pale green-yellow nodding heads with long whiskers. */
+function barley(g: G) {
+  const head = 0xcdd07a;
+  const tips: [number, number][] = [[2, 10], [5, 7], [8, 5], [11, 4], [14, 5], [17, 7], [20, 10]];
+  g.lineStyle(1.2, 0x9aa04a, 1);
+  tips.forEach(([x, y]) => g.lineBetween(11, 21, x, y + 2));
+  tips.forEach(([x, y], k) => {
+    const d = k < 3 ? -1 : 1;
+    g.fillStyle(shade(head, 0.8));
+    g.fillEllipse(x + d * 1.2, y + 1.5, 3, 6);
+    g.fillStyle(head);
+    g.fillEllipse(x + d * 0.8, y + 1, 2.6, 5.5);
+    g.lineStyle(1, shade(head, 1.2), 0.9);
+    g.lineBetween(x + d * 0.8, y - 1, x + d * 3, y - 5);
+    g.lineBetween(x + d * 0.3, y - 1, x + d * 0.8, y - 5.5);
+  });
+}
+
+/** A low mound of lentil plants with pale pods. */
+function lentils(g: G) {
+  const leaf = 0x5e8a3a;
+  const blobs: [number, number, number][] = [[5, 17, 4.5], [11, 15, 5.5], [17, 17, 4.5], [8, 19, 4], [14, 19, 4]];
+  g.fillStyle(shade(leaf, 0.7));
+  blobs.forEach(([x, y, r]) => g.fillCircle(x, y + 1, r));
+  g.fillStyle(leaf);
+  blobs.forEach(([x, y, r]) => g.fillCircle(x - 0.5, y - 0.5, r * 0.85));
+  g.fillStyle(shade(leaf, 1.35));
+  blobs.forEach(([x, y, r]) => g.fillCircle(x - 1.5, y - 2, r * 0.35));
+  g.fillStyle(0xd8d08a);
+  [[7, 15], [12, 12], [15, 16], [10, 18]].forEach(([x, y]) => g.fillEllipse(x, y, 2.4, 1.4));
+}
+
+/** Slender flax stalks topped with small blue flowers. */
+function flax(g: G) {
+  const tips: [number, number][] = [[4, 6], [7, 3], [10, 5], [13, 2], [16, 5], [19, 7]];
+  g.lineStyle(1, 0x6f9040, 1);
+  tips.forEach(([x, y]) => g.lineBetween(11, 21, x, y + 1));
+  g.fillStyle(0x6f9040);
+  tips.forEach(([x, y]) => g.fillEllipse((x + 11) / 2, (y + 21) / 2, 1.6, 3));
+  tips.forEach(([x, y], k) => {
+    g.fillStyle(k % 3 === 2 ? 0xe9ecf6 : 0x6f8fe0);
+    g.fillCircle(x, y, 2.2);
+    g.fillStyle(0xf2e27a);
+    g.fillCircle(x, y, 0.7);
+  });
 }
 
 /** Well (2 x 2): a paved stone platform, a round well head with a pulley frame and a trough. */
@@ -1043,32 +1798,75 @@ function market(p: Pen, rotated: boolean) {
   layers.flush();
 }
 
-/**
- * Potter's workshop (3 x 3): a mud-brick workroom, a domed kiln with a chimney (smoke comes from
- * PARTS.chimney), a reed shade over the wheel, rows of pots drying in the walled yard and firewood.
- */
-function workshop(p: Pen) {
-  const s = 1.46;
-  const wallH = 10;
-  const mud = 0xd2a26a;
-  p.rect(shade(C.sand[0], 0.88), -s, -s, s, s, 0, 0.9);
-  p.box(-s, -s, -s + 0.1, s, 0, wallH, shade(mud, 0.95));
-  p.box(-s + 0.1, -s, s, -s + 0.1, 0, wallH, shade(mud, 0.95));
-  // Workroom.
-  const [x0, y0, x1, y1, h] = [-1.36, -1.36, 0.2, -0.3, 32];
+// ---------- workshops (3 x 3: local x, y in [-1.5, 1.5]) ----------
+// One drawing per craft, each with its own dominant shape and colour so they read apart zoomed
+// out: orange kiln and pots, dark forge with a red glow, yellow timber stacks, a loom under a
+// striped awning, round vats of blue, red and yellow, tan hides on frames.
+
+const WS = 1.46;
+const WS_WALL = 10;
+const WS_MUD = 0xd2a26a;
+
+/** Trodden yard and the back (north and west) walls. */
+function workBack(p: Pen, ground = shade(C.sand[0], 0.88)) {
+  p.rect(ground, -WS, -WS, WS, WS, 0, 0.9);
+  p.box(-WS, -WS, -WS + 0.1, WS, 0, WS_WALL, shade(WS_MUD, 0.95));
+  p.box(-WS + 0.1, -WS, WS, -WS + 0.1, 0, WS_WALL, shade(WS_MUD, 0.95));
+}
+
+/** Front (south) and east yard walls with a gate in the middle of the front. */
+function workFront(p: Pen) {
+  const s = WS;
+  p.box(s - 0.1, -s, s, s, 0, WS_WALL, shade(WS_MUD, 0.95));
+  p.box(-s, s - 0.1, -0.35, s, 0, WS_WALL, shade(WS_MUD, 0.95));
+  p.box(0.35, s - 0.1, s, s, 0, WS_WALL, shade(WS_MUD, 0.95));
+  for (const x of [-0.35, 0.35]) p.box(x - 0.05, s - 0.12, x + 0.05, s, 0, WS_WALL + 4, shade(WS_MUD, 1.05));
+}
+
+/** Mud-brick workroom with a flat roof, beam ends, a door and two small windows. */
+function workroom(p: Pen, x0: number, y0: number, x1: number, y1: number, h: number, color = WS_MUD) {
   p.shadow(x0, y0, x1, y1, h);
-  p.box(x0, y0, x1, y1, 0, h, shade(mud, 1.06), mud, shade(mud, 0.66));
-  bricks(p, x0, y0, x1, y1, 0, h, mud);
-  roofTop(p, x0, y0, x1, y1, h, mud);
+  p.box(x0, y0, x1, y1, 0, h, shade(color, 1.06), color, shade(color, 0.66));
+  bricks(p, x0, y0, x1, y1, 0, h, color);
+  roofTop(p, x0, y0, x1, y1, h, color);
   for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.18) p.box(x, y1, x + 0.05, y1 + 0.05, h - 6, h - 3, C.woodDark);
-  p.southQuad(0x3a2c20, y1 + 0.002, -0.7, -0.38, 0, 18);
-  p.southQuad(0x3a2818, y1 + 0.002, -0.15, 0.0, 16, 22);
-  p.eastQuad(0x3a2818, x1 + 0.002, -0.95, -0.78, 16, 22);
-  // Finished pots stacked on the roof.
+  const mid = (x0 + x1) / 2;
+  p.southQuad(0x3a2c20, y1 + 0.002, mid - 0.24, mid + 0.08, 0, 18);
+  p.southQuad(HOLE, y1 + 0.002, x1 - 0.3, x1 - 0.15, h - 16, h - 10);
+  p.eastQuad(HOLE, x1 + 0.002, (y0 + y1) / 2 - 0.08, (y0 + y1) / 2 + 0.08, h - 16, h - 10);
+}
+
+/** Quad standing on the plane y = const (a loom, a frame, a hanging cloth), lit like a south face. */
+function standS(p: Pen, color: number, y: number, x0: number, x1: number, z0: number, z1: number) {
+  p.southQuad(p.south(color, 1, 0.78), y, x0, x1, z0, z1);
+}
+
+/** Glowing coals: a dark bed with orange and yellow embers and a soft halo. */
+function embers(p: Pen, x: number, y: number, z: number, r: number, seed: number) {
+  const rng = createRng(seed);
+  p.disc(0x2a1f17, x, y, z, r);
+  const c = p.p(x, y, z);
+  for (let i = 3; i >= 1; i--) {
+    p.g.fillStyle(0xf06a28, 0.22 * (4 - i));
+    p.g.fillCircle(c.x, c.y - 1, i * 3.4);
+  }
+  for (let k = 0; k < 10; k++)
+    p.ball(k % 3 ? 0xe8502a : 0xf6c84c, x + (rng() - 0.5) * r * 1.4, y + (rng() - 0.5) * r * 1.4, z + 0.5, 1.4 + rng());
+}
+
+/**
+ * Potter (0): a mud-brick workroom, a domed kiln with a chimney (smoke and glow from
+ * PARTS.craftFire), a reed shade over the wheel, rows of pots drying in the yard and firewood.
+ */
+function workPottery(p: Pen) {
+  const mud = WS_MUD;
+  workBack(p);
+  const [x0, y0, x1, y1, h] = [-1.36, -1.36, 0.2, -0.3, 32];
+  workroom(p, x0, y0, x1, y1, h);
   for (const [x, y] of [[-1.1, -1.1], [-0.95, -1.15], [-1.0, -0.95], [-0.8, -1.0], [-0.85, -0.82]] as const) jar(p, x, y, h, 3.2);
   logs(p, -0.2, -0.75, h, 2);
   // Kiln: a round mud base with a dome and a chimney, glowing firing hole.
-  const k = PARTS.chimney;
+  const k = PARTS.craftFire.pottery!.smoke;
   p.shadow(k.x - 0.45, k.y - 0.45, k.x + 0.45, k.y + 0.45, 30, 0.18);
   cylinder(p, k.x, k.y, 0.46, 0, 12, shade(mud, 0.9));
   dome(p, k.x, k.y, 12, 0.46, 16, shade(mud, 0.9));
@@ -1089,20 +1887,382 @@ function workshop(p: Pen) {
   p.disc(shade(C.terracotta, 0.9), -0.62, 0.42, 5, 0.08);
   p.ball(C.terracotta, -0.62, 0.42, 8, 3);
   for (const [x, y] of [[sx0, sy0], [sx1, sy0], [sx0, sy1], [sx1, sy1]] as const) p.box(x, y, x + 0.04, y + 0.04, 0, sz, C.wood);
-  p.box(sx0 - 0.04, sy0 - 0.04, sx1 + 0.08, sy1 + 0.08, sz, sz + 2, 0xc2a463, 0xa98a4c, 0x8a6f3a);
+  p.box(sx0 - 0.04, sy0 - 0.04, sx1 + 0.08, sy1 + 0.08, sz, sz + 2, REED[0], REED[1], REED[2]);
   for (let y = sy0; y < sy1 + 0.05; y += 0.07) p.line(0x9c7f45, 1, [sx0 - 0.04, y, sz + 2], [sx1 + 0.08, y, sz + 2], 0.7);
-  // Rows of pots drying in the yard.
+  // Rows of big storage jars and pots drying in the yard.
   for (let row = 0; row < 3; row++) {
-    for (let i = 0; i < 4; i++) jar(p, 0.15 + i * 0.26, 0.25 + row * 0.3, 0, row === 1 ? 3.6 : 3, row === 2 ? shade(C.terracotta, 1.15) : C.terracotta);
+    for (let i = 0; i < 4; i++) jar(p, 0.15 + i * 0.26, 0.25 + row * 0.3, 0, row === 1 ? 4 : 3.4, row === 2 ? shade(C.terracotta, 1.15) : C.terracotta);
   }
   p.disc(0x8a5a3a, -0.05, 1.1, 0, 0.18);
   p.disc(0x6e4630, -0.05, 1.1, 0.5, 0.12);
-  // Front and east yard walls with a gate.
-  p.box(s - 0.1, -s, s, s, 0, wallH, shade(mud, 0.95));
-  p.box(-s, s - 0.1, -0.35, s, 0, wallH, shade(mud, 0.95));
-  p.box(0.35, s - 0.1, s, s, 0, wallH, shade(mud, 0.95));
-  for (const x of [-0.35, 0.35]) p.box(x - 0.05, s - 0.12, x + 0.05, s, 0, wallH + 4, shade(mud, 1.05));
+  workFront(p);
 }
+
+/** Hanging smith's tool: tongs, a hammer, a sickle or an axe, from a bar at height z. */
+function hangingTool(p: Pen, x: number, y: number, z: number, kind: number) {
+  const iron = 0x3e3b38;
+  const lit = 0x8c8780;
+  p.line(C.rope, 1, [x, y, z], [x, y, z - 3]);
+  if (kind === 0) {
+    p.line(iron, 1.6, [x - 0.02, y, z - 3], [x - 0.05, y, z - 15]);
+    p.line(iron, 1.6, [x + 0.02, y, z - 3], [x + 0.05, y, z - 15]);
+  } else if (kind === 1) {
+    p.line(C.woodDark, 2, [x, y, z - 3], [x, y, z - 14]);
+    p.box(x - 0.06, y - 0.02, x + 0.06, y + 0.02, z - 17, z - 13, iron, lit, iron);
+  } else if (kind === 2) {
+    p.line(C.woodDark, 2, [x, y, z - 3], [x, y, z - 8]);
+    const c = p.p(x, y, z - 13);
+    p.g.lineStyle(2, lit);
+    p.g.beginPath();
+    p.g.arc(c.x + 2, c.y, 5, Math.PI * 0.6, Math.PI * 1.9, false);
+    p.g.strokePath();
+  } else {
+    p.line(C.woodDark, 2, [x, y, z - 3], [x, y, z - 15]);
+    p.poly(lit, [[x, y, z - 5], [x + 0.1, y, z - 3], [x + 0.1, y, z - 10], [x, y, z - 8]]);
+  }
+}
+
+/**
+ * Smithy (1): a rough-stone workroom with a sooty roof, a stone forge with a tall chimney and a
+ * glowing coal bed, leather bellows, a big anvil on a stump with a red-hot bar, a rack of hanging
+ * tools, a heap of charcoal and a quenching trough.
+ */
+function workSmithy(p: Pen) {
+  const stone = 0xb4a48a;
+  const soot = 0x4a423a;
+  workBack(p, shade(C.sand[0], 0.8));
+  p.disc(soot, 0.55, -0.4, 0, 0.75, 0.35);
+  p.disc(soot, 0.3, 0.3, 0, 0.5, 0.3);
+  // Workroom.
+  const [x0, y0, x1, y1, h] = [-1.36, -1.36, -0.15, -0.55, 26];
+  p.shadow(x0, y0, x1, y1, h);
+  rubble(p, x0, y0, x1, y1, 0, h, stone, 21);
+  p.rect(shade(soot, 1.1), x0 + 0.04, y0 + 0.04, x1 - 0.04, y1 - 0.04, h, 0.85);
+  p.southQuad(0x2a2018, y1 + 0.002, -0.95, -0.65, 0, 17);
+  logs(p, -0.35, -1.0, h, 2);
+  // Forge: a stone hearth with coals, a tall chimney at its back and bellows on the west side.
+  const gl = PARTS.craftFire.smithy!.glow;
+  const sm = PARTS.craftFire.smithy!.smoke;
+  const [fx0, fy0, fx1, fy1] = [0.3, -1.34, 1.3, -0.5];
+  p.shadow(fx0, fy0, fx1, fy1, 40, 0.2);
+  rubble(p, fx0, fy0 + 0.25, fx1, fy1, 0, gl.z, stone, 23);
+  embers(p, gl.x, gl.y + 0.05, gl.z, 0.24, 9);
+  rubble(p, sm.x - 0.2, sm.y - 0.2, sm.x + 0.2, sm.y + 0.2, gl.z, sm.z, stone, 22, 6);
+  p.rect(0x1e1814, sm.x - 0.13, sm.y - 0.13, sm.x + 0.13, sm.y + 0.13, sm.z);
+  // Firing mouth on the front of the hearth.
+  p.southQuad(0x1e1814, fy1 + 0.003, 0.55, 0.95, 2, 10);
+  p.southQuad(0xe8582a, fy1 + 0.004, 0.6, 0.9, 2, 6);
+  p.southQuad(0xf6c84c, fy1 + 0.005, 0.68, 0.82, 2, 4);
+  for (const dy of [0, 0.16]) {
+    const b = p.p(0.12, -1.0 + dy, 6);
+    p.g.fillStyle(0x5a3a24);
+    p.g.fillEllipse(b.x, b.y, 13, 8);
+    p.g.fillStyle(0x7a5232);
+    p.g.fillEllipse(b.x - 1.5, b.y - 1.5, 9, 5);
+  }
+  // Tool rack in front of the workroom.
+  const [rx0, rx1, ry, rz] = [-1.25, -0.3, -0.3, 24];
+  for (const x of [rx0, rx1]) p.box(x - 0.03, ry - 0.03, x + 0.03, ry + 0.03, 0, rz + 2, C.woodDark);
+  p.line(C.woodDark, 2.5, [rx0, ry, rz], [rx1, ry, rz]);
+  [-1.12, -0.95, -0.78, -0.62, -0.46].forEach((x, k) => hangingTool(p, x, ry + 0.01, rz, k % 4));
+  // Anvil on a stump, a red-hot bar on it, and the smith.
+  const [ax, ay] = [0.35, 0.2];
+  p.shadow(ax - 0.18, ay - 0.12, ax + 0.18, ay + 0.12, 14, 0.25);
+  cylinder(p, ax, ay, 0.17, 0, 8, C.wood);
+  p.box(ax - 0.2, ay - 0.1, ax + 0.16, ay + 0.1, 8, 10, 0x55514c, 0x47433f, 0x34312e);
+  p.box(ax - 0.12, ay - 0.06, ax + 0.1, ay + 0.06, 10, 12, 0x55514c, 0x47433f, 0x34312e);
+  p.box(ax - 0.24, ay - 0.12, ax + 0.2, ay + 0.12, 12, 16, 0x6a6560, 0x4a4643, 0x34312e);
+  p.poly(0x4a4643, [[ax - 0.24, ay - 0.08, 16], [ax - 0.24, ay + 0.08, 16], [ax - 0.42, ay, 15]]);
+  p.line(0xf0782c, 2.5, [ax - 0.1, ay, 16.5], [ax + 0.14, ay, 16.5]);
+  p.ball(0xf6c84c, ax + 0.1, ay, 17, 1.2);
+  person(p, ax - 0.1, ay + 0.35, 0, 2);
+  // Charcoal heap, baskets of ore and iron bars, a quenching trough.
+  const ch = p.p(-0.85, 0.75, 0);
+  dome(p, -0.85, 0.75, 0, 0.32, 10, 0x2e2a28);
+  p.g.fillStyle(0x6a625c);
+  for (const [dx, dy] of [[-4, -6], [3, -4], [-1, -8], [5, -7]]) p.g.fillCircle(ch.x + dx, ch.y + dy, 1);
+  jar(p, -1.2, 0.35, 0, 3.2, 0x7a6a5a);
+  p.box(0.85, 0.35, 1.3, 0.75, 0, 7, C.rock, shade(C.rock, 0.9), C.rockDark);
+  p.rect(0x3a5a78, 0.89, 0.39, 1.26, 0.71, 7);
+  p.line(C.waterLight, 1, [0.95, 0.5, 7], [1.15, 0.5, 7], 0.6);
+  for (let k = 0; k < 4; k++) p.box(0.5 + k * 0.03, 0.85 + k * 0.08, 1.05, 0.9 + k * 0.08, 0, 2.5, 0x5a5652, 0x4a4643, 0x34312e);
+  workFront(p);
+}
+
+/** A stack of sawn planks in layers with spacers between them, rising to about z = layers * 3.4. */
+function plankStack(p: Pen, x0: number, y0: number, x1: number, y1: number, layers: number, wood: number) {
+  p.shadow(x0, y0, x1, y1, layers * 3.4, 0.2);
+  for (let l = 0; l < layers; l++) {
+    const z = l * 3.4;
+    const off = l % 2 ? 0.04 : 0;
+    p.box(x0 + 0.06, y0 + 0.08, x0 + 0.12, y1 - 0.08, z, z + 0.8, C.woodDark);
+    p.box(x1 - 0.12, y0 + 0.08, x1 - 0.06, y1 - 0.08, z, z + 0.8, C.woodDark);
+    const n = 3;
+    for (let k = 0; k < n; k++) {
+      const ya = y0 + ((y1 - y0) * k) / n + 0.008;
+      const yb = y0 + ((y1 - y0) * (k + 1)) / n - 0.008;
+      p.box(x0 + off, ya, x1 - 0.04 + off, yb, z + 0.8, z + 3.4, shade(wood, 1 + ((k + l) % 3) * 0.05));
+    }
+  }
+}
+
+/** Logs lying along y with their cut ends facing south, piled in rows 3-2-1. */
+function logPile(p: Pen, x0: number, y0: number, y1: number, r = 0.11) {
+  const rows = [3, 2, 1];
+  rows.forEach((n, row) => {
+    for (let k = 0; k < n; k++) {
+      const x = x0 + (row * r) + k * r * 2;
+      const z = r * 22 + row * r * 34;
+      p.box(x - r * 0.8, y0, x + r * 0.8, y1, z - r * 20, z + r * 16, 0x8a6440, 0x7a5636, 0x5e4228);
+      const c = p.p(x, y1, z);
+      p.g.fillStyle(0x6e4b2e);
+      p.g.fillCircle(c.x, c.y, r * 30);
+      p.g.fillStyle(0xd8b07a);
+      p.g.fillCircle(c.x, c.y, r * 24);
+      p.g.lineStyle(1, 0xa8804e, 0.9);
+      p.g.strokeCircle(c.x, c.y, r * 13);
+    }
+  });
+}
+
+/**
+ * Carpentry (2): a small mud workroom, a tall stack of pale planks and a smaller stack of red
+ * cedar, a pyramid of logs, planks leaning on the wall, a workbench with a saw, a sawhorse and
+ * wood shavings around the carpenter.
+ */
+function workCarpentry(p: Pen) {
+  const pine = 0xecc88a;
+  const cedar = 0xb8744a;
+  workBack(p);
+  workroom(p, -1.36, -1.36, -0.4, -0.55, 30);
+  // Planks leaning on the workroom.
+  for (const [x, c] of [[-1.25, pine], [-1.12, shade(pine, 0.9)], [-0.62, cedar]] as const)
+    p.poly(p.south(c, 1, 0.8), [[x, -0.5, 0], [x + 0.09, -0.5, 0], [x + 0.13, -0.55, 24], [x + 0.04, -0.55, 24]]);
+  plankStack(p, -0.2, -1.32, 1.3, -0.82, 9, pine);
+  plankStack(p, 0.55, -0.62, 1.3, -0.15, 5, cedar);
+  logPile(p, -1.2, -0.1, 0.32);
+  // Workbench with a plank, a saw and an adze; a sawhorse with a beam.
+  const [bx0, by0, bx1, by1, bz] = [-0.25, 0.3, 0.55, 0.55, 11];
+  p.shadow(bx0, by0, bx1, by1, bz, 0.2);
+  for (const [x, y] of [[bx0 + 0.04, by0 + 0.03], [bx1 - 0.08, by0 + 0.03], [bx0 + 0.04, by1 - 0.06], [bx1 - 0.08, by1 - 0.06]] as const)
+    p.box(x, y, x + 0.04, y + 0.03, 0, bz, C.woodDark);
+  p.box(bx0, by0, bx1, by1, bz, bz + 2.5, C.wood);
+  p.box(bx0 + 0.1, by0 + 0.06, bx1 - 0.15, by0 + 0.2, bz + 2.5, bz + 4.5, pine);
+  p.line(0x8c8780, 2.5, [bx0 + 0.3, by1 - 0.06, bz + 3], [bx1 - 0.05, by1 - 0.08, bz + 3]);
+  p.line(C.woodDark, 3, [bx0 + 0.22, by1 - 0.06, bz + 3], [bx0 + 0.3, by1 - 0.06, bz + 3]);
+  person(p, 0.1, 0.78, 0, 3);
+  for (const [x, y] of [[0.85, 0.35], [0.85, 0.75]] as const) {
+    p.line(C.woodDark, 2, [x - 0.08, y, 0], [x, y, 9]);
+    p.line(C.woodDark, 2, [x + 0.08, y, 0], [x, y, 9]);
+  }
+  p.box(0.78, 0.25, 0.92, 0.85, 9, 13, cedar);
+  const r = createRng(31);
+  for (let k = 0; k < 22; k++) p.ball(shade(pine, 1.1 + r() * 0.2), -0.3 + r() * 1.3, 0.25 + r() * 0.85, 0, 1 + r() * 0.8, 0.9);
+  workFront(p);
+}
+
+/** Cloth roll lying along x at height z, with a spiral end facing east (seen on screen right). */
+function clothRoll(p: Pen, x0: number, x1: number, y: number, z: number, color: number, stripe: number) {
+  const r = 0.07;
+  p.box(x0, y - r, x1, y + r, z, z + 5, color, shade(color, 0.86), shade(color, 0.7));
+  p.line(stripe, 1.5, [x0 + 0.08, y + r, z + 2.5], [x1 - 0.08, y + r, z + 2.5]);
+  const c = p.p(x1, y, z + 2.5);
+  p.g.fillStyle(shade(color, 0.62));
+  p.g.fillCircle(c.x, c.y, 3.4);
+  p.g.lineStyle(1, shade(color, 1.25), 0.9);
+  p.g.strokeCircle(c.x, c.y, 2);
+}
+
+/**
+ * Weaving (3): a mud workroom with fleeces drying on the roof, a striped awning over an upright
+ * loom with clay loom weights and a half-woven striped cloth, a ground loom pegged in the yard,
+ * a bench stacked with coloured cloth rolls and a basket of wool.
+ */
+function workWeaving(p: Pen) {
+  workBack(p);
+  const h = 30;
+  workroom(p, -1.36, -1.36, 0.0, -0.6, h);
+  for (const [x, y] of [[-1.15, -1.15], [-0.9, -1.0], [-0.6, -1.15], [-0.35, -0.95]] as const) {
+    p.ball(0xd8cfbe, x, y, h + 2, 4.5);
+    p.ball(0xf4efe4, x - 0.02, y - 0.02, h + 3, 3.4);
+  }
+  // Striped awning on poles, sloping down to the front.
+  const [ax0, ax1, ay0, ay1, az] = [-1.32, -0.1, -0.55, 0.12, 22];
+  for (const x of [ax0 + 0.03, ax1 - 0.03]) p.box(x - 0.025, ay1 - 0.03, x + 0.025, ay1 + 0.02, 0, az + 6, C.woodDark);
+  const n = 6;
+  for (let k = 0; k < n; k++) {
+    const xa = ax0 + (k * (ax1 - ax0)) / n;
+    const xb = xa + (ax1 - ax0) / n;
+    p.poly(k % 2 ? C.cream : 0x4f6f9e, [[xa, ay0, az + 12], [xb, ay0, az + 12], [xb, ay1, az + 6], [xa, ay1, az + 6]]);
+  }
+  for (let k = 0; k < n; k++) {
+    const xa = ax0 + (k * (ax1 - ax0)) / n;
+    const xb = xa + (ax1 - ax0) / n;
+    p.southQuad(shade(k % 2 ? C.cream : 0x4f6f9e, 0.85), ay1, xa, xb, az + 2.5, az + 6);
+  }
+  // Upright warp-weighted loom just under the front edge of the awning.
+  const [lx0, lx1, ly] = [-1.12, -0.3, ay1 + 0.04];
+  p.shadow(lx0, ly - 0.05, lx1, ly + 0.05, 26, 0.18);
+  const bands = [0xa8473a, C.cream, 0x3e5279, C.cream, 0xc89848];
+  bands.forEach((c, k) => standS(p, c, ly, lx0 + 0.04, lx1 - 0.04, 24 - (k + 1) * 2.4, 24 - k * 2.4));
+  for (let x = lx0 + 0.07; x < lx1 - 0.05; x += 0.055) p.line(0xeee4cc, 1, [x, ly, 12], [x, ly, 5]);
+  p.line(C.woodDark, 2, [lx0 + 0.04, ly, 12], [lx1 - 0.04, ly, 12]);
+  for (let x = lx0 + 0.08; x < lx1 - 0.05; x += 0.11) p.ball(0x9a6a48, x, ly + 0.005, 4, 1.8);
+  for (const x of [lx0, lx1]) p.line(C.woodDark, 3, [x, ly - 0.06, 0], [x, ly, 28]);
+  p.line(C.woodDark, 3, [lx0 - 0.04, ly, 25], [lx1 + 0.04, ly, 25]);
+  person(p, -0.62, ly + 0.28, 0, 4);
+  // Bench of cloth rolls in many colours.
+  const [bx0, bx1] = [0.25, 1.25];
+  p.shadow(bx0, -1.3, bx1, -0.55, 14, 0.2);
+  p.box(bx0, -1.3, bx1, -0.55, 0, 4, C.wood);
+  const rolls: [number, number, number, number][] = [
+    [-1.2, 4, 0xa8473a, C.gold], [-1.05, 4, 0x3e5279, C.cream], [-0.9, 4, 0xc89848, 0xa8473a], [-0.75, 4, 0x6f8a4a, C.cream], [-0.62, 4, C.cream, 0x3e5279],
+    [-1.12, 9, 0x7a4f86, C.gold], [-0.97, 9, 0xc0503c, C.cream], [-0.82, 9, 0x4f6f9e, C.gold], [-0.68, 9, 0xe2b544, 0x7a4f86],
+    [-1.05, 14, C.cream, 0xa8473a], [-0.9, 14, 0xa8473a, C.cream],
+  ];
+  for (const [y, z, c, s] of rolls) clothRoll(p, bx0 + 0.05, bx1 - 0.08, y, z, c, s);
+  // Basket of wool and a ground loom pegged in the yard.
+  p.disc(0x8a6a40, 1.05, -0.2, 0, 0.18);
+  cylinder(p, 1.05, -0.2, 0.17, 0, 6, 0xa77a44);
+  for (const [dx, dy] of [[-0.06, -0.04], [0.06, 0], [0, 0.06]]) p.ball(0xf4efe4, 1.05 + dx, -0.2 + dy, 8, 3.2);
+  const [gx0, gx1, gy0, gy1] = [0.2, 1.15, 0.3, 0.95];
+  for (const [x, y] of [[gx0, gy0], [gx1, gy0], [gx0, gy1], [gx1, gy1]] as const) p.box(x - 0.025, y - 0.025, x + 0.025, y + 0.025, 0, 3, C.woodDark);
+  p.line(C.woodDark, 2, [gx0, gy0, 2], [gx1, gy0, 2]);
+  p.line(C.woodDark, 2, [gx0, gy1, 2], [gx1, gy1, 2]);
+  for (let x = gx0 + 0.05; x < gx1 - 0.02; x += 0.05) p.line(0xeee4cc, 1, [x, gy0, 2], [x, gy1, 2], 0.85);
+  p.rect(0xa8473a, gx0 + 0.03, gy0 + 0.02, gx1 - 0.03, gy0 + 0.3, 2.2);
+  p.rect(C.cream, gx0 + 0.03, gy0 + 0.12, gx1 - 0.03, gy0 + 0.17, 2.3);
+  person(p, 0.65, 1.12, 0, 5, 0.8);
+  workFront(p);
+}
+
+/** Long cloths drying from a line between two tall poles. */
+function dryingLine(p: Pen, a: [number, number], b: [number, number], z: number, cloths: number[]) {
+  p.line(C.woodDark, 2, [a[0], a[1], 0], [a[0], a[1], z + 2]);
+  p.line(C.woodDark, 2, [b[0], b[1], 0], [b[0], b[1], z + 2]);
+  p.line(C.rope, 1, [a[0], a[1], z], [b[0], b[1], z]);
+  const at = (t: number): [number, number] => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  cloths.forEach((color, k) => {
+    const t0 = (k + 0.15) / cloths.length;
+    const t1 = (k + 0.9) / cloths.length;
+    const [ax, ay] = at(t0);
+    const [bx, by] = at(t1);
+    const drop = 22 - (k % 2) * 5;
+    p.poly(p.south(color, 1, 0.8), [[ax, ay, z], [bx, by, z], [bx, by, z - drop], [ax, ay, z - drop + 2]]);
+    p.poly(p.south(shade(color, 0.8), 1, 0.8), [[ax, ay, z - drop + 5], [bx, by, z - drop + 3], [bx, by, z - drop], [ax, ay, z - drop + 2]]);
+  });
+}
+
+/** Round plastered vat of dye with a coloured surface. */
+function vat(p: Pen, x: number, y: number, color: number) {
+  const r = 0.21;
+  p.disc(C.shadow, ...p.away(x, y, 0.08), 0, r, 0.2);
+  p.disc(color, x + 0.1, y + 0.12, 0, r * 1.15, 0.25);
+  cylinder(p, x, y, r, 0, 9, 0xd8ccb2);
+  p.disc(color, x, y, 9, r * 0.78);
+  p.disc(shade(color, 1.35), x - 0.05, y - 0.05, 9, r * 0.28, 0.8);
+}
+
+/**
+ * Dyeing (4): a small mud workroom, two lines of long cloths drying on tall poles, two rows of
+ * plastered vats of indigo blue, madder red and saffron yellow with spills around them, the dyer
+ * stirring with a pole, jars of dyestuff and a pile of folded dyed cloth.
+ */
+function workDyeing(p: Pen) {
+  const blue = 0x2f56a8;
+  const red = 0xb82e2a;
+  const yellow = 0xe8b424;
+  workBack(p);
+  workroom(p, -1.36, -1.36, -0.45, -0.6, 28);
+  dryingLine(p, [-0.25, -1.25], [1.32, -1.25], 40, [blue, red, yellow, blue]);
+  dryingLine(p, [0.3, -0.6], [1.32, -0.6], 36, [red, yellow, blue]);
+  jars(p, -1.15, -0.35, 0, 0x8a6a4a);
+  jar(p, -0.7, -0.4, 0, 3.4, C.terracotta);
+  const vats: [number, number, number][] = [
+    [-1.0, 0.2, blue], [-0.45, 0.2, red], [0.1, 0.2, yellow],
+    [-0.75, 0.75, yellow], [-0.2, 0.75, blue], [0.35, 0.75, red],
+  ];
+  for (const [x, y, c] of vats) vat(p, x, y, c);
+  person(p, 0.62, 0.42, 0, 0);
+  p.line(C.woodDark, 2, [0.42, 0.68, 9], [0.62, 0.42, 26]);
+  // Folded dyed cloth.
+  [blue, yellow, red, blue].forEach((c, k) => p.box(0.85, 0.75, 1.25, 1.1, k * 2.4, k * 2.4 + 2.4, c));
+  workFront(p);
+}
+
+/** A wooden frame on the plane y with a hide stretched and laced inside it. */
+function hideFrame(p: Pen, x0: number, x1: number, y: number, z1: number, hide: number) {
+  for (const x of [x0, x1]) p.line(C.woodDark, 3, [x, y, 0], [x, y, z1 + 3]);
+  p.line(C.woodDark, 3, [x0, y, z1], [x1, y, z1]);
+  p.line(C.woodDark, 3, [x0, y, 5], [x1, y, 5]);
+  const w = x1 - x0;
+  const [cx, cz, hz] = [(x0 + x1) / 2, (z1 + 5) / 2, (z1 - 5) / 2];
+  const shape: [number, number][] = [
+    [-0.46, 0.9], [-0.32, 0.7], [-0.12, 0.76], [0, 0.86], [0.12, 0.76], [0.32, 0.7], [0.46, 0.9], [0.4, 0.3], [0.34, -0.35],
+    [0.46, -0.9], [0.22, -0.72], [0, -0.8], [-0.22, -0.72], [-0.46, -0.9], [-0.34, -0.35], [-0.4, 0.3],
+  ];
+  const pts = shape.map(([u, v]) => [cx + u * w, y + 0.002, cz + v * hz] as P3);
+  p.poly(p.south(shade(hide, 0.7), 1, 0.8), pts);
+  const inner = (k: number) => pts.map(([x, yy, z]) => [cx + (x - cx) * k, yy + 0.001, cz + ((z ?? 0) - cz) * k] as P3);
+  p.poly(p.south(hide, 1, 0.8), inner(0.86));
+  p.poly(p.south(shade(hide, 1.18), 1, 0.8), inner(0.45));
+  for (const [u, v] of [shape[0], shape[6], shape[9], shape[13], shape[8], shape[14], shape[3], shape[11]]) {
+    const [ex, ez] = Math.abs(v) > 0.8 ? [cx + u * w, v > 0 ? z1 : 5] : [u < 0 ? x0 : x1, cz + v * hz];
+    p.line(C.rope, 1, [cx + u * w, y + 0.003, cz + v * hz], [ex, y + 0.003, ez]);
+  }
+}
+
+/** Staved wooden tub with iron-dark hoops, filled with tanning liquor. */
+function tub(p: Pen, x: number, y: number, r: number, h: number) {
+  p.disc(C.shadow, ...p.away(x, y, 0.08), 0, r, 0.22);
+  cylinder(p, x, y, r, 0, h, 0x9a6a40);
+  for (const z of [2.5, h - 2.5]) {
+    const c = p.p(x, y, z);
+    p.g.lineStyle(1.5, 0x4a3426, 0.9);
+    p.g.beginPath();
+    p.g.arc(c.x, c.y, r * SQRT2 * HW, 0.15, Math.PI - 0.15, false);
+    p.g.strokePath();
+  }
+  p.disc(0x5a3a22, x, y, h, r * 0.8);
+}
+
+/**
+ * Tannery (5): a mud workroom, three wooden frames with hides stretched and laced on them, a white
+ * lime pit with a soaking hide, staved tubs of tanning liquor, a scraping beam with a worker and
+ * a pile of finished leather.
+ */
+function workTannery(p: Pen) {
+  const hide = 0xa8643a;
+  workBack(p, shade(C.sand[0], 0.84));
+  workroom(p, -1.36, -1.36, -0.35, -0.6, 28);
+  hideFrame(p, -0.15, 0.55, -0.9, 38, hide);
+  hideFrame(p, 0.65, 1.32, -0.9, 38, shade(hide, 0.82));
+  for (const [x, y, r] of [[-1.1, -0.2, 0.17], [-0.7, -0.25, 0.15], [-1.1, 0.25, 0.15]] as const) tub(p, x, y, r, 12);
+  hideFrame(p, 0.3, 1.05, -0.05, 32, shade(hide, 1.12));
+  // Lime pit with a soaking hide.
+  const [lx0, ly0, lx1, ly1] = [0.25, 0.45, 1.0, 1.05];
+  p.rect(shade(C.limestone, 0.7), lx0 - 0.05, ly0 - 0.05, lx1 + 0.05, ly1 + 0.05);
+  p.rect(0xeae6dc, lx0, ly0, lx1, ly1);
+  p.poly(0xc8c2b4, [[lx0, ly0, 0], [lx1, ly0, 0], [lx1 - 0.05, ly0 + 0.06, 0], [lx0 + 0.05, ly0 + 0.06, 0]]);
+  p.poly(0x9a6a42, [[0.45, 0.65, 0.1], [0.75, 0.6, 0.1], [0.8, 0.85, 0.1], [0.5, 0.92, 0.1]], 0.8);
+  // Scraping beam with a hide over it and the tanner.
+  p.line(C.woodDark, 2, [-0.85, 0.85, 0], [-0.85, 0.85, 8]);
+  p.line(0x8a6440, 5, [-1.25, 0.6, 0], [-0.55, 0.85, 12]);
+  p.poly(hide, [[-0.9, 0.7, 11], [-0.6, 0.82, 14], [-0.55, 0.95, 4], [-0.85, 0.85, 3]]);
+  person(p, -0.4, 1.0, 0, 3);
+  [0x8a5a36, 0x6e4630, 0x9a6a42].forEach((c, k) => p.box(1.0 - k * 0.02, 0.0 + k * 0.03, 1.32, 0.35, k * 2, k * 2 + 2, c));
+  workFront(p);
+}
+
+/** Workshop drawings, one per craft in the order of BUILDINGS.workshop.crafts. */
+const CRAFT_ART: Record<Craft, (p: Pen) => void> = {
+  pottery: workPottery,
+  smithy: workSmithy,
+  carpentry: workCarpentry,
+  weaving: workWeaving,
+  dyeing: workDyeing,
+  tannery: workTannery,
+};
 
 /**
  * Altar (4 x 4): a court of fieldstones with a low rough wall, and the altar itself, a square mound
@@ -1333,13 +2493,6 @@ function needIcon(g: G, k: BalloonKind) {
   }
 }
 
-function walker(g: G, v: number) {
-  const cloth = C.clothes[v];
-  g.fillStyle(C.shadow, 0.25);
-  g.fillEllipse(8, 19.5, 9, 3.5);
-  figure(g, 6, 20, cloth, C.skin[v % C.skin.length], v % 2 === 0);
-}
-
 function figure(g: G, x: number, bottom: number, cloth: number, skin: number, scarf: boolean, scale = 1) {
   const s = scale;
   g.fillStyle(cloth);
@@ -1449,13 +2602,17 @@ export function generateTextures(scene: Phaser.Scene): void {
   }
   for (let mask = 0; mask < 16; mask++) make(scene, TEX.road(mask), TILE, (p) => road(p, mask));
   // Every building is drawn at its real footprint: [draw, canvas height above ground, balloon height].
-  const houses: [(p: Pen) => void, number, number][] = [[plot, 14, 12], [tent, 34, 30], [mudHouse, 40, 36], [stoneHouse, 58, 50], [bigHouse, 76, 64]];
-  houses.forEach(([draw, top, h], level) => make(scene, TEX.building('house', level), footCanvas(2, 2, top), draw, h));
+  for (const mirror of [false, true]) {
+    HOUSE_ART.forEach(([draws, top, h], level) => {
+      for (let v = 0; v < HOUSE_LEVELS[level].variants; v++)
+        make(scene, TEX.building('house', level, false, v, mirror), footCanvas(2, 2, top), draws[v % draws.length], h, mirror);
+    });
+    CROPS.forEach((_, v) => make(scene, TEX.building('field', 0, false, v, mirror), footCanvas(2, 2, 30), (p) => field(p, v), 26, mirror));
+    BUILDINGS.workshop.crafts!.forEach((c, v) => make(scene, TEX.building('workshop', 0, false, v, mirror), footCanvas(3, 3, 50), CRAFT_ART[c], 50, mirror));
+  }
   const buildings: [BuildingKind, (p: Pen) => void, number, number][] = [
-    ['field', field, 30, 26],
     ['well', well, 48, 44],
     ['market', (p) => market(p, false), 40, 36],
-    ['workshop', workshop, 50, 50],
     ['altar', altar, 34, 44],
     ['temple', temple, 136, 128],
   ];
@@ -1466,9 +2623,8 @@ export function generateTextures(scene: Phaser.Scene): void {
   const { w: mw, h: mh } = dimsOf('market', true);
   make(scene, TEX.building('market', 0, true), footCanvas(mw, mh, 40), (p) => market(p, true), 36);
 
-  ORIGIN[TEX.wheat] = [0.5, 1];
+  CROPS.forEach((_, v) => (ORIGIN[TEX.crop(v)] = [0.5, 1]));
   ORIGIN[TEX.flame] = [0.5, 1];
-  ORIGIN[TEX.walker(0)] = [0.5, 1];
   const raw = (key: string, w: number, h: number, draw: (g: G) => void) => {
     if (scene.textures.exists(key)) return;
     const g = new Phaser.GameObjects.Graphics(scene);
@@ -1476,7 +2632,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.generateTexture(key, w, h);
     g.destroy();
   };
-  raw(TEX.wheat, 22, 22, wheat);
+  CROPS.forEach((c, v) => raw(TEX.crop(v), 22, 22, c.draw));
   raw(TEX.flame, 16, 22, flame);
   raw(TEX.soft, 32, 32, (g) => {
     for (let k = 5; k >= 1; k--) {
@@ -1492,16 +2648,27 @@ export function generateTextures(scene: Phaser.Scene): void {
   });
   raw(TEX.balloon, 28, 28, balloon);
   (['road', 'well', 'market', 'sacred', 'workers'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
-  for (let v = 0; v < WALKER_VARIANTS; v++) raw(TEX.walker(v), 16, 22, (g) => walker(g, v));
+  for (const { type } of WALKERS) {
+    const [w, h] = residentSize(type);
+    const crafts: (Craft | null)[] = [null, ...(type === 'artisan' ? BUILDINGS.workshop.crafts! : [])];
+    for (let look = 0; look < WALKER_LOOKS; look++) {
+      for (let frame = 0; frame < 2; frame++) {
+        for (const c of crafts) raw(TEX.walker(type, look, frame, c), w, h, (g) => drawResident(g, type, look, frame, c));
+      }
+    }
+  }
   raw(TEX.family, 30, 23, family);
   icons(scene);
 }
 
-/** Wheat tuft images over a field whose ground anchor is at (x, y), drawn at scale k (back to front). */
-export function wheatImages(scene: Phaser.Scene, x = 0, y = 0, k = 1): Phaser.GameObjects.Image[] {
+/**
+ * Crop tuft images over a field of a variant whose ground anchor is at (x, y), drawn at scale k
+ * (back to front). A mirrored field has its rows the other way.
+ */
+export function cropImages(scene: Phaser.Scene, x = 0, y = 0, k = 1, variant = 0, mirrored = false): Phaser.GameObjects.Image[] {
   return PARTS.wheat.map((w) =>
     scene.add
-      .image(x + (w.x - w.y) * HW * k, y + ((w.x + w.y) * HH - w.z + 2) * k, TEX.wheat)
+      .image(x + (w.x - w.y) * HW * k * (mirrored ? -1 : 1), y + ((w.x + w.y) * HH - w.z + 2) * k, TEX.crop(variant))
       .setOrigin(0.5, 1)
       .setScale(k),
   );

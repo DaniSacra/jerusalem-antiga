@@ -22,13 +22,42 @@ matching doc in the same change.
 
 ## Agents
 Defined in `.claude/agents/`. None of them commit or push (see Git).
-- `sprite-artist` — creates and improves the code-drawn art in `src/render`.
-- `game-director` — guards the game vision and pillars; scopes each feature package and decides
-  which recommendations go in. Keeps `docs/design.md` up to date.
+
+Before building:
+- `game-director` — guards the game vision and pillars. Use before any new feature to scope the
+  package, and to decide which recommendations from other agents go in. Keeps `docs/design.md`.
+
+While building:
+- `sprite-artist` — code-drawn art in `src/render`: buildings, terrain, roads, walkers, effects
+  and animations. Use for any visual work.
+- `ui-designer` — top bar, tools, info line, balloons, toasts, stats panel, title/victory
+  screens, camera and touch controls. Use for UI/UX work or reviews (phone first).
+- `map-designer` — map generation and starting layout (terrain, river, rocks, vegetation,
+  altar, starting road, entrance). Use when touching any of these.
+- `test-reviewer` — makes sure every `src/core` rule has good, seeded tests; may write missing
+  tests, never production code. Use after creating or changing a game rule.
+- `copywriter` — on-screen texts only (goals, tool hints, info line, balloons, toasts, alerts,
+  title/victory/defeat screens) in `src/render/strings.ts` and `goals.json`. No story or verses.
+- `code-reviewer` — reviews architecture rules, DRY/KISS, typing, strings/palette and per-frame
+  cost; runs typecheck, tests and build. Use before every commit.
+
+After building:
 - `playtester` — finds bugs, confusion, bad controls and broken pacing (sim + Playwright).
-  Reports only, fixes nothing.
-- `fun-critic` — plays as the target audience (ages 12–17) and rates fun, challenge and
-  pacing; suggests improvements and `src/data` balance tweaks. Does not hunt bugs or implement.
+  Use when a feature is done and before each delivery. Reports only.
+- `sim-tester` — measures game length and economy balance with fast seeded simulations
+  (scripts in `tools/sim`). Use after changing costs, production, goals or house rules, and
+  after each tuning package. Proposes `src/data` changes; the game-director approves.
+- `fun-critic` — plays as the target audience (ages 12–17) and rates fun and challenge;
+  suggests improvements and balance tweaks for the sim-tester to measure. Use after each
+  feature package or when the game feels dull. Does not hunt bugs or measure pacing.
+
+Command `/revisao [foco]` (`.claude/commands/revisao.md`): full read-only review. It runs every
+evaluation agent in parallel, saves their reports in `docs/revisoes/<date>/` and asks the
+game-director for a `plano.md` with Pacote 1–3. It commits only that folder (running the command
+is the user's order to commit it), implements nothing and asks the user to approve Pacote 1.
+
+Not created yet: `storyteller` (story later), on hold by the user's decision. On-screen texts
+belong to the `copywriter`.
 
 ## Definition of done
 `npm test`, `npx tsc --noEmit` and `npm run test:visual` pass, and the screenshots affected by

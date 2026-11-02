@@ -3,7 +3,7 @@ import { costOf, unlockingGoal, type GameState } from '../core';
 import { GAME_W, INFO_H, INFO_Y, TOOL_H, TOOL_Y } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
-import { ORIGIN, TEX, wheatImages } from './textures';
+import { cropImages, ORIGIN, TEX } from './textures';
 import { isPlaceTool, TOOLS, toolName, type Tool } from './tools';
 import { text } from './ui';
 import type { Segment } from './info';
@@ -30,7 +30,7 @@ function toolIcon(scene: Phaser.Scene, tool: Tool): Phaser.GameObjects.GameObjec
   img.setScale(k);
   if (tool !== 'field') return img;
   const [, oy] = ORIGIN[key];
-  return scene.add.container(0, 0, [img, ...wheatImages(scene, 0, -4 - img.height * (1 - oy) * k, k)]);
+  return scene.add.container(0, 0, [img, ...cropImages(scene, 0, -4 - img.height * (1 - oy) * k, k)]);
 }
 
 /** Bottom tool bar plus the info line above it. */
@@ -52,7 +52,7 @@ export class Toolbar {
     TOOLS.forEach((tool, k) => {
       const bg = scene.add.graphics();
       const name = text(scene, 0, 10, toolName(tool), 17, CSS.ink, true).setOrigin(0.5);
-      const cost = text(scene, 0, 29, '', 14, CSS.muted, true).setOrigin(0.5);
+      const cost = text(scene, 0, 29, '', 16, CSS.muted, true).setOrigin(0.5);
       const root = scene.add.container(x0 + k * (BTN_W + BTN_GAP) + BTN_W / 2, TOOL_Y + 5 + BTN_H / 2, [bg, toolIcon(scene, tool), name, cost]);
       root.setSize(BTN_W, BTN_H).setInteractive({ useHandCursor: true });
       root.on('pointerdown', () => onSelect(tool));
@@ -90,7 +90,7 @@ export class Toolbar {
     this.info.removeAll(true);
     let x = 0;
     for (const seg of segments) {
-      const t = text(this.scene, x, 0, seg.text, 17, seg.color ?? CSS.light, true).setOrigin(0, 0.5);
+      const t = text(this.scene, x, 0, seg.text, 18, seg.color ?? CSS.light, true).setOrigin(0, 0.5);
       this.info.add(t);
       x += t.width;
     }

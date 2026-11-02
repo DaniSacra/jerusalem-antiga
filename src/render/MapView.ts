@@ -16,13 +16,14 @@ import {
   type GameState,
   type BalloonKind,
   canRotate,
+  craftOf,
   dimsOf,
   type Dims,
   type Rect,
 } from '../core';
 import { C, shade } from './palette';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
-import { HEIGHT, PARTS, TEX, VARIANTS, setTex, wheatImages } from './textures';
+import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, setTex } from './textures';
 import { isPlaceTool, type Tool } from './tools';
 
 interface BuildingView {
@@ -54,9 +55,23 @@ export function originFor(kind: Tool, cell: Cell, rotated = false): Cell {
   return { x: cell.x - Math.floor((w - 1) / 2), y: cell.y - Math.floor((h - 1) / 2) };
 }
 
-/** Texture of a building; non-square footprints lying the other way on screen have their own drawing. */
-const keyOf = (b: Rect & { kind: BuildingKind; level?: number }) =>
-  TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w);
+/**
+ * Texture of a building; non-square footprints lying the other way on screen have their own drawing.
+ * Mirrored houses and fields have their own drawing too (flipping the image would move the light).
+ */
+/** Balloon size on screen relative to zoom 1 (they are scaled up when zoomed out). */
+const BALLOON_SCREEN_SCALE = 1.2;
+
+const keyOf = (b: Rect & { kind: BuildingKind; level?: number; variant?: number; mirrored?: boolean }) =>
+  TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
+
+/** Houses get a small per-plot nudge and a slightly different shade of mud or stone. */
+function applyLook(img: Phaser.GameObjects.Image, b: Building) {
+  if (b.kind !== 'house') return;
+  const h = cellHash(b.x, b.y);
+  const grey = Math.round(255 * (0.9 + ((h >>> 5) % 11) * 0.01));
+  img.setPosition((h % 5) - 2, ((h >>> 3) % 3) - 1).setTint((grey << 16) | (grey << 8) | grey);
+}
 
 /** Road texture for a cell, with its junctions turned to the current view. */
 const roadKey = (s: GameState, x: number, y: number) => TEX.road(viewMask(roadMask(s, x, y)));
@@ -227,6 +242,7 @@ export class MapView {
     }
     const key = keyOf(b);
     if (v.main.texture.key !== key) setTex(v.main, key);
+    applyLook(v.main, b);
   }
 
   private createView(b: Building): BuildingView {
@@ -238,7 +254,7 @@ export class MapView {
     root.add(main);
     const view: BuildingView = { kind: b.kind, root, main, wheat: [] };
     if (b.kind === 'field') {
-      view.wheat = wheatImages(sc);
+      view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       root.add(view.wheat);
     }
     if (b.kind === 'altar') {
@@ -248,8 +264,14 @@ export class MapView {
       view.flame = sc.add.image(f.x, f.y + 1, TEX.flame).setOrigin(0.5, 1).setScale(scale);
       root.add([view.glow, view.flame]);
     }
-    if (b.kind === 'workshop') {
-      const ch = local(PARTS.chimney.x, PARTS.chimney.y, PARTS.chimney.z);
+    const fire = b.kind === 'workshop' ? PARTS.craftFire[craftOf(b)!] : undefined;
+    if (fire) {
+      // A mirrored drawing swaps the local axes.
+      const at = ({ x, y, z }: { x: number; y: number; z: number }) => (b.mirrored ? local(y, x, z) : local(x, y, z));
+      const g = at(fire.glow);
+      view.glow = sc.add.image(g.x, g.y - 2, TEX.soft).setTint(0xf0702c).setAlpha(0.5).setScale(0.9);
+      root.add(view.glow);
+      const ch = at(fire.smoke);
       view.smoke = sc.add
         .particles(c.x + ch.x, c.y + ch.y, TEX.soft, {
           lifespan: 2000,
@@ -257,7 +279,7 @@ export class MapView {
           speedX: { min: 2, max: 12 },
           scale: { start: 0.3, end: 0.9 },
           alpha: { start: 0.6, end: 0 },
-          tint: 0xe4e0d8,
+          tint: craftOf(b) === 'smithy' ? 0xb8b2aa : 0xe4e0d8,
           frequency: 420,
         })
         .setDepth(DEPTH.fx);
@@ -394,19 +416,24 @@ export class MapView {
 
   // ---------- per-frame animation ----------
 
-  update(time: number) {
+  /** `zoom` keeps balloons readable when zoomed out: they never shrink below ~1.2x / zoom on screen. */
+  update(time: number, zoom: number) {
     const t = time / 1000;
+    const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
     this.drawWater(t);
     for (const v of this.views.values()) {
       v.wheat.forEach((w, k) => w.setAngle(Math.sin(t * 2.2 + k * 0.7 + v.root.x * 0.05) * 7));
-      if (v.flame) {
-        const f = Math.sin(t * 14) * 0.08 + Math.sin(t * 23) * 0.05;
+      if (v.glow) {
+        const f = Math.sin(t * 14 + v.root.x) * 0.08 + Math.sin(t * 23) * 0.05;
         const k = PARTS.altarFire.scale;
-        v.flame.setScale(k * (1 - f * 0.6), k * (1 + f));
-        v.glow?.setAlpha(0.45 + f);
+        v.flame?.setScale(k * (1 - f * 0.6), k * (1 + f));
+        v.glow.setAlpha(0.45 + f);
       }
     }
-    for (const b of this.balloons.values()) b.root.y = b.baseY + Math.sin(t * 3 + b.phase) * 2;
+    for (const b of this.balloons.values()) {
+      b.root.y = b.baseY + Math.sin(t * 3 + b.phase) * 2;
+      b.root.setScale(balloonScale);
+    }
   }
 
   /** Ripples drifting downstream (south) along the river. */

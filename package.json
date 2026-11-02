@@ -9,7 +9,9 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:visual": "node scripts/visual/run.mjs"
+    "test:visual": "node scripts/visual/run.mjs",
+    "sim": "rolldown tools/sim/run.ts --file node_modules/.cache/sim/run.mjs --platform node --format esm && node node_modules/.cache/sim/run.mjs",
+    "sim:dump": "rolldown tools/sim/dump.ts --file node_modules/.cache/sim/dump.mjs --platform node --format esm && node node_modules/.cache/sim/dump.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"
