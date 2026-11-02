@@ -55,5 +55,6 @@ Leia docs/TESTING.md e use os cenários existentes: `npm run test:visual -- town
 
 Quando `npm test`, `npx tsc --noEmit` e `npm run test:visual` passarem e as
 capturas estiverem boas, faça commit só dos arquivos que você alterou (mensagem
-em inglês, terminando com a linha de co-autoria) e dê `git push origin main`.
+em inglês, terminando com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`)
+e dê `git push origin main`.
 Se alguma verificação falhar, não faça commit; relate o problema.
