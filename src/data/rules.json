@@ -10,6 +10,7 @@
   "familyCellsPerMonth": 4,
   "earlyFamilySpeedMultiplier": 3,
   "upkeepStartsAfterGoal": 2,
+  "monthsPerSeason": 12,
   "monthsToChange": 3,
   "famineDropChance": 0.12,
   "famineLeaveChance": 0.2,

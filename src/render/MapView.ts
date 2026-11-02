@@ -30,6 +30,7 @@ import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gri
 import VISUAL from '../data/visual.json';
 import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, scaffoldTexture, setTex } from './textures';
 import type { RoadWear } from './RoadWear';
+import type { SeasonLook } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
 import { FieldCrew } from './Fieldhands';
 import { Lights } from './Lights';
@@ -113,6 +114,11 @@ export class MapView {
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
   private ground: Phaser.GameObjects.GameObject[] = [];
+  /** Sand tiles (tinted by the season) and grass tiles (a texture per season; `turn` 0..1 is when each one changes). */
+  private sand: Phaser.GameObjects.Image[] = [];
+  private grass: { img: Phaser.GameObjects.Image; v: number; deco: boolean; turn: number; key: string }[] = [];
+  /** Last season colours applied (sand, trees), so tiles are only re-tinted when they change. */
+  private seasonKey = '';
   private lights: Lights;
   /** Set when the frame rate stayed low: no campfire sparks. */
   degraded = false;
@@ -176,7 +182,10 @@ export class MapView {
         const c = footCenter(x, y);
         const h = cellHash(x, y);
         const deco = g !== 'river' && ((h >>> 8) % 1000) / 1000 < VISUAL.ambient.decoShare;
-        this.ground.push(sc.add.image(c.x, c.y, TEX.ground(g, h % VARIANTS, deco)).setDepth(DEPTH.ground));
+        const img = sc.add.image(c.x, c.y, TEX.ground(g, h % VARIANTS, deco)).setDepth(DEPTH.ground);
+        this.ground.push(img);
+        if (g === 'sand') this.sand.push(img);
+        if (g === 'grass') this.grass.push({ img, v: h % VARIANTS, deco, turn: ((h >>> 16) % 1000) / 1000, key: '' });
       }
     }
     // Light sandy bank where land meets the river.
@@ -548,6 +557,22 @@ export class MapView {
     setTex(this.preview, key).setPosition(c.x, c.y).setAlpha(0.7).setVisible(true);
     if (ok) this.preview.clearTint();
     else this.preview.setTint(0xff6a5a);
+  }
+
+  /**
+   * The season on the map: each grass tile takes the next season's texture once the blend passes
+   * its own threshold (so the change spreads over the map), and the sand and trees get the colours.
+   */
+  setSeason(look: SeasonLook) {
+    for (const t of this.grass) {
+      const key = TEX.grass(look.f > t.turn ? look.next : look.season, t.v, t.deco);
+      if (key !== t.key) t.img.setTexture((t.key = key));
+    }
+    const key = `${look.sand},${look.trees}`;
+    if (key === this.seasonKey) return;
+    this.seasonKey = key;
+    for (const img of this.sand) img.setTint(look.sand);
+    for (const f of this.features.values()) if (f.sway) f.img.setTint(look.trees);
   }
 
   // ---------- per-frame animation ----------

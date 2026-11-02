@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { alerts, currentGoal, goalProgress, happinessOn, moodOf, type Alert, type Economy, type GameState } from '../core';
+import { alerts, currentGoal, goalProgress, happinessOn, moodOf, seasonOf, type Alert, type Economy, type GameState } from '../core';
 import { ALERT_Y, BANNER_MAX_W, GAME_W, GOAL_H, GOAL_Y, inRect, PLAQUE, plaqueSlot, SPEED, SPEED_BTN, speedButton, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
@@ -14,7 +14,7 @@ const SPEED_ORDER: Speed[] = [0, 1, 3];
 type StatKey = 'month' | 'silver' | 'food' | 'residents' | 'happiness' | 'work';
 /** Plaque slots, left to right (widths in `plaqueSlot`); the happiness icon is the mood face. */
 const SLOTS: [StatKey, string][] = [
-  ['month', TEX.icon('month')],
+  ['month', TEX.icon('spring')],
   ['silver', TEX.icon('silver')],
   ['food', TEX.icon('food')],
   ['residents', TEX.icon('people')],
@@ -44,6 +44,8 @@ export class Hud {
   /** Sun, dusk or moon right after the month number. */
   private phase: Phaser.GameObjects.Image;
   private face!: Phaser.GameObjects.Image;
+  /** The month's icon is the season. */
+  private seasonIcon!: Phaser.GameObjects.Image;
   /** Tap target of the happiness slot (off, like the face, until the garden is unlocked). */
   private faceZone!: Phaser.GameObjects.Zone;
   private speedButtons: [Speed, RailButton][] = [];
@@ -92,6 +94,7 @@ export class Hud {
       const { x, w, h: sh } = plaqueSlot(k);
       const img = scene.add.image(x + 16, ROW_Y, icon).setScale(0.7);
       if (key === 'happiness') this.face = img;
+      if (key === 'month') this.seasonIcon = img;
       this.stats[key] = {
         value: text(scene, x + 36, ROW_Y, '', 22, CSS.ink, true).setOrigin(0, 0.5),
         sub: text(scene, x + 36, ROW_Y + 2, '', 14, CSS.muted, true).setOrigin(0, 0.5),
@@ -207,6 +210,8 @@ export class Hud {
   refresh(state: GameState, eco: Economy, speed: Speed) {
     const { silver, food, residents, happiness, work, month } = this.stats;
     this.set(month, String(state.month + 1));
+    const season = TEX.icon(seasonOf(state.month));
+    if (this.seasonIcon.texture.key !== season) this.seasonIcon.setTexture(season);
     this.phase.setX(month.value.x + month.value.width + 16);
     this.set(silver, String(Math.floor(state.silver)), signed(eco.silverDelta) + T.perMonth, eco.silverDelta < 0 ? CSS.bad : CSS.good);
     const debt = state.silver < 0;

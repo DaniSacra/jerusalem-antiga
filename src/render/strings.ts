@@ -1,4 +1,4 @@
-import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type HappinessPart, type Mood, type NeedKind, type Placeable, type TutorialStepId } from '../core';
+import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type HappinessPart, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -17,6 +17,14 @@ export const T = {
     miniature: (on: boolean) => `Efeito maquete: ${on ? 'ligado' : 'desligado'}`,
     miniatureSlow: 'Efeito maquete: desligado (aparelho lento)',
   },
+  season: { spring: 'primavera', summer: 'verão', autumn: 'outono', winter: 'inverno' } satisfies Record<Season, string>,
+  /** Toast when a season begins. */
+  seasonStart: {
+    spring: 'Chegou a primavera: as amendoeiras florescem',
+    summer: 'Chegou o verão: dias quentes e secos',
+    autumn: 'Chegou o outono: as primeiras chuvas',
+    winter: 'Chegou o inverno: frio e chuva',
+  } satisfies Record<Season, string>,
   /** Name under the turn arrows. */
   turn: 'Girar',
   speed: (v: number) => (v === 0 ? '❚❚' : `${v}x`),

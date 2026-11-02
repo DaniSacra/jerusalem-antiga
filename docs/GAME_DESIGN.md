@@ -228,8 +228,9 @@ Layout inspirado em Pharaoh: A New Era, com arte própria desenhada em código (
 detalhes dourados, cores e fonte de `palette.ts`). O mapa ocupa quase a tela toda: nada de barras
 de largura total. Posições e tamanhos em `src/render/layout.ts`.
 
-- **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (com
-  sol, entardecer ou lua ao lado, conforme a hora do dia),
+- **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (o
+  ícone é a estação: flor de amendoeira, feixe de trigo, folha ou floco de neve; ao lado, sol,
+  entardecer ou lua, conforme a hora do dia),
   Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores, Felicidade (só
   depois de liberar o Jardim: carinha verde sorrindo, amarela séria ou vermelha triste, conforme o
   humor da média, e o número, verde quando feliz e vermelho quando triste) e Trabalho
@@ -289,7 +290,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o templo: abra
   uma rua ao lado de um terreno livre 6 x 6".
 - **Toasts** (mensagens curtas no centro de baixo, logo acima da linha de informação, empilhando para cima): prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, meta
-  cumprida, "Oficina liberada: …" e "Falta comida: construa campos" (uma vez por episódio de fome).
+  cumprida, "Oficina liberada: …", "Falta comida: construa campos" (uma vez por episódio de fome) e a
+  chegada de cada estação ("Chegou o verão: dias quentes e secos").
 - Durante a fome, leve tom avermelhado sobre o mapa.
 - Tela inicial com 3 passos numerados (casas e campos ao lado das ruas do altar, campos dão comida e trabalho; poço, mercado e altar
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
@@ -328,6 +330,28 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   - Depois: "Casas de barro com mercado perto viram casas de pedra", com a seta no Mercado.
     Conclui com 1 mercado ligado.
 - Quem pula (ou já viu o tutorial) recebe a mensagem da manutenção como toast.
+
+## Estações e clima (só aparência, por enquanto)
+
+O ano tem 4 estações de **12 meses** cada (`monthsPerSeason` em `rules.json`; 24 s a 1x), começando
+na primavera: primavera, verão, outono, inverno. Ainda **não mudam nenhuma regra** (a mecânica,
+como a seca do verão, vem depois). O core só diz a estação do mês (`src/core/seasons.ts`) e
+avisa quando uma começa (evento `season`); cores e clima ficam em `visual.json` (`seasons`) e
+`src/render/Seasons.ts` e `Weather.ts`.
+
+- **Grama:** cada estação tem a sua: verde viva com flores na primavera, palha seca no verão,
+  ocre com folhas caídas no outono e cinza esverdeado com geada no inverno. Nos últimos 2 meses de
+  uma estação a grama vai virando a da próxima, célula por célula, espalhando pelo mapa.
+- **Cor do mundo:** um leve tom por estação (fresco, quente, âmbar, frio) somado ao do dia e da
+  noite; areia e árvores (palmeiras e oliveiras) também mudam de tom.
+- **Clima:** períodos de 10–24 s de jogo. A cada período a estação sorteia chuva, neve ou céu
+  limpo: primavera 30% de chuva, verão nunca (seco), outono 35% (as primeiras chuvas), inverno 55%
+  (40% dela é neve). Chuva com respingos e céu mais escuro; neve com flocos e tom claro; as
+  nuvens ficam mais fortes e só metade dos moradores sai à rua. O clima entra e sai devagar.
+- **Vento:** com céu limpo, pétalas de amendoeira na primavera, poeira no verão e folhas no
+  outono atravessam a tela.
+- A chuva, a neve e o vento ficam numa camada própria entre o mapa e a interface (o zoom não muda
+  o tamanho deles). Em aparelhos lentos, metade das partículas.
 
 ## Câmera e controles (estilo Pocket City)
 

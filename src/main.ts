@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { TitleScene } from './scenes/TitleScene';
 import { UIScene } from './scenes/UIScene';
+import { WeatherScene } from './scenes/WeatherScene';
 import { GAME_H, GAME_W } from './render/layout';
 
 new Phaser.Game({
@@ -12,5 +13,5 @@ new Phaser.Game({
   backgroundColor: '#6b5236',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 3 },
-  scene: [TitleScene, GameScene, UIScene],
+  scene: [TitleScene, GameScene, WeatherScene, UIScene],
 });

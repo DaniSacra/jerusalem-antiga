@@ -49,6 +49,25 @@
     "tiltBand": 0.5,
     "tiltBlur": 3.5
   },
+  "seasons": {
+    "blendMonths": 2,
+    "looks": {
+      "spring": { "tint": "0xfbfff6", "grassBase": "0xa6b45c", "grassTuft": "0x6f8a3a", "grassDeco": ["0xf7c6d6", "0xffffff", "0xe8c040", "0xd98ab0", "0xb59ad8"], "trees": "0xf0ffe8", "sand": "0xffffff", "rain": 0.3, "snow": 0, "drift": "petals" },
+      "summer": { "tint": "0xfff4dc", "grassBase": "0xd6c27c", "grassTuft": "0xb09a52", "grassDeco": ["0xe8d090", "0xc8a860"], "trees": "0xfff0c4", "sand": "0xfff6e6", "rain": 0, "snow": 0, "drift": "dust" },
+      "autumn": { "tint": "0xfcebd8", "grassBase": "0xb89a5c", "grassTuft": "0x8a6a34", "grassDeco": ["0xc8642a", "0xe0963a", "0xa8522a", "0xd8b04a"], "trees": "0xffc88a", "sand": "0xf8eee2", "rain": 0.35, "snow": 0, "drift": "leaves" },
+      "winter": { "tint": "0xe2e8f2", "grassBase": "0x9ea68c", "grassTuft": "0x76806a", "grassDeco": ["0xf4f8fc", "0xdce6ee"], "trees": "0xd2dcd8", "sand": "0xe6e8ee", "rain": 0.55, "snow": 0.4, "drift": null }
+    },
+    "weather": {
+      "spellSeconds": [10, 24],
+      "fadeSeconds": 2.5,
+      "rainDrops": 9,
+      "splashes": 3,
+      "snowFlakes": 4,
+      "drifters": 1.5,
+      "rainTint": "0xbcc4d4",
+      "rainWalkers": 0.5
+    }
+  },
   "tutorial": {
     "followSeconds": 2,
     "arrowScale": 1,

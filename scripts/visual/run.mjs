@@ -536,6 +536,50 @@ const scenarios = {
     await shot(page, 'ambient-river');
   },
 
+  /** PC, paused town: each season's colours and the season icon, then rain, snow and a season toast. */
+  'seasons': {
+    context: PC,
+    async run(page) {
+      await startGame(page);
+      await buildTown(page);
+      await page.evaluate(() => {
+        window.game.setSpeed(0);
+        window.game.dayNight.setTime(0.3);
+      });
+      const M = await page.evaluate(() => window.core.RULES.monthsPerSeason);
+      for (const [k, season] of ['spring', 'summer', 'autumn', 'winter'].entries()) {
+        await page.evaluate(([m]) => {
+          window.state.month = m;
+          window.game.weather.force('clear', 0);
+          window.game.refresh();
+        }, [k * M + 3]);
+        await page.waitForTimeout(2500); // petals, dust and leaves drift in
+        const icon = await page.evaluate(() => window.game.ui.hud.seasonIcon.texture.key);
+        assert(icon === `icon-${season}`, `the month shows the ${season} icon (${icon})`);
+        await shot(page, `seasons-${season}`);
+      }
+      await page.evaluate(() => window.game.weather.force('rain'));
+      await page.waitForTimeout(1200);
+      const rain = await page.evaluate(() => window.game.weather.rain.getAliveParticleCount());
+      assert(rain > 20, `rain falls (${rain} drops)`);
+      await shot(page, 'weather-rain');
+      await page.evaluate(() => window.game.weather.force('snow'));
+      await page.waitForTimeout(2500);
+      await shot(page, 'weather-snow');
+      // Back to the seasons: one season toast when a month opens a new season.
+      await page.evaluate(([m]) => {
+        window.game.weather.force(null);
+        window.state.month = m - 1;
+        window.game.handleEvents(window.core.stepMonth(window.state, window.core.createRng(1)));
+        window.game.refresh();
+      }, [4 * M]);
+      const toasts = await page.evaluate(() => window.game.ui.toasts.list.map((t) => t.msg));
+      assert(toasts.some((m) => m.startsWith('Chegou a primavera')), `a toast announces the spring (${toasts})`);
+      await page.waitForTimeout(300);
+      await shot(page, 'seasons-toast');
+    },
+  },
+
   async 'town-art'(page) {
     await startGame(page);
     await buildTown(page);

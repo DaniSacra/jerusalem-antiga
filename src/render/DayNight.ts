@@ -3,6 +3,7 @@ import VISUAL from '../data/visual.json';
 import { GAME_H, GAME_W } from './layout';
 import { FinishPipeline } from './FinishPipeline';
 import { DEPTH } from './iso';
+import { mixColor, mulColor } from './Seasons';
 import { settings } from './settings';
 
 export type DayPhase = 'dawn' | 'morning' | 'afternoon' | 'sunset' | 'night';
@@ -34,10 +35,7 @@ export interface DayLight {
   walkers: number;
 }
 
-const mix = (a: number, b: number, f: number) => {
-  const ch = (s: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * f);
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
-};
+const mix = mixColor;
 
 export function sampleDay(t: number): DayLight {
   let k = 0;
@@ -72,6 +70,8 @@ export class DayNight {
   /** Off in the visual tests (software rendering is slow), so screenshots keep the finish. */
   fpsGuard = true;
   private sample = { time: 0, frames: 0 };
+  /** Season and weather colour, multiplied with the light of the time of day. */
+  private extra = 0xffffff;
 
   constructor(private scene: Phaser.Scene) {
     const cam = scene.cameras.main;
@@ -111,6 +111,11 @@ export class DayNight {
     this.paint();
   }
 
+  /** Season and weather colour over the world (white: none). */
+  setExtraTint(c: number) {
+    this.extra = c;
+  }
+
   /** Jumps to a time of day (dev hook for tests). */
   setTime(t: number) {
     this.t = ((t % 1) + 1) % 1;
@@ -126,7 +131,8 @@ export class DayNight {
 
   private paint() {
     this.light = sampleDay(settings.dayNight ? this.t : NOON);
-    const { tint, sky, night } = this.light;
+    const { sky, night } = this.light;
+    const tint = mulColor(this.light.tint, this.extra);
     this.shade.setFillStyle(tint).setVisible(tint !== 0xffffff);
     this.stars.setAlpha(night).setVisible(night > 0.02);
     this.scene.cameras.main.setBackgroundColor(sky);

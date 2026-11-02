@@ -30,6 +30,7 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 | `debt.test.ts` | manutenção levando a prata abaixo de 0, construir e cortar bloqueados em dívida (demolir não; prata 0 não é dívida), contagem da dívida (início, zera com prata ≥ 0, recomeça), derrota exatamente no mês 24 e simulação parada depois, maior população, ordem dos avisos (dívida, saldo negativo com maior custo, desemprego) |
 | `goals.test.ts` | as 9 metas (incluindo "construa 2 oficinas", só ligadas, que libera o Jardim), recompensas, liberações, evento `upkeepStart` ao cumprir a Meta 2, contagem só de casas conectadas, vitória com o templo |
 | `simulation.test.ts` | comida, prata, mês, fome e relógio (1 mês a cada 2 s em 1x) |
+| `seasons.test.ts` | ordem das estações a partir da primavera (12 meses cada), primeiro mês de cada estação, um evento `season` só quando a estação muda |
 | `tutorial.test.ts` | passos do tutorial e mini passos (dados), condição de cada passo (ruas novas na rede, casas ligadas, primeiro morador, campo, poço, casa de barro, mercado; o do saldo só por toque), caminho fantasma de 6 células livre em 100 seeds e por outro lado quando o oeste está ocupado, casas atendidas por um serviço ("Atende N casas") |
 | `looks.test.ts` | aparência das casas: semente determinística, variante dentro do número do nível, espelhamento, vizinhas do mesmo nível com variantes diferentes, novo sorteio ao mudar de nível; plantação do campo diferente da do campo vizinho; construções de uma só aparência ficam na variante 0; ofício da oficina (sorteio determinístico, vizinhas diferentes, guardado na variante) |
 | `walkers.test.ts` | tipos de morador: só aparecem quando a construção existe e está ligada, destino pelo tipo (poço, campo, mercado, oficina, altar/templo, ruas principais, borda), carregador campo → mercado e volta, destino aleatório de reserva, destino do artesão aponta a oficina e o ofício |
@@ -64,6 +65,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `families-arrive` | terrenos ao lado da rua em 3x; espera família andando e tenda pronta | `families-walking`, `families-arrived` |
 | `happiness` | pausado, cidade de `buildTown` com jardim e comida: carinha da placa segue o humor; toque na carinha mostra o detalhe; casa ao lado do jardim (motivos na linha de informação); fome deixa a carinha triste e põe balões tristes; prévia do Jardim com raio | `happiness-breakdown`, `happiness-house`, `happiness-sad`, `overlay-garden` |
 | `ambient` | cidade de `buildTown` de manhã: galinhas, jumentos, pombas, barcos, lavadeiras, ovelhas e varais existem, nenhum bicho com textura faltando (`__MISSING`); zoom no rio perto do primeiro barco | `ambient-town`, `ambient-river` |
+| `seasons` | PC, cidade de `buildTown` pausada: cores das 4 estações e ícone da estação na placa; chuva forçada (gotas caindo), neve forçada; toast da primavera ao virar o ano | `seasons-spring`, `seasons-summer`, `seasons-autumn`, `seasons-winter`, `weather-rain`, `weather-snow`, `seasons-toast` |
 | `town-art` | monta uma cidade com todos os níveis e prédios (inclui jardim); templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
 | `day-night` | PC: cidade de `buildTown` pausada em manhã, tarde dourada, pôr do sol e noite (ícone certo ao lado do mês, metade dos moradores e luzes acesas à noite); painel de opções e ciclo desligado (sempre dia) | `day-night-morning`, `day-night-golden`, `day-night-sunset`, `day-night-night`, `day-night-options`, `day-night-off` |
 | `scaffold-roads` | ruas com passos de moradores (uma gasta, uma calçada, uma comum); oficina nova com andaime que some depois | `roads-wear`, `scaffold`, `scaffold-done` |
@@ -92,7 +94,8 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.layout` — posições da interface (`src/render/layout.ts`): `speedButton(k)` (0 pausa,
   1 1x, 2 3x), `leftButton(k)` (0 Ver, 1 Rua, 2 Jardim, 3 Limpar, 4 ↺, 5 ↻), `buildButton(k)` (0 Casa …
   5 Templo), `plaqueSlot(k)` (0 mês, 1 prata, 2 comida, 3 moradores, 4 felicidade, 5 trabalho), `OPTIONS`, `GOAL_Y`, `BTN`.
-  `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
+  `window.game.weather.force('rain' | 'snow' | 'clear' | null)` fixa o clima (null volta ao sorteio
+  das estações). `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
   fantasma e `window.game.ui.tutorial` o balão (`skipBtn`, `okBtn`).
   `window.game.ui.isOverUi(x, y)` diz se um ponto está sob a interface; `window.game.ui.hud.shown`
   é o aviso mostrado e `hud.closeRect` o X dele.

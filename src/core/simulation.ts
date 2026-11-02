@@ -5,6 +5,7 @@ import { checkGoal } from './goals';
 import { hasNeeds } from './houses';
 import { rollLook } from './looks';
 import { refreshCity } from './refresh';
+import { seasonOf, seasonStarts } from './seasons';
 import type { Building, GameEvent, GameState, Rng } from './types';
 
 function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rng: Rng, events: GameEvent[]) {
@@ -83,6 +84,7 @@ export function stepMonth(s: GameState, rng: Rng): GameEvent[] {
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
 
   s.month++;
+  if (seasonStarts(s.month)) events.push({ type: 'season', season: seasonOf(s.month) });
   s.peakPopulation = Math.max(s.peakPopulation, computeEconomy(s).residents);
   checkGoal(s, events);
   updateDebt(s, events);

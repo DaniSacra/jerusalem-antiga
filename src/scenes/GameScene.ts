@@ -42,6 +42,8 @@ import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { DRAG_TOOLS, isPlaceTool, TOOLS, type Tool } from '../render/tools';
 import { Walkers } from '../render/Walkers';
+import { mulColor, seasonLook } from '../render/Seasons';
+import type { Weather } from '../render/Weather';
 import type { UIScene, UiHost } from './UIScene';
 
 const TAP_SLOP = 10;
@@ -94,6 +96,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private wear!: RoadWear;
   private ambient!: Ambient;
   private ui: UIScene | null = null;
+  /** Rain, snow and what the wind carries, on its own overlay scene (null until it starts). */
+  private weather: Weather | null = null;
 
   private tool: Tool = 'view';
   /** Non-square buildings (the market) are placed rotated; kept between placements. */
@@ -142,6 +146,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.speedIndex = 0;
     this.clock = 0;
     this.ui = null;
+    this.weather = null;
     this.selected = null;
     this.infoMode = null;
 
@@ -160,12 +165,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, VIEW_CY);
 
     this.setupInput();
+    this.scene.launch('weather', { host: this });
     this.scene.launch('ui', { host: this });
     if (import.meta.env.DEV) {
       Promise.all([import('../core'), import('../render/iso'), import('../render/layout')]).then(([core, iso, layout]) =>
         Object.assign(window, { game: this, state: this.state, core, iso, layout }),
       );
     }
+  }
+
+  attachWeather(w: Weather) {
+    this.weather = w;
   }
 
   attachUi(ui: UIScene) {
@@ -179,6 +189,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
+    // Seasons and weather: colours of the grass, sand and trees, a tint over the world, rain or snow.
+    const look = seasonLook(this.state.month, this.clock / RULES.monthSeconds);
+    this.map.setSeason(look);
+    this.weather?.update((delta / 1000) * speed, look, this.dayNight.degraded);
+    const wet = this.weather?.state.amount ?? 0;
+    this.dayNight.setExtraTint(mulColor(look.tint, this.weather?.tint ?? 0xffffff));
     this.dayNight.update((delta / 1000) * speed, delta);
     const light = this.dayNight.current;
     if (this.dayNight.degraded !== this.map.degraded) {
@@ -186,8 +202,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.map.sync(this.state, this.eco.efficiency);
     }
     this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
-    this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night);
-    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers);
+    this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night, wet);
+    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers * (this.weather?.walkers ?? 1));
     if (this.guide) this.updateTutorial(delta);
     this.ui?.setDayPhase(phaseIcon(light.phase), this.dayNight.degraded);
   }
@@ -250,6 +266,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'defeat':
           this.ui?.showDefeat(e.month, e.peak);
+          break;
+        case 'season':
+          this.ui?.toast(T.seasonStart[e.season], 'info');
           break;
         case 'upkeepStart':
           if (!this.guide?.upkeepStarted()) this.ui?.toast(T.upkeepStart, 'info');
@@ -336,6 +355,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** New map, new seed: back to the start of the game. */
   restart() {
     this.scene.stop('ui');
+    this.scene.stop('weather');
     this.scene.restart();
   }
 

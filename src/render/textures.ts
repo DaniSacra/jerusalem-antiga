@@ -7,7 +7,8 @@
  * east faces (+x, right on screen) are in shade, and shadows fall toward the east.
  */
 import Phaser from 'phaser';
-import { BUILDINGS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type Mood, type WalkerType } from '../core';
+import VISUAL from '../data/visual.json';
+import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type Mood, type Season, type WalkerType } from '../core';
 import * as F from './fauna';
 import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
@@ -20,6 +21,8 @@ type P3 = [number, number, number?];
 export const TEX = {
   /** Ground tile; `deco` adds wild flowers, a bush or pebbles (some cells only). */
   ground: (g: Ground, v: number, deco = false) => `ground-${g}-${v}${deco ? '-d' : ''}`,
+  /** Grass of a season (the map swaps them as the year turns). */
+  grass: (season: Season, v: number, deco = false) => `grass-${season}-${v}${deco ? '-d' : ''}`,
   /** Animals, boats, washerwomen and cloth (frame = colour or pose). */
   fauna: (kind: FaunaKind, frame = 0) => `fauna-${kind}-${frame}`,
   /** Street with junctions `mask`; `wear` 0 packed earth, 1 wider and lighter (busy), 2 stone paving. */
@@ -58,7 +61,12 @@ export const TEX = {
   family: 'family',
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
-  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options') => `icon-${name}`,
+  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options' | Season) => `icon-${name}`,
+  /** Weather particles: rain streak, splash ring, falling leaf and petal (snow and dust use `soft`). */
+  rain: 'rain',
+  splash: 'splash',
+  leaf: 'leaf',
+  petal: 'petal',
   /** Face of a mood (plaque happiness slot). */
   mood: (m: Mood) => `mood-${m}`,
 };
@@ -226,9 +234,21 @@ const DIAMOND = 0.515;
 
 // ---------- ground ----------
 
-function groundTile(p: Pen, kind: Ground, v: number) {
+/** Grass of each season: base colour, tuft colour, flowers or leaves of the decorated tiles and frost. */
+const SEASON_GRASS: Record<Season, { base: number; tuft: number; deco: number[]; frost: boolean }> = Object.fromEntries(
+  (Object.entries(VISUAL.seasons.looks) as [Season, (typeof VISUAL.seasons.looks)['spring']][]).map(([k, l]) => [
+    k,
+    { base: Number(l.grassBase), tuft: Number(l.grassTuft), deco: l.grassDeco.map(Number), frost: k === 'winter' },
+  ]),
+) as Record<Season, { base: number; tuft: number; deco: number[]; frost: boolean }>;
+/** Small tone steps between the four ground variants. */
+const VARIANT_TONE = [1, 0.985, 1.015, 0.975];
+
+function groundTile(p: Pen, kind: Ground, v: number, season: Season | null = null) {
   const r = createRng(300 + v * 7 + kind.length);
-  const base = kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
+  const sg = season && kind === 'grass' ? SEASON_GRASS[season] : null;
+  const base = sg ? shade(sg.base, VARIANT_TONE[v]) : kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
+  const tuft = sg ? sg.tuft : C.tuft;
   p.rect(base, -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
   const spot = (m = 0.4) => [-m + r() * m * 2, -m + r() * m * 2] as const;
   if (kind === 'river') {
@@ -271,15 +291,22 @@ function groundTile(p: Pen, kind: Ground, v: number) {
       const [x, y] = spot();
       const b = p.p(x, y);
       const tall = 3 + r() * 3;
-      p.g.lineStyle(1.2, i % 3 ? C.tuft : shade(base, 1.22), 0.9);
+      p.g.lineStyle(1.2, i % 3 ? tuft : shade(base, 1.22), 0.9);
       p.g.lineBetween(b.x, b.y, b.x - 2, b.y - tall * 0.8);
       p.g.lineBetween(b.x, b.y, b.x, b.y - tall);
       p.g.lineBetween(b.x, b.y, b.x + 2, b.y - tall * 0.8);
     }
     if (v === 0) {
       const [x, y] = spot(0.3);
-      p.ball(0xf2e6b0, x, y, 2, 1.1);
-      p.ball(0xd98a6a, x + 0.08, y - 0.04, 2, 1.1);
+      p.ball(sg ? sg.deco[0] : 0xf2e6b0, x, y, 2, 1.1);
+      p.ball(sg ? sg.deco[1 % sg.deco.length] : 0xd98a6a, x + 0.08, y - 0.04, 2, 1.1);
+    }
+    // Winter: white frost specks.
+    if (sg?.frost) {
+      for (let i = 0; i < 10; i++) {
+        const [x, y] = spot();
+        p.disc(0xf4f8fc, x, y, 0, 0.012 + r() * 0.02, 0.8);
+      }
     }
   }
 }
@@ -662,11 +689,11 @@ export function scaffoldTexture(scene: Phaser.Scene, w: number, h: number): stri
 }
 
 /** Extra ground detail on some cells: wild flowers and a bush on grass, pebbles and a shrub on sand. */
-function groundDeco(p: Pen, kind: Ground, v: number) {
+function groundDeco(p: Pen, kind: Ground, v: number, season: Season | null = null) {
   const r = createRng(700 + v * 13 + kind.length);
   const spot = (m: number) => [-m + r() * m * 2, -m + r() * m * 2] as const;
   if (kind === 'grass') {
-    const petals = [0xf2e6b0, 0xd98a6a, 0xb59ad8, 0xf4f0e6, 0xe8c040];
+    const petals = season ? SEASON_GRASS[season].deco : [0xf2e6b0, 0xd98a6a, 0xb59ad8, 0xf4f0e6, 0xe8c040];
     for (let i = 0; i < 9; i++) {
       const [x, y] = spot(0.36);
       p.ball(petals[(i + v) % petals.length], x, y, 2, 1.1);
@@ -683,7 +710,7 @@ function groundDeco(p: Pen, kind: Ground, v: number) {
   const c = p.p(bx, by);
   p.g.fillStyle(C.shadow, 0.12);
   p.g.fillEllipse(c.x + 2, c.y + 1, 9, 3);
-  const leaf = kind === 'grass' ? C.olive : shade(C.oliveLight, 0.95);
+  const leaf = kind === 'grass' ? (season === 'summer' ? 0xa89a5a : season === 'autumn' ? 0xa8823e : C.olive) : shade(C.oliveLight, 0.95);
   p.ball(leaf, bx, by, 3, 3.2);
   p.ball(shade(leaf, 1.15), bx - 0.03, by - 0.02, 4.5, 2);
 }
@@ -2709,6 +2736,54 @@ function family(g: G) {
 
 function icons(scene: Phaser.Scene) {
   const icon = (name: Parameters<typeof TEX.icon>[0], draw: (g: G) => void) => makeFlat(scene, TEX.icon(name), 40, 40, draw);
+  // Seasons (in the month slot of the plaque): almond blossom, strong sun, falling leaf, snowflake.
+  icon('spring', (g) => {
+    g.lineStyle(3, C.woodDark, 1);
+    g.lineBetween(8, 34, 22, 18);
+    g.lineBetween(16, 26, 28, 28);
+    for (const [x, y] of [[22, 14], [30, 26], [12, 22]]) {
+      g.fillStyle(0xf7c6d6);
+      for (let k = 0; k < 5; k++) g.fillCircle(x + Math.cos((k * 2 * Math.PI) / 5) * 4, y + Math.sin((k * 2 * Math.PI) / 5) * 4, 3.4);
+      g.fillStyle(0xe0607e);
+      g.fillCircle(x, y, 2);
+    }
+  });
+  // Summer is the harvest: a golden sheaf of wheat (the sun is already the time of day).
+  icon('summer', (g) => {
+    for (const [dx, a] of [[-7, -0.35], [0, 0], [7, 0.35]] as const) {
+      const tx = 20 + dx + Math.sin(a) * 6;
+      g.lineStyle(2.5, 0xb88a2a, 1);
+      g.lineBetween(20 + dx * 0.3, 36, tx, 14);
+      g.fillStyle(0xe8b83a);
+      for (let k = 0; k < 4; k++) g.fillEllipse(tx + (k % 2 ? 2.5 : -2.5), 6 + k * 3.5, 4.5, 6);
+    }
+    g.fillStyle(0xa8642a);
+    g.fillRect(13, 26, 14, 4);
+  });
+  icon('autumn', (g) => {
+    g.fillStyle(0xc8642a);
+    g.fillPoints([{ x: 20, y: 4 }, { x: 31, y: 14 }, { x: 28, y: 28 }, { x: 20, y: 34 }, { x: 12, y: 28 }, { x: 9, y: 14 }], true);
+    g.fillStyle(0xe8963a);
+    g.fillPoints([{ x: 20, y: 8 }, { x: 27, y: 15 }, { x: 20, y: 28 }, { x: 13, y: 15 }], true);
+    g.lineStyle(2, 0x7a3a16, 1);
+    g.lineBetween(20, 8, 20, 38);
+  });
+  icon('winter', (g) => {
+    g.lineStyle(3, 0x6f9ec8, 1);
+    for (let k = 0; k < 3; k++) {
+      const a = (k * Math.PI) / 3 + Math.PI / 2;
+      const [dx, dy] = [Math.cos(a) * 15, Math.sin(a) * 15];
+      g.lineBetween(20 - dx, 20 - dy, 20 + dx, 20 + dy);
+      for (const sgn of [1, -1]) {
+        const [px, py] = [20 + (sgn * dx * 2) / 3, 20 + (sgn * dy * 2) / 3];
+        const b = a + Math.PI / 4;
+        g.lineBetween(px, py, px + Math.cos(b) * 5 * sgn, py + Math.sin(b) * 5 * sgn);
+        g.lineBetween(px, py, px + Math.cos(a - Math.PI / 4) * 5 * sgn, py + Math.sin(a - Math.PI / 4) * 5 * sgn);
+      }
+    }
+    g.fillStyle(0xdceefa);
+    g.fillCircle(20, 20, 3);
+  });
   icon('view', (g) => {
     g.lineStyle(5, C.woodDark, 1);
     g.lineBetween(25, 25, 35, 35);
@@ -2764,16 +2839,6 @@ function icons(scene: Phaser.Scene) {
     g.fillRoundedRect(17, 5, 20, 10, 2);
     g.fillStyle(C.rockLight);
     g.fillRect(17, 5, 20, 3);
-  });
-  icon('month', (g) => {
-    g.fillStyle(C.cream);
-    g.fillRoundedRect(6, 8, 28, 26, 4);
-    g.fillStyle(C.red);
-    g.fillRoundedRect(6, 8, 28, 9, { tl: 4, tr: 4, bl: 0, br: 0 });
-    g.lineStyle(2, C.border, 1);
-    g.strokeRoundedRect(6, 8, 28, 26, 4);
-    g.fillStyle(C.ink);
-    [[12, 22], [20, 22], [28, 22], [12, 28], [20, 28]].forEach(([x, y]) => g.fillRect(x - 1.5, y - 1.5, 3, 3));
   });
   icon('goal', (g) => {
     g.lineStyle(3, C.woodDark, 1);
@@ -2835,6 +2900,12 @@ export function generateTextures(scene: Phaser.Scene): void {
         groundTile(p, g, v);
         groundDeco(p, g, v);
       });
+    for (const season of SEASONS)
+      for (const deco of [false, true])
+        make(scene, TEX.grass(season, v, deco), TILE, (p) => {
+          groundTile(p, 'grass', v, season);
+          if (deco) groundDeco(p, 'grass', v, season);
+        });
     make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
@@ -2881,6 +2952,26 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillStyle(0xffffff, (6 - k) / 15);
       g.fillCircle(16, 16, (16 * k) / 5);
     }
+  });
+  raw(TEX.rain, 3, 18, (g) => {
+    g.fillStyle(0xdfe8f4, 0.35);
+    g.fillRect(0, 0, 3, 18);
+    g.fillStyle(0xffffff, 0.75);
+    g.fillRect(1, 4, 1, 14);
+  });
+  raw(TEX.splash, 16, 8, (g) => {
+    g.lineStyle(1.5, 0xffffff, 0.8);
+    g.strokeEllipse(8, 4, 14, 6);
+  });
+  raw(TEX.leaf, 10, 6, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillEllipse(5, 3, 10, 5);
+    g.lineStyle(1, 0x000000, 0.25);
+    g.lineBetween(1, 3, 9, 3);
+  });
+  raw(TEX.petal, 6, 5, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillEllipse(3, 2.5, 6, 4);
   });
   raw(TEX.ring, 64, 64, (g) => {
     g.lineStyle(6, 0xffffff, 0.35);

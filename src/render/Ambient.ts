@@ -161,12 +161,12 @@ export class Ambient {
     }
   }
 
-  /** `t` seconds (real), `dt` game seconds (0 when paused), `night` 0..1. */
-  update(t: number, dt: number, night: number) {
+  /** `t` seconds (real), `dt` game seconds (0 when paused), `night` 0..1, `overcast` 0..1 (rain or snow). */
+  update(t: number, dt: number, night: number, overcast = 0) {
     for (const c of this.clouds) {
-      c.x += dt * 9;
+      c.x += dt * (9 + 10 * overcast);
       if (c.x > WORLD.right + 600) c.x = WORLD.left - 600;
-      c.setAlpha(0.09 * (1 - night));
+      c.setAlpha((0.09 + 0.1 * overcast) * (1 - night));
     }
     for (const g of this.groups.values()) {
       for (const m of g.movers) this.move(m, t, dt);

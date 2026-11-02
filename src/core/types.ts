@@ -2,6 +2,9 @@ export type Ground = 'sand' | 'grass' | 'river';
 export type Feature = 'rock' | 'palm' | 'olive';
 export type BuildingKind = 'house' | 'field' | 'well' | 'market' | 'workshop' | 'garden' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
+/** The four seasons, in order. */
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
 export type BuildableKind = Exclude<BuildingKind, 'altar'>;
 /** Everything the player can place: buildings and road. */
 export type Placeable = BuildableKind | 'road';
@@ -113,6 +116,8 @@ export interface Rules {
   earlyFamilySpeedMultiplier: number;
   /** Upkeep is charged only once this many goals are done (the first goals are free of it). */
   upkeepStartsAfterGoal: number;
+  /** Months in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
+  monthsPerSeason: number;
   workerShare: number;
   /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
   unemploymentAlert: number;
@@ -242,6 +247,8 @@ export type GameEvent =
   | { type: 'familyLeft'; x: number; y: number }
   /** Upkeep starts being charged (once, right after goal `upkeepStartsAfterGoal`). */
   | { type: 'upkeepStart' }
+  /** A new season began (looks only for now). */
+  | { type: 'season'; season: Season }
   | { type: 'debtStart' }
   | { type: 'debtEnd' }
   | { type: 'defeat'; month: number; peak: number };
