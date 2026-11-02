@@ -38,7 +38,10 @@ export const T = {
   /** Extra message when a goal unlocks a building, explaining what it is for. */
   unlocked: { workshop: 'Oficina liberada! Ela dá trabalho ao povo e rende prata.' } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
-    if (a.kind === 'debt') return `A cidade está em dívida! ${months(a.monthsLeft)} para ser abandonada`;
+    if (a.kind === 'debt')
+      return a.famine
+        ? `Em dívida e com fome: demolir serviços para juntar prata para um campo · ${months(a.monthsLeft)}`
+        : `A cidade está em dívida! ${months(a.monthsLeft)} para ser abandonada`;
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/mês · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/mês) · demolir serviços que atendem poucas casas`;
     return `${a.count} pessoas sem trabalho: construa uma oficina`;

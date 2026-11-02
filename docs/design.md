@@ -9,7 +9,7 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 4. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a mecânica.
 5. Uma mecânica nova por vez, sempre liberada por meta.
 
-## Estado atual (após o pacote "Mapa maior e construções grandes", 2026-11-02)
+## Estado atual (após o pacote "Manutenção e falência", 2026-11-02)
 - Mapa 48 x 48. Altar 4 x 4 fixo no centro (canto em 22,22), cercado por um anel
   de rua (x e y de 21 a 26), e uma rua inicial na coluna 24 do anel até a entrada
   da cidade na borda sul (24,47); 41 células de rua de graça
@@ -65,10 +65,10 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   cada um com destino, velocidade e pausa próprios (`walkers.json`); um tipo só
   aparece quando a construção dele existe
 
-## Em andamento: pacote "Manutenção e falência" (aprovado 2026-11-02; implementado, falta o equilíbrio do sim-tester e o fun-critic)
-Única mecânica nova: manutenção, com dívida e derrota como consequência. O resto
-é ajuste de regras que já existem ou interface.
-- Manutenção mensal (`upkeep` em `buildings.json`): poço 1, campo 1, mercado 3,
+- Pacote "Manutenção e falência" (equilíbrio aprovado 2026-11-02; falta o
+  fun-critic). Única mecânica nova: manutenção, com dívida e derrota como
+  consequência
+- Manutenção mensal (`upkeep` em `buildings.json`): poço 3, campo 1, mercado 4,
   oficina 2, templo 10; rua, casa e altar 0. Cobrada todo mês, inclusive de
   construções desconectadas, também depois da vitória
 - Mês: prata += impostos + oficinas − manutenção. O +X/mês da barra já desconta
@@ -96,12 +96,37 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
     construção mostra "Manutenção 3/mês"
   - valor da prata: normal com saldo ≥ 0, laranja com saldo do mês negativo,
     vermelho piscando em dívida
-- Alvos do sim-tester (3 jogadores automáticos, antes e depois): Eficiente vence
-  sem nunca entrar em dívida e aguenta 24 meses após o templo; Comum entra em
-  aperto ao menos uma vez, se recupera e vence; Distraído perde na maioria.
-  Ajusta só manutenção, consumo e `debtMonthsToLose`. Depois, fun-critic
+- Em dívida e com fome ao mesmo tempo, a etiqueta de dívida troca a dica para
+  "Em dívida e com fome: demolir serviços para juntar prata para um campo"
+  (só texto; aprovado, a implementar)
+- Equilíbrio medido (100 seeds): Eficiente vence 100/100 sem dívida, mês 56;
+  Comum vence 96/100, 82 com saldo negativo e 36 em dívida recuperada, mês 94;
+  Distraído perde 81/100
+
+## Pendente
+- fun-critic avaliar o pacote "Manutenção e falência"
+- sim-tester medir a recompensa da meta 3 de 40 → 75 (paga as 2 oficinas da
+  meta 4); só entra depois da medição
 
 ## Decisões
+- 2026-11-02 — Equilíbrio da manutenção: poço 1 → 3, mercado 3 → 4; resto
+  igual. Motivo: com os valores originais, Comum quase nunca apertava (1/40) e
+  Distraído perdia só 15/40; agora os três alvos são cumpridos. Poço mais caro
+  também premia o poço bem colocado (pilar 3).
+- 2026-11-02 — Dívida + fome: campo NÃO pode ser construído em dívida (exceção
+  quebraria "construir exige prata", pilar 1). Saída continua sendo demolir; a
+  etiqueta de dívida ganha dica própria quando há fome. A espiral de quem não
+  cuida da cidade é a derrota que queríamos.
+- 2026-11-02 — `debtMonthsToLose` fica 24: 36 não salvou ninguém (as derrotas
+  são espirais, não falta de tempo), e a queda de 3x para 1x já dá tempo de ver.
+- 2026-11-02 — Armadilha da meta 4 (Comum preso 39 meses sem juntar 35 para a
+  oficina): ajuste de recompensa, não mecânica; medir meta 3 +75 antes de
+  aprovar.
+- 2026-11-02 — Templo sem lugar em 2/40 partidas do Distraído: fica como está;
+  o destaque verde e a mensagem "Sem espaço para o templo" já explicam, e
+  demolir resolve.
+- 2026-11-02 — Duração curta (Eficiente 56 meses) continua vindo de conteúdo
+  dos próximos pacotes, como já decidido.
 - 2026-11-02 — Pacote "Manutenção e falência" (pedido do usuário) aprovado com
   ajustes. Motivo: não existia forma de perder; manutenção faz serviço mal
   posicionado custar todo mês (pilar 3) e cabe numa frase na dica (pilar 1).
@@ -116,7 +141,7 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   avisos do core será a lista de "principais problemas" do painel.
 - 2026-11-02 — Manutenção vale também para construção desconectada. Motivo:
   ensina a ligar à rua; o balão "sem rua" já mostra o problema. Valores baixos
-  (poço e campo 1) mantêm o começo leve: 200 de prata e 3 famílias garantidas.
+  (campo 1) mantêm o começo leve: 200 de prata e 3 famílias garantidas.
 - 2026-11-02 — "Trabalho 0/0 100%" e o layout no celular (revisão do
   ui-designer) ficam fora deste pacote; as etiquetas empilhadas precisam caber
   na tela do celular deitado.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeEconomy, costliestUpkeep, HOUSE_LEVELS, RULES, unemployed, unemploymentAlert } from '../src/core';
+import { BUILDINGS, computeEconomy, costliestUpkeep, HOUSE_LEVELS, RULES, unemployed, unemploymentAlert } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('economy', () => {
@@ -28,16 +28,17 @@ describe('economy', () => {
   it('ignores jobs and production of disconnected buildings, but still charges their upkeep', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 3); // 10 residents, 3.5 tax
-    put(s, 'field', 1, 1); // upkeep 1
-    put(s, 'workshop', 5, 1); // upkeep 2
-    put(s, 'market', 9, 1); // upkeep 3
+    put(s, 'field', 1, 1);
+    put(s, 'workshop', 5, 1);
+    put(s, 'market', 9, 1);
+    const up = (k: 'field' | 'workshop' | 'market') => BUILDINGS[k].upkeep!;
     const e = computeEconomy(s);
     expect(e.jobs).toBe(0);
     expect(e.foodDelta).toBeCloseTo(-2.5);
-    expect(e).toMatchObject({ taxes: 3.5, workshops: 0, upkeep: { field: 1, workshop: 2, market: 3 } });
-    expect(e.silverDelta).toBeCloseTo(3.5 - 6);
+    expect(e).toMatchObject({ taxes: 3.5, workshops: 0, upkeep: { field: up('field'), workshop: up('workshop'), market: up('market') } });
+    expect(e.silverDelta).toBeCloseTo(3.5 - up('field') - up('workshop') - up('market'));
     put(s, 'workshop', westOf('workshop'), 29);
-    expect(computeEconomy(s).silverDelta).toBeCloseTo(3.5 + 5 - 8);
+    expect(computeEconomy(s).silverDelta).toBeCloseTo(3.5 + 5 - up('field') - 2 * up('workshop') - up('market'));
   });
 
   it('charges the upkeep of buildings.json; roads, houses and the altar are free', () => {
@@ -50,9 +51,16 @@ describe('economy', () => {
     put(s, 'workshop', EAST, 30);
     put(s, 'temple', EAST, 34);
     const e = computeEconomy(s);
-    expect(e.upkeep).toEqual({ well: 1, field: 1, market: 3, workshop: 2, temple: 10 });
+    expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
+      well: 3,
+      field: 1,
+      market: 4,
+      workshop: 2,
+      temple: 10,
+    });
+    expect(e.upkeep).toEqual({ well: 3, field: 1, market: 4, workshop: 2, temple: 10 });
     expect(costliestUpkeep(e)).toEqual({ kind: 'temple', amount: 10 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes + e.workshops - 17); // the balance shown as +X/mês
+    expect(e.silverDelta).toBeCloseTo(e.taxes + e.workshops - 20); // the balance shown as +X/mês
   });
 
   it('eats food per resident according to the house level', () => {

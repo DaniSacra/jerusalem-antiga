@@ -399,7 +399,6 @@ export class Bot {
     if (!best) return false;
     this.stats.demolished = (this.stats.demolished ?? 0) + 1;
     this.stats.trimmed = (this.stats.trimmed ?? 0) + 1;
-    if (process.env.SIM_DEBUG) console.log(`m${s.month} trim ${best.kind} +${bestGain} silver ${s.silver} bal ${computeEconomy(s).silverDelta}`);
     return clearCell(s, best.x, best.y).ok;
   }
 

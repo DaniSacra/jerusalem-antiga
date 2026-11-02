@@ -112,6 +112,7 @@ npm run sim -- --seed0 100 --months 600       # outras sementes, outro limite de
 npm run sim -- --csv <pasta>                  # curvas por partida (a cada 3 meses): prata, comida,
                                               # moradores, eficiência, saldos, sem trabalho
 npm run sim -- --json                         # resultados brutos
+npm run sim -- --after 48                     # meses jogados depois da vitória (padrão 24; 0 = para na vitória)
 npm run sim -- --set buildings.temple.cost=2000 --set rules.familyChance=0.25 --drop-goal 4
 npm run sim -- --set bots.comum.actionsPerMonth=1
 npm run sim:dump -- <semente> <jogador> <mês> # desenha o mapa da partida naquele mês (aceita --set)
@@ -124,7 +125,7 @@ tira a meta N (contando de 1); o que ela liberava passa para a meta anterior.
 | Arquivo | O que faz |
 |---|---|
 | `bots.ts` | jogadores automáticos: um perfil de números (`BotProfile`) + a mesma lógica de decisão. Só usam a API do core (`place`, `clearCell`, `computeEconomy`, `needMet`, `templeSpots`...) e leem custos dos dados, então mudanças de regra ou de números valem sem mexer nos jogadores |
-| `sim.ts` | `runGame(perfil, semente)`: roda uma partida e mede tudo; `isDefeated(s)` encerra como derrota se o estado tiver `lost`, `defeated` ou `gameOver` |
+| `sim.ts` | `runGame(perfil, semente, meses, amostra, depois)`: roda uma partida e mede tudo; depois da vitória continua `depois` meses (a manutenção segue valendo) para ver se a cidade aguenta; `isDefeated(s)` encerra como derrota se o estado tiver `lost`, `defeated` ou `gameOver` |
 | `run.ts` | linha de comando e resumo por jogador (medianas e faixa mín–máx) |
 | `overrides.ts` | `--set` e `--drop-goal` |
 | `dump.ts` | mapa em texto (0–4 nível da casa, f campo, W poço, M mercado, K oficina, T templo, A altar, # rua ligada, + rua solta, R rocha, t árvore, ~ rio) |
@@ -135,17 +136,30 @@ construção; o rng do jogador é separado do rng do jogo):
 - **eficiente** — segue uma grade de ruas (a cada 5 células, alinhada ao anel do altar), põe poço
   e mercado antes das casas, casas perto do altar, campos e oficinas fora do raio do altar, campo
   só quando ele de fato aumenta a comida, oficina com 3+ pessoas sem trabalho, reserva um lote 6 x 6
-  para o templo; no fim só gasta no que se paga.
+  para o templo; no fim só gasta no que se paga e, quando o templo está a menos de um ano de saldo,
+  só junta prata. Olha o saldo do mês: não constrói algo com manutenção se a prata restante não
+  aguentar o déficit por 24 meses, e nunca gasta a ponto de terminar o mês com prata negativa.
+  Se o déficit ameaça, demole o serviço que menos rende (veja abaixo) na hora.
 - **comum** — segue a grade, reage aos problemas (comida negativa, casas sem poço/mercado, aviso
   de desemprego) depois de 3 meses, às vezes constrói um poço ou mercado sem precisar, fica parado
-  10% dos meses e, com o templo liberado, só junta prata.
+  10% dos meses e, com o templo liberado, só junta prata. Só corta manutenção depois de 6 meses de
+  saldo negativo ou 3 meses em dívida, e mesmo assim só em metade dos meses.
 - **distraido** — ruas e lugares quase ao acaso, só percebe a comida quando a fome chega, só reage
   ao aviso de desemprego depois de ~10 meses, constrói serviços à toa, fica parado 30% dos meses e
-  não junta prata para o templo.
+  não junta prata para o templo. Não percebe o saldo negativo; só corta manutenção depois de 8
+  meses em dívida, e em só 20% dos meses.
+
+Cortar manutenção: o jogador demole a construção com manutenção (poço, campo, mercado, oficina)
+cuja saída mais melhora o saldo, medido numa cópia do estado com cada casa (e terreno) no nível
+mais alto que suas exigências permitem, e que não deixa a comida pior que hoje. Preso na meta das
+casas grandes, o jogador também leva poço ou mercado às casas da área sagrada e, sem lugar, demole
+um campo, uma oficina ou uma casa pequena perto delas.
 
 Medidas por partida: venceu/perdeu, mês de cada meta (e minutos a 1x), prata mínima, prata
 máxima antes de liberar o templo, meses com prata parada (> 120 antes do templo), meses com saldo
-de prata negativo, meses e episódios de fome (e se terminou em fome), pico de moradores, meses com
+de prata negativo, meses em dívida (prata < 0 ao fim do mês; total, episódios e maior sequência),
+meses apertados (em dívida, ou déficit × 12 maior que a prata), demolições para cortar
+manutenção, depois da vitória (perdeu? entrou em dívida? prata mínima), meses e episódios de fome (e se terminou em fome), pico de moradores, meses com
 aviso de desemprego, maior sequência de meses sem nada útil para fazer, maior sequência só juntando
 prata, se havia lugar para o templo ao liberá-lo e quantos meses até haver, ações e prata gasta por
 tipo.

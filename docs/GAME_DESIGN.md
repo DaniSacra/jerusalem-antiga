@@ -37,8 +37,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 10 | – | 2 x 2 | – | impostos | – | começa como terreno vazio |
 | Campo | 15 | 1/mês | 2 x 2 | 3 | 3 comida/mês | – | 4 plantações (só aparência) |
-| Poço | 20 | 1/mês | 2 x 2 | – | – | 4 | |
-| Mercado | 40 | 3/mês | 2 x 4 | 3 | – | 5 | liberado pela Meta 2; pode girar para 4 x 2 |
+| Poço | 20 | 3/mês | 2 x 2 | – | – | 4 | |
+| Mercado | 40 | 4/mês | 2 x 4 | 3 | – | 5 | liberado pela Meta 2; pode girar para 4 x 2 |
 | Oficina | 35 | 2/mês | 3 x 3 | 3 | 5 prata/mês | – | liberada pela Meta 3; 6 ofícios (só aparência) |
 | Templo | 800 | 10/mês | 6 x 6 | 2 | – | 12 | liberado pela Meta 8; não pode ser demolido |
 | Altar | – | – | 4 x 4 | – | – | 3 | fixo no início |
@@ -132,7 +132,8 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 - Derrota: tela "Jerusalém foi abandonada" com os meses jogados e a maior população alcançada, e
   o botão "Tentar de novo" (novo mapa, nova semente). Depois da derrota a simulação para.
 - **Avisos** (`alerts()` no core), empilhados em etiquetas abaixo da barra superior, à esquerda,
-  nesta ordem: dívida em vermelho ("A cidade está em dívida! N meses para ser abandonada"); saldo
+  nesta ordem: dívida em vermelho ("A cidade está em dívida! N meses para ser abandonada"; com fome
+  ao mesmo tempo: "Em dívida e com fome: demolir serviços para juntar prata para um campo · N meses"); saldo
   negativo em laranja ("Saldo −X/mês · maior custo: Tipo (N/mês) · demolir serviços que atendem
   poucas casas"); desemprego em laranja. Quando existir o painel de estatísticas, a mesma lista
   vira "principais problemas".
