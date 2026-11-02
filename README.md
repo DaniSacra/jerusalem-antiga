@@ -3,6 +3,11 @@
 Construtor de cidade isométrico para celular (tela deitada) e PC.
 Phaser 3 + TypeScript + Vite, testes com Vitest. Toda a arte é desenhada por código.
 
+Documentação completa:
+- [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md) — regras, números, interface, controles e arte
+- [docs/TESTING.md](docs/TESTING.md) — testes unitários, testes visuais e como escrever novos
+- [CLAUDE.md](CLAUDE.md) — regras de arquitetura para as próximas sessões
+
 ## Rodar localmente
 
 Requer Node 20+.
@@ -11,6 +16,7 @@ Requer Node 20+.
 npm install
 npm run dev        # abre em http://localhost:5173 (e no IP da rede, para testar no celular)
 npm test           # testes unitários da simulação
+npm run test:visual  # testes no navegador com screenshots em screenshots/
 npm run build      # gera o site estático em dist/
 npm run preview    # serve o dist/ para conferir o build
 ```
@@ -55,6 +61,8 @@ src/
   render/   desenho isométrico, animação, câmera e interface
   scenes/   telas do Phaser (início, jogo e interface) e entrada
 tests/      testes unitários do core
+scripts/visual/  testes visuais com Playwright
+docs/       design do jogo e guia de testes
 ```
 
 Para ajustar o balanço do jogo, edite os arquivos em `src/data/`.

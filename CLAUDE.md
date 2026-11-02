@@ -2,10 +2,22 @@
 
 Isometric city builder for phone (landscape) and PC. Phaser 3 + TypeScript + Vite, tests with Vitest.
 
+## Read first
+- `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
+- `docs/TESTING.md` — unit tests, visual tests, dev hooks and how to add scenarios.
+
+Keep both up to date: any change to a rule, number, control or test scenario must update the
+matching doc in the same change.
+
 ## Commands
 - `npm run dev` — dev server (also on the LAN for phones)
 - `npm test` — unit tests for `src/core`
+- `npm run test:visual` — Playwright scenarios with screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
+
+## Definition of done
+`npm test`, `npx tsc --noEmit` and `npm run test:visual` pass, and the screenshots affected by
+the change have been looked at.
 
 ## Rules of the codebase
 - `src/core`: the whole simulation in pure TypeScript. Never import Phaser here.
