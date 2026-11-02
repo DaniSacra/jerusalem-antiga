@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clearCell, doorsOf, indexOf, place, RULES, stepMonth } from '../src/core';
-import { constRng, emptyGame, put, ROADSIDE } from './helpers';
+import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const always = constRng(0);
 const never = constRng(0.99);
@@ -42,6 +42,7 @@ describe('families', () => {
   it('after the first 3, dispatches with 35% chance, one family per plot at a time', () => {
     const s = emptyGame();
     for (const y of [34, 36, 38]) put(s, 'house', ROADSIDE, y, 1);
+    put(s, 'workshop', EAST, 34); // jobs for all: the city is content, so the plain 35% applies
     put(s, 'house', ROADSIDE, 27);
     stepMonth(s, constRng(0.36));
     expect(s.families).toHaveLength(0);

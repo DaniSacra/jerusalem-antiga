@@ -28,6 +28,9 @@ interface Walker {
   idle: number;
   /** Next walk is a return leg (types that shuttle between two buildings). */
   back: boolean;
+  /** Last grid position (for animals that react to people passing by). */
+  gx: number;
+  gy: number;
 }
 
 /** Render-side randomness (which walker, small pace differences). Game rules stay seeded in core. */
@@ -72,6 +75,11 @@ export class Walkers {
     this.updateResidents(dtMs / 1000, s, Math.floor(Math.min(MAX_WALKERS, residents / PER_WALKER) * share), speed);
     this.updateFamilies(s, monthFrac);
     this.updateLeaving(dtMs / 1000, speed);
+  }
+
+  /** True if a resident is within r cells of a grid point. */
+  near(gx: number, gy: number, r: number) {
+    return this.list.some((w) => Math.abs(w.gx - gx) < r && Math.abs(w.gy - gy) < r);
   }
 
   /** A family leaves the house at (x, y) on foot; with no route out they just fade away. */
@@ -135,6 +143,8 @@ export class Walkers {
         }
       }
       const p = along(w.path, w.seg + w.t, w.lane);
+      w.gx = p.gx;
+      w.gy = p.gy;
       const bob = moving ? Math.abs(Math.sin(w.phase)) * 2 : 0;
       place(w.img, p.gx, p.gy, p.dx, p.dy, bob);
       w.img.setTexture(TEX.walker(w.type, w.look, moving && Math.sin(w.phase) > 0 ? 1 : 0, w.craft));
@@ -149,7 +159,7 @@ export class Walkers {
     const look = Math.floor(rand() * WALKER_LOOKS);
     const img = this.scene.add.image(0, 0, TEX.walker(type, look, 0)).setOrigin(0.5, 1);
     const pace = walkerDef(type).speed * (0.9 + rand() * 0.2);
-    this.list.push({ type, look, craft: null, img, path: [door], seg: 0, t: 0, pace, lane: (rand() - 0.5) * 0.3, phase: rand() * 6, idle: rand(), back: false });
+    this.list.push({ type, look, craft: null, img, path: [door], seg: 0, t: 0, pace, lane: (rand() - 0.5) * 0.3, phase: rand() * 6, idle: rand(), back: false, gx: door.x + 0.5, gy: door.y + 0.5 });
   }
 
   /** Breadth-first route over the roads to the next destination of the walker's type. */

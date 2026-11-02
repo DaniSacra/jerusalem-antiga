@@ -1,15 +1,12 @@
 import Phaser from 'phaser';
 import { costOf, RULES, unlockingGoal, type GameState } from '../core';
-import { BTN, BTN_GAP, BUILD_W, buildButton, DIVIDER, inRect, LEFT_RAIL, leftButton, RIGHT_RAIL } from './layout';
+import { BTN, BTN_GAP, BUILD_W, buildButton, DIVIDER, inRect, LEFT_BTN, LEFT_RAIL, leftButton, RIGHT_RAIL } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
 import { cropImages, ORIGIN, TEX } from './textures';
 import { BUILD_TOOLS, RAIL_TOOLS, type BuildTool, type Tool } from './tools';
 import { RailButton, stonePanel, text } from './ui';
 
-/** Thumbnail area of a building button (above the cost). */
-const THUMB_W = BUILD_W - 10;
-const THUMB_H = BTN - 28;
 /** Shown on a building button when there is not enough silver. */
 const SHORT_TINT = 0x8c8c8c;
 
@@ -21,19 +18,20 @@ interface BuildButton {
   cost: Phaser.GameObjects.Text;
 }
 
-/** Building texture shrunk to fit the button (fields get their crops on top). */
-function thumbnail(scene: Phaser.Scene, kind: BuildTool): Phaser.GameObjects.Image[] {
+/** Building texture shrunk to fit a w x h button above the cost (fields get their crops on top). */
+function thumbnail(scene: Phaser.Scene, kind: BuildTool, w: number, h: number): Phaser.GameObjects.Image[] {
   const key = TEX.building(kind, kind === 'house' ? 3 : 0);
-  const bottom = -BTN / 2 + 4 + THUMB_H;
+  const thumbH = h - 28;
+  const bottom = -h / 2 + 4 + thumbH;
   const img = scene.add.image(0, bottom, key).setOrigin(0.5, 1);
-  const k = Math.min(THUMB_W / img.width, THUMB_H / img.height);
+  const k = Math.min((w - 10) / img.width, thumbH / img.height);
   img.setScale(k);
   if (kind !== 'field') return [img];
   const [, oy] = ORIGIN[key];
   return [img, ...cropImages(scene, 0, bottom - img.height * (1 - oy) * k, k)];
 }
 
-/** The two side rails: Ver, Rua, Limpar and the turn arrows on the left; the 6 buildings on the right. */
+/** The two side rails: Ver, Rua, Jardim, Limpar and the turn arrows on the left; the 6 buildings on the right. */
 export class Toolbar {
   private tools = new Map<Tool, RailButton>();
   private builds: BuildButton[] = [];
@@ -45,6 +43,11 @@ export class Toolbar {
     stonePanel(g, RIGHT_RAIL.x, RIGHT_RAIL.y, RIGHT_RAIL.w, RIGHT_RAIL.h);
 
     RAIL_TOOLS.forEach((tool, k) => {
+      const { x, y } = leftButton(k);
+      if (tool === 'garden') {
+        this.addBuild(scene, tool, x, y, BTN, LEFT_BTN, onSelect);
+        return;
+      }
       const content: Phaser.GameObjects.GameObject[] = [];
       if (tool === 'road') {
         content.push(scene.add.image(0, -8, TEX.icon(tool)).setScale(1.1));
@@ -52,31 +55,35 @@ export class Toolbar {
         this.roadCost = row[1];
         content.push(...row);
       } else content.push(scene.add.image(0, -2, TEX.icon(tool)).setScale(1.2));
-      const { x, y } = leftButton(k);
-      this.tools.set(tool, new RailButton(scene, x, y, BTN, BTN, content, () => onSelect(tool), true));
+      this.tools.set(tool, new RailButton(scene, x, y, BTN, LEFT_BTN, content, () => onSelect(tool), true));
     });
     // Divider: a gold line between the tools and the turn arrows.
     const { x: lx, y: dy } = leftButton(RAIL_TOOLS.length);
     g.lineStyle(2, C.gold, 1);
-    g.lineBetween(lx - BTN / 2 + 8, dy - BTN / 2 - (BTN_GAP + DIVIDER) / 2, lx + BTN / 2 - 8, dy - BTN / 2 - (BTN_GAP + DIVIDER) / 2);
+    g.lineBetween(lx - BTN / 2 + 8, dy - LEFT_BTN / 2 - (BTN_GAP + DIVIDER) / 2, lx + BTN / 2 - 8, dy - LEFT_BTN / 2 - (BTN_GAP + DIVIDER) / 2);
     (['↺', '↻'] as const).forEach((label, k) => {
       const { x, y } = leftButton(RAIL_TOOLS.length + k);
-      new RailButton(scene, x, y, BTN, BTN, [text(scene, 0, -2, label, 38, CSS.ink, true).setOrigin(0.5)], () => onTurn(k ? 1 : -1));
+      new RailButton(scene, x, y, BTN, LEFT_BTN, [text(scene, 0, -2, label, 38, CSS.ink, true).setOrigin(0.5)], () => onTurn(k ? 1 : -1));
     });
 
     BUILD_TOOLS.forEach((kind, k) => {
-      const thumb = thumbnail(scene, kind);
-      const [coin, cost] = this.costRow(scene, '', CSS.ink);
       const { x, y } = buildButton(k);
-      const btn = new RailButton(scene, x, y, BUILD_W, BTN, [...thumb, coin, cost], () => onSelect(kind), true);
-      this.builds.push({ kind, btn, thumb, coin, cost });
+      this.addBuild(scene, kind, x, y, BUILD_W, BTN, onSelect);
     });
   }
 
-  /** Small coin + number at the bottom of a button. */
-  private costRow(scene: Phaser.Scene, value: string, color: string): [Phaser.GameObjects.Image, Phaser.GameObjects.Text] {
-    const coin = scene.add.image(0, BTN / 2 - 15, TEX.icon('silver')).setScale(0.4);
-    const t = text(scene, 0, BTN / 2 - 15, value, 16, color, true).setOrigin(0, 0.5);
+  /** A building button: thumbnail, coin and cost (or the goal that unlocks it). */
+  private addBuild(scene: Phaser.Scene, kind: BuildTool, x: number, y: number, w: number, h: number, onSelect: (t: Tool) => void) {
+    const thumb = thumbnail(scene, kind, w, h);
+    const [coin, cost] = this.costRow(scene, '', CSS.ink, h);
+    const btn = new RailButton(scene, x, y, w, h, [...thumb, coin, cost], () => onSelect(kind), true);
+    this.builds.push({ kind, btn, thumb, coin, cost });
+  }
+
+  /** Small coin + number at the bottom of a button of height h. */
+  private costRow(scene: Phaser.Scene, value: string, color: string, h = LEFT_BTN): [Phaser.GameObjects.Image, Phaser.GameObjects.Text] {
+    const coin = scene.add.image(0, h / 2 - 15, TEX.icon('silver')).setScale(0.4);
+    const t = text(scene, 0, h / 2 - 15, value, 16, color, true).setOrigin(0, 0.5);
     this.centerCost(coin, t);
     return [coin, t];
   }

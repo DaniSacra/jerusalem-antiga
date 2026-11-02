@@ -1,4 +1,5 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
+import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import type { BuildingKind, GameState } from './types';
 
 export interface Economy {
@@ -15,18 +16,25 @@ export interface Economy {
   production: Partial<Record<BuildingKind, number>>;
   /** Upkeep per building kind (only kinds that cost something). */
   upkeep: Partial<Record<BuildingKind, number>>;
+  /** Average happiness of the houses with a family (50 with none). */
+  happiness: number;
+  /** Houses with a family in each mood. */
+  moods: Record<Mood, number>;
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep.
- * Houses always count residents, food and taxes.
+ * Houses always count residents, food and taxes; each house's tax is scaled by its happiness.
  */
 export function computeEconomy(s: GameState): Economy {
   let residents = 0;
   let taxes = 0;
   let eaten = 0;
+  let joy = 0;
+  let families = 0;
+  const moods: Record<Mood, number> = { happy: 0, neutral: 0, sad: 0 };
   let jobs = 0;
   let foodProd = 0;
   const silverProd: Partial<Record<BuildingKind, number>> = {};
@@ -35,7 +43,6 @@ export function computeEconomy(s: GameState): Economy {
     if (b.kind === 'house') {
       const lvl = HOUSE_LEVELS[b.level];
       residents += lvl.residents;
-      taxes += lvl.tax;
       eaten += lvl.residents * lvl.food;
       continue;
     }
@@ -47,6 +54,15 @@ export function computeEconomy(s: GameState): Economy {
     if (def.silver) silverProd[b.kind] = (silverProd[b.kind] ?? 0) + def.silver;
   }
   const workers = Math.floor(residents * RULES.workerShare);
+  const idle = idleShare(s, { workers, jobs });
+  for (const b of s.buildings) {
+    if (b.kind !== 'house' || b.level === 0) continue;
+    const h = houseHappiness(s, b, idle).value;
+    taxes += HOUSE_LEVELS[b.level].tax * taxFactor(h);
+    joy += h;
+    families++;
+    moods[moodOf(h)]++;
+  }
   const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
   const production: Partial<Record<BuildingKind, number>> = {};
   for (const [k, v] of Object.entries(silverProd) as [BuildingKind, number][]) production[k] = round2(v * efficiency);
@@ -61,6 +77,8 @@ export function computeEconomy(s: GameState): Economy {
     taxes: round2(taxes),
     production,
     upkeep,
+    happiness: families ? Math.round(joy / families) : 50,
+    moods,
   };
 }
 
@@ -71,6 +89,11 @@ export function costliestUpkeep(eco: Economy): { kind: BuildingKind; amount: num
     if (!best || amount > best.amount) best = { kind, amount };
   }
   return best;
+}
+
+/** Share (0..1) of the workers without a job, as used by house happiness. */
+export function idleShare(s: GameState, e: Pick<Economy, 'workers' | 'jobs'> = computeEconomy(s)): number {
+  return e.workers > 0 ? Math.max(0, e.workers - e.jobs) / e.workers : 0;
 }
 
 /** Workers left without a job (0 when there are enough jobs). */

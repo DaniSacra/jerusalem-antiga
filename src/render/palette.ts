@@ -33,6 +33,7 @@ export const C = {
   cream: 0xf6ecd6,
   terracotta: 0xb8653e,
   leaf: 0x6f9a48,
+  lawn: 0x8fb04e,
   gold: 0xe2b544,
   soil: 0x9a6c42,
   soilDark: 0x7a5232,
@@ -51,7 +52,8 @@ export const C = {
   fits: 0x6cc35a,
   clothes: [0xc0503c, 0x5a7fb5, 0xe2b544, 0x7fa65a, 0x9a6ab0, 0xe9ddc8],
   skin: [0xd9a77c, 0xc28a5e, 0xe8bf96],
-  need: { road: 0xc0392b, well: 0x4a9bd8, market: 0xc0503c, sacred: 0xe8742c },
+  mood: { happy: 0x8cc152, neutral: 0xf2c94c, sad: 0xe0704c },
+  need: { road: 0xc0392b, well: 0x4a9bd8, market: 0xc0503c, sacred: 0xe8742c, garden: 0x5aa83c },
   /** Interface: light stone plaques and rails with gold trim. */
   ui: {
     stone: 0xf1e8d4,

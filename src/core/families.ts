@@ -1,4 +1,6 @@
 import { HOUSE_LEVELS, RULES } from './data';
+import { computeEconomy } from './economy';
+import { familyFactor } from './happiness';
 import { indexOf } from './grid';
 import { rollLook } from './looks';
 import { doorsOf, findPath } from './network';
@@ -24,14 +26,16 @@ const settledOrComing = (s: GameState) => s.buildings.filter((b) => b.kind === '
 
 /**
  * Each connected empty plot without a family on the way may receive one (not during famine).
- * The first few families come for sure, so the start has no dead time.
+ * The first few families come for sure, so the start has no dead time. A happy city draws
+ * families faster (the chance is scaled by the average happiness).
  */
 export function dispatchFamilies(s: GameState, rng: Rng): void {
   if (s.famine) return;
+  const chance = RULES.familyChance * familyFactor(computeEconomy(s).happiness);
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level !== 0 || !b.connected || awaitsFamily(s, b)) continue;
     const guaranteed = settledOrComing(s) < RULES.guaranteedFamilies;
-    if (!guaranteed && rng() >= RULES.familyChance) continue;
+    if (!guaranteed && rng() >= chance) continue;
     const path = pathTo(s, startCell(s), b);
     if (path) s.families.push({ id: s.nextId++, houseId: b.id, path, step: 0 });
   }

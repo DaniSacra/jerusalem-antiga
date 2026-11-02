@@ -7,7 +7,7 @@ const never = constRng(0.99);
 describe('stepMonth: resources', () => {
   it('updates food, silver and the month', () => {
     const s = emptyGame({ silver: 0, food: 10 });
-    put(s, 'house', ROADSIDE, 30, 1);
+    put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content, plain tax
     stepMonth(s, never);
     expect(s.food).toBeCloseTo(9.4);
     expect(s.silver).toBe(1);

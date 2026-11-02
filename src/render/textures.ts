@@ -7,7 +7,9 @@
  * east faces (+x, right on screen) are in shade, and shadows fall toward the east.
  */
 import Phaser from 'phaser';
-import { BUILDINGS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type WalkerType } from '../core';
+import { BUILDINGS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type Mood, type WalkerType } from '../core';
+import * as F from './fauna';
+import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
 import { drawFieldhand, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, residentSize } from './residents';
@@ -16,7 +18,10 @@ type G = Phaser.GameObjects.Graphics;
 type P3 = [number, number, number?];
 
 export const TEX = {
-  ground: (g: Ground, v: number) => `ground-${g}-${v}`,
+  /** Ground tile; `deco` adds wild flowers, a bush or pebbles (some cells only). */
+  ground: (g: Ground, v: number, deco = false) => `ground-${g}-${v}${deco ? '-d' : ''}`,
+  /** Animals, boats, washerwomen and cloth (frame = colour or pose). */
+  fauna: (kind: FaunaKind, frame = 0) => `fauna-${kind}-${frame}`,
   /** Street with junctions `mask`; `wear` 0 packed earth, 1 wider and lighter (busy), 2 stone paving. */
   road: (mask: number, wear = 0) => `road-${mask}${wear ? `-${wear}` : ''}`,
   /** Wooden scaffold over a w x h footprint (as seen on screen) while a building goes up. */
@@ -54,6 +59,8 @@ export const TEX = {
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
   icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'month' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options') => `icon-${name}`,
+  /** Face of a mood (plaque happiness slot). */
+  mood: (m: Mood) => `mood-${m}`,
 };
 export const VARIANTS = 4;
 /** Skin and clothes combinations drawn for each walker type. */
@@ -652,6 +659,33 @@ export function scaffoldTexture(scene: Phaser.Scene, w: number, h: number): stri
   const key = TEX.scaffold(w, h);
   make(scene, key, footCanvas(w, h, 24 + 6 * Math.min(w, h)), (p) => scaffold(p, w, h));
   return key;
+}
+
+/** Extra ground detail on some cells: wild flowers and a bush on grass, pebbles and a shrub on sand. */
+function groundDeco(p: Pen, kind: Ground, v: number) {
+  const r = createRng(700 + v * 13 + kind.length);
+  const spot = (m: number) => [-m + r() * m * 2, -m + r() * m * 2] as const;
+  if (kind === 'grass') {
+    const petals = [0xf2e6b0, 0xd98a6a, 0xb59ad8, 0xf4f0e6, 0xe8c040];
+    for (let i = 0; i < 9; i++) {
+      const [x, y] = spot(0.36);
+      p.ball(petals[(i + v) % petals.length], x, y, 2, 1.1);
+    }
+  } else {
+    for (let i = 0; i < 5; i++) {
+      const [x, y] = spot(0.3);
+      p.ball(i % 2 ? C.rockLight : C.rock, x, y, 0.5, 1.3);
+    }
+  }
+  // A low round bush with a soft shadow, on half of the variants.
+  if (v % 2) return;
+  const [bx, by] = spot(0.22);
+  const c = p.p(bx, by);
+  p.g.fillStyle(C.shadow, 0.12);
+  p.g.fillEllipse(c.x + 2, c.y + 1, 9, 3);
+  const leaf = kind === 'grass' ? C.olive : shade(C.oliveLight, 0.95);
+  p.ball(leaf, bx, by, 3, 3.2);
+  p.ball(shade(leaf, 1.15), bx - 0.03, by - 0.02, 4.5, 2);
 }
 
 // ---------- houses (2 x 2: local x, y in [-1, 1]) ----------
@@ -1779,6 +1813,43 @@ function well(p: Pen) {
   p.g.fillEllipse(head.x, head.y - 2, 7, 6);
 }
 
+/** A pen whose origin is moved to the local point (x, y), to reuse tree drawings inside a building. */
+const moved = (p: Pen, x: number, y: number) => {
+  const c = p.p(x, y);
+  return new Pen(p.g, c.x, c.y, p.mirror);
+};
+
+/** Garden (2 x 2): a lawn in a low stone border, paths to a small pool, flower beds, trees and a bench. */
+function garden(p: Pen) {
+  const s = 0.86;
+  const kerb = 2.5;
+  p.box(-s, -s, s, s, 0, kerb, C.stone, shade(C.stone, 0.88), shade(C.stone, 0.64));
+  p.rect(C.lawn, -s + 0.08, -s + 0.08, s - 0.08, s - 0.08, kerb);
+  p.rect(shade(C.lawn, 1.1), -s + 0.08, -s + 0.08, -0.05, -0.05, kerb, 0.6);
+  // Cross-shaped paths from the pool to the middle of each side.
+  p.rect(C.sand[0], -0.12, -s + 0.08, 0.12, s - 0.08, kerb);
+  p.rect(C.sand[0], -s + 0.08, -0.12, s - 0.08, 0.12, kerb);
+  // Flower beds in the four lawn corners.
+  const flowers = [C.red, C.gold, 0x9a6ab0, C.cream];
+  ([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]] as const).forEach(([x, y], k) => {
+    p.disc(shade(C.lawn, 0.8), x, y, kerb, 0.2);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + k;
+      p.ball(flowers[(i + k) % flowers.length], x + Math.cos(a) * 0.12, y + Math.sin(a) * 0.12, kerb + 2, 1.8);
+    }
+  });
+  // Small round pool in the middle.
+  cylinder(p, 0, 0, 0.24, kerb, kerb + 4, C.stone);
+  p.disc(C.waterDeep, 0, 0, kerb + 4, 0.19);
+  p.disc(C.water, -0.02, -0.02, kerb + 4, 0.13, 0.85);
+  p.disc(C.waterLight, -0.07, -0.05, kerb + 4, 0.04, 0.8);
+  // Trees at the back, a bench in front.
+  olive(moved(p, -0.55, 0.45), 1);
+  palm(moved(p, 0.5, -0.55), 2);
+  p.box(0.3, 0.42, 0.7, 0.52, kerb, kerb + 4, C.wood);
+  p.box(0.3, 0.52, 0.7, 0.56, kerb, kerb + 8, C.woodDark);
+}
+
 /** Market (2 x 4, or 4 x 2 when rotated): two rows of stalls with striped awnings along an aisle. */
 function market(p: Pen, rotated: boolean) {
   // u runs along the long side, v across it.
@@ -2561,8 +2632,29 @@ function noSign(g: G, x: number, y: number, r: number) {
   g.lineBetween(x - r * 0.7, y - r * 0.7, x + r * 0.7, y + r * 0.7);
 }
 
+/** Round face of a mood: green and smiling, gold and calm, or red and frowning. */
+function face(g: G, x: number, y: number, r: number, mood: Mood) {
+  g.fillStyle(C.mood[mood]);
+  g.fillCircle(x, y, r);
+  g.lineStyle(Math.max(1, r / 8), C.ink, 1);
+  g.strokeCircle(x, y, r);
+  g.fillStyle(C.ink);
+  for (const sx of [-1, 1]) g.fillCircle(x + sx * r * 0.35, y - r * 0.2, r * 0.12);
+  g.lineStyle(Math.max(1.2, r / 7), C.ink, 1);
+  g.beginPath();
+  if (mood === 'happy') g.arc(x, y + r * 0.05, r * 0.5, 0.2 * Math.PI, 0.8 * Math.PI);
+  else if (mood === 'sad') g.arc(x, y + r * 0.7, r * 0.45, 1.2 * Math.PI, 1.8 * Math.PI);
+  else {
+    g.moveTo(x - r * 0.35, y + r * 0.38);
+    g.lineTo(x + r * 0.35, y + r * 0.38);
+  }
+  g.strokePath();
+}
+
 function needIcon(g: G, k: BalloonKind) {
-  if (k === 'road') {
+  if (k === 'sad') {
+    face(g, 8, 11, 6.5, 'sad');
+  } else if (k === 'road') {
     // A dirt road broken in the middle, crossed out.
     g.fillStyle(C.road);
     g.fillPoints([{ x: 0, y: 14 }, { x: 4, y: 16 }, { x: 7, y: 13.5 }, { x: 3, y: 11.5 }], true);
@@ -2710,6 +2802,7 @@ function icons(scene: Phaser.Scene) {
     g.lineStyle(3, C.ink, 1);
     g.lineBetween(4, 27, 36, 27);
   });
+  for (const m of ['happy', 'neutral', 'sad'] as const) makeFlat(scene, TEX.mood(m), 40, 40, (g) => face(g, 20, 20, 16, m));
   icon('moon', (g) => {
     // Crescent on a small night-blue disc, so it reads on the light plaque.
     g.fillStyle(0x2f3a66);
@@ -2737,6 +2830,11 @@ function icons(scene: Phaser.Scene) {
 export function generateTextures(scene: Phaser.Scene): void {
   for (let v = 0; v < VARIANTS; v++) {
     for (const g of ['sand', 'grass', 'river'] as Ground[]) make(scene, TEX.ground(g, v), TILE, (p) => groundTile(p, g, v));
+    for (const g of ['sand', 'grass'] as Ground[])
+      make(scene, TEX.ground(g, v, true), TILE, (p) => {
+        groundTile(p, g, v);
+        groundDeco(p, g, v);
+      });
     make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
@@ -2753,6 +2851,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   }
   const buildings: [BuildingKind, (p: Pen) => void, number, number][] = [
     ['well', well, 48, 44],
+    ['garden', garden, 60, 40],
     ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],
     ['temple', temple, 136, 128],
@@ -2790,7 +2889,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.strokeCircle(32, 32, 27);
   });
   raw(TEX.balloon, 28, 28, balloon);
-  (['road', 'well', 'market', 'sacred', 'workers'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  (['road', 'well', 'market', 'sacred', 'workers', 'sad'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
   for (const { type } of WALKERS) {
     const [w, h] = residentSize(type);
     const crafts: (Craft | null)[] = [null, ...(type === 'artisan' ? BUILDINGS.workshop.crafts! : [])];
@@ -2801,6 +2900,25 @@ export function generateTextures(scene: Phaser.Scene): void {
     }
   }
   raw(TEX.family, 30, 23, family);
+  const fauna: [FaunaKind, number, (g: G, frame: number) => void][] = [
+    ['goat', 2, F.goat],
+    ['chicken', 2, F.chicken],
+    ['donkey', 1, F.donkey],
+    ['sheep', 2, F.sheep],
+    ['dove', 1, F.dove],
+    ['doveFly', 1, F.doveFly],
+    ['boat', 1, F.boat],
+    ['washer', 2, F.washer],
+    ['cloth', 1, F.cloth],
+  ];
+  for (const [kind, frames, draw] of fauna) {
+    for (let f = 0; f < frames; f++) {
+      ORIGIN[TEX.fauna(kind, f)] = [0.5, 1];
+      const [w, h] = FAUNA_SIZE[kind];
+      raw(TEX.fauna(kind, f), w, h, (g) => draw(g, f));
+    }
+  }
+  ORIGIN[TEX.fauna('cloth')] = [0.5, 0];
   for (let look = 0; look < FIELDHAND_LOOK_COUNT; look++) {
     for (let pose = 0; pose < FIELDHAND_POSES; pose++) raw(TEX.fieldhand(look, pose), ...FIELDHAND_SIZE, (g) => drawFieldhand(g, look, pose));
   }

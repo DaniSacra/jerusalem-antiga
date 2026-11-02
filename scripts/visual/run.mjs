@@ -156,7 +156,7 @@ async function buildTown(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
     s.silver = 1e6;
-    s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
+    s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
     s.feature = s.feature.map(() => null);
     for (let x = 12; x <= 36; x++) {
       core.place(s, 'road', x, 18);
@@ -183,6 +183,7 @@ async function buildTown(page) {
     put('house', 34, 29, 3);
     put('market', 34, 19); // 2x4 upright
     put('temple', 25, 32);
+    put('garden', 19, 22); // beside the altar ring, cheers the houses above it
     put('field', 3, 3); // disconnected: shows the "no road" balloon
     window.game.refresh();
     const cam = window.game.cameras.main;
@@ -318,6 +319,32 @@ const scenarios = {
     await shot(page, 'scaffold-done');
   },
 
+  async ambient(page) {
+    await startGame(page);
+    await buildTown(page);
+    await page.evaluate(() => window.game.dayNight.setTime(0.3));
+    await page.waitForTimeout(1500); // animals walk a little (the game keeps running)
+    const kinds = await page.evaluate(() => {
+      const out = {};
+      for (const g of window.game.ambient.groups.values()) for (const m of g.movers) out[m.kind] = (out[m.kind] ?? 0) + 1;
+      out.laundry = [...window.game.ambient.groups.keys()].filter((k) => k.startsWith('l')).length;
+      return out;
+    });
+    for (const k of ['chicken', 'donkey', 'dove', 'boat', 'washer', 'sheep'])
+      assert(kinds[k] > 0, `${k} around the city (${JSON.stringify(kinds)})`);
+    assert(kinds.laundry > 0, 'laundry lines on some houses');
+    await shot(page, 'ambient-town');
+    // Zoom on the river near the first boat.
+    await page.evaluate(() => {
+      const boat = [...window.game.ambient.groups.values()].flatMap((g) => g.movers).find((m) => m.kind === 'boat');
+      const cam = window.game.cameras.main;
+      cam.setZoom(1.6);
+      cam.centerOn(boat.img.x, boat.img.y);
+    });
+    await page.waitForTimeout(400);
+    await shot(page, 'ambient-river');
+  },
+
   async 'town-art'(page) {
     await startGame(page);
     await buildTown(page);
@@ -339,6 +366,53 @@ const scenarios = {
     await page.mouse.move(500, 300);
     await page.waitForTimeout(300);
     await shot(page, 'overlay-house-sacred-area');
+  },
+
+  /** Happiness: the face on the plaque, its breakdown, a house's mood, the garden's radius and a sad balloon. */
+  async happiness(page) {
+    await startGame(page);
+    await setSpeed(page, 0);
+    await buildTown(page);
+    await page.evaluate(() => {
+      window.state.food = 500; // no famine until the scenario asks for it
+      window.game.refresh();
+    });
+    const eco = await page.evaluate(() => window.game.eco);
+    assert(eco.moods.happy + eco.moods.neutral + eco.moods.sad > 0, `houses have moods (${JSON.stringify(eco.moods)})`);
+    const [face, want] = await page.evaluate(() => [window.game.ui.hud.face.texture.key, `mood-${window.core.moodOf(window.game.eco.happiness)}`]);
+    assert(face === want, `plaque face follows the mood (${face}, ${want})`);
+
+    await clickUi(page, 'plaqueSlot', 4);
+    assert(await page.evaluate(() => window.game.infoMode === 'happiness'), 'tapping the face shows the happiness breakdown');
+    await shot(page, 'happiness-breakdown');
+
+    // A house next to the garden: happy, with its reasons in the info line.
+    const mood = await page.evaluate(() => {
+      const { state: s, core } = window;
+      const b = s.grid[19 * s.cols + 19];
+      window.game.select({ x: 19, y: 19 });
+      return core.houseInfo(s, b).happiness;
+    });
+    assert(mood?.parts.some((p) => p.kind === 'garden'), `the house beside the garden counts it (${JSON.stringify(mood)})`);
+    await shot(page, 'happiness-house');
+
+    // Famine makes every house sad: sad balloons and a red face.
+    await page.evaluate(() => {
+      window.state.famine = true;
+      window.game.refresh();
+    });
+    await page.waitForTimeout(300);
+    assert((await page.evaluate(() => window.game.ui.hud.face.texture.key)) === 'mood-sad', 'famine turns the face sad');
+    await shot(page, 'happiness-sad');
+
+    // Picking the garden shows its radius.
+    await page.evaluate(() => {
+      window.state.famine = false;
+      window.game.selectTool('garden');
+    });
+    await page.mouse.move(...(await cellToScreen(page, 16, 25)));
+    await page.waitForTimeout(300);
+    await shot(page, 'overlay-garden');
   },
 
   /** Farmers working inside fields: count follows efficiency, none on a field without a road. */
@@ -668,7 +742,7 @@ const scenarios = {
     });
     await page.waitForTimeout(200);
     await shot(page, 'turn-0');
-    await clickUi(page, 'leftButton', 4); // ↻
+    await clickUi(page, 'leftButton', 5); // ↻
     await page.waitForTimeout(300);
     assert((await page.evaluate(() => window.iso.getRotation())) === 1, 'the clockwise arrow turns the view');
     assert((await stats(page)).roads === 41, 'clicking the arrow builds nothing');
@@ -749,7 +823,7 @@ const scenarios = {
       window.game.refresh();
       window.game.cameras.main.centerOn(-224, 1008); // around the temple spot (25..30, 32..37)
     });
-    await tool(page, 8); // Templo
+    await tool(page, 9); // Templo
     await page.mouse.click(...(await cellToScreen(page, 27, 34))); // 6x6 centered: top-left (25, 32)
     await page.waitForTimeout(250);
     await shot(page, 'temple-celebration');

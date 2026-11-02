@@ -1,5 +1,6 @@
 import { BUILDINGS, HOUSE_LEVELS } from './data';
-import { computeEconomy } from './economy';
+import { computeEconomy, idleShare } from './economy';
+import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
 import type { BalloonKind, Building, GameState, NeedKind } from './types';
 
@@ -16,7 +17,10 @@ export interface HouseInfo {
   level: number;
   name: string;
   residents: number;
+  /** Tax with the happiness factor applied. */
   tax: number;
+  /** Only for houses with a family. */
+  happiness: Happiness | null;
   next: { name: string; needs: { kind: NeedKind; ok: boolean }[] } | null;
 }
 
@@ -24,11 +28,13 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
   if (b.kind !== 'house') return null;
   const cur = HOUSE_LEVELS[b.level];
   const next = HOUSE_LEVELS[b.level + 1];
+  const happiness = b.level > 0 ? houseHappiness(s, b, idleShare(s)) : null;
   return {
     level: b.level,
     name: cur.name,
     residents: cur.residents,
-    tax: cur.tax,
+    tax: happiness ? cur.tax * taxFactor(happiness.value) : cur.tax,
+    happiness,
     next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })) } : null,
   };
 }
@@ -38,14 +44,17 @@ const needVisible = (s: GameState, need: NeedKind) => need === 'road' || need ==
 
 /**
  * First problem of a building, shown as a balloon: no road first; then workplaces with no
- * workers at all; then, for houses of levels 1-3, the first missing need of the next level.
+ * workers at all; then, for houses of levels 1-3, the first missing need of the next level (the
+ * most useful hint early on); then sad houses.
  */
 export function balloonNeed(s: GameState, b: Building): BalloonKind | null {
   if (!b.connected) return 'road';
-  if (BUILDINGS[b.kind].jobs > 0 && computeEconomy(s).efficiency === 0) return 'workers';
-  if (b.kind !== 'house' || b.level < 1 || b.level >= HOUSE_LEVELS.length - 1) return null;
-  const first = missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0];
-  return first && needVisible(s, first) ? first : null;
+  const e = computeEconomy(s);
+  if (BUILDINGS[b.kind].jobs > 0 && e.efficiency === 0) return 'workers';
+  if (b.kind !== 'house' || b.level < 1) return null;
+  const first = b.level < HOUSE_LEVELS.length - 1 ? missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0] : undefined;
+  if (first && needVisible(s, first)) return first;
+  return houseHappiness(s, b, idleShare(s, e)).mood === 'sad' ? 'sad' : null;
 }
 
 /** Houses connected to the road network with at least the given level. */

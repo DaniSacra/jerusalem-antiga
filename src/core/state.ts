@@ -16,7 +16,7 @@ export function createGame(rng: Rng): GameState {
     network: [],
     buildings: [],
     grid: new Array(cols * rows).fill(null),
-    coverage: { well: [], market: [], sacred: [] },
+    coverage: { well: [], market: [], sacred: [], garden: [] },
     families: [],
     altar: { ...altar },
     entrance: entranceCell(),

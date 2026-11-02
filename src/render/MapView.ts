@@ -88,7 +88,7 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building) {
 const roadKey = (s: GameState, x: number, y: number, wear = 0) => TEX.road(viewMask(roadMask(s, x, y)), wear);
 
 export class MapView {
-  private features = new Map<number, { key: string; img: Phaser.GameObjects.Image }>();
+  private features = new Map<number, { key: string; img: Phaser.GameObjects.Image; sway: number }>();
   private roads = new Map<number, Phaser.GameObjects.Image>();
   private views = new Map<number, BuildingView>();
   private balloons = new Map<number, Balloon>();
@@ -108,6 +108,8 @@ export class MapView {
   /** False during the first sync: buildings already standing appear without a scaffold. */
   private ready = false;
   private dust: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Worn dirt paths between neighbouring houses (under everything but the ground). */
+  private trails: Phaser.GameObjects.Graphics;
 
   constructor(
     private scene: Phaser.Scene,
@@ -117,6 +119,7 @@ export class MapView {
     this.drawGround(state);
     this.water = scene.add.graphics().setDepth(DEPTH.groundFx);
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
+    this.trails = scene.add.graphics().setDepth(DEPTH.road - 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
     this.lights = new Lights(scene);
@@ -159,7 +162,9 @@ export class MapView {
         const g = s.ground[indexOf(s, x, y)];
         if (g === 'river') this.riverCells.push({ x, y });
         const c = footCenter(x, y);
-        this.ground.push(sc.add.image(c.x, c.y, TEX.ground(g, cellHash(x, y) % VARIANTS)).setDepth(DEPTH.ground));
+        const h = cellHash(x, y);
+        const deco = g !== 'river' && ((h >>> 8) % 1000) / 1000 < VISUAL.ambient.decoShare;
+        this.ground.push(sc.add.image(c.x, c.y, TEX.ground(g, h % VARIANTS, deco)).setDepth(DEPTH.ground));
       }
     }
     // Light sandy bank where land meets the river.
@@ -182,7 +187,7 @@ export class MapView {
     for (const r of this.roads.values()) r.destroy();
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
-    [this.water, this.looseRoads, this.overlay, this.preview].forEach((o) => o.destroy());
+    [this.water, this.looseRoads, this.trails, this.overlay, this.preview].forEach((o) => o.destroy());
     this.lights.destroyAll();
     this.dust.destroy();
   }
@@ -197,6 +202,7 @@ export class MapView {
       }
     }
     this.drawLooseRoads(s);
+    this.drawTrails(s);
     const alive = new Set<number>();
     // Farmers per field follow the share of jobs filled; none on a field without a road.
     const farmers = Math.round(BUILDINGS.field.jobs * efficiency);
@@ -226,7 +232,9 @@ export class MapView {
     this.features.delete(i);
     if (!key) return;
     const c = footCenter(x, y);
-    this.features.set(i, { key, img: setTex(this.scene.add.image(c.x, c.y, key), key).setDepth(depthAt(x + 0.5, y + 0.5)) });
+    // Palms sway more than olives in the light wind; rocks stay still.
+    const sway = f === 'palm' ? 1.6 : f === 'olive' ? 0.7 : 0;
+    this.features.set(i, { key, img: setTex(this.scene.add.image(c.x, c.y, key), key).setDepth(depthAt(x + 0.5, y + 0.5)), sway });
   }
 
   private syncRoad(s: GameState, x: number, y: number) {
@@ -272,6 +280,26 @@ export class MapView {
             g.lineBetween(a.x, a.y, b.x, b.y);
           }
         });
+      }
+    }
+  }
+
+  /** A faint trodden path between houses that stand 1 to 3 cells apart. */
+  private drawTrails(s: GameState) {
+    const g = this.trails.clear();
+    const houses = s.buildings.filter((b) => b.kind === 'house');
+    for (let i = 0; i < houses.length; i++) {
+      for (let j = i + 1; j < houses.length; j++) {
+        const a = houses[i];
+        const b = houses[j];
+        const gap = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+        if (gap < 1 || gap > 3) continue;
+        const p = footCenter(a.x, a.y, a.w, a.h);
+        const q = footCenter(b.x, b.y, b.w, b.h);
+        g.lineStyle(7, C.earthLit, 0.22);
+        g.lineBetween(p.x, p.y, q.x, q.y);
+        g.lineStyle(3, C.earthDark, 0.12);
+        g.lineBetween(p.x, p.y, q.x, q.y);
       }
     }
   }
@@ -501,6 +529,7 @@ export class MapView {
     const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
     this.drawWater(t);
     this.lights.update(t, night);
+    for (const f of this.features.values()) if (f.sway) f.img.setAngle(Math.sin(t * 1.3 + f.img.x * 0.03) * f.sway);
     for (const v of this.views.values()) {
       v.wheat.forEach((w, k) => w.setAngle(Math.sin(t * 2.2 + k * 0.7 + v.root.x * 0.05) * 7));
       v.crew?.update(this.work);

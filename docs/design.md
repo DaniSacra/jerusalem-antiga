@@ -411,12 +411,23 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
 - 2026-11-02 — Usuário mudou o alvo do Distraído: perder ~60% (antes ~80%).
   Hoje perde 64–67% (sim-tester, 200 seeds), já perto do alvo; a proposta
   tenda 0,35 + saída na fome 0,3 (que levava a 80%) foi descartada.
+- 2026-11-02 — Pacote "Felicidade" (pedido do usuário, inspirado no Pocket
+  City), implementado sem passar pelos agentes (eles rodam no fim, a pedido).
+  Casa: 50 + altar/templo 10 + jardim 20 + poço 5 + mercado 5 − fome 30 −
+  desemprego até 20. Feliz (≥ 65) paga até +20% e a cidade feliz atrai até
+  1,5x famílias; triste (< 35) paga até −20% e atrai até 0,5x; contente não
+  muda nada. Nova construção: Jardim (25, manutenção 1, 2 x 2, raio 3),
+  liberado pela Meta 4, no trilho esquerdo. Carinha na placa, toque mostra os
+  motivos; balão de casa triste. Escolhas padrão (usuário não respondeu): nome
+  "Felicidade", só o Jardim (sem fonte), casa triste não é abandonada,
+  oficina não incomoda vizinhos (o usuário pediu para deixar para depois).
+  Motivo: dá um motivo para enfeitar a cidade e liga emprego e comida ao
+  humor (pilares 2 e 3). Falta medir com o sim-tester (duração e Distraído).
 
 ## Próximos candidatos
 Em ordem, um pacote por vez.
-1. Fé/felicidade: aumenta perto do altar, do templo e de jardins; diminui
-   com oficina perto de casa e com fome; cidade com mais fé recebe famílias
-   mais rápido e paga mais impostos
+1. Felicidade, parte 2: oficina perto de casa entristece (em espera, pedido
+   do usuário); talvez casa muito triste ser abandonada; fonte
 2. Pedidos dos moradores (missões curtas, futura porta de entrada da
    história)
 3. Eventos leves (seca, festa, caravana) e celeiro
@@ -435,23 +446,10 @@ imposto menor de pedra/casa grande.
 
 Interface em espera: botão "Mesmo mapa" (mesma seed) na tela de derrota.
 
-Backlog visual (pedido do usuário, em espera desde 2026-11-02): parte 4 do
-pacote "Cidade bonita" (vida e ambiente). As partes 1, 2, 3, 5 e 6 entraram
-no commit 610c4fc (dia e noite, andaime, ruas que evoluem, acabamento e
-desempenho). A parte 4 está quase pronta no `git stash` "WIP parte 4: vida e
-ambiente" (`git stash list`; retomar com `git stash apply`):
-- Cabras e galinhas perto das tendas, jumentos amarrados perto do mercado,
-  ovelhas pastando na grama aberta, pombas no altar que voam quando alguém
-  passa
-- Rio: barquinhos de pescadores e lavadeiras nas margens mais próximas
-- Sombras de nuvens passando devagar
-- Chão: flores silvestres, arbustos e pedrinhas em parte das células,
-  trilhas de terra entre casas vizinhas
-- Varais com roupas coloridas balançando em algumas casas
-- Palmeiras e oliveiras balançando com vento leve
-Falta: revisar as capturas (cenário `ambient`), rodar a suíte inteira e
-atualizar GAME_DESIGN.md e TESTING.md. Absorve parte da "Cidade densa"
-(trilhas, mais vida na rua).
+Parte 4 do pacote "Cidade bonita" (vida e ambiente) saiu do backlog e foi
+implementada em 2026-11-02, a pedido do usuário (animais, rio, nuvens, chão,
+varais, árvores balançando, trilhas entre casas). Absorve parte da "Cidade
+densa" (trilhas, mais vida na rua).
 
 Visual aprovado pelo usuário (2026-11-02), depois de "Avisos a tempo":
 "Cidade densa", inspirado no visual orgânico de Banished, em 2D isométrico

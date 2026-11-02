@@ -7,6 +7,7 @@ export const SERVICE_SOURCES: Record<ServiceKind, BuildingKind[]> = {
   well: ['well'],
   market: ['market'],
   sacred: ['altar', 'temple'],
+  garden: ['garden'],
 };
 
 export const serviceOf = (kind: BuildingKind): ServiceKind | null =>

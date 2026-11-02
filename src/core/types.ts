@@ -1,17 +1,17 @@
 export type Ground = 'sand' | 'grass' | 'river';
 export type Feature = 'rock' | 'palm' | 'olive';
-export type BuildingKind = 'house' | 'field' | 'well' | 'market' | 'workshop' | 'temple' | 'altar';
+export type BuildingKind = 'house' | 'field' | 'well' | 'market' | 'workshop' | 'garden' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 export type BuildableKind = Exclude<BuildingKind, 'altar'>;
 /** Everything the player can place: buildings and road. */
 export type Placeable = BuildableKind | 'road';
-/** Area services; "sacred" is the radius of the altar or a temple. */
-export type ServiceKind = 'well' | 'market' | 'sacred';
+/** Area services; "sacred" is the radius of the altar or a temple. Gardens only add happiness. */
+export type ServiceKind = 'well' | 'market' | 'sacred' | 'garden';
 export type NeedKind = 'road' | ServiceKind;
-/** What a building's balloon can point out: a missing need, or a workplace with no workers. */
-export type BalloonKind = NeedKind | 'workers';
+/** What a building's balloon can point out: a missing need, a workplace with no workers or a sad house. */
+export type BalloonKind = NeedKind | 'workers' | 'sad';
 
-export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred'];
+export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred', 'garden'];
 
 export type Rng = () => number;
 
@@ -124,6 +124,27 @@ export interface Rules {
   /** Consecutive months with negative silver that lose the game. */
   debtMonthsToLose: number;
   roadCost: number;
+  /** House happiness 0..100 (see happiness.ts): bonuses, penalties and what it changes. */
+  happiness: {
+    base: number;
+    sacred: number;
+    garden: number;
+    well: number;
+    market: number;
+    famine: number;
+    /** Penalty = share of workers without a job x idleScale, at most idleMax. */
+    idleScale: number;
+    idleMax: number;
+    /** From this value up a house is happy; below `sad` it is sad. */
+    happy: number;
+    sad: number;
+    /** Tax multiplier at happiness 0 and 100 (1 at 50). */
+    taxMin: number;
+    taxMax: number;
+    /** Family arrival chance multiplier at city happiness 0 and 100 (1 at 50). */
+    familyMin: number;
+    familyMax: number;
+  };
   map: {
     cols: number;
     rows: number;

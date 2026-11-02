@@ -21,6 +21,7 @@ import {
   type GameState,
   type Rng,
 } from '../core';
+import { Ambient } from '../render/Ambient';
 import { CameraRig } from '../render/CameraRig';
 import { DayNight, phaseIcon } from '../render/DayNight';
 import { Effects } from '../render/Effects';
@@ -85,6 +86,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private rig!: CameraRig;
   private dayNight!: DayNight;
   private wear!: RoadWear;
+  private ambient!: Ambient;
   private ui: UIScene | null = null;
 
   private tool: Tool = 'view';
@@ -95,7 +97,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private hover: Cell | null = null;
   private selected: Cell | null = null;
   /** The info line shows the silver breakdown or the whole goal (after tapping them), kept up to date. */
-  private infoMode: 'silver' | 'goal' | null = null;
+  private infoMode: 'silver' | 'happiness' | 'goal' | null = null;
   private gesture: Gesture | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
@@ -128,6 +130,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map = new MapView(this, this.state, this.wear);
     this.dayNight = new DayNight(this);
     this.walkers = new Walkers(this, this.wear);
+    this.ambient = new Ambient(this, (x, y, r) => this.walkers.near(x, y, r));
+    this.ambient.sync(this.state);
     this.fx = new Effects(this);
     this.rig = new CameraRig(this.cameras.main);
     const a = this.state.buildings.find((b) => b.kind === 'altar')!;
@@ -161,6 +165,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.map.sync(this.state, this.eco.efficiency);
     }
     this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
+    this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night);
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers);
     this.ui?.setDayPhase(phaseIcon(light.phase), this.dayNight.degraded);
   }
@@ -170,10 +175,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private refresh() {
     this.eco = computeEconomy(this.state);
     this.map.sync(this.state, this.eco.efficiency);
+    this.ambient.sync(this.state);
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated);
     this.ui?.refresh(this.state, this.eco, this.speed, this.tool);
     if (this.tool === 'view' && this.selected) this.ui?.setInfo(describeCell(this.state, this.selected.x, this.selected.y));
     else if (this.tool === 'view' && this.infoMode === 'silver') this.ui?.setInfo(hintSegments(T.silverBreakdown(this.eco)));
+    else if (this.tool === 'view' && this.infoMode === 'happiness') this.ui?.setInfo(hintSegments(T.happinessBreakdown(this.eco)));
     else if (this.infoMode === 'goal') this.ui?.setInfo(hintSegments(this.goalInfo()));
   }
 
@@ -264,17 +271,21 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map.destroy();
     this.map = new MapView(this, this.state, this.wear);
     this.map.degraded = this.dayNight.degraded;
+    this.ambient.rebuild(this.state);
     const n = gridToWorld(g.x, g.y);
     this.rig.centerAt(n.x, n.y, sx, sy);
     this.refresh();
   }
 
-  /** Shows taxes, production and upkeep per kind and balance in the info line (kept up to date). */
-  showSilver() {
+  /**
+   * Shows a breakdown in the info line, kept up to date: the silver (taxes, production, upkeep and
+   * balance) or the happiness (moods, effects and causes).
+   */
+  showBreakdown(mode: 'silver' | 'happiness') {
     if (this.ui?.modalOpen) return;
     if (this.tool !== 'view') this.selectTool('view');
     this.selected = null;
-    this.infoMode = 'silver';
+    this.infoMode = mode;
     this.refresh();
   }
 
@@ -343,7 +354,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.rig.zoomAt(p.x, p.y, this.rig.zoom * (dy > 0 ? 0.9 : 1.1));
     });
     const keys = this.input.keyboard;
-    const digits = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+    const digits = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'ZERO'];
     TOOLS.forEach((t, k) => keys?.on(`keydown-${digits[k]}`, () => this.selectTool(t)));
     keys?.on('keydown-SPACE', () => this.cycleSpeed());
     keys?.on('keydown-R', () => this.rotate());

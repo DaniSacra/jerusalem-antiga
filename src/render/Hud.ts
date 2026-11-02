@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { alerts, currentGoal, goalProgress, type Alert, type Economy, type GameState } from '../core';
+import { alerts, currentGoal, goalProgress, moodOf, type Alert, type Economy, type GameState } from '../core';
 import { ALERT_Y, BANNER_MAX_W, GAME_W, GOAL_H, GOAL_Y, inRect, PLAQUE, plaqueSlot, SPEED, SPEED_BTN, speedButton, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
@@ -11,14 +11,15 @@ export type Speed = (typeof SPEEDS)[number];
 /** Speed buttons, left to right. */
 const SPEED_ORDER: Speed[] = [0, 1, 3];
 
-type StatKey = 'month' | 'silver' | 'food' | 'residents' | 'work';
-/** Plaque slots, left to right (widths in `plaqueSlot`). */
-const SLOTS: [StatKey, Parameters<typeof TEX.icon>[0]][] = [
-  ['month', 'month'],
-  ['silver', 'silver'],
-  ['food', 'food'],
-  ['residents', 'people'],
-  ['work', 'work'],
+type StatKey = 'month' | 'silver' | 'food' | 'residents' | 'happiness' | 'work';
+/** Plaque slots, left to right (widths in `plaqueSlot`); the happiness icon is the mood face. */
+const SLOTS: [StatKey, string][] = [
+  ['month', TEX.icon('month')],
+  ['silver', TEX.icon('silver')],
+  ['food', TEX.icon('food')],
+  ['residents', TEX.icon('people')],
+  ['happiness', TEX.mood('neutral')],
+  ['work', TEX.icon('work')],
 ];
 const ROW_Y = 46;
 const TITLE_Y = 15;
@@ -33,6 +34,7 @@ interface Stat {
 export interface HudHandlers {
   onSpeed(v: Speed): void;
   onSilver(): void;
+  onHappiness(): void;
   onGoal(): void;
 }
 
@@ -41,6 +43,7 @@ export class Hud {
   private stats = {} as Record<StatKey, Stat>;
   /** Sun, dusk or moon right after the month number. */
   private phase: Phaser.GameObjects.Image;
+  private face!: Phaser.GameObjects.Image;
   private speedButtons: [Speed, RailButton][] = [];
   /** Blinking values (food during famine, silver in debt). */
   private blinks = new Map<Phaser.GameObjects.Text, Phaser.Tweens.Tween>();
@@ -85,13 +88,15 @@ export class Hud {
     for (const sx of [-1, 1]) g.fillPoints(diamond(GAME_W / 2 + sx * (half - 6), TITLE_Y, 4), true);
     SLOTS.forEach(([key, icon], k) => {
       const { x, w, h: sh } = plaqueSlot(k);
-      scene.add.image(x + 16, ROW_Y, TEX.icon(icon)).setScale(0.7);
+      const img = scene.add.image(x + 16, ROW_Y, icon).setScale(0.7);
+      if (key === 'happiness') this.face = img;
       this.stats[key] = {
         value: text(scene, x + 36, ROW_Y, '', 22, CSS.ink, true).setOrigin(0, 0.5),
         sub: text(scene, x + 36, ROW_Y + 2, '', 14, CSS.muted, true).setOrigin(0, 0.5),
       };
-      // Tapping the silver shows where it comes from and where it goes.
-      if (key === 'silver') scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', h.onSilver);
+      // Tapping the silver shows where it comes from and where it goes; the face, what moves the mood.
+      const onTap = key === 'silver' ? h.onSilver : key === 'happiness' ? h.onHappiness : null;
+      if (onTap) scene.add.zone(x, 0, w, sh).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', onTap);
     });
 
     this.phase = scene.add.image(0, ROW_Y, TEX.icon('sun')).setScale(0.62);
@@ -196,7 +201,7 @@ export class Hud {
   }
 
   refresh(state: GameState, eco: Economy, speed: Speed) {
-    const { silver, food, residents, work, month } = this.stats;
+    const { silver, food, residents, happiness, work, month } = this.stats;
     this.set(month, String(state.month + 1));
     this.phase.setX(month.value.x + month.value.width + 16);
     this.set(silver, String(Math.floor(state.silver)), signed(eco.silverDelta) + T.perMonth, eco.silverDelta < 0 ? CSS.bad : CSS.good);
@@ -205,6 +210,11 @@ export class Hud {
     this.set(food, String(Math.floor(state.food)), signed(eco.foodDelta) + T.perMonth, eco.foodDelta < 0 ? CSS.bad : CSS.good);
     this.tone(food.value, state.famine ? CSS.bad : CSS.ink, state.famine);
     this.set(residents, String(eco.residents));
+    const mood = moodOf(eco.happiness);
+    const face = TEX.mood(mood);
+    if (this.face.texture.key !== face) this.face.setTexture(face);
+    this.set(happiness, String(eco.happiness));
+    this.tone(happiness.value, mood === 'sad' ? CSS.bad : mood === 'happy' ? CSS.good : CSS.ink, false);
     const eff = Math.round(eco.efficiency * 100);
     if (eco.workers === 0 && eco.jobs === 0) this.set(work, T.noJobs);
     else if (eco.workers > eco.jobs) this.set(work, `${eco.workers}/${eco.jobs}`, T.idle(eco.workers - eco.jobs), CSS.warn);

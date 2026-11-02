@@ -5,7 +5,7 @@ import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 describe('economy', () => {
   it('is 100% efficient without jobs', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 30, 1);
+    put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content even without a job, plain tax
     const e = computeEconomy(s);
     expect(e).toMatchObject({ residents: 3, workers: 1, jobs: 0, efficiency: 1, silverDelta: 1 });
     expect(e.foodDelta).toBeCloseTo(-0.6);
@@ -59,6 +59,7 @@ describe('economy', () => {
       field: 1,
       market: 4,
       workshop: 2,
+      garden: 1,
       temple: 10,
     });
     expect(e.upkeep).toEqual({ well: 3, field: 1, market: 4, workshop: 2, temple: 10 });

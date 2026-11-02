@@ -32,7 +32,7 @@ describe('goals', () => {
       ['houses', 6, 1, 20, null],
       ['residents', 20, null, 30, 'market'],
       ['houses', 5, 2, 40, 'workshop'],
-      ['build', 2, 'workshop', 40, null],
+      ['build', 2, 'workshop', 40, 'garden'],
       ['residents', 80, null, 60, null],
       ['houses', 6, 3, 80, null],
       ['residents', 150, null, 120, null],
@@ -80,7 +80,7 @@ describe('goals', () => {
     expect(events).toEqual([]);
     put(s, 'workshop', ROADSIDE - 1, 30);
     checkGoal(s, events);
-    expect(events).toEqual([{ type: 'goal', index: i, reward: 40, unlock: undefined }]);
+    expect(events).toEqual([{ type: 'goal', index: i, reward: 40, unlock: 'garden' }]);
     expect(s.silver).toBe(40);
   });
 });

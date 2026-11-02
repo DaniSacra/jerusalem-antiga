@@ -16,7 +16,7 @@ export interface UiHost {
   selectTool(tool: Tool): void;
   setSpeed(v: Speed): void;
   turnMap(dir: 1 | -1): void;
-  showSilver(): void;
+  showBreakdown(mode: 'silver' | 'happiness'): void;
   showGoal(): void;
   applySettings(): void;
   restart(): void;
@@ -49,7 +49,7 @@ export class UIScene extends Phaser.Scene {
     this.modal = null;
     this.famineTint = this.add.rectangle(0, 0, GAME_W, GAME_H, C.famine, 1).setOrigin(0).setAlpha(0);
     this.host = host;
-    this.hud = new Hud(this, { onSpeed: (v) => host.setSpeed(v), onSilver: () => host.showSilver(), onGoal: () => host.showGoal() });
+    this.hud = new Hud(this, { onSpeed: (v) => host.setSpeed(v), onSilver: () => host.showBreakdown('silver'), onHappiness: () => host.showBreakdown('happiness'), onGoal: () => host.showGoal() });
     this.toolbar = new Toolbar(this, (t) => host.selectTool(t), (dir) => host.turnMap(dir));
     this.info = new InfoLine(this);
     this.toasts = new Toasts(this);

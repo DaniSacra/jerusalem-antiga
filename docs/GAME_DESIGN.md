@@ -40,6 +40,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Poço | 20 | 3/mês | 2 x 2 | – | – | 4 | |
 | Mercado | 40 | 4/mês | 2 x 4 | 3 | – | 5 | liberado pela Meta 2; pode girar para 4 x 2 |
 | Oficina | 35 | 2/mês | 3 x 3 | 3 | 5 prata/mês | – | liberada pela Meta 3; 6 ofícios (só aparência) |
+| Jardim | 25 | 1/mês | 2 x 2 | – | – | 3 | liberado pela Meta 4; deixa as casas no raio mais felizes |
 | Templo | 800 | 10/mês | 6 x 6 | 2 | – | 12 | liberado pela Meta 8; não pode ser demolido |
 | Altar | – | – | 4 x 4 | – | – | 3 | fixo no início |
 
@@ -84,10 +85,37 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | 3 | Casa de pedra | 10 | 3,5 | rua, poço, mercado |
 | 4 | Casa grande | 16 | 6 | rua, poço, mercado, raio do altar **ou** do templo |
 
+## Felicidade
+
+Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json`, código em
+`src/core/happiness.ts`), calculada todo mês:
+
+| Motivo | Pontos |
+|---|---|
+| base | 50 |
+| no raio do altar ou do templo | +10 |
+| no raio de um jardim | +20 |
+| no raio de um poço | +5 |
+| no raio de um mercado | +5 |
+| fome na cidade | −30 |
+| desemprego: parte dos trabalhadores sem vaga × 40 | até −20 |
+
+Só contam serviços **conectados**. O valor fica entre 0 e 100.
+
+- **Humor:** feliz com 65 ou mais; triste abaixo de 35; contente no meio.
+- **Imposto:** contente paga o imposto normal; feliz paga mais, subindo em linha reta até
+  +20% com 100; triste paga menos, até −20% com 0.
+- **Famílias:** a felicidade da cidade é a média das casas com família (50 sem nenhuma). Ela
+  multiplica a chance de chegar família do mesmo jeito: 1 enquanto contente, até 1,5x feliz e
+  até 0,5x triste.
+- Casa triste **não** é abandonada nem cai de nível por isso (por enquanto só paga menos e atrai
+  menos famílias).
+- A oficina ainda não incomoda as casas vizinhas (fica para depois, a pedido).
+
 ## Famílias
 
 - Um terreno vazio conectado, sem fome e sem família a caminho tem **35%** de chance por mês de
-  receber uma família. **Exceção:** enquanto (tendas ou melhores + famílias a caminho) for menor
+  receber uma família (vezes o fator da felicidade da cidade, veja Felicidade). **Exceção:** enquanto (tendas ou melhores + famílias a caminho) for menor
   que 3, a chance é 100%, para o começo não ter tempo morto.
 - A família sai da **entrada da cidade** e anda pelas ruas (caminho por busca em largura) até a
   casa, **4 células por mês**. Ao chegar, o terreno vira tenda.
@@ -107,7 +135,7 @@ A cada mês, nesta ordem (`simulation.ts`):
 3. Comida += campos × 3 × eficiência − consumo. Cada morador come conforme o nível da casa
    (`food` em `houses.json`): tenda 0,2, barro 0,2, pedra 0,25, casa grande 0,3. Se a comida chega
    a 0 com saldo negativo: **fome**. A comida nunca fica negativa.
-4. Prata += impostos + (oficinas × 5 + campos × 1) × eficiência − manutenção. A prata **pode ficar negativa**
+4. Prata += impostos (cada casa com o fator da sua felicidade) + (oficinas × 5 + campos × 1) × eficiência − manutenção. A prata **pode ficar negativa**
    (dívida). Esse saldo é o "+X/mês" da barra.
 5. Famílias andam; as que chegam transformam o terreno em tenda.
 6. Para cada casa de nível 1 ou mais:
@@ -143,7 +171,7 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 1. Tenha 6 casas ligadas à rua (tendas ou melhores): +20 prata.
 2. Chegue a 20 moradores: +30 prata, libera Mercado.
 3. Tenha 5 casas de barro ou melhores: +40 prata, libera Oficina.
-4. O povo precisa de trabalho: construa 2 oficinas (ligadas à rua): +40 prata.
+4. O povo precisa de trabalho: construa 2 oficinas (ligadas à rua): +40 prata, libera Jardim.
 5. Chegue a 80 moradores: +60 prata.
 6. Tenha 6 casas de pedra ou melhores: +80 prata.
 7. Chegue a 150 moradores: +120 prata.
@@ -153,7 +181,8 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 Metas de casas e de construir contam só construções **conectadas** à rede.
 
 Ao liberar a Oficina aparece também o aviso "Oficina liberada: 3 vagas e 5 de prata/mês" (números
-lidos de `buildings.json`).
+lidos de `buildings.json`); ao liberar o Jardim, "Jardim liberado: casas felizes pagam mais imposto
+e atraem famílias".
 
 **Aviso de desemprego:** pessoas sem trabalho = trabalhadores − vagas (nunca menos de 0). Com a
 Oficina liberada e 6 ou mais pessoas sem trabalho (`unemploymentAlert` em `rules.json`), aparece
@@ -190,12 +219,16 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 
 - **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (com
   sol, entardecer ou lua ao lado, conforme a hora do dia),
-  Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores e Trabalho
+  Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores, Felicidade (carinha
+  verde sorrindo, amarela séria ou vermelha triste, conforme o humor da média, e o número, verde
+  quando feliz e vermelho quando triste) e Trabalho
   (trabalhadores/vagas; "—" sem ninguém; % em vermelho abaixo de 100%; "+N sem vaga" em laranja
   quando sobra gente). O valor da prata fica normal com saldo ≥ 0, laranja com saldo do mês
   negativo e vermelho piscando em dívida. Durante a fome, o valor da Comida fica vermelho e pisca.
   **Tocar na prata** mostra na linha de informação: impostos, produção por tipo ("Oficina +X ·
   Campo +Y"), "Manutenção: Campo −1, Poço −3…" e saldo (atualizado a cada mês).
+  **Tocar na carinha** mostra: "Felicidade N · X felizes, Y contentes, Z tristes · Feliz paga mais
+  imposto e atrai famílias · Jardim e altar alegram; fome e desemprego entristecem".
 - **Opções** (engrenagem no canto superior direito; em telas muito largas, ao lado do topo do trilho
   direito): painel com "Dia e noite: ligado/desligado" e "Efeito maquete: ligado/desligado". As
   escolhas ficam salvas no navegador. Se o aparelho for lento, o efeito maquete aparece desligado
@@ -208,8 +241,10 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   aviso, que fica escondido até sumir e voltar (aparece o próximo da lista, se houver). O aviso
   de dívida não tem X.
 - **Velocidade** (canto superior esquerdo): 3 botões ❚❚, 1x e 3x; o ativo fica dourado.
-- **Trilho esquerdo** (abaixo da velocidade): Ver (lupa), Rua (com o custo 2), Limpar (picareta),
-  uma divisória dourada e as setas ↺ ↻ de girar o mapa. A ferramenta ativa fica dourada.
+- **Trilho esquerdo** (abaixo da velocidade): Ver (lupa), Rua (com o custo 2), Jardim (miniatura e
+  custo, como os botões do trilho direito), Limpar (picareta), uma divisória dourada e as setas ↺ ↻
+  de girar o mapa. A ferramenta ativa fica dourada. Em telas muito largas (altura do jogo < 591)
+  os botões desse trilho ficam um pouco mais baixos para caber.
 - **Trilho direito:** Casa, Campo, Poço, Mercado, Oficina e Templo, cada um com a miniatura da
   própria construção e o custo pequeno embaixo (moeda + número). Sem prata suficiente: botão e
   miniatura acinzentados e custo em vermelho. Bloqueada: apagada, com "Meta N" no lugar do custo.
@@ -220,7 +255,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   texto (encolhe para caber entre os trilhos). Ao escolher uma ferramenta mostra o nome, o custo e a
   manutenção em dourado e depois a dica (ex.: "Campo · 15 prata · 1/mês · Ocupa 2x2 · 2 vagas ·
   produz 3 de comida e 1 de prata/mês · pode arrastar."). Com Ver, mostra o que foi tocado:
-  - casas: nível, moradores, imposto e as exigências do próximo nível em verde/vermelho
+  - casas: nível, moradores, imposto (já com a felicidade), humor e número da felicidade com os
+    motivos (ex.: "contente 40 (Altar +10, Jardim +20, Desemprego −20)") e as exigências do próximo nível em verde/vermelho
     (incluindo "sem rua"); terreno vazio diz se há família a caminho;
   - outras construções: nome (a oficina com o ofício, ex.: "Oficina (Olaria)"), estado de conexão,
     manutenção (desconectada: "não funciona, mas paga manutenção"), vagas, produção, raio; com eficiência 0, "Sem
@@ -229,7 +265,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - **Balões** sobre construções com o primeiro problema, nesta ordem: sem rua; depois, em campo,
   mercado, oficina e templo com eficiência 0, "sem trabalhadores" (trabalhador riscado); depois, para casas
   de nível 1 a 3, a primeira exigência que falta (gota azul = poço, listras vermelhas = mercado,
-  chama = altar/templo). Só aparece se a construção que falta já estiver liberada. Com zoom
+  chama = altar/templo; só se a construção que falta já estiver liberada); por último, casa triste
+  (carinha vermelha, em qualquer nível). Com zoom
   afastado os balões crescem (escala máx(1, 1,2 / zoom)) para continuar legíveis.
 - **Com ferramenta de construção:** linhas da grade, prévia translúcida (vermelha se inválida ou
   sem prata), quadrado do raio e área já coberta pelo mesmo serviço. Com Casa, destaque dourado da
@@ -260,7 +297,7 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   do mesmo lado (o Mercado troca entre o desenho 2 x 4 e 4 x 2 conforme fica na tela).
 - Rua, Casa, Campo e Limpar constroem arrastando; o arraste preenche as células em passos
   ortogonais, então a rua fica sempre conectada.
-- Poço, Mercado, Oficina e Templo são colocados **ao soltar o dedo**: dá para arrastar para
+- Poço, Mercado, Oficina, Jardim e Templo são colocados **ao soltar o dedo**: dá para arrastar para
   ajustar a prévia, e o segundo dedo de uma pinça nunca constrói por engano. No toque, eles miram
   90 px acima do dedo, para a prévia não ficar escondida; se o ponto mirado cair sob a interface,
   não há prévia (a prévia nunca fica escondida sob a placa, as faixas ou os trilhos); soltar sobre a
@@ -268,8 +305,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - No toque, o arraste só começa a construir depois de 150 ms com um dedo só (a pinça não
   constrói). Nada é construído nem começa um gesto sob a placa, a faixa da meta, a faixa de aviso,
   a velocidade, os trilhos ou a linha de informação (quando aparece). Continuar uma rua a partir de uma rua existente não mostra "Local inválido".
-- Atalhos no PC: 1–9 escolhem a ferramenta (Ver, Rua, Casa, Campo, Poço, Mercado, Oficina, Templo,
-  Limpar), R gira o Mercado, Q e E giram o mapa, Espaço troca a
+- Atalhos no PC: 1–9 e 0 escolhem a ferramenta (Ver, Rua, Casa, Campo, Poço, Mercado, Oficina,
+  Jardim, Templo, Limpar), R gira o Mercado, Q e E giram o mapa, Espaço troca a
   velocidade, Esc volta para Ver.
 
 ## Vida na cidade
@@ -294,6 +331,14 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - **Ruas que evoluem** (só visual): cada passo de morador conta na célula; com 60 passos a rua fica
   mais larga e clara, com 240 ganha calçamento de pedra. Ruas a até 2 células do altar ou do templo
   já são calçadas.
+- **Vida e ambiente** (só visual, `src/render/Ambient.ts`, números em `ambient` de `visual.json`):
+  cabras e galinhas ao lado das tendas; um jumento amarrado ao lado de cada mercado; até 3 rebanhos
+  de 4 ovelhas pastando na grama aberta a até 16 células do altar; 6 pombas no altar que voam
+  quando alguém passa; 2 barquinhos de pescador e 3 lavadeiras nas margens do rio mais próximas da
+  cidade; varais com roupas coloridas balançando em 1 de cada 3 casas de barro ou melhores; 4
+  sombras de nuvens passando devagar. No máximo 40 animais. Chão com flores silvestres, arbustos e
+  pedrinhas em ~15% das células; trilhas de terra apagadas entre casas a 1–3 células uma da outra;
+  palmeiras e oliveiras balançando com vento leve (palmeira mais).
 - Plantações balançando, fumaça na chaminé da oficina, fogo tremulando no altar, água correndo no rio.
 - Ao subir de nível: pulinho, "+N" e anel de brilho. Ao cair de nível ou por fome: texto vermelho.
 - Ao construir: anel de brilho. Ao limpar: nuvem de poeira. Templo: anéis dourados, faíscas e
@@ -360,6 +405,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   - curtume: couros esticados e amarrados em molduras de madeira, tinas de madeira com aros,
     poço de cal branco com couro de molho, cavalete de raspar e pilha de couro pronto.
   Só olaria e ferraria soltam fumaça e têm fogo que tremula.
+- Jardim 2 x 2: gramado verde numa mureta baixa de pedra, caminhos em cruz até um pequeno
+  espelho d'água redondo, canteiros de flores nos cantos, uma oliveira, uma palmeira e um banco.
 - Altar 4 x 4: pátio de pedras com mureta rústica e o altar de pedras brutas não lavradas, com
   rampa (sem degraus), chifres nos cantos e fogo no alto.
 - Templo 6 x 6, a construção mais bonita: plataforma de calcário com escadaria, muro com portão e

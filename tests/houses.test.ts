@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, clearCell, houseInfo, RULES, stepMonth } from '../src/core';
+import { balloonNeed, clearCell, houseHappiness, houseInfo, idleShare, RULES, stepMonth } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
@@ -112,7 +112,8 @@ describe('house info and balloons', () => {
       level: 2,
       name: 'Casa de barro',
       residents: 6,
-      tax: 2,
+      tax: 2, // content: the plain tax
+      happiness: houseHappiness(s, b, idleShare(s)),
       next: {
         name: 'Casa de pedra',
         needs: [
@@ -128,6 +129,7 @@ describe('house info and balloons', () => {
     const s = emptyGame({ unlocked: ['road', 'house', 'field', 'well'] });
     expect(balloonNeed(s, put(s, 'field', 1, 1))).toBe('road');
     expect(balloonNeed(s, put(s, 'house', 5, 5, 0))).toBe('road');
+    put(s, 'workshop', EAST, 40); // jobs, so the house is not sad
     const b = put(s, 'house', ROADSIDE, 40, 1);
     expect(balloonNeed(s, b)).toBe('well');
     put(s, 'well', ROADSIDE, 42);

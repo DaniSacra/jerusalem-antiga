@@ -9,6 +9,7 @@ const SEP: Segment = { text: '  ·  ' };
 const ok = (yes: boolean, label: string): Segment => ({ text: `${label} ${yes ? '✓' : '✗'}`, color: yes ? CSS.okLight : CSS.badLight });
 const bad = (text: string): Segment => ({ text, color: CSS.badLight });
 const title = (text: string): Segment => ({ text, color: CSS.gold });
+const MOOD_CSS = { happy: CSS.okLight, neutral: CSS.light, sad: CSS.badLight } as const;
 
 /** Describes the content of a cell for the info line (Ver tool). */
 export function describeCell(s: GameState, x: number, y: number): Segment[] {
@@ -35,6 +36,11 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
       return [...segs, { text: 'esperando uma família' }, ...(s.famine ? [SEP, bad('a fome impede novas famílias')] : [])];
     }
     const segs: Segment[] = [title(h.name), SEP, { text: `${h.residents} moradores` }, SEP, { text: `imposto ${fmt(h.tax)}${T.perMonth}` }, SEP];
+    if (h.happiness) {
+      const { value, mood, parts } = h.happiness;
+      const why = parts.map((p) => `${T.happinessPart[p.kind]} ${p.value > 0 ? '+' : '−'}${Math.abs(p.value)}`).join(', ');
+      segs.push({ text: `${T.mood[mood]} ${value}`, color: MOOD_CSS[mood] }, ...(why ? [{ text: ` (${why})` }] : []), SEP);
+    }
     if (!h.next) return [...segs, { text: 'nível máximo' }, ...(b.connected ? [] : [SEP, bad('sem rua')])];
     segs.push({ text: `Para ${h.next.name}: ` });
     h.next.needs.forEach((n, k) => {

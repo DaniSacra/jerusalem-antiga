@@ -14,6 +14,22 @@
   "debtMonthsToLose": 24,
   "treeClearCost": 5,
   "roadCost": 2,
+  "happiness": {
+    "base": 50,
+    "sacred": 10,
+    "garden": 20,
+    "well": 5,
+    "market": 5,
+    "famine": -30,
+    "idleScale": 40,
+    "idleMax": 20,
+    "happy": 65,
+    "sad": 35,
+    "taxMin": 0.8,
+    "taxMax": 1.2,
+    "familyMin": 0.5,
+    "familyMax": 1.5
+  },
   "map": {
     "cols": 48,
     "rows": 48,

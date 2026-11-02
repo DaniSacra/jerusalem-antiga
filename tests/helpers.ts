@@ -11,7 +11,7 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
-  s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
+  s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
   Object.assign(s, overrides);
   refreshCity(s);
   return s;

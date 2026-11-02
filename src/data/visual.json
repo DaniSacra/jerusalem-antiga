@@ -27,6 +27,18 @@
     "paved": 240,
     "pavedNear": 2
   },
+  "ambient": {
+    "maxAnimals": 40,
+    "nearCity": 16,
+    "flocks": 3,
+    "flockSize": 4,
+    "boats": 2,
+    "washers": 3,
+    "doves": 6,
+    "laundryEvery": 3,
+    "clouds": 4,
+    "decoShare": 0.15
+  },
   "build": {
     "scaffoldMs": 1500,
     "upgradeMs": 600

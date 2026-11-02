@@ -8,6 +8,7 @@ export * from './coverage';
 export * from './refresh';
 export * from './economy';
 export * from './alerts';
+export * from './happiness';
 export * from './houses';
 export * from './families';
 export * from './looks';

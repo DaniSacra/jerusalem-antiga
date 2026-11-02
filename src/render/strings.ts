@@ -1,4 +1,4 @@
-import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type NeedKind, type Placeable } from '../core';
+import { BUILDINGS, canRotate, dimsOf, RULES, unlockingGoal, type Alert, type BuildingKind, type Craft, type Economy, type FailReason, type Feature, type GoalDef, type Ground, type HappinessPart, type Mood, type NeedKind, type Placeable } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -46,7 +46,10 @@ export const T = {
   goalDone: (reward: number, unlock?: Placeable) =>
     `Meta cumprida! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   /** Extra message when a goal unlocks a building, explaining what it is for. */
-  unlocked: { workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${BUILDINGS.workshop.silver} de prata/mês` } as Partial<Record<Placeable, string>>,
+  unlocked: {
+    workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${BUILDINGS.workshop.silver} de prata/mês`,
+    garden: 'Jardim liberado: casas felizes pagam mais imposto e atraem famílias',
+  } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
       return a.famine
@@ -72,6 +75,23 @@ export const T = {
     ].join('  ·  ');
   },
   upkeep: (n: number) => `manutenção ${fmt(n)}/mês`,
+  mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
+  happinessPart: {
+    sacred: 'Altar',
+    garden: 'Jardim',
+    well: 'Poço',
+    market: 'Mercado',
+    famine: 'Fome',
+    idle: 'Desemprego',
+  } satisfies Record<HappinessPart['kind'], string>,
+  /** Info line when the happiness is tapped: moods, effects and what changes them. */
+  happinessBreakdown: (e: Economy): string =>
+    [
+      `Felicidade ${e.happiness}`,
+      `${e.moods.happy} felizes, ${e.moods.neutral} contentes, ${e.moods.sad} tristes`,
+      'Feliz paga mais imposto e atrai famílias',
+      'Jardim e altar alegram; fome e desemprego entristecem',
+    ].join('  ·  '),
   craft: {
     pottery: 'Olaria',
     smithy: 'Ferraria',
@@ -92,7 +112,7 @@ export const T = {
   lockedHint: (kind: Placeable) => `${toolName(kind)}: liberado ao cumprir a Meta ${unlockingGoal(kind)}.`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira' } satisfies Record<Feature, string>,
-  need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo' } satisfies Record<NeedKind, string>,
+  need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo', garden: 'Jardim' } satisfies Record<NeedKind, string>,
 };
 
 const months = (n: number) => `${n} ${n === 1 ? 'mês' : 'meses'}`;
@@ -129,6 +149,7 @@ export function toolHint(tool: Tool): string {
   const made = [d.food && `${d.food} de comida`, d.silver && `${d.silver} de prata`].filter(Boolean);
   if (made.length) parts.push(`produz ${made.join(' e ')}${T.perMonth}`);
   if (d.radius) parts.push(`raio ${d.radius}`);
+  if (tool === 'garden') parts.push('alegra as casas no raio: mais imposto e mais famílias');
   if (tool === 'temple') parts.push('precisa encostar numa rua; os lugares possíveis ficam verdes');
   if (tool === 'field') parts.push('pode arrastar');
   const body = parts.join(' · ');
