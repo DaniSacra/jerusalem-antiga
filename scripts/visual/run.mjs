@@ -89,7 +89,13 @@ async function setSpeed(page, speed) {
  * tutorial is skipped (marked as seen) unless `tutorial` is set. `ui` picks the interface: the older
  * scenarios use the Clássica (their positions come from layout.ts), the `nova-*` ones the Nova. */
 async function startGame(page, { tutorial = false, ui = 'classic' } = {}) {
-  await page.addInitScript((mode) => localStorage.setItem('jerusalem.ui', mode), ui);
+  await page.addInitScript((mode) => {
+    try {
+      localStorage.setItem('jerusalem.ui', mode);
+    } catch {
+      // Blocked storage (tutorial-skip): the game falls back to the default interface.
+    }
+  }, ui);
   if (!tutorial) await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
   await page.goto(URL);
   await page.waitForFunction(() => document.querySelector('canvas'));
@@ -262,10 +268,10 @@ async function seasonsScenario(page, suffix) {
     return { season: l.season, almond: l.almond, fig: l.fig, crop: l.crop, harvest: l.harvest, snow: l.snow, drought: l.drought, smoke: l.smoke };
   });
   const views = () => page.evaluate(() => [...window.game.map.views.values()].map((v) => v.main.texture.key));
-  const icon = () => page.evaluate(() => window.game.ui.hud.seasonIcon.texture.key);
+  const icon = () => page.evaluate(() => window.game.ui.view.hud.seasonIcon.texture.key);
   /** The plaque's drought mark (icon and word): shown, and where, in screen px for a close capture. */
   const droughtMark = () => page.evaluate(() => {
-    const [img, label] = window.game.ui.hud.drought;
+    const [img, label] = window.game.ui.view.hud.drought;
     const r = document.querySelector('canvas').getBoundingClientRect();
     return { on: img.visible && img.alpha > 0.9 && label.visible, k: r.height / window.game.scale.height, left: r.left, top: r.top, key: img.texture.key };
   });
@@ -366,7 +372,7 @@ async function seasonsScenario(page, suffix) {
     window.game.handleEvents(window.core.stepMonth(window.state, window.core.createRng(1)));
     window.game.refresh();
   }, [4 * M]);
-  const toasts = await page.evaluate(() => window.game.ui.toasts.list.map((t) => t.msg));
+  const toasts = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
   assert(toasts.some((m) => m.startsWith('Chegou a primavera')), `a toast announces the spring (${toasts})`);
   await page.waitForTimeout(300);
   assert(!(await droughtMark()).on, 'the drought mark goes away after the drought');
@@ -376,9 +382,10 @@ async function seasonsScenario(page, suffix) {
 /** Presses a button of the tutorial bubble ('skipBtn' or 'okBtn'). */
 async function clickTutorial(page, which) {
   const [x, y] = await page.evaluate((k) => {
-    const v = window.game.ui.tutorial;
+    const v = window.game.ui.view.tutorial;
     const c = k === 'skipBtn' ? v.skipBtn.root : v.okBtn.container;
-    return [c.x, c.y];
+    const m = c.getWorldTransformMatrix(); // the buttons sit inside the (scaled) tutorial balloon
+    return [m.tx, m.ty];
   }, which);
   await page.mouse.click(...(await gameToPage(page, x, y)));
   await page.waitForTimeout(200);
@@ -574,16 +581,16 @@ const scenarios = {
     const gear = await page.evaluate(() => [window.layout.OPTIONS.x + window.layout.OPTIONS.w / 2, window.layout.OPTIONS.y + window.layout.OPTIONS.h / 2]);
     await page.mouse.click(...(await gameToPage(page, ...gear)));
     await page.waitForTimeout(150);
-    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'the gear opens the options');
+    assert(await page.evaluate(() => window.game.ui.view.options.panel.visible), 'the gear opens the options');
     const t0 = await page.evaluate(() => window.game.tool);
     const [x, y] = await page.evaluate(() => {
-      const r = window.game.ui.options.rect;
+      const r = window.game.ui.view.options.rect;
       return [r.x + r.w / 2, r.y + 12];
     });
     await page.mouse.click(...(await gameToPage(page, x, y)));
     await page.waitForTimeout(150);
     assert(await page.evaluate((t) => window.game.tool === t && !window.game.selected, t0), 'tapping the panel title changes nothing on the map');
-    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'and the panel stays open');
+    assert(await page.evaluate(() => window.game.ui.view.options.panel.visible), 'and the panel stays open');
   },
 
   async 'build-with-mouse'(page) {
@@ -639,7 +646,7 @@ const scenarios = {
       for (const [name, t, icon] of phases) {
         await page.evaluate((t) => window.game.dayNight.setTime(t), t);
         await page.waitForTimeout(400);
-        const got = await page.evaluate(() => ({ icon: window.game.ui.hud.phase.texture.key, light: window.game.dayNight.current }));
+        const got = await page.evaluate(() => ({ icon: window.game.ui.view.hud.phase.texture.key, light: window.game.dayNight.current }));
         assert(got.icon === `icon-${icon}`, `${name}: ${icon} next to the month (got ${got.icon})`);
         await shot(page, `day-night-${name}`);
       }
@@ -651,7 +658,7 @@ const scenarios = {
       await page.mouse.click(...(await gameToPage(page, opt.x + opt.w / 2, opt.y + opt.h / 2)));
       await page.waitForTimeout(200);
       const row = await page.evaluate(() => {
-        const r = window.game.ui.options.rect;
+        const r = window.game.ui.view.options.rect;
         return [r.x + r.w / 2, r.y + 6 + 36 + 30];
       });
       await shot(page, 'day-night-options');
@@ -764,7 +771,7 @@ const scenarios = {
     });
     const eco = await page.evaluate(() => window.game.eco);
     assert(eco.moods.happy + eco.moods.neutral + eco.moods.sad > 0, `houses have moods (${JSON.stringify(eco.moods)})`);
-    const [face, want] = await page.evaluate(() => [window.game.ui.hud.face.texture.key, `mood-${window.core.moodOf(window.game.eco.happiness)}`]);
+    const [face, want] = await page.evaluate(() => [window.game.ui.view.hud.face.texture.key, `mood-${window.core.moodOf(window.game.eco.happiness)}`]);
     assert(face === want, `plaque face follows the mood (${face}, ${want})`);
 
     await clickUi(page, 'plaqueSlot', 4);
@@ -787,7 +794,7 @@ const scenarios = {
       window.game.refresh();
     });
     await page.waitForTimeout(300);
-    assert((await page.evaluate(() => window.game.ui.hud.face.texture.key)) === 'mood-sad', 'famine turns the face sad');
+    assert((await page.evaluate(() => window.game.ui.view.hud.face.texture.key)) === 'mood-sad', 'famine turns the face sad');
     await shot(page, 'happiness-sad');
 
     // Picking the garden shows its radius.
@@ -894,6 +901,7 @@ const scenarios = {
       const phoneH = Math.round(Math.min(720, Math.max(560, (GAME_W * 390) / 844)));
 
       await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
+      await page.addInitScript(() => localStorage.setItem('jerusalem.ui', 'classic')); // positions from layout.ts
       await page.goto(URL);
       await page.waitForTimeout(1200);
       await shot(page, 'touch-title');
@@ -981,13 +989,13 @@ const scenarios = {
       assert((await stats(page)).buildings.length === before, 'nothing is built under the plaque');
 
       // Close the alert with its X, then tap the goal.
-      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
+      const shown = await page.evaluate(() => window.game.ui.view.hud.shown?.kind);
       assert(shown && shown !== 'debt', `a closable alert is shown (${shown})`);
       await tap(await page.evaluate(() => {
-        const r = window.game.ui.hud.closeRect;
+        const r = window.game.ui.view.hud.closeRect;
         return [r.x + r.w / 2, r.y + r.h / 2];
       }));
-      const after = await page.evaluate(() => window.game.ui.hud.shown?.kind ?? null);
+      const after = await page.evaluate(() => window.game.ui.view.hud.shown?.kind ?? null);
       assert(after !== shown, `the closed alert is hidden (${shown} -> ${after})`);
       await tap(await page.evaluate(() => [640, window.layout.GOAL_Y + window.layout.GOAL_H / 2]));
       assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'tapping the goal shows it in the info line');
@@ -1045,15 +1053,15 @@ const scenarios = {
       assert((await stats(page)).roads === r0, 'a drag that starts on the plaque builds nothing');
 
       // Closing the alert keeps it hidden while it lasts; it comes back after it goes away.
-      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
+      const shown = await page.evaluate(() => window.game.ui.view.hud.shown?.kind);
       await page.mouse.click(...(await gameToPage(page, ...(await page.evaluate(() => {
-        const r = window.game.ui.hud.closeRect;
+        const r = window.game.ui.view.hud.closeRect;
         return [r.x + r.w / 2, r.y + r.h / 2];
       })))));
-      const dismissed = await page.evaluate(() => [...window.game.ui.hud.dismissed]);
+      const dismissed = await page.evaluate(() => [...window.game.ui.view.hud.dismissed]);
       assert(dismissed.includes(shown), `the X closes the alert (${shown})`);
       await page.evaluate(() => window.game.refresh());
-      assert(await page.evaluate((k) => window.game.ui.hud.shown?.kind !== k, shown), 'a closed alert stays hidden');
+      assert(await page.evaluate((k) => window.game.ui.view.hud.shown?.kind !== k, shown), 'a closed alert stays hidden');
 
       await clickUi(page, 'plaqueSlot', 1); // silver
       assert(await page.evaluate(() => window.game.infoMode === 'silver'), 'clicking the silver shows the breakdown');
@@ -1068,7 +1076,7 @@ const scenarios = {
         window.state.debtMonths = 3;
         window.game.refresh();
       });
-      const debt = await page.evaluate(() => [window.game.ui.hud.shown?.kind, window.game.ui.hud.closeRect]);
+      const debt = await page.evaluate(() => [window.game.ui.view.hud.shown?.kind, window.game.ui.view.hud.closeRect]);
       assert(debt[0] === 'debt' && debt[1] === null, 'the debt alert has no X');
       await page.waitForTimeout(200);
       await shot(page, 'hud-pc-debt');
@@ -1304,7 +1312,8 @@ async function novaScenario(page, suffix) {
   });
   const H = await page.evaluate(() => window.game.scale.height);
   for (const b of sizes) {
-    assert(b.real >= 44, `${b.n} is at least 44 real px (got ${b.real.toFixed(1)})`);
+    // 0.01 px tolerance for float rounding of the scale.
+    assert(b.real >= 44 - 0.01, `${b.n} is at least 44 real px (got ${b.real.toFixed(1)})`);
     assert(b.top >= 0 && b.bottom <= H, `${b.n} fits the screen height (${b.top.toFixed(0)}..${b.bottom.toFixed(0)} of ${H})`);
   }
   const overlaps = await page.evaluate(() => {

@@ -98,7 +98,7 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   - valor da prata: normal com saldo ≥ 0, laranja com saldo do mês negativo,
     vermelho piscando em dívida
 - Em dívida e com fome ao mesmo tempo, a etiqueta de dívida troca a dica para
-  "Em dívida e com fome: demolir serviços para juntar prata para um campo"
+  "Dívida e fome: demolir serviços para pagar um campo"
 - Equilíbrio medido (100 seeds): Eficiente vence 100/100 sem dívida, mês 56;
   Comum vence 96/100, 82 com saldo negativo e 36 em dívida recuperada, mês 94;
   Distraído perde 81/100

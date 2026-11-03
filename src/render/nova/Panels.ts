@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { alerts, BUILDINGS, foodRunsOut, goalProgress, GOALS, happinessOn, HOUSE_LEVELS, housesByLevel, type BuildingKind, type Economy, type GameState } from '../../core';
+import { alerts, BUILDINGS, RULES, seasonOf, foodRunsOut, goalProgress, GOALS, happinessOn, HOUSE_LEVELS, housesByLevel, type BuildingKind, type Economy, type GameState } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { saveSettings, settings, uiMode, type UiMode } from '../settings';
@@ -212,7 +212,7 @@ export class Panels {
       row(st.made, `+${fmt(e.foodMade)}${per}`, NOVA_CSS.good),
       row(st.eaten, `−${fmt(e.foodEaten)}${per}`, NOVA_CSS.bad),
       row(st.balance, `${signed(e.foodDelta)}${per}`, tone(e.foodDelta)),
-      row(st.runsOut, out ? `${st.weeks(out.months)} · ${N.foodUntil[out.season]}` : st.never, out ? NOVA_CSS.bad : NOVA_CSS.good),
+      row(st.runsOut, out ? out.season === seasonOf(s.month) && out.months < RULES.monthsPerSeason ? st.weeks(out.months) : `${st.weeks(out.months)} · ${N.foodUntil[out.season]}` : st.never, out ? NOVA_CSS.bad : NOVA_CSS.good),
     ];
     const idle = Math.max(0, e.workers - e.jobs);
     const eff = Math.round(e.efficiency * 100);

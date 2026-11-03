@@ -38,7 +38,7 @@ export class Options {
     // A zone the size of the panel under the rows, so a tap on its title or edges stays in the panel.
     const block = scene.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     this.panel = scene.add.container(x, y, [block, bg, title]).setDepth(50).setVisible(false);
-    (['ui', 'dayNight', 'miniature'] as const).forEach((key, k) => {
+    (['dayNight', 'miniature', 'ui'] as const).forEach((key, k) => {
       const label = text(scene, 0, -2, '', 19, CSS.ink, true).setOrigin(0.5);
       const btn = new RailButton(scene, w / 2, PAD + TITLE_H + ROW_H / 2 + k * (ROW_H + GAP), ROW_W, ROW_H, [label], () => {
         if (key === 'ui') return onInterface();

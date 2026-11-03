@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, currentGoal, foodRunsOut, goalCount, goalFraction, goalProgress, happinessOn, moodOf, type Economy, type GameState } from '../../core';
+import { calendar, cityLevel, seasonOf, currentGoal, foodRunsOut, goalCount, goalFraction, goalProgress, happinessOn, moodOf, type Economy, type GameState } from '../../core';
 import { SPEEDS, type Speed } from '../Hud';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
@@ -234,7 +234,7 @@ export class TopBar {
       ...label(N.food),
       { text: fmtInt(s.food), color: s.famine ? NOVA_CSS.bad : NOVA_CSS.text, size: S.num },
       delta(eco.foodDelta),
-      ...(!PHONE && out ? [{ text: '· ' + N.foodUntil[out.season], color: NOVA_CSS.bad }] : []),
+      ...(!PHONE && out ? [{ text: '· ' + N.foodForecast(out, seasonOf(s.month)), color: NOVA_CSS.bad }] : []),
     ]);
     this.food.blink(fv, s.famine);
     this.people.set([...label(N.residents), { text: fmtInt(eco.residents), size: S.num }]);

@@ -57,7 +57,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 
 | Cenário | O que faz e verifica | Screenshots |
 |---|---|---|
-| `title` | tela inicial; depois de ver o tutorial, com "Ver tutorial de novo"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-again`, `title-install` |
+| `title` | tela inicial; depois de ver o tutorial, com "Rever o tutorial"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-again`, `title-install` |
 | `tutorial` | celular 844 x 390, primeira partida: os 6 passos com a seta (no botão, depois no mapa), só a ferramenta do passo liberada, caminho fantasma arrastado com o dedo, lugares verdes, câmera seguindo a família, prévia do poço com "Atende N casas", casa de barro; depois o saldo na Meta 2 ("Entendi") e o mercado; tutorial gravado como feito | `tutorial-step-1` … `tutorial-step-6`, `tutorial-saldo`, `tutorial-market` |
 | `tutorial-pc` | o mesmo no PC 1366 x 768, com o mouse | as mesmas, com `-pc` no fim |
 | `tutorial-skip` | "Pular tutorial" encerra e fica gravado; as ferramentas voltam; com o `localStorage` bloqueado o tutorial roda e pular funciona sem erro | — |

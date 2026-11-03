@@ -164,15 +164,14 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 
 ## Dívida e derrota
 
-- Com prata negativa nada pode ser construído nem cortado ("A cidade está em dívida: nada pode ser
-  construído"); demolir continua grátis.
-- Ao entrar em dívida: toast "A cidade entrou em dívida! Toque na prata para ver os gastos" e, se
+- Com prata negativa nada pode ser construído nem cortado ("Em dívida: não dá para construir"); demolir continua grátis.
+- Ao entrar em dívida: toast "Cidade em dívida: toque na prata" e, se
   estiver em 3x, a velocidade cai para 1x. Ao sair: toast "A cidade saiu da dívida!".
 - Derrota: tela "Jerusalém foi abandonada" com os meses jogados e a maior população alcançada, e
   o botão "Tentar de novo" (novo mapa, nova semente). Depois da derrota a simulação para.
 - **Avisos** (`alerts()` no core), empilhados em etiquetas abaixo da barra superior, à esquerda,
   nesta ordem: dívida em vermelho ("A cidade está em dívida! N meses para ser abandonada"; com fome
-  ao mesmo tempo: "Em dívida e com fome: demolir serviços para juntar prata para um campo · N meses"); saldo
+  ao mesmo tempo: "Dívida e fome: demolir serviços para pagar um campo · N semanas"); saldo
   negativo em laranja ("Saldo −X/mês · maior custo: Tipo (N/mês) · demolir serviços que atendem
   poucas casas"); desemprego em laranja. Quando existir o painel de estatísticas, a mesma lista
   vira "principais problemas".
@@ -294,7 +293,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     rua, cujo raio atende a casa), **Demolir** (não aparece no altar e no templo) e
     **Fechar**.
 - **Sem linha de informação:** o que ela mostrava foi para os balões, as Estatísticas e a lista de
-  Objetivos; mensagens curtas ("Sem espaço para o templo…") viram toasts.
+  Objetivos; mensagens curtas ("Sem espaço para o Templo…") viram toasts.
 - **Toasts** como na Clássica, no centro de baixo. Balões de problema sobre as construções, a
   prévia, os destaques das ferramentas e o tom vermelho da fome também iguais.
 - **Configurações:** Interface Nova/Clássica, **Girar a visão** (↺ ↻; no PC continuam Q e E), Dia e
@@ -316,7 +315,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     2,5 s, o segundo demole;
   - tocar em terreno livre ou no rio fecha o balão da construção tocada; ruas, árvores e rochas
     mostram uma linha;
-  - "Onde pôr um poço/mercado/o templo" escolhe a construção e destaca no mapa os lugares; sem
+  - "Onde pôr um poço/mercado/o Templo" escolhe a construção e destaca no mapa os lugares; sem
     nenhum, toast "Nenhum lugar livre por perto: abra uma rua ao lado". Os destaques somem ao
     construir, trocar de ferramenta ou fechar o balão (e voltam depois de girar o mapa). Casa sem
     rua ou construção desligada: "Ligar à rua" escolhe Rua;
@@ -357,7 +356,7 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   "(aparelho lento)". Tocar fora fecha o painel.
 - **Faixa da meta** (dourada, logo abaixo da placa): "1. Tenha 6 casas ligadas à rua  5/6" (a fonte
   encolhe se o texto for longo). Tocar mostra na linha de informação a meta inteira: "Meta 1 de 9:
-  … · 5 de 6 · prêmio +20 prata · libera Mercado".
+  … · 5 de 6 · +20 prata · libera Mercado".
 - **Faixa de aviso** (abaixo da meta): só uma, a mais importante da lista do core (dívida, saldo
   negativo, desemprego), com "!" à esquerda; vermelha na dívida, laranja nas outras. O X fecha o
   aviso, que fica escondido até sumir e voltar (aparece o próximo da lista, se houver). O aviso
@@ -397,7 +396,7 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia. Com Casa, destaque dourado da
   área do altar e do templo (onde casas grandes são possíveis). O Templo mostra as 6 x 6 células
   e destaca em verde todas as posições onde cabe (6 x 6 livre encostado em rua conectada, sem
-  olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o templo: abra
+  olhar a prata); se não houver nenhuma, a linha de informação diz "Sem espaço para o Templo: abra
   uma rua ao lado de um terreno livre 6 x 6".
 - **Toasts** (mensagens curtas no centro de baixo, logo acima da linha de informação, empilhando para cima): prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, meta
   cumprida, "Oficina liberada: …", "Falta comida: construa campos" (uma vez por episódio de fome) e a
@@ -406,7 +405,7 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 - Tela inicial com 3 passos numerados (casas e campos ao lado das ruas do altar, campos dão comida e trabalho; poço, mercado e altar
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
   botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
-  "Ver tutorial de novo", que começa um jogo novo com o tutorial.
+  "Rever o tutorial", que começa um jogo novo com o tutorial.
 - Instalar no celular (PWA): quando o navegador oferece a instalação (Chrome/Android, Edge), a
   tela inicial mostra o botão "Instalar app" no canto superior direito; no iPhone/iPad (Safari)
   mostra embaixo a dica "toque em Compartilhar e depois em Adicionar à Tela de Início". Nada
@@ -439,7 +438,7 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   5. "Construa um poço perto das tendas": a prévia mostra o raio e "Atende N casas". Conclui com 1
      poço ligado.
   6. "Veja: as tendas perto do poço viram casas de barro". Conclui com 1 casa de nível 2; aparece
-     "Muito bem! Agora siga as metas no alto da tela" e todas as ferramentas liberadas voltam.
+     "Muito bem! Agora siga os objetivos no alto da tela" e todas as ferramentas liberadas voltam.
 - Mini passos (só para quem não pulou), sem travar ferramentas:
   - Ao cumprir a Meta 2: a seta aponta a prata e o balão traz a mensagem da manutenção com o botão
     "Entendi".

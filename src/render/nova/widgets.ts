@@ -200,10 +200,11 @@ export class RoundButton {
 
 /** Small dark name tag under a round button. */
 export function nameTag(scene: Phaser.Scene, x: number, y: number, label: string): { objects: (Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[]; w: number; h: number } {
+  // The pill is created first so it draws under the text.
+  const g = scene.add.graphics();
   const t = ntext(scene, x, y, label, S.small).setOrigin(0.5);
   const w = t.width + px(12);
   const h = S.labelH;
-  const g = scene.add.graphics();
   darkPanel(g, x - w / 2, y - h / 2, w, h, h / 2, 0.85);
   return { objects: [g, t], w, h };
 }

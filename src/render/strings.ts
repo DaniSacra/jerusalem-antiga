@@ -9,7 +9,7 @@ export const T = {
     'Poço, mercado e o altar perto fazem as casas crescerem.',
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
-  controls: 'Mover: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
+  controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
   cityName: 'Jerusalém',
   install: 'Instalar app',
   installIos: 'Para instalar: toque em Compartilhar e depois em "Adicionar à Tela de Início"',
@@ -43,16 +43,16 @@ export const T = {
     [
       `Objetivo ${n} de ${total}: ${goal.text}`,
       `${Math.min(progress, goal.target)} de ${goal.target}`,
-      goal.victory ? 'vitória' : `prêmio +${goal.reward} prata`,
+      goal.victory ? 'vitória' : `+${goal.reward} prata`,
       ...(goal.unlock ? [`libera ${toolName(goal.unlock)}`] : []),
     ].join('  ·  '),
   famine: 'Falta comida: construa campos',
   looseRoad: 'Esta rua não está ligada ao altar',
   noWorkers: 'Sem trabalhadores: faltam moradores',
-  noTempleSpot: `Sem espaço para o templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
+  noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   fail: {
     silver: 'Prata insuficiente',
-    debt: 'A cidade está em dívida: nada pode ser construído',
+    debt: 'Em dívida: não dá para construir',
     invalid: 'Local inválido',
     noRoad: 'O Templo precisa encostar numa rua ligada ao altar',
     protected: 'O altar e o templo não podem ser demolidos',
@@ -68,13 +68,13 @@ export const T = {
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
       return a.famine
-        ? `Em dívida e com fome: demolir serviços para juntar prata para um campo · ${weeks(a.monthsLeft)}`
+        ? `Dívida e fome: demolir serviços para pagar um campo · ${weeks(a.monthsLeft)}`
         : `A cidade está em dívida! ${weeks(a.monthsLeft)} para ser abandonada`;
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · demolir serviços que atendem poucas casas`;
     return `${a.count} pessoas sem trabalho: construa uma oficina ou um campo`;
   },
-  debtStart: 'A cidade entrou em dívida! Toque na prata para ver os gastos',
+  debtStart: 'Cidade em dívida: toque na prata',
   debtEnd: 'A cidade saiu da dívida!',
   /** Info line when the silver is tapped: where it comes from and where it goes. */
   silverBreakdown: (e: Economy): string => {
@@ -92,7 +92,7 @@ export const T = {
   upkeep: (n: number) => `manutenção ${fmt(n)}/sem`,
   /** Before goal 2 no upkeep is charged yet. */
   upkeepLater: (n: number) => `manutenção ${fmt(n)}/sem depois do Objetivo ${RULES.upkeepStartsAfterGoal}`,
-  upkeepStart: 'A partir de agora, poços, campos, mercados e oficinas custam prata por semana. Fique de olho no saldo.',
+  upkeepStart: 'Poços, campos, mercados e oficinas agora custam prata por semana',
   /** Preview of a well, market or garden: houses with a family inside its radius. */
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
@@ -103,13 +103,13 @@ export const T = {
       field: 'Construa um campo para o povo comer',
       well: 'Construa um poço perto das tendas',
       grow: 'Veja: as tendas perto do poço viram casas de barro',
-      upkeep: 'A partir de agora, poços, campos, mercados e oficinas custam prata por semana. Fique de olho no saldo.',
+      upkeep: 'Poços, campos, mercados e oficinas agora custam prata por semana',
       market: 'Casas de barro com mercado perto viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
     pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
     skip: 'Pular tutorial',
     ok: 'Entendi',
-    again: 'Ver tutorial de novo',
+    again: 'Rever o tutorial',
     done: 'Muito bem! Agora siga os objetivos no alto da tela',
     locked: 'Siga o tutorial, ou toque em Pular tutorial',
   },
@@ -162,6 +162,10 @@ export const T = {
     perWeek: '/sem',
     /** Where the food runs out at this pace (PC food pill). */
     foodUntil: { spring: 'até a primavera', summer: 'até o verão', autumn: 'até o outono', winter: 'até o inverno' } satisfies Record<Season, string>,
+    /** When the food runs out: the season, or the weeks left if it is still this season. */
+    foodForecast(out: { months: number; season: Season }, now: Season): string {
+      return out.season === now && out.months < RULES.monthsPerSeason ? `acaba em ${out.months} sem` : this.foodUntil[out.season];
+    },
     goal: 'Objetivo',
     goalOf: (n: number, total: number) => `Objetivo ${n} de ${total}`,
     progress: (p: number, target: number) => `${Math.min(p, target)}/${target}`,
@@ -184,18 +188,18 @@ export const T = {
     balanceAfter: (n: number) => `Saldo depois: ${signed(n)}/sem`,
     /** What each building is for, in one sentence. */
     effect: {
-      house: 'Terreno para uma família. Cresce com poço, mercado e o altar por perto.',
+      house: 'Abriga uma família. Cresce com poço, mercado e altar perto.',
       field: 'Dá comida e trabalho. Pode arrastar.',
       well: 'Tendas com poço por perto viram casas de barro.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: 'Dá trabalho e prata.',
-      garden: 'Alegra as casas por perto: pagam mais imposto e atraem famílias.',
-      temple: 'Construa o Templo para vencer. Precisa encostar numa rua.',
+      garden: 'Alegra as casas por perto: mais imposto e mais famílias.',
+      temple: 'Vence o jogo. Precisa encostar numa rua ligada ao altar.',
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {
       road: `Rua · ${RULES.roadCost} prata por trecho. Arraste a partir de uma rua ligada ao altar.`,
-      clear: `Demolir · sem reembolso. Toque ou arraste sobre o que quer tirar.`,
+      clear: `Demolir · sem reembolso. Toque ou arraste no que quer tirar.`,
     },
     cutTree: `Cortar árvore · ${RULES.treeClearCost} prata`,
     buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', settings: 'Configurações' },
@@ -207,7 +211,7 @@ export const T = {
       victory: 'vitória',
       unlocks: (kind: Placeable) => `libera ${toolName(kind)}`,
     },
-    noAlerts: 'Nenhum aviso. A cidade vai bem!',
+    noAlerts: 'Nenhum aviso. A cidade vai bem.',
     stats: {
       silver: 'Prata',
       taxes: 'Impostos',
@@ -264,7 +268,7 @@ export const T = {
       road: (linked: boolean, entrance: boolean) => `${entrance ? 'Rua · entrada da cidade' : 'Rua'} · ${linked ? 'ligada ao altar ✓' : 'não ligada ao altar ✗'}`,
       tree: (name: string) => `${name} · Demolir corta por ${RULES.treeClearCost} prata`,
       rock: (name: string) => `${name} · não dá para construir aqui`,
-      where: { well: 'Onde pôr um poço', market: 'Onde pôr um mercado', sacred: 'Onde pôr o templo', road: 'Ligar à rua' },
+      where: { well: 'Onde pôr um poço', market: 'Onde pôr um mercado', sacred: 'Onde pôr o Templo', road: 'Ligar à rua' },
       noSpot: 'Nenhum lugar livre por perto: abra uma rua ao lado',
       demolish: 'Demolir',
       confirm: 'Certeza?',
@@ -297,7 +301,7 @@ export function fmtInt(n: number): string {
 export function toolHead(tool: Tool, upkeepOn = true): string {
   if (tool === 'view') return 'Mover';
   if (tool === 'clear') return `Demolir · árvore ${RULES.treeClearCost} prata`;
-  if (tool === 'road') return `Rua · ${RULES.roadCost} prata por célula`;
+  if (tool === 'road') return `Rua · ${RULES.roadCost} prata por trecho`;
   const d = BUILDINGS[tool];
   if (!d.upkeep) return `${d.name} · ${d.cost} prata`;
   return `${d.name} · ${d.cost} prata · ${upkeepOn ? `${d.upkeep}/sem` : T.upkeepLater(d.upkeep)}`;
