@@ -11,6 +11,8 @@ export const T = {
   ],
   controls: 'Mover: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
   cityName: 'Jerusalém',
+  install: 'Instalar app',
+  installIos: 'Para instalar: toque em Compartilhar e depois em "Adicionar à Tela de Início"',
   options: {
     title: 'Opções',
     dayNight: (on: boolean) => `Dia e noite: ${on ? 'ligado' : 'desligado'}`,

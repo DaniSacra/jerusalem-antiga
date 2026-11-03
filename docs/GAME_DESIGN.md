@@ -297,6 +297,12 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   fazem as casas crescerem; metas, Templo e não ficar em dívida), uma linha de controles e o
   botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
   "Ver tutorial de novo", que começa um jogo novo com o tutorial.
+- Instalar no celular (PWA): quando o navegador oferece a instalação (Chrome/Android, Edge), a
+  tela inicial mostra o botão "Instalar app" no canto superior direito; no iPhone/iPad (Safari)
+  mostra embaixo a dica "toque em Compartilhar e depois em Adicionar à Tela de Início". Nada
+  aparece quando o jogo já está aberto como app. Instalado, abre em tela cheia, deitado, e
+  funciona sem internet (service worker em `public/sw.js`, manifesto em
+  `public/manifest.webmanifest`, ícones em `public/icons/`).
 
 ## Tutorial (primeira partida)
 

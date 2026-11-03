@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:visual": "node scripts/visual/run.mjs",
     "sim": "rolldown tools/sim/run.ts --file node_modules/.cache/sim/run.mjs --platform node --format esm && node node_modules/.cache/sim/run.mjs",
-    "sim:dump": "rolldown tools/sim/dump.ts --file node_modules/.cache/sim/dump.mjs --platform node --format esm && node node_modules/.cache/sim/dump.mjs"
+    "sim:dump": "rolldown tools/sim/dump.ts --file node_modules/.cache/sim/dump.mjs --platform node --format esm && node node_modules/.cache/sim/dump.mjs",
+    "test:pwa": "node scripts/pwa-check.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

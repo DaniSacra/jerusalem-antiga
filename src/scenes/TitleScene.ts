@@ -4,6 +4,7 @@ import { cellHash, HH, HW } from '../render/iso';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, ORIGIN, TEX, VARIANTS, cropImages } from '../render/textures';
+import { install, installOffer, onInstallChange } from '../render/install';
 import { tutorialSeen } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';
 
@@ -62,5 +63,22 @@ export class TitleScene extends Phaser.Scene {
     button(this, GAME_W / 2 - (again ? 160 : 0), py + h - 62, 300, 84, T.start, 32, () => this.scene.start('game'));
     if (again) button(this, GAME_W / 2 + 170, py + h - 62, 280, 84, T.tutorial.again, 22, () => this.scene.start('game', { tutorial: true }));
     this.input.keyboard?.once('keydown-ENTER', () => this.scene.start('game'));
+    this.installOffer();
+  }
+
+  /** "Instalar app" in the top right corner when the browser can install it; on iPhone, how to do it. */
+  private installOffer() {
+    let shown: Phaser.GameObjects.GameObject | null = null;
+    const paint = () => {
+      shown?.destroy();
+      shown = null;
+      const offer = installOffer();
+      if (offer === 'prompt') shown = button(this, GAME_W - 130, 50, 220, 64, T.install, 22, () => void install()).container;
+      else if (offer === 'ios')
+        shown = text(this, GAME_W / 2, GAME_H - 26, T.installIos, 20, CSS.light, true).setOrigin(0.5).setStroke(CSS.ink, 5);
+    };
+    paint();
+    const off = onInstallChange(paint);
+    this.events.once('shutdown', off);
   }
 }

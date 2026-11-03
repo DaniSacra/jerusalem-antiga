@@ -19,10 +19,23 @@ npm test           # testes unitários da simulação
 npm run test:visual  # testes no navegador com screenshots em screenshots/
 npm run build      # gera o site estático em dist/
 npm run preview    # serve o dist/ para conferir o build
+npm run test:pwa   # confere que o build é instalável e abre sem internet
 ```
 
 Para testar no celular: rode `npm run dev`, conecte o celular na mesma rede Wi-Fi
 e abra o endereço "Network" que o Vite mostra no terminal.
+
+## Instalar no celular
+
+O jogo é um app instalável (PWA). Depois de publicado (veja *Publicar*), abra o endereço no
+celular:
+
+- **Android (Chrome):** toque em **Instalar app** na tela inicial do jogo, ou no menu ⋮ →
+  *Instalar app* / *Adicionar à tela inicial*.
+- **iPhone/iPad (Safari):** toque em *Compartilhar* → *Adicionar à Tela de Início*.
+
+Instalado, o jogo abre em tela cheia, deitado, e funciona sem internet. A instalação exige HTTPS
+(o GitHub Pages já usa); pelo endereço "Network" do `npm run dev` não aparece.
 
 ## Controles
 

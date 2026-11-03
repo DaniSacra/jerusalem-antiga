@@ -8,6 +8,7 @@ npm test                        # testes unitários (Vitest), ~1 s
 npm run test:visual             # testes visuais (Playwright), ~1 min
 npm run test:visual -- touch    # só os cenários cujo nome contém "touch"
 npx tsc --noEmit                # typecheck
+npm run build && npm run test:pwa  # o build é um app instalável e abre sem internet
 ```
 
 Antes de dar uma tarefa por concluída: `npm test`, `npx tsc --noEmit` e `npm run test:visual`
@@ -56,7 +57,7 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 
 | Cenário | O que faz e verifica | Screenshots |
 |---|---|---|
-| `title` | tela inicial; depois de ver o tutorial, com "Ver tutorial de novo" | `title`, `title-again` |
+| `title` | tela inicial; depois de ver o tutorial, com "Ver tutorial de novo"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-again`, `title-install` |
 | `tutorial` | celular 844 x 390, primeira partida: os 6 passos com a seta (no botão, depois no mapa), só a ferramenta do passo liberada, caminho fantasma arrastado com o dedo, lugares verdes, câmera seguindo a família, prévia do poço com "Atende N casas", casa de barro; depois o saldo na Meta 2 ("Entendi") e o mercado; tutorial gravado como feito | `tutorial-step-1` … `tutorial-step-6`, `tutorial-saldo`, `tutorial-market` |
 | `tutorial-pc` | o mesmo no PC 1366 x 768, com o mouse | as mesmas, com `-pc` no fim |
 | `tutorial-skip` | "Pular tutorial" encerra e fica gravado; as ferramentas voltam; com o `localStorage` bloqueado o tutorial roda e pular funciona sem erro | — |
@@ -206,6 +207,16 @@ manutenção, depois da vitória (perdeu? entrou em dívida? prata mínima), mes
 aviso de desemprego, maior sequência de meses sem nada útil para fazer, maior sequência só juntando
 prata, se havia lugar para o templo ao liberá-lo e quantos meses até haver, ações e prata gasta por
 tipo.
+
+## App instalável (`scripts/pwa-check.mjs`)
+
+`npm run test:pwa` serve o `dist/` com `vite preview` e confere no Chromium: o Chrome considera o
+app instalável (sem erros de manifesto), o service worker controla a página, o jogo recarrega sem
+internet e não há erro na página. Rode depois de `npm run build`; ao mudar arquivos em `public/`,
+suba `VERSION` em `public/sw.js` para os celulares baixarem a versão nova.
+
+Os ícones em `public/icons/` são gerados pelo próprio jogo (o templo sobre o céu):
+`node tools/icons/make-icons.mjs` regera todos.
 
 ## Testar no celular de verdade
 

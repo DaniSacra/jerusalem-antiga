@@ -15,6 +15,7 @@ matching doc in the same change.
 - `npm test` — unit tests for `src/core`
 - `npm run test:visual` — Playwright scenarios with screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
+- `npm run test:pwa` — after a build: the app is installable and opens offline (PWA)
 
 ## Git
 - Only the main agent commits or pushes, and only when the user explicitly asks.

@@ -346,6 +346,26 @@ const scenarios = {
     await page.reload();
     await page.waitForTimeout(1200);
     await shot(page, 'title-again');
+    // When the browser offers to install the app, the title shows its own button, which opens the prompt.
+    await page.evaluate(() => {
+      const e = new Event('beforeinstallprompt');
+      e.prompt = () => {
+        window.__installPrompted = true;
+        return Promise.resolve();
+      };
+      e.userChoice = Promise.resolve({ outcome: 'accepted' });
+      window.dispatchEvent(e);
+    });
+    await page.waitForTimeout(300);
+    await shot(page, 'title-install');
+    const btn = await page.evaluate(() => {
+      const r = document.querySelector('canvas').getBoundingClientRect();
+      const k = r.width / 1280; // no game scene yet: map from the canvas size
+      return [r.left + (1280 - 130) * k, r.top + 50 * k];
+    });
+    await page.mouse.click(...btn);
+    await page.waitForTimeout(200);
+    assert(await page.evaluate(() => window.__installPrompted === true), 'the Instalar app button opens the install prompt');
   },
 
   /** First game on a phone: the six tutorial steps, then the balance and the market. */
