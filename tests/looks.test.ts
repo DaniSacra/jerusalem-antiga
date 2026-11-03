@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, stepMonth } from '../src/core';
-import { constRng, emptyGame, put, ROADSIDE } from './helpers';
+import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, stepWeek } from '../src/core';
+import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('house looks', () => {
   it('draws variant and mirroring from the injected rng, deterministically', () => {
@@ -68,13 +68,14 @@ describe('house looks', () => {
     put(s, 'well', ROADSIDE, 32);
     b.variant = 0;
     b.mirrored = true;
-    for (let k = 0; k < 3; k++) stepMonth(s, constRng(0.99));
+    for (let k = 0; k < 3; k++) stepWeek(s, constRng(0.99));
     expect(b).toMatchObject({ level: 2, variant: 5, mirrored: false });
 
     const t = emptyGame();
+    put(t, 'well', EAST, 27); // families only come with water
     const plot = put(t, 'house', ROADSIDE, 27);
     plot.variant = 1;
-    for (let k = 0; k < 8; k++) stepMonth(t, constRng(0)); // the family walks ~20 cells, 4 per month
+    for (let k = 0; k < 8 && plot.level === 0; k++) stepWeek(t, constRng(0)); // the family walks ~20 cells, 6 per week
     expect(plot).toMatchObject({ level: 1, variant: 0, mirrored: true });
   });
 });

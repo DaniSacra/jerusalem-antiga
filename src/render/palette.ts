@@ -61,9 +61,6 @@ export const C = {
     stoneEdge: 0xb8a582,
     goldLight: 0xf6dc8c,
     goldDark: 0xa87d22,
-    infoBg: 0x4a3523,
-    alertBad: 0xa8392b,
-    alertWarn: 0xc56a1c,
     /** Line icons drawn light, for dark buttons (the dark ones use `ink`). */
     iconLight: 0xfdf7e8,
     /** Soft outline around the building thumbnails, so light stone reads on a light button. */
@@ -79,6 +76,25 @@ export const C = {
   solve: { fill: 0xcfe07a, edge: 0xf6dc8c, glow: 0xfff6c8 },
   /** Dust raised when something is demolished (the pebbles use the rock colours). */
   dust: 0xd9c49a,
+  /** Granary stock: burlap grain sacks, the grain itself and the wooden pallets under them. */
+  sack: 0xd4b582,
+  sackDark: 0xa88a5a,
+  grain: 0xe8c45c,
+  /** Fisher: drying nets, fish (silver) and a tarred boat hull. */
+  net: 0xc9b38a,
+  fish: 0xc4ccd0,
+  hull: 0x5e4630,
+  /** Gatherer: wicker baskets and the fruits in them (olives, figs, dates). */
+  wicker: 0xb48c52,
+  oliveFruit: 0x4e4a2c,
+  oliveGreen: 0x8a9a3e,
+  figFruit: 0x6e3a5c,
+  dateFruit: 0xc2702e,
+  /** Effects: milestone gold and glow; spoiling food (a sickly green puff) and its flies. */
+  milestone: 0xffd86a,
+  milestoneGlow: 0xfff3c4,
+  spoil: 0x9aa65c,
+  fly: 0x2a2620,
 };
 
 export const CSS = {
@@ -86,12 +102,10 @@ export const CSS = {
   muted: '#8a7356',
   good: '#3c8a37',
   bad: '#c0392b',
-  /** Warnings that are not yet a failure (idle workers, negative monthly balance). */
+  /** Warnings that are not yet a failure (idle workers, negative weekly balance). */
   warn: '#d9771f',
   light: '#fdf7e8',
   gold: '#f2d27a',
-  okLight: '#8fd17f',
-  badLight: '#ff8a7a',
 };
 
 export const FONT = '"Trebuchet MS", Verdana, sans-serif';
@@ -129,6 +143,11 @@ export const NOVA = {
   balloonAlpha: 0.88,
   /** Red selo of the alerts button. */
   badge: 0xc8372b,
+  /** Toast backgrounds for bad and good news (info toasts use the panel color). */
+  toastBad: 0x8e2a1f,
+  toastGood: 0x3f6b2a,
+  /** Chart lines in the statistics: silver, food, residents, happiness, and the food capacity (dashed). */
+  chart: { silver: 0xd9dde3, food: 0x8fd17f, residents: 0xf0c27a, happiness: 0xffd77a, capacity: 0xd2c09a },
 };
 
 export const NOVA_CSS = {

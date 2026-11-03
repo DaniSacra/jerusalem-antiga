@@ -1,4 +1,5 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
+import { fieldHarvest, gatherFood } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import type { BuildingKind, GameState } from './types';
 
@@ -9,13 +10,15 @@ export interface Economy {
   /** 0..1 */
   efficiency: number;
   foodDelta: number;
-  /** Food made this month (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
+  /** Food the fields harvest this week (after efficiency; 0 outside spring). */
+  harvest: number;
+  /** Food made this week (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
   foodMade: number;
   foodEaten: number;
-  /** Monthly silver balance: taxes + production - upkeep. */
+  /** Weekly silver balance: taxes + production - upkeep. */
   silverDelta: number;
   taxes: number;
-  /** Silver made per workplace kind this month (after efficiency). */
+  /** Silver made per workplace kind this week (after efficiency). */
   production: Partial<Record<BuildingKind, number>>;
   /** Upkeep per building kind (only kinds that cost something). */
   upkeep: Partial<Record<BuildingKind, number>>;
@@ -44,6 +47,7 @@ export function computeEconomy(s: GameState): Economy {
   const moods: Record<Mood, number> = { happy: 0, neutral: 0, sad: 0 };
   let jobs = 0;
   let foodProd = 0;
+  let harvest = 0;
   const silverProd: Partial<Record<BuildingKind, number>> = {};
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const charged = upkeepCharged(s);
@@ -58,7 +62,9 @@ export function computeEconomy(s: GameState): Economy {
     if (def.upkeep && charged) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
     if (!b.connected) continue;
     jobs += def.jobs;
-    foodProd += def.food ?? 0;
+    const h = fieldHarvest(s, b, s.week);
+    harvest += h;
+    foodProd += gatherFood(s, b) + h;
     if (def.silver) silverProd[b.kind] = (silverProd[b.kind] ?? 0) + def.silver;
   }
   const workers = Math.floor(residents * RULES.workerShare);
@@ -81,6 +87,7 @@ export function computeEconomy(s: GameState): Economy {
     jobs,
     efficiency,
     foodDelta: round2(foodProd * efficiency - eaten),
+    harvest: round2(harvest * efficiency),
     foodMade: round2(foodProd * efficiency),
     foodEaten: round2(eaten),
     silverDelta: round2(taxes + sum(production) - sum(upkeep)),
@@ -107,14 +114,14 @@ export function idleShare(s: GameState, e: Pick<Economy, 'workers' | 'jobs'> = c
 }
 
 /** Workers left without a job (0 when there are enough jobs). */
-export function unemployed(s: GameState): number {
-  const { workers, jobs } = computeEconomy(s);
+export function unemployed(s: GameState, e: Economy = computeEconomy(s)): number {
+  const { workers, jobs } = e;
   return Math.max(0, workers - jobs);
 }
 
 /** People without work to warn about, or 0 while the workshop is locked or below the alert threshold. */
-export function unemploymentAlert(s: GameState): number {
+export function unemploymentAlert(s: GameState, e: Economy = computeEconomy(s)): number {
   if (!s.unlocked.includes('workshop')) return 0;
-  const n = unemployed(s);
+  const n = unemployed(s, e);
   return n >= RULES.unemploymentAlert ? n : 0;
 }

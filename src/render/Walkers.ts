@@ -7,7 +7,7 @@ import { TEX, WALKER_LOOKS } from './textures';
 const MAX_WALKERS = 60;
 const PER_WALKER = 5;
 /** Cells per second at 1x, before the type's own pace. */
-const WALK_SPEED = 1.6;
+export const WALK_SPEED = 1.6;
 /** Seconds a walker may stop on arrival (drawing water, talking at the market). */
 const PAUSE = { min: 1, max: 2 };
 
@@ -49,7 +49,8 @@ function along(path: Cell[], step: number, lane: number) {
   return { gx, gy, dx, dy, moving: dx !== 0 || dy !== 0 };
 }
 
-function place(img: Phaser.GameObjects.Image, gx: number, gy: number, dx: number, dy: number, bob: number) {
+/** Puts a person's image on a grid point (sorted among the buildings), facing its grid direction (dx, dy). */
+export function place(img: Phaser.GameObjects.Image, gx: number, gy: number, dx: number, dy: number, bob: number) {
   const w = gridToWorld(gx, gy);
   img.setPosition(w.x, w.y - bob).setDepth(depthAt(gx, gy) + 5);
   // Facing follows the screen direction, so it stays right when the map is turned.
@@ -71,9 +72,9 @@ export class Walkers {
   ) {}
 
   /** `share` scales how many residents are out (time of day: half at night, more in the late afternoon). */
-  update(dtMs: number, s: GameState, residents: number, speed: number, monthFrac: number, share = 1) {
+  update(dtMs: number, s: GameState, residents: number, speed: number, weekFrac: number, share = 1) {
     this.updateResidents(dtMs / 1000, s, Math.floor(Math.min(MAX_WALKERS, residents / PER_WALKER) * share), speed);
-    this.updateFamilies(s, monthFrac);
+    this.updateFamilies(s, weekFrac);
     this.updateLeaving(dtMs / 1000, speed);
   }
 
@@ -181,7 +182,7 @@ export class Walkers {
     return img ? { x: img.x, y: img.y } : null;
   }
 
-  private updateFamilies(s: GameState, monthFrac: number) {
+  private updateFamilies(s: GameState, weekFrac: number) {
     const alive = new Set<number>();
     for (const f of s.families) {
       alive.add(f.id);
@@ -190,7 +191,7 @@ export class Walkers {
         img = this.scene.add.image(0, 0, TEX.family).setOrigin(0.5, 1);
         this.families.set(f.id, img);
       }
-      const step = Math.min(f.step + familySpeed(f) * monthFrac, f.path.length - 1);
+      const step = Math.min(f.step + familySpeed() * weekFrac, f.path.length - 1);
       const p = along(f.path, step, 0);
       place(img, p.gx, p.gy, p.dx, p.dy, Math.abs(Math.sin(step * Math.PI * 2)) * 1.5);
     }

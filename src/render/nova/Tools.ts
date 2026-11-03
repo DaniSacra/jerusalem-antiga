@@ -1,12 +1,11 @@
 import Phaser from 'phaser';
-import type { Alert } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA } from '../palette';
 import { T } from '../strings';
-import { toolName, type Tool } from '../tools';
+import { keyOf, toolName, type Tool } from '../tools';
 import { TextBalloon } from './Balloon';
-import { keyOf } from './BuildColumn';
 import { H, PHONE, S } from './metrics';
+import type { Notice } from './notices';
 import { icon, nameTag, ntext, RoundButton } from './widgets';
 
 export type PanelKind = 'goals' | 'alerts' | 'stats' | 'settings';
@@ -27,7 +26,7 @@ export class Tools {
   private tip: TextBalloon;
   private tipFor: Tool = 'view';
   private lastTool: Tool = 'view';
-  private alertKinds = new Set<Alert['kind']>();
+  private alertKeys = new Set<string>();
   private pulse: Phaser.Tweens.Tween | null = null;
 
   constructor(private scene: Phaser.Scene, onPanel: (p: PanelKind) => void, onTool: (t: Tool) => void) {
@@ -68,7 +67,12 @@ export class Tools {
     return Math.max(last.btn.root.x + S.tool / 2, last.tag.x + last.tag.w);
   }
 
-  refresh(tool: Tool, allowed: ReadonlySet<Tool> | null, alerts: Alert[], open: PanelKind | null) {
+  /** Top edge of the bottom tools (panels and balloons stay above it). */
+  get top() {
+    return H - S.margin - S.labelH - px(3) - S.tool;
+  }
+
+  refresh(tool: Tool, allowed: ReadonlySet<Tool> | null, alerts: Notice[], open: PanelKind | null) {
     for (const t of this.tools) {
       const blocked = !!allowed && !allowed.has(t.tool);
       t.btn.setLook({ selected: t.tool === tool });
@@ -84,10 +88,10 @@ export class Tools {
     }
   }
 
-  /** New alerts this time (one toast per episode): the Avisos button pulses. Returns them. */
-  newAlerts(alerts: Alert[]): Alert[] {
-    const fresh = alerts.filter((a) => !this.alertKinds.has(a.kind));
-    this.alertKinds = new Set(alerts.map((a) => a.kind));
+  /** New warnings this time (one toast per episode): the Avisos button pulses. Returns them. */
+  newAlerts(alerts: Notice[]): Notice[] {
+    const fresh = alerts.filter((a) => !this.alertKeys.has(a.key));
+    this.alertKeys = new Set(alerts.map((a) => a.key));
     if (fresh.length && !this.pulse) {
       const root = this.side[1][1].root;
       this.pulse = this.scene.tweens.add({ targets: root, scale: 1.18, duration: 260, yoyo: true, repeat: 3, onComplete: () => {

@@ -52,19 +52,6 @@ export function button(scene: Phaser.Scene, x: number, y: number, w: number, h: 
   return { container: c, label: t };
 }
 
-/** Light stone plaque with a gold inner trim (top bar plaque and side rails). */
-export function stonePanel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, r: number | Phaser.Types.GameObjects.Graphics.RoundedRectRadius = 12) {
-  g.fillStyle(C.shadow, 0.28);
-  g.fillRoundedRect(x + 2, y + 4, w, h, r);
-  g.fillStyle(C.ui.stone);
-  g.fillRoundedRect(x, y, w, h, r);
-  g.lineStyle(3, C.border, 1);
-  g.strokeRoundedRect(x, y, w, h, r);
-  g.lineStyle(1.5, C.gold, 1);
-  const inner = typeof r === 'number' ? Math.max(0, r - 3) : r;
-  g.strokeRoundedRect(x + 4, y + 4, w - 8, h - 8, inner);
-}
-
 export type ButtonLook = 'normal' | 'active' | 'disabled';
 
 /** Draws a rail button centered at (0, 0): stone, gold when active, darker when disabled. */

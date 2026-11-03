@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, seasonOf, currentGoal, foodRunsOut, goalCount, goalFraction, goalProgress, happinessOn, moodOf, type Economy, type GameState } from '../../core';
-import { SPEEDS, type Speed } from '../Hud';
+import { calendar, cityLevel, seasonOf, currentGoal, foodCapacity, foodForecast, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, moodOf, lastsToHarvest, type Economy, type GameState, type Season } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { fmtInt, signed, T } from '../strings';
 import { TEX } from '../textures';
+import { SPEEDS, type Speed } from '../tools';
 import type { TutorialTarget } from '../Tutorial';
 import { PHONE, S } from './metrics';
 import { darkPanel, icon, ntext, picture, RoundButton } from './widgets';
 
 const DROUGHT_HUD = VISUAL.seasons.drought.hud;
+/** The stock shows "38/40" from this share of the store limit up (food about to spoil). */
+const STOCK_SHOWN = 0.75;
 
 /** One piece of a pill: a text (with its size and color) or a progress bar. */
 type Part = { text: string; color?: string; size?: number } | { bar: number; w: number };
@@ -155,6 +157,8 @@ export class TopBar {
   private speedRect: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private drought = false;
   private lastSeason = '';
+  /** The season and the core's dry year last shown, for the icon (also set between refreshes). */
+  private iconOf: { season: Season; dry: boolean } = { season: 'autumn', dry: false };
   private speed: Speed = 1;
 
   /** `right`: left edge of the build column (the top right buttons sit left of it). */
@@ -228,13 +232,21 @@ export class TopBar {
     const sv = label(N.silver).length;
     this.silver.set([...label(N.silver), { text: fmtInt(s.silver), color: silverColor, size: S.num }, delta(eco.silverDelta)]);
     this.silver.blink(sv, debt);
-    const out = foodRunsOut(s.food, eco.foodDelta, s.month);
+    // Forecast: "até a colheita" (green) when the food lasts, else when it runs out (red; phone: "⚠ N sem").
+    const out = foodForecast(s, eco);
+    const lasts = lastsToHarvest(s, out);
+    const cap = foodCapacity(s);
+    const food = Math.floor(s.food);
+    const full = food >= cap * STOCK_SHOWN;
+    const forecast: Part[] = lasts
+      ? PHONE ? [] : [{ text: '· ' + N.foodToHarvest, color: NOVA_CSS.good }]
+      : [{ text: PHONE ? N.foodShortPhone(out!.weeks) : '· ' + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }];
     const fv = label(N.food).length;
     this.food.set([
       ...label(N.food),
-      { text: fmtInt(s.food), color: s.famine ? NOVA_CSS.bad : NOVA_CSS.text, size: S.num },
+      { text: full ? N.stock(food, cap) : fmtInt(food), color: s.famine ? NOVA_CSS.bad : s.spoiled > 0 ? NOVA_CSS.warn : NOVA_CSS.text, size: S.num },
       delta(eco.foodDelta),
-      ...(!PHONE && out ? [{ text: '· ' + N.foodForecast(out, seasonOf(s.month)), color: NOVA_CSS.bad }] : []),
+      ...forecast,
     ]);
     this.food.blink(fv, s.famine);
     this.people.set([...label(N.residents), { text: fmtInt(eco.residents), size: S.num }]);
@@ -246,13 +258,14 @@ export class TopBar {
       this.joy.set([...label(N.happiness), { text: String(eco.happiness), size: S.num, color: mood === 'sad' ? NOVA_CSS.bad : mood === 'happy' ? NOVA_CSS.good : NOVA_CSS.text }]);
     }
 
-    const { season, year, week } = calendar(s.month);
+    const { season, year, week } = calendar(s.week);
     const sKey = `${season}|${year}|${week}`;
     if (sKey !== this.lastSeason) {
       this.lastSeason = sKey;
       this.season.set([{ text: N.calendar(season, year, week, !PHONE) }]);
     }
-    this.season.setIcon(TEX.icon(this.drought ? 'drought' : season));
+    this.iconOf = { season, dry: s.drought };
+    this.seasonIcon();
 
     // Speed: the active one in gold (PC); the single phone button shows what runs now.
     for (const [v, btn] of this.speeds) btn.setLook({ style: v === speed ? 'gold' : 'dark' });
@@ -293,13 +306,14 @@ export class TopBar {
     if (!goal) this.goal.set([{ text: T.allGoals, color: NOVA_CSS.gold }], maxW);
     else {
       const p = goalProgress(s, goal);
+      const target = goalTarget(s, goal);
       const head = PHONE ? N.goal : N.goalOf(s.goalIndex + 1, goalCount());
       this.goal.set(
         [
           { text: head, color: NOVA_CSS.gold, size: S.small },
           { text: goal.text },
           ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
-          { text: N.progress(p, goal.target), color: NOVA_CSS.gold },
+          { text: N.progress(p, target), color: NOVA_CSS.gold },
         ],
         maxW,
       );
@@ -311,7 +325,11 @@ export class TopBar {
     const on = d >= DROUGHT_HUD.from + DROUGHT_HUD.fade / 2;
     if (on === this.drought) return;
     this.drought = on;
-    this.lastSeason = '';
+    this.seasonIcon();
+  }
+
+  private seasonIcon() {
+    this.season.setIcon(TEX.icon(this.drought || this.iconOf.dry ? 'drought' : this.iconOf.season));
   }
 
   /** Tutorial arrow targets: under the silver pill, or under the goal pill. */
@@ -332,6 +350,17 @@ export class TopBar {
     }
     const pill = { silver: this.silver, food: this.food, goal: this.goal, season: this.season }[name as 'silver'];
     return c(pill.rect, pill.h);
+  }
+
+  /** Lowest edge of the top bar (balloons stay under it). */
+  get bottom() {
+    return Math.max(...this.rects().map((r) => (r ? r.y + r.h : 0)), this.gear.root.y + S.btn / 2);
+  }
+
+  /** Lowest edge of the top right controls (season, speed, gear): the column balloons stay under it. */
+  get rightBottom() {
+    const r = this.season.rect;
+    return Math.max(this.speedRect.y + this.speedRect.h, this.gear.root.y + S.btn / 2, r ? r.y + r.h : 0);
   }
 
   rects(): (Rect | null)[] {

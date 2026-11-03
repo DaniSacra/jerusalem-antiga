@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  type Economy,
   balloonNeed,
   BUILDINGS,
   checkClear,
@@ -22,13 +23,20 @@ import {
   dimsOf,
   type Dims,
   type Rect,
+  byRiver,
+  foodCapacity,
+  harvestsIn,
+  RULES,
+  seasonCount,
+  SEASONS,
+  START_SEASON,
 } from '../core';
 import { C, CSS, shade } from './palette';
 import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
+import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
 import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
@@ -48,9 +56,12 @@ interface BuildingView {
   /** Texture of the finished drawing without snow, and the house shade of mud or stone. */
   key: string;
   shade: number;
-  /** Wheat or barley: the crop changes with the year. */
+  /** Wheat or barley: the crop changes colour with the year (the other crops only grow and wither). */
   grain: boolean;
   wheat: Phaser.GameObjects.Image[];
+  /** Field stage shown, and whether the field touches the river (a drought does not thin it). */
+  stage?: CropStage;
+  byRiver?: boolean;
   /** Farmers working in a field. */
   crew?: FieldCrew;
   flame?: Phaser.GameObjects.Image;
@@ -101,6 +112,28 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
 }
 
 const SV = VISUAL.seasons;
+const MOMENTS = VISUAL.moments;
+
+/** Stages that tint every crop; the others (green, ripe, gold) only tint wheat and barley. */
+const ALL_CROPS: ReadonlySet<CropStage> = new Set<CropStage>(['plowed', 'sprout', 'young', 'straw', 'dry']);
+/** Stages a drought turns thin and yellow on fields away from the river. */
+const THIRSTY: ReadonlySet<CropStage> = new Set<CropStage>(['green', 'ripe', 'gold', 'straw']);
+const AUTUMN = SEASONS.indexOf('autumn');
+const SPRING = SEASONS.indexOf('spring');
+
+/** First week of the spring of the farming year (autumn to summer) that `week` falls in. */
+function yearSpring(week: number): number {
+  const k = seasonCount(week);
+  const spring = k - ((k - AUTUMN + 4) % 4) + ((SPRING - AUTUMN + 4) % 4);
+  return (spring - START_SEASON) * RULES.weeksPerSeason;
+}
+
+/** Granary drawing for the share of the stores in use: empty, a third, two thirds or full. */
+export function granaryStock(s: GameState): number {
+  const f = s.food / Math.max(1, foodCapacity(s));
+  const k = MOMENTS.granaryStock.findIndex((t) => f < t);
+  return k < 0 ? GRANARY_STOCKS - 1 : k;
+}
 const WEATHER = SV.weather;
 const WET_TINT = Number(WEATHER.wetTint);
 const CROP_STAGES = Object.fromEntries(Object.entries(SV.crops.stages).map(([k, v]) => [k, { tint: Number(v.tint), scale: v.scale }])) as Record<CropStage, { tint: number; scale: number }>;
@@ -161,7 +194,13 @@ export class MapView {
   private tints = { road: 0xffffff, trees: 0xffffff, rock: 0xffffff, build: 0xffffff, sand: 0xffffff, water: 0xffffff, ripple: C.waterLight };
   private puddleAlpha = 0;
   private trees: Record<'almond' | 'fig', TreeState> = { almond: 'leaf', fig: 'leaf' };
+  /** Crop stage of the year for sown fields, and whether the drought thins the thirsty ones. */
   private crop: CropStage = 'gold';
+  private dry = false;
+  /** The state last synced (fields read their sowing week, the granary the stores). */
+  private state: GameState;
+  /** Granary drawing for the stores now (see granaryStock). */
+  private stock = 0;
   /** Snow on roofs and trees; `snowDirty` while some still have to swap their texture. */
   private snowy = false;
   private snowDirty = false;
@@ -186,6 +225,7 @@ export class MapView {
     state: GameState,
     private wear: RoadWear,
   ) {
+    this.state = state;
     this.drawGround(state);
     this.water = scene.add.graphics().setDepth(DEPTH.groundFx);
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
@@ -230,7 +270,7 @@ export class MapView {
         } as Phaser.Types.GameObjects.Particles.EmitZoneData,
       })
       .setDepth(DEPTH.fx);
-    this.sync(state, computeEconomy(state).efficiency);
+    this.sync(state, computeEconomy(state));
     this.ready = true;
   }
 
@@ -270,14 +310,16 @@ export class MapView {
         if (g === 'river') this.riverCells.push({ x, y, tile });
       }
     }
-    // Light sandy bank where land meets the river.
+    // Light sandy bank where land meets the river (on both sides: there is land east of it too).
     const bank = sc.add.graphics().setDepth(DEPTH.ground);
     this.ground.push(bank);
+    bank.lineStyle(5, C.bank, 0.9);
     for (const { x, y } of this.riverCells) {
-      if (x > 0 && s.ground[indexOf(s, x - 1, y)] !== 'river') {
-        const a = gridToWorld(x, y);
-        const b = gridToWorld(x, y + 1);
-        bank.lineStyle(5, C.bank, 0.9);
+      for (const [dx, edge] of [[-1, x], [1, x + 1]]) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= s.cols || s.ground[indexOf(s, nx, y)] === 'river') continue;
+        const a = gridToWorld(edge, y);
+        const b = gridToWorld(edge, y + 1);
         bank.lineBetween(a.x, a.y, b.x, b.y);
       }
     }
@@ -299,7 +341,9 @@ export class MapView {
 
   // ---------- sync with the simulation ----------
 
-  sync(s: GameState, efficiency: number) {
+  sync(s: GameState, eco: Economy) {
+    this.state = s;
+    this.stock = granaryStock(s);
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         this.syncFeature(s, x, y);
@@ -310,12 +354,14 @@ export class MapView {
     this.drawTrails(s);
     const alive = new Set<number>();
     // Farmers per field follow the share of jobs filled; none on a field without a road.
-    const farmers = Math.round(BUILDINGS.field.jobs * efficiency);
+    const farmers = Math.round(BUILDINGS.field.jobs * eco.efficiency);
     for (const b of s.buildings) {
       alive.add(b.id);
       this.syncBuilding(b);
-      this.views.get(b.id)!.crew?.setCount(b.connected ? farmers : 0);
-      this.syncBalloon(s, b);
+      const v = this.views.get(b.id)!;
+      v.crew?.setCount(b.connected ? farmers : 0);
+      if (v.kind === 'field') this.paintCrop(v, b);
+      this.syncBalloon(s, b, eco);
     }
     for (const [id, v] of this.views) {
       if (alive.has(id)) continue;
@@ -446,7 +492,7 @@ export class MapView {
       v = this.createView(b);
       this.views.set(b.id, v);
     }
-    const key = keyOf(b);
+    const key = this.keyFor(b);
     if (v.key !== key) {
       // A house going up a level shows the scaffold briefly, then its new drawing.
       if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
@@ -483,10 +529,15 @@ export class MapView {
     this.dust.explode(Math.min(14, 4 + cells), x, y);
   }
 
+  /** Texture of a standing building: the granary shows the stores. */
+  private keyFor(b: Building) {
+    return b.kind === 'granary' ? TEX.building('granary', 0, false, this.stock) : keyOf(b);
+  }
+
   private createView(b: Building): BuildingView {
     const sc = this.scene;
     const c = footCenter(b.x, b.y, b.w, b.h);
-    const key = keyOf(b);
+    const key = this.keyFor(b);
     const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.w / 2, b.y + b.h / 2));
     const main = setTex(sc.add.image(0, 0, key), this.dress(key));
     root.add(main);
@@ -494,7 +545,8 @@ export class MapView {
     const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: b.level };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
-      if (grain) this.paintCrop(view);
+      view.byRiver = byRiver(this.state, b);
+      this.paintCrop(view, b);
       root.add(view.wheat);
       view.crew = new FieldCrew(sc, root, view.wheat, b.mirrored ?? false);
     }
@@ -536,8 +588,8 @@ export class MapView {
     v.root.destroy();
   }
 
-  private syncBalloon(s: GameState, b: Building) {
-    const need = balloonNeed(s, b);
+  private syncBalloon(s: GameState, b: Building, eco: Economy) {
+    const need = balloonNeed(s, b, eco);
     const cur = this.balloons.get(b.id);
     if (!need) {
       cur?.root.destroy();
@@ -572,6 +624,22 @@ export class MapView {
     tweens.killTweensOf(v.root);
     v.root.setY(groundY).setScale(1);
     tweens.add({ targets: v.root, y: groundY - 10, scaleX: 0.92, scaleY: 1.08, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  /** Height of a building's drawing in px (effects above it). */
+  heightOf(b: Building) {
+    return HEIGHT[this.keyFor(b)] ?? 20;
+  }
+
+  /** A warm glow over a building's drawing (milestones): an additive gold copy that pulses a few times. */
+  shine(id: number) {
+    const v = this.views.get(id);
+    if (!v) return;
+    const m = v.main;
+    const img = this.scene.add.image(m.x, m.y, m.texture.key).setOrigin(m.originX, m.originY).setTint(C.milestone).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+    v.root.add(img);
+    const ms = VISUAL.moments.milestoneSeconds * 1000;
+    this.scene.tweens.add({ targets: img, alpha: 0.5, duration: ms / 6, yoyo: true, repeat: 2, ease: 'Sine.easeInOut', onComplete: () => img.destroy() });
   }
 
   /**
@@ -783,9 +851,14 @@ export class MapView {
       this.trees = { almond: look.almond, fig: look.fig };
       this.redress();
     }
-    if (look.crop !== this.crop) {
+    const dry = look.drought > 0.5;
+    if (look.crop !== this.crop || dry !== this.dry) {
       this.crop = look.crop;
-      for (const v of this.views.values()) if (v.grain) this.paintCrop(v);
+      this.dry = dry;
+      for (const b of this.state.buildings) {
+        const v = b.kind === 'field' ? this.views.get(b.id) : undefined;
+        if (v) this.paintCrop(v, b);
+      }
     }
     if (look !== prev || wetStep !== this.wetStep || ground) {
       this.wetStep = wetStep;
@@ -859,10 +932,24 @@ export class MapView {
     if (budget > 0) this.snowDirty = false;
   }
 
-  /** Wheat and barley: green and low after sowing, golden at the end of spring, low and dry in a drought. */
-  private paintCrop(v: BuildingView) {
-    const st = CROP_STAGES[this.crop];
-    for (const w of v.wheat) w.setTint(st.tint).setScale(1, st.scale);
+  /**
+   * A field's crop for the year, following the core: a field sown for this year's harvest sprouts
+   * in autumn, is green in winter, golden in spring (the harvest) and stubble in summer; one built
+   * after the autumn stays ploughed and empty until the next autumn. In a drought the crops away
+   * from the river turn thin and yellow.
+   */
+  private fieldStage(v: BuildingView, b: Building): CropStage {
+    if (!harvestsIn(b, yearSpring(this.state.week))) return 'plowed';
+    return this.dry && !v.byRiver && THIRSTY.has(this.crop) ? 'dry' : this.crop;
+  }
+
+  private paintCrop(v: BuildingView, b: Building) {
+    const stage = this.fieldStage(v, b);
+    if (stage === v.stage) return;
+    v.stage = stage;
+    const st = CROP_STAGES[stage];
+    const tint = v.grain || ALL_CROPS.has(stage) ? st.tint : 0xffffff;
+    for (const w of v.wheat) w.setTint(tint).setScale(1, st.scale);
   }
 
   /** Chimney smoke: a little all year, from every house in winter. */

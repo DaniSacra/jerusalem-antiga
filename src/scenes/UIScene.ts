@@ -1,25 +1,18 @@
 import Phaser from 'phaser';
-import type { BuildableKind, Building, Cell, Economy, GameState, Placeable } from '../core';
-import { ClassicUi } from '../render/ClassicUi';
-import type { Speed } from '../render/Hud';
-import type { Segment } from '../render/info';
+import type { BuildableKind, BuildingCategory, Building, Cell, Economy, GameState, MilestoneId, Placeable } from '../core';
 import { GAME_H, GAME_W } from '../render/layout';
-import { NovaUi } from '../render/nova/NovaUi';
+import { NovaUi, type ButtonSpot } from '../render/nova/NovaUi';
 import { C, CSS } from '../render/palette';
-import { setUiMode, uiMode, type UiMode } from '../render/settings';
 import { T } from '../render/strings';
-import type { Tone } from '../render/Toasts';
-import type { Tool } from '../render/tools';
+import type { ToastOptions, Tone } from '../render/Toasts';
+import type { Speed, Tool } from '../render/tools';
 import type { TutorialTarget } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';
-import type { ButtonSpot, UiView } from '../render/uiView';
 
 export interface UiHost {
   selectTool(tool: Tool): void;
   setSpeed(v: Speed): void;
   turnMap(dir: 1 | -1): void;
-  showBreakdown(mode: 'silver' | 'happiness'): void;
-  showGoal(): void;
   applySettings(): void;
   restart(): void;
   skipTutorial(): void;
@@ -36,12 +29,11 @@ export interface UiHost {
 }
 
 /**
- * Fixed overlay (not affected by the camera). Holds one of the two interfaces over the same game,
- * Nova (default) or Clássica, plus what both share: the famine tint and the victory/defeat dialogs.
- * Switching the interface restarts only this scene; the game goes on.
+ * Fixed overlay (not affected by the camera): the interface (Nova), the famine tint and the
+ * victory/defeat dialogs.
  */
 export class UIScene extends Phaser.Scene {
-  private view!: UiView;
+  private view!: NovaUi;
   private famineTint!: Phaser.GameObjects.Rectangle;
   private famine = false;
   private modal: Phaser.GameObjects.Container | null = null;
@@ -55,23 +47,13 @@ export class UIScene extends Phaser.Scene {
     return this.modal !== null;
   }
 
-  /** True with the Nova interface. */
-  get nova() {
-    return this.view instanceof NovaUi;
-  }
-
   create(data: { host: UiHost }) {
     const host = data.host;
     this.famine = false;
     this.modal = null;
     this.famineTint = this.add.rectangle(0, 0, GAME_W, GAME_H, C.famine, 1).setOrigin(0).setAlpha(0);
     this.host = host;
-    const swap = (mode: UiMode) => {
-      if (mode === uiMode()) return;
-      setUiMode(mode);
-      this.scene.restart({ host });
-    };
-    this.view = uiMode() === 'nova' ? new NovaUi(this, host, swap) : new ClassicUi(this, host, () => swap('nova'));
+    this.view = new NovaUi(this, host);
     host.attachUi(this);
   }
 
@@ -104,14 +86,9 @@ export class UIScene extends Phaser.Scene {
     return this.view.anchor(name);
   }
 
-  /** Classic info line (empty segments hide it); the Nova has none. */
-  setInfo(segments: Segment[]) {
-    this.view.setInfo(segments);
-  }
-
-  /** A short message: the info line (Clássica) or a toast (Nova). */
+  /** A short message (toast). */
   hint(msg: string, bad = false) {
-    this.view.hint(msg, bad);
+    this.view.toast(msg, bad ? 'bad' : 'info');
   }
 
   /** True if a screen point is over any part of the interface (the map ignores it). */
@@ -119,9 +96,9 @@ export class UIScene extends Phaser.Scene {
     return this.view.isOverUi(x, y);
   }
 
-  /** Sun, dusk or moon next to the month; `slow` greys out the miniature option. */
-  setDayPhase(icon: 'sun' | 'dusk' | 'moon', slow: boolean) {
-    this.view.setDayPhase(icon, slow);
+  /** `slow`: the device is slow (the miniature option shows it is off). */
+  setSlow(slow: boolean) {
+    this.view.setSlow(slow);
   }
 
   /** The drought mark (looks only), from the season look's drought (0..1). */
@@ -129,8 +106,18 @@ export class UIScene extends Phaser.Scene {
     this.view.setDrought(d);
   }
 
-  toast(msg: string, tone: Tone = 'info') {
-    this.view.toast(msg, tone);
+  toast(msg: string, tone: Tone = 'info', opt: ToastOptions = {}) {
+    this.view.toast(msg, tone, opt);
+  }
+
+  /** A milestone was reached this week: its sentence (the statistics read the week from the state). */
+  milestone(id: MilestoneId) {
+    this.view.milestone(id);
+  }
+
+  /** PC keys 3–6: shows the strip of a category of the build column. */
+  openCategory(c: BuildingCategory) {
+    this.view.openCategory(c);
   }
 
   /** A goal unlocked this building. */
@@ -154,16 +141,16 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: this.famineTint, alpha: on ? 0.22 : 0, duration: 600 });
   }
 
-  showVictory(months: number, residents: number) {
-    this.dialog(T.victoryTitle, T.victoryText(months, residents), T.keepBuilding, () => {
+  showVictory(weeks: number, residents: number) {
+    this.dialog(T.victoryTitle, T.victoryText(weeks, residents), T.keepBuilding, () => {
       this.modal?.destroy();
       this.modal = null;
     });
   }
 
   /** The game stays paused behind it; "Tentar de novo" starts a new map. */
-  showDefeat(months: number, peak: number) {
-    this.dialog(T.defeatTitle, T.defeatText(months, peak), T.retry, () => this.host.restart());
+  showDefeat(weeks: number, peak: number) {
+    this.dialog(T.defeatTitle, T.defeatText(weeks, peak), T.retry, () => this.host.restart());
   }
 
   /** Modal panel (pauses the game) with a title, a message and one button. */

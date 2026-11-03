@@ -37,20 +37,20 @@ import {
 
 export interface BotProfile {
   name: string;
-  /** Max actions (one tool gesture: a road stroke, a house drag or one placement) per month. */
-  actionsPerMonth: number;
-  /** Chance of doing nothing at all in a month (distraction). */
+  /** Max actions (one tool gesture: a road stroke, a house drag or one placement) per week. */
+  actionsPerWeek: number;
+  /** Chance of doing nothing at all in a week (distraction). */
   idleChance: number;
-  /** Months a problem must last before the bot reacts to it. */
+  /** Weeks a problem must last before the bot reacts to it. */
   reactDelay: number;
-  /** Food is noticed only during famine (otherwise: when the monthly balance is negative). */
+  /** Food is noticed only during famine (otherwise: when the weekly balance is negative). */
   foodOnlyInFamine: boolean;
-  /** Plans food ahead: keeps the monthly food balance above 1 + foodMarginPerResident x residents. */
+  /** Plans food ahead: keeps the weekly food balance above 1 + foodMarginPerResident x residents. */
   foodPlanning: boolean;
   foodMarginPerResident: number;
   /** Unemployed workers that make the bot build a workshop (Infinity = only the alert / goal). */
   workshopAt: number;
-  /** Reacts to the on-screen unemployment alert (after reactDelay + alertExtraDelay months). */
+  /** Reacts to the on-screen unemployment alert (after reactDelay + alertExtraDelay weeks). */
   alertExtraDelay: number;
   /** Empty plots kept waiting for families. */
   plotsAhead: number;
@@ -66,7 +66,7 @@ export interface BotProfile {
   wMarket: number;
   /** Random term added to every spot score (0 = always the best spot). */
   noise: number;
-  /** Chance per month of building an unneeded well or market. */
+  /** Chance per week of building an unneeded well or market. */
   extraServiceChance: number;
   /** Keeps a 6x6 lot next to a planned road free for the temple from the start. */
   reserveTemple: boolean;
@@ -79,27 +79,27 @@ export interface BotProfile {
   followsPlan: boolean;
   /** Keeps fields, wells, markets and workshops out of the altar/temple radius when it can. */
   keepSacredForHouses: boolean;
-  /** Months stuck on the same goal before demolishing a non-house in the sacred radius to make room. */
+  /** Weeks stuck on the same goal before demolishing a non-house in the sacred radius to make room. */
   fixStuckAfter: number;
   /** Never spends below this silver, except for food during famine. */
   reserveSilver: number;
-  /** Months of negative monthly balance (orange silver) before cutting upkeep (Infinity = never notices). */
+  /** Weeks of negative weekly balance (orange silver) before cutting upkeep (Infinity = never notices). */
   deficitDelay: number;
-  /** Months in debt (red silver and alert) before cutting upkeep. */
+  /** Weeks in debt (red silver and alert) before cutting upkeep. */
   debtDelay: number;
-  /** Chance per month of actually cutting once noticed (1 = always). */
+  /** Chance per week of actually cutting once noticed (1 = always). */
   trimChance: number;
   /**
-   * Looks at the +X/month before building something with upkeep: builds into a deficit only if the
-   * silver left covers it for this many months (0 = does not look; food emergencies aside).
+   * Looks at the +X/week before building something with upkeep: builds into a deficit only if the
+   * silver left covers it for this many weeks (0 = does not look; food emergencies aside).
    */
-  runwayMonths: number;
+  runwayWeeks: number;
 }
 
 export const BOTS: Record<string, BotProfile> = {
   eficiente: {
     name: 'eficiente',
-    actionsPerMonth: 2,
+    actionsPerWeek: 2,
     idleChance: 0,
     reactDelay: 0,
     foodOnlyInFamine: false,
@@ -125,11 +125,11 @@ export const BOTS: Record<string, BotProfile> = {
     deficitDelay: 0,
     debtDelay: 0,
     trimChance: 1,
-    runwayMonths: 24,
+    runwayWeeks: 24,
   },
   comum: {
     name: 'comum',
-    actionsPerMonth: 2,
+    actionsPerWeek: 2,
     idleChance: 0.1,
     reactDelay: 3,
     foodOnlyInFamine: false,
@@ -155,11 +155,11 @@ export const BOTS: Record<string, BotProfile> = {
     deficitDelay: 6,
     debtDelay: 3,
     trimChance: 0.5,
-    runwayMonths: 0,
+    runwayWeeks: 0,
   },
   distraido: {
     name: 'distraido',
-    actionsPerMonth: 2,
+    actionsPerWeek: 2,
     idleChance: 0.3,
     reactDelay: 2,
     foodOnlyInFamine: true,
@@ -185,7 +185,7 @@ export const BOTS: Record<string, BotProfile> = {
     deficitDelay: Infinity,
     debtDelay: 8,
     trimChance: 0.2,
-    runwayMonths: 0,
+    runwayWeeks: 0,
   },
 };
 
@@ -208,8 +208,8 @@ type Problem = 'food' | 'famine' | 'jobs' | 'alert' | 'well' | 'market' | 'goalW
 
 export interface BotStats {
   actions: number;
-  /** Months where the bot wanted to act but had nothing useful and affordable to do. */
-  deadMonths: number;
+  /** Weeks where the bot wanted to act but had nothing useful and affordable to do. */
+  deadWeeks: number;
   spent: Record<string, number>;
   demolished?: number;
   /** Demolitions made to cut upkeep. */
@@ -226,9 +226,9 @@ export class Bot {
   private altar: Building;
   private ringX: number;
   private ringY: number;
-  stats: BotStats = { actions: 0, deadMonths: 0, spent: {} };
-  /** Last month's outcome: 'acted', 'idle' (chose to idle), 'dead' (nothing to do) or 'saving'. */
-  lastMonth: 'acted' | 'idle' | 'dead' | 'saving' = 'idle';
+  stats: BotStats = { actions: 0, deadWeeks: 0, spent: {} };
+  /** Last week's outcome: 'acted', 'idle' (chose to idle), 'dead' (nothing to do) or 'saving'. */
+  lastWeek: 'acted' | 'idle' | 'dead' | 'saving' = 'idle';
 
   constructor(s: GameState, profile: BotProfile, rng: Rng) {
     this.p = profile;
@@ -255,7 +255,7 @@ export class Bot {
   }
 
   private updateStreaks(s: GameState) {
-    if (s.goalIndex !== this.goalSeen) [this.goalSeen, this.goalSince] = [s.goalIndex, s.month];
+    if (s.goalIndex !== this.goalSeen) [this.goalSeen, this.goalSince] = [s.goalIndex, s.week];
     const eco = computeEconomy(s);
     const goal = currentGoal(s);
     const bump = (k: Problem, on: boolean) => (this.streak[k] = on ? this.streak[k] + 1 : 0);
@@ -285,11 +285,11 @@ export class Bot {
     return this.fieldGain(s) >= 1;
   }
 
-  /** Food per month gained by one more connected field, with the current workers. */
+  /** Food per week gained by one more connected field, with the current workers. */
   private fieldGain(s: GameState) {
     const eco = computeEconomy(s);
     const fields = s.buildings.filter((b) => b.kind === 'field' && b.connected).length;
-    const perField = BUILDINGS.field.food ?? 0;
+    const perField = (BUILDINGS.field.harvest ?? 0) / WEEKS_PER_YEAR; // the spring harvest spread over the year
     const eff = (jobs: number) => (jobs === 0 ? 1 : Math.min(1, eco.workers / jobs));
     const jobs = BUILDINGS.field.jobs;
     return (fields + 1) * perField * eff(eco.jobs + jobs) - fields * perField * eco.efficiency;
@@ -344,8 +344,8 @@ export class Bot {
   // ------------------------------------------------------------ spending
 
   private canAfford(s: GameState, cost: number, emergency = false) {
-    // A planner also keeps this month's deficit in hand, so the silver never ends the month below 0.
-    const deficit = this.p.runwayMonths > 0 ? Math.max(0, -computeEconomy(s).silverDelta) : 0;
+    // A planner also keeps this week's deficit in hand, so the silver never ends the week below 0.
+    const deficit = this.p.runwayWeeks > 0 ? Math.max(0, -computeEconomy(s).silverDelta) : 0;
     return s.silver - cost - deficit >= (emergency ? 0 : this.p.reserveSilver);
   }
 
@@ -354,18 +354,18 @@ export class Bot {
   }
 
   private build(s: GameState, kind: BuildableKind, r: Rect, rotated = false, emergency = false) {
-    if (this.p.runwayMonths > 0 && !emergency && this.shortRunway(s, kind)) return false;
+    if (this.p.runwayWeeks > 0 && !emergency && this.shortRunway(s, kind)) return false;
     const before = s.silver;
     const res = place(s, kind, r.x, r.y, rotated);
     if (res.ok) this.spend(kind, before - s.silver);
     return res.ok;
   }
 
-  /** True if the building's upkeep would leave a deficit the remaining silver cannot carry for runwayMonths. */
+  /** True if the building's upkeep would leave a deficit the remaining silver cannot carry for runwayWeeks. */
   private shortRunway(s: GameState, kind: BuildableKind) {
     const upkeep = BUILDINGS[kind].upkeep ?? 0;
     const balance = computeEconomy(s).silverDelta - upkeep;
-    return upkeep > 0 && balance < 0 && s.silver - costOf(kind) < -balance * this.p.runwayMonths;
+    return upkeep > 0 && balance < 0 && s.silver - costOf(kind) < -balance * this.p.runwayWeeks;
   }
 
   /**
@@ -384,7 +384,7 @@ export class Bot {
     return computeEconomy(copy);
   }
 
-  /** Demolishes the upkeep building whose removal improves the monthly balance the most without starving the city. */
+  /** Demolishes the upkeep building whose removal improves the weekly balance the most without starving the city. */
   private trimUpkeep(s: GameState): boolean {
     const eco = this.settled(s);
     let best: Building | null = null;
@@ -406,10 +406,10 @@ export class Bot {
   private wantsTrim(s: GameState) {
     const eco = computeEconomy(s);
     // A planner cuts only when the silver would not carry the deficit for its runway.
-    const short = this.p.runwayMonths === 0 || s.silver + eco.silverDelta * this.p.runwayMonths < 0;
+    const short = this.p.runwayWeeks === 0 || s.silver + eco.silverDelta * this.p.runwayWeeks < 0;
     const deficit = eco.silverDelta < 0 && this.streak.deficit > this.p.deficitDelay && short;
-    // In debt, a positive balance that cannot pay it back in the months left still needs cuts.
-    const left = RULES.debtMonthsToLose - s.debtMonths;
+    // In debt, a positive balance that cannot pay it back in the weeks left still needs cuts.
+    const left = RULES.debtWeeksToLose - s.debtWeeks;
     const debt = this.streak.debt > this.p.debtDelay && s.silver + eco.silverDelta * left < 0;
     return (deficit || debt) && this.rng() < this.p.trimChance;
   }
@@ -426,13 +426,13 @@ export class Bot {
   /**
    * Stuck on the big-house goal: first brings a missing well or market to the sacred houses, then
    * (no usable free sacred plot) demolishes a field or workshop near them to make room, then a small
-   * house next to them. Tries again a few months after each fix.
+   * house next to them. Tries again a few weeks after each fix.
    */
   private fixStuck(s: GameState): boolean {
     const goal = currentGoal(s);
     const top = HOUSE_LEVELS.length - 1;
     if (!goal || goal.type !== 'houses' || (goal.level ?? 0) < top) return false;
-    if (s.month - this.goalSince < this.p.fixStuckAfter) return false;
+    if (s.week - this.goalSince < this.p.fixStuckAfter) return false;
     const targets = this.houses(s).filter((h) => h.connected && h.level < top && this.sacredAt(s, h));
     for (const need of ['well', 'market'] as const) {
       const missing = targets.filter((h) => s.unlocked.includes(need) && !needMet(s, h, need));
@@ -446,7 +446,7 @@ export class Bot {
       .filter((b) => order.includes(b.kind) && near(b) && !(b.kind === 'house' && (b.level >= 2 || this.sacredAt(s, b))))
       .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || this.altarDist(a) - this.altarDist(b));
     if (!victims.length) return false;
-    this.goalSince = s.month - this.p.fixStuckAfter + 3;
+    this.goalSince = s.week - this.p.fixStuckAfter + 3;
     this.stats.demolished = (this.stats.demolished ?? 0) + 1;
     return clearCell(s, victims[0].x, victims[0].y).ok;
   }
@@ -718,29 +718,29 @@ export class Bot {
     return built > 0;
   }
 
-  // ------------------------------------------------------------ month
+  // ------------------------------------------------------------ week
 
-  /** Runs the bot's turn for this month (before stepMonth). */
+  /** Runs the bot's turn for this week (before stepWeek). */
   act(s: GameState): void {
     this.updateStreaks(s);
     if (this.rng() < this.p.idleChance) {
-      this.lastMonth = 'idle';
+      this.lastWeek = 'idle';
       return;
     }
     let acted = 0;
     let saving = false;
-    for (let k = 0; k < this.p.actionsPerMonth; k++) {
+    for (let k = 0; k < this.p.actionsPerWeek; k++) {
       const r = this.chooseAndAct(s);
       if (r === 'saving') saving = true;
       if (r !== true) break;
       acted++;
     }
     this.stats.actions += acted;
-    if (acted) this.lastMonth = 'acted';
-    else if (saving) this.lastMonth = 'saving';
+    if (acted) this.lastWeek = 'acted';
+    else if (saving) this.lastWeek = 'saving';
     else {
-      this.lastMonth = 'dead';
-      this.stats.deadMonths++;
+      this.lastWeek = 'dead';
+      this.stats.deadWeeks++;
     }
   }
 

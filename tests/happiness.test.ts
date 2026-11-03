@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepMonth, taxFactor } from '../src/core';
+import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepWeek, taxFactor } from '../src/core';
+import { foodCapacity } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
@@ -107,19 +108,23 @@ describe('happiness effects', () => {
     const town = (happy: boolean) => {
       const s = emptyGame();
       for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 1);
-      put(s, 'workshop', EAST, 27);
+      put(s, 'well', EAST, 27); // water for the 3 houses, so families may come
+      put(s, 'workshop', EAST, 36);
       if (happy) for (const y of [29, 32]) put(s, 'garden', EAST, y + 1);
+      put(s, 'granary', EAST, 40);
+      s.food = foodCapacity(s);
       put(s, 'house', ROADSIDE, 40);
+      put(s, 'well', ROADSIDE, 42); // water for the plot too
       return s;
     };
     const happy = town(true);
     const f = familyFactor(computeEconomy(happy).happiness);
     expect(f).toBeGreaterThan(1);
-    stepMonth(happy, constRng(chance * f - 0.01));
+    stepWeek(happy, constRng(chance * f - 0.01));
     expect(happy.families).toHaveLength(1);
 
     const plain = town(false);
-    stepMonth(plain, constRng(chance + 0.01));
+    stepWeek(plain, constRng(chance + 0.01));
     expect(plain.families).toHaveLength(0);
   });
 

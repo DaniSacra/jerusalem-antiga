@@ -688,3 +688,101 @@ export function drawFieldhand(g: G, look: number, pose: number) {
     }
   }
 }
+
+// ---------- food workers (render only, see Haulers.ts) ----------
+
+/** Grain carrier with a sack (to the granary) or coming back empty-handed, fisherman, fruit gatherer. */
+export type HaulerKind = 'sack' | 'empty' | 'fisher' | 'gatherer';
+export const HAULER_KINDS: readonly HaulerKind[] = ['sack', 'empty', 'fisher', 'gatherer'];
+export const HAULER_SIZE: [number, number] = [30, 38];
+
+const HAULER_LOOKS: Record<'fisher' | 'gatherer', Look[]> = {
+  fisher: [
+    { skin: SKIN[1], robe: CLOTH.linen, head: CLOTH.blue, sash: CLOTH.brown, beard: HAIR },
+    { skin: SKIN[2], robe: CLOTH.wool, head: CLOTH.white, sash: CLOTH.indigo, beard: HAIR },
+    { skin: SKIN[0], robe: CLOTH.blue, head: CLOTH.linen, sash: CLOTH.dark, beard: BEARD_BROWN },
+  ],
+  gatherer: [
+    { skin: SKIN[1], robe: CLOTH.rust, head: CLOTH.linen, sash: CLOTH.dark },
+    { skin: SKIN[0], robe: CLOTH.indigo, head: CLOTH.ochre, sash: CLOTH.red },
+    { skin: SKIN[2], robe: CLOTH.brown, head: CLOTH.white, sash: CLOTH.blue },
+  ],
+};
+
+/** A fishing net bundled over the shoulder, with its cork floats. */
+function netBundle(g: G, back: Pt) {
+  const x = back.x - 1;
+  const y = back.y + 1;
+  const outline = [{ x: x - 5, y: y - 6 }, { x: x + 2.5, y: y - 7 }, { x: x + 3, y: y + 3 }, { x: x - 1.5, y: y + 10 }, { x: x - 6.5, y: y + 6 }];
+  g.fillStyle(shade(C.net, 0.7), 0.95);
+  g.fillPoints(outline, true);
+  g.lineStyle(0.8, shade(C.net, 1.15), 0.9);
+  for (let k = 0; k < 4; k++) g.lineBetween(x - 4.5 + k * 2.2, y - 6.5, x - 5.5 + k * 2, y + 7);
+  for (let k = 0; k < 5; k++) g.lineBetween(x - 5.8, y - 4 + k * 2.6, x + 2.4, y - 5 + k * 2.4);
+  g.fillStyle(0xd9a85a);
+  [[-4.5, -6.2], [-1, -7], [2.2, -6.6]].forEach(([dx, dy]) => g.fillCircle(x + dx, y + dy, 1.2));
+}
+
+/** A small basket of fish at the hip, tails sticking out. */
+function fishBasket(g: G, hand: Pt) {
+  const x = hand.x + 1;
+  const y = hand.y + 2.5;
+  g.fillStyle(C.fish);
+  g.fillEllipse(x - 2, y - 4.5, 2.4, 5);
+  g.fillEllipse(x + 1.8, y - 5, 2.4, 5.5);
+  g.fillTriangle(x - 3.6, y - 8, x - 0.4, y - 8, x - 2, y - 6);
+  g.fillStyle(C.wicker);
+  g.fillPoints([{ x: x - 4.8, y: y - 3 }, { x: x + 4.8, y: y - 3 }, { x: x + 3.6, y: y + 3 }, { x: x - 3.6, y: y + 3 }], true);
+  g.lineStyle(1, shade(C.wicker, 0.6), 0.9);
+  g.lineBetween(x - 4.2, y - 0.5, x + 4.2, y - 0.5);
+}
+
+/** A wide flat basket of olives, figs and dates balanced on the head. */
+function headBasket(g: G, top: Pt) {
+  const { x, y } = top;
+  const fruit = [C.oliveFruit, C.figFruit, C.dateFruit, C.oliveGreen, C.figFruit, C.oliveFruit, C.dateFruit];
+  fruit.forEach((c, k) => {
+    g.fillStyle(c);
+    g.fillCircle(x - 5 + k * 1.7, y - 4.5 - Math.sin((k / 6) * Math.PI) * 2.6, 2);
+  });
+  g.fillStyle(shade(C.wicker, 0.75));
+  g.fillPoints([{ x: x - 7, y: y - 4 }, { x: x + 7, y: y - 4 }, { x: x + 5.5, y: y + 0.5 }, { x: x - 5.5, y: y + 0.5 }], true);
+  g.fillStyle(C.wicker);
+  g.fillEllipse(x, y - 4, 14, 2.4);
+  g.lineStyle(1, shade(C.wicker, 0.55), 0.9);
+  g.lineBetween(x - 6, y - 1.8, x + 6, y - 1.8);
+}
+
+/** A food worker of a kind and look in step frame 0 or 1, on a HAULER_SIZE canvas facing right. */
+export function drawHauler(g: G, kind: HaulerKind, look: number, frame: number) {
+  const [w, h] = HAULER_SIZE;
+  const F = h - 2;
+  const cx = w / 2;
+  shadowAt(g, cx, F, 11);
+  switch (kind) {
+    case 'sack': {
+      const L = LOOKS.porter[look % LOOKS.porter.length];
+      const r = person(g, cx + 1, F, { ...L, cover: 'headcloth', arm: 'back', short: true, lean: 2.6 }, frame);
+      sack(g, r.back);
+      break;
+    }
+    case 'empty': {
+      const L = LOOKS.porter[look % LOOKS.porter.length];
+      person(g, cx, F, { ...L, cover: 'headcloth', arm: 'swing', short: true }, frame);
+      break;
+    }
+    case 'fisher': {
+      const L = HAULER_LOOKS.fisher[look % 3];
+      netBundle(g, { x: cx - 2.6, y: F - 14 });
+      const r = person(g, cx, F, { ...L, cover: 'headcloth', arm: 'front', short: true }, frame);
+      fishBasket(g, r.hand);
+      break;
+    }
+    case 'gatherer': {
+      const L = HAULER_LOOKS.gatherer[look % 3];
+      const r = person(g, cx, F, { ...L, cover: 'mantle', arm: 'up' }, frame);
+      headBasket(g, r.top);
+      break;
+    }
+  }
+}

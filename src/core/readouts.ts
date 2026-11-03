@@ -2,9 +2,9 @@ import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data
 import { placeSpots } from './actions';
 import { serviceOf } from './coverage';
 import { computeEconomy } from './economy';
-import { currentGoal, goalProgress } from './goals';
+import { currentGoal, goalProgress, goalTarget } from './goals';
 import { cellsInRadius, cellsOf, indexOf } from './grid';
-import { SEASONS, seasonOf } from './seasons';
+import { seasonOf, WEEKS_PER_YEAR } from './seasons';
 import type { BuildableKind, Building, Cell, GameState, Season } from './types';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
@@ -15,34 +15,25 @@ export const cityLevel = (s: GameState) => s.goalIndex + 1;
 /** Progress (0..1) of the current goal; 1 when every goal is done. */
 export function goalFraction(s: GameState): number {
   const goal = currentGoal(s);
-  return goal ? Math.min(1, goalProgress(s, goal) / goal.target) : 1;
+  if (!goal) return 1;
+  const target = goalTarget(s, goal);
+  return target <= 0 ? 1 : Math.min(1, goalProgress(s, goal) / target);
 }
 
 /** Number of goals in the game. */
 export const goalCount = () => GOALS.length;
 
-/** Season, year (from 1) and week of the season (from 1) of a month tick. */
-export function calendar(month: number): { season: Season; year: number; week: number } {
-  const perYear = RULES.monthsPerSeason * SEASONS.length;
-  return { season: seasonOf(month), year: Math.floor(month / perYear) + 1, week: (month % RULES.monthsPerSeason) + 1 };
+/** Season, year (from 1) and week of the season (from 1) of a week tick. */
+export function calendar(week: number): { season: Season; year: number; week: number } {
+  return { season: seasonOf(week), year: Math.floor(week / WEEKS_PER_YEAR) + 1, week: (week % RULES.weeksPerSeason) + 1 };
 }
 
 /**
- * When the food runs out at this monthly balance: months left and the season it happens in.
- * Null when the food is not dropping.
- */
-export function foodRunsOut(food: number, foodDelta: number, month: number): { months: number; season: Season } | null {
-  if (foodDelta >= 0) return null;
-  const months = Math.max(0, Math.floor(food / -foodDelta));
-  return { months, season: seasonOf(month + months) };
-}
-
-/**
- * Monthly silver balance if one more connected building of this kind existed (its upkeep, jobs
+ * Weekly silver balance if one more connected building of this kind existed (its upkeep, jobs
  * and production; the new coverage is left out).
  */
 export function balanceAfter(s: GameState, kind: BuildableKind): number {
-  const ghost: Building = { id: -1, kind, x: 0, y: 0, w: 1, h: 1, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false };
+  const ghost: Building = { id: -1, kind, x: 0, y: 0, w: 1, h: 1, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: 0 };
   return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
 }
 

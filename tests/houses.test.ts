@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, clearCell, houseHappiness, houseInfo, idleShare, RULES, stepMonth } from '../src/core';
+import { balloonNeed, clearCell, houseHappiness, houseInfo, idleShare, RULES, stepWeek } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
-const run = (s: Parameters<typeof stepMonth>[0], months: number, rng = never) => {
+const run = (s: Parameters<typeof stepWeek>[0], weeks: number, rng = never) => {
   const events = [];
-  for (let k = 0; k < months; k++) events.push(...stepMonth(s, rng));
+  for (let k = 0; k < weeks; k++) events.push(...stepWeek(s, rng));
   return events;
 };
 
 describe('house evolution', () => {
-  it('levels up after 3 months meeting the next needs (road + well)', () => {
+  it('levels up after 3 weeks meeting the next needs (road + well)', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
     put(s, 'well', ROADSIDE, 32);
@@ -34,7 +34,7 @@ describe('house evolution', () => {
     expect(b.level).toBe(2);
   });
 
-  it('a tent without road becomes an empty plot after 3 months', () => {
+  it('a tent without road becomes an empty plot after 3 weeks', () => {
     const s = emptyGame();
     const b = put(s, 'house', 1, 1, 1);
     run(s, 2);

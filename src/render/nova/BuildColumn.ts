@@ -1,19 +1,13 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, buildMenu, costOf, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, buildMenu, calendar, costOf, firstHarvestWeek, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
 import { TEX } from '../textures';
-import { TOOLS, type Tool } from '../tools';
+import { categoryKinds, COLUMN_ORDER, keyOf, type Tool } from '../tools';
 import { TextBalloon, type Line } from './Balloon';
 import { H, PHONE, S, W } from './metrics';
 import { darkPanel, icon, ntext, RoundButton } from './widgets';
-
-/** The column order (top to bottom). */
-export const COLUMN_ORDER: readonly BuildableKind[] = ['house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
-
-/** Keyboard key of a tool (the order of TOOLS: 1..9, then 0). */
-export const keyOf = (t: Tool) => String((TOOLS.indexOf(t) + 1) % 10);
 
 const LOCKED_MS = 2500;
 
@@ -48,7 +42,8 @@ export class BuildColumn {
   private state: GameState | null = null;
   private allowed: ReadonlySet<Tool> | null = null;
 
-  constructor(private scene: Phaser.Scene, private onPick: (kind: BuildableKind) => void) {
+  /** `minY`: the balloons stay under this (the top right controls). */
+  constructor(private scene: Phaser.Scene, private onPick: (kind: BuildableKind) => void, private minY: () => number = () => S.margin) {
     const menu = buildMenu(COLUMN_ORDER);
     const n = menu.mode === 'list' ? menu.items.length : menu.groups.length;
     const colW = S.col + 2 * S.colPad;
@@ -78,10 +73,10 @@ export class BuildColumn {
     const ls = PHONE ? px(20) : px(26);
     const lockBg = s.add.graphics().fillStyle(NOVA.parchment, 1).fillCircle(0, 0, ls / 2).lineStyle(px(1.5), NOVA.border, 1).strokeCircle(0, 0, ls / 2);
     const lock = s.add.container(d * 0.34, PHONE ? d * 0.34 : -d * 0.34, [lockBg, icon(s, 'lock', ls * 0.7)]).setVisible(false);
-    const tag = ntext(s, 0, 0, T.nova.newBadge, S.small, NOVA_CSS.ink).setOrigin(0.5);
-    const tw = tag.width + px(10);
-    const tagBg = s.add.graphics().fillStyle(NOVA.gold, 1).fillRoundedRect(-tw / 2, -S.labelH / 2, tw, S.labelH, S.labelH / 2);
-    const badge = s.add.container(0, -d / 2 + px(2), [tagBg, tag]).setVisible(false);
+    // "Novo": a gold dot with a dark ring on the top right edge, clear of the drawing.
+    const dot = px(PHONE ? 7 : 8);
+    const dotBg = s.add.graphics().fillStyle(NOVA.goldLight, 1).fillCircle(0, 0, dot).lineStyle(px(2), NOVA.border, 1).strokeCircle(0, 0, dot);
+    const badge = s.add.container(d * 0.36, -d * 0.36, [dotBg]).setVisible(false);
     const content = [thumb, ...(name ? [name] : []), ...(price ? [price] : []), lock, badge];
     const it: Item = { kind, category, thumb, lock, badge, name, price, btn: null! };
     it.btn = new RoundButton(s, x, y, d, d, content, () => this.press(it), {}, true);
@@ -122,10 +117,11 @@ export class BuildColumn {
 
   private paint(it: Item, s: GameState, tool: Tool, allowed: ReadonlySet<Tool> | null) {
     if (it.category) {
-      const kinds = COLUMN_ORDER.filter((k) => BUILDINGS[k].category === it.category);
+      const kinds = categoryKinds(it.category);
       const locked = kinds.every((k) => !s.unlocked.includes(k));
       const selected = kinds.includes(tool as BuildableKind) || this.strip?.category === it.category;
       it.btn.setLook({ selected, locked });
+      it.btn.root.setAlpha(allowed && !kinds.some((k) => allowed.has(k)) ? 0.45 : 1);
       it.thumb.setTexture(locked ? TEX.categoryThumbLocked(it.category) : TEX.categoryThumb(it.category));
       it.lock.setVisible(locked);
       it.badge.setVisible(kinds.some((k) => this.fresh.has(k)));
@@ -161,6 +157,9 @@ export class BuildColumn {
       { text: head, color: NOVA_CSS.gold },
       { text: N.effect[kind], bold: false },
     ];
+    if (d.harvest) lines.push({ text: N.harvestYear(calendar(firstHarvestWeek(s.week)).year), color: NOVA_CSS.good });
+    if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max), color: NOVA_CSS.muted, bold: false });
+    if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
     if (!PHONE && d.radius) lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
     if (!PHONE) {
       const after = balanceAfter(s, kind);
@@ -174,7 +173,8 @@ export class BuildColumn {
     const b = this.spotOf(kind);
     return (w: number, h: number) => {
       const left = this.strip ? this.strip.rect.x : this.rect.x;
-      const y = Math.max(S.margin, Math.min(H - S.margin - h, b.y - h / 2));
+      // Never over the season, speed and gear (they stay usable while a building is chosen).
+      const y = Math.max(this.minY() + S.gap, Math.min(H - S.margin - h, b.y - h / 2));
       return { x: left - S.gap - px(9) - w, y, arrow: { side: 'right' as const, at: b.y - y } };
     };
   }
@@ -196,7 +196,7 @@ export class BuildColumn {
     const same = this.strip?.category === category;
     this.closeStrip();
     if (same) return;
-    const kinds = COLUMN_ORDER.filter((k) => BUILDINGS[k].category === category);
+    const kinds = categoryKinds(category);
     const d = S.col;
     const w = kinds.length * d + (kinds.length - 1) * S.gap + 2 * S.colPad;
     const h = d + 2 * S.colPad;
@@ -210,9 +210,19 @@ export class BuildColumn {
     if (this.state) for (const i of this.allItems()) this.paint(i, this.state, this.lastTool, this.allowed);
   }
 
-  private closeStrip() {
+  /** Closes the category strip; false if none was open. */
+  closeStrip(): boolean {
+    const open = !!this.strip;
     this.strip?.root.destroy();
     this.strip = null;
+    return open;
+  }
+
+  /** Opens the strip of a category (PC keys 3–6); nothing if it is open or the column lists every building. */
+  openCategory(c: BuildingCategory) {
+    if (this.strip?.category === c) return;
+    const it = this.items.find((i) => i.category === c);
+    if (it) this.toggleStrip(it);
   }
 
   /** "novo" until the player chooses it (not saved). */

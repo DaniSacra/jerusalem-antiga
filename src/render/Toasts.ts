@@ -1,47 +1,84 @@
 import Phaser from 'phaser';
-import { GAME_W, INFO_Y } from './layout';
-import { C, CSS } from './palette';
-import { text } from './ui';
+import { GAME_W, px } from './layout';
+import { NOVA } from './palette';
+import { lineH, S } from './nova/metrics';
+import { darkPanel, ntext } from './nova/widgets';
 
-const DURATION = 2200;
+const DURATION = 2600;
+/** Toasts on screen at once; more wait in line (bad news first) instead of pushing the first out. */
 const MAX = 3;
-/** Classic: toasts sit just above the info line and stack upward, leaving the top for the goal and the alert. */
-const Y0 = INFO_Y - 28;
+/** Above the balloons and panels (46–50), under the victory and defeat dialogs (100). */
+const DEPTH = 60;
 
 interface Toast {
   msg: string;
   root: Phaser.GameObjects.Container;
+  h: number;
   timer: Phaser.Time.TimerEvent;
 }
 
 export type Tone = 'info' | 'bad' | 'good';
 
+/** Options of one toast: `big` for the opening sentence (larger, longer on screen). */
+export interface ToastOptions {
+  big?: boolean;
+  ms?: number;
+}
+
+interface Waiting {
+  msg: string;
+  tone: Tone;
+  opt: ToastOptions;
+}
+
+/** Short messages at the bottom center, the newest with its bottom at `y0`, older ones stacking upward. */
 export class Toasts {
   private list: Toast[] = [];
+  private queue: Waiting[] = [];
 
-  /** `y0`: center of the newest toast; older ones stack upward. */
-  constructor(private scene: Phaser.Scene, private y0 = Y0) {}
+  /** `y0`: bottom edge of the newest toast; `maxW`: widest a toast may be (it wraps). */
+  constructor(private scene: Phaser.Scene, private y0: number, private maxW = px(520)) {}
 
-  show(msg: string, tone: Tone = 'info') {
+  show(msg: string, tone: Tone = 'info', opt: ToastOptions = {}) {
     const existing = this.list.find((t) => t.msg === msg);
     if (existing) {
-      existing.timer.reset({ delay: DURATION, callback: () => this.dismiss(existing) });
+      existing.timer.reset({ delay: opt.ms ?? DURATION, callback: () => this.dismiss(existing) });
       return;
     }
+    if (this.queue.some((q) => q.msg === msg)) return;
+    if (this.list.length >= MAX) {
+      // Bad news goes before the rest of the line.
+      const w = { msg, tone, opt };
+      if (tone === 'bad') {
+        const k = this.queue.findIndex((q) => q.tone !== 'bad');
+        this.queue.splice(k < 0 ? this.queue.length : k, 0, w);
+      } else this.queue.push(w);
+      return;
+    }
+    this.add(msg, tone, opt);
+  }
+
+  private add(msg: string, tone: Tone, opt: ToastOptions) {
     const s = this.scene;
-    const label = text(s, 0, 0, msg, 20, CSS.light, true).setOrigin(0.5);
-    const w = label.width + 36;
-    const h = 40;
+    const size = opt.big ? S.num * 1.2 : S.num;
+    const pad = px(opt.big ? 16 : 12);
+    const label = ntext(s, 0, 0, msg, size)
+      .setOrigin(0.5)
+      .setAlign('center')
+      .setWordWrapWidth(this.maxW - 2 * pad)
+      .setLineSpacing(lineH(size) - size * 1.15);
+    const w = label.width + 2 * pad;
+    const h = Math.max(label.height + px(opt.big ? 18 : 12), px(opt.big ? 44 : 34));
     const bg = s.add.graphics();
-    bg.fillStyle(C.shadow, 0.3);
-    bg.fillRoundedRect(-w / 2 + 2, -h / 2 + 3, w, h, 12);
-    bg.fillStyle(tone === 'bad' ? C.ui.alertBad : tone === 'good' ? 0x4f7f34 : C.ink, 0.95);
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
-    const root = s.add.container(GAME_W / 2, this.y0, [bg, label]).setDepth(30).setAlpha(0);
+    bg.fillStyle(0x000000, 0.25).fillRoundedRect(-w / 2 + px(1), -h / 2 + px(2), w, h, Math.min(h / 2, px(16)));
+    const fill = tone === 'bad' ? NOVA.toastBad : tone === 'good' ? NOVA.toastGood : NOVA.panel;
+    darkPanel(bg, -w / 2, -h / 2, w, h, Math.min(h / 2, px(16)), 0.94);
+    if (fill !== NOVA.panel) bg.fillStyle(fill, 0.94).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
+    if (opt.big) bg.lineStyle(px(2), NOVA.gold, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
+    const root = s.add.container(GAME_W / 2, this.y0 - h / 2, [bg, label]).setDepth(DEPTH).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
-    const toast: Toast = { msg, root, timer: s.time.delayedCall(DURATION, () => this.dismiss(toast)) };
+    const toast: Toast = { msg, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
-    while (this.list.length > MAX) this.remove(this.list[this.list.length - 1]);
     this.layout();
   }
 
@@ -55,10 +92,16 @@ export class Toasts {
     this.list.splice(i, 1);
     t.timer.remove();
     t.root.destroy();
-    this.layout();
+    const next = this.queue.shift();
+    if (next) this.add(next.msg, next.tone, next.opt);
+    else this.layout();
   }
 
   private layout() {
-    this.list.forEach((t, k) => this.scene.tweens.add({ targets: t.root, y: this.y0 - k * 46, duration: 150 }));
+    let y = this.y0;
+    this.list.forEach((t, k) => {
+      y -= (k ? this.list[k - 1].h / 2 + px(6) : 0) + t.h / 2;
+      this.scene.tweens.add({ targets: t.root, y, duration: 150 });
+    });
   }
 }

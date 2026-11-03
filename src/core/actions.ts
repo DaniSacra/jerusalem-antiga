@@ -57,7 +57,7 @@ export function place(s: GameState, kind: Placeable, x: number, y: number, rotat
     s.roads[indexOf(s, x, y)] = true;
   } else {
     const id = s.nextId++;
-    const b: Building = { id, kind, x, y, ...placeSize(kind, rotated), level: 0, upStreak: 0, downStreak: 0, connected: false, variant: 0, mirrored: false };
+    const b: Building = { id, kind, x, y, ...placeSize(kind, rotated), level: 0, upStreak: 0, downStreak: 0, connected: false, variant: 0, mirrored: false, built: s.week };
     s.buildings.push(b);
     for (const c of cellsOf(b)) s.grid[indexOf(s, c.x, c.y)] = b;
     rollLook(s, b, rng ?? createRng(id));

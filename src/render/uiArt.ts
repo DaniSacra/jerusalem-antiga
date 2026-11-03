@@ -8,7 +8,7 @@ import type Phaser from 'phaser';
 import { type BuildableKind, type BuildingCategory } from '../core';
 import { HH, HW } from './iso';
 import { C } from './palette';
-import { ORIGIN, PARTS, TEX, type UiIcon } from './textures';
+import { GRANARY_STOCKS, ORIGIN, PARTS, TEX, type UiIcon } from './textures';
 
 /** Side of the thumbnail textures: enough for a ~80 px button on PC (shown scaled down). */
 export const THUMB = 128;
@@ -109,6 +109,12 @@ const SHOTS: Record<BuildableKind, Shot> = {
   // The potter: domed kiln with smoke, workroom and rows of jars.
   workshop: { key: TEX.building('workshop', 0, false, 0), cx: 4, cy: -30, size: 176, extra: kilnSmoke },
   garden: { key: TEX.building('garden'), cx: 0, cy: -20, size: 128 },
+  // The full granary: domed silos, the stone storehouse and sacks piled in the yard.
+  granary: { key: TEX.building('granary', 0, false, GRANARY_STOCKS - 1), cx: 8, cy: -16, size: 150 },
+  // The net drying on its poles and the boat pulled up in front.
+  fisher: { key: TEX.building('fisher'), cx: 6, cy: -10, size: 100 },
+  // Baskets heaped with olives, figs and dates in front of the hut.
+  gatherer: { key: TEX.building('gatherer'), cx: 6, cy: -6, size: 92 },
   // The sanctuary, white and gold, framed by the court walls.
   temple: { key: TEX.building('temple'), cx: 0, cy: -40, size: 320 },
 };

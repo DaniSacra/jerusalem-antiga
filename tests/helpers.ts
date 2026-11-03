@@ -8,6 +8,10 @@ import { RULES, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD
  */
 export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   const s = createGame(createRng(1));
+  // No caravan: only the altar, and a fixed food stock (tests of the caravan use createGame).
+  s.buildings = s.buildings.filter((b) => b.kind === 'altar');
+  s.grid = s.grid.map((b) => (b?.kind === 'altar' ? b : null));
+  s.food = 30;
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
@@ -49,3 +53,18 @@ export const ROADSIDE = ROAD_X - 2;
 export const westOf = (kind: BuildableKind) => ROAD_X - dimsOf(kind).w;
 /** Left column of any building touching the starting road on its east side. */
 export const EAST = ROAD_X + 1;
+
+/**
+ * Left column of a 2x2 building at rows y..y+1 that touches the river on its east side (the river
+ * runs east of the altar), with a road on row y from the starting road to it.
+ */
+export function besideRiver(s: GameState, y: number): number {
+  const riverAt = (row: number) => {
+    let x = ROAD_X + 2;
+    while (s.ground[indexOf(s, x, row)] !== 'river') x++;
+    return x;
+  };
+  const left = Math.min(riverAt(y), riverAt(y + 1)) - 2;
+  road(s, Array.from({ length: left - ROAD_X - 1 }, (_, k) => [ROAD_X + 1 + k, y] as [number, number]));
+  return left;
+}

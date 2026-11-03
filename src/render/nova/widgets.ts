@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { inRect, px, type Rect } from '../layout';
+import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS, NOVA_FONT } from '../palette';
 import { TEX, type UiIcon } from '../textures';
 import { S } from './metrics';
@@ -211,7 +211,3 @@ export function nameTag(scene: Phaser.Scene, x: number, y: number, label: string
 
 /** A rectangle registry for `isOverUi`: each entry gives its current rect, or null when hidden. */
 export type HitSource = () => Rect | null;
-export const hitAny = (sources: HitSource[], x: number, y: number) => sources.some((f) => {
-  const r = f();
-  return !!r && inRect(r, x, y);
-});

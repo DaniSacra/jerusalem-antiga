@@ -1,7 +1,15 @@
 import Phaser from 'phaser';
 import {
   BUILDINGS,
+  byRiver,
+  calendar,
   craftOf,
+  familyBlock,
+  firstHarvestWeek,
+  gatherFood,
+  harvestsIn,
+  fieldHarvest,
+  weeksToHarvest,
   houseInfo,
   housesServed,
   indexOf,
@@ -41,6 +49,8 @@ export interface InspectorHost {
   act(a: Action): void;
   demolish(cell: Cell): void;
   close(): void;
+  /** Where the balloon may go: under the top bar, and above the bottom tools when over them. */
+  limits(): { top: number; toolsRight: number; toolsTop: number };
 }
 
 const ok = (yes: boolean, label: string): Line => ({ text: `${yes ? '✓' : '✗'} ${label}`, color: yes ? NOVA_CSS.good : NOVA_CSS.bad });
@@ -72,7 +82,11 @@ function card(s: GameState, c: Cell, eco: Economy): Card | null {
         lines.push({ text: N.plotNoRoad, color: NOVA_CSS.bad });
         action = { label: N.where.road, kind: 'road', target: b };
       } else if (s.families.some((f) => f.houseId === b.id)) lines.push({ text: N.plotComing, color: NOVA_CSS.good });
-      else lines.push({ text: N.plotWaiting }, ...(s.famine ? [{ text: N.plotFamine, color: NOVA_CSS.bad }] : []));
+      else {
+        // Waiting: and why no family comes yet, if something blocks them.
+        const block = familyBlock(s, eco);
+        lines.push({ text: N.plotWaiting }, ...(block && block !== 'wait' ? [{ text: T.familyBlock[block], color: NOVA_CSS.bad }] : []));
+      }
       return { lines, foot, building: b, action, demolish: true };
     }
     lines.push({ text: h.next ? N.next(h.name, h.next.name) : `${h.name} · ${N.top}`, size: S.num });
@@ -113,11 +127,30 @@ function card(s: GameState, c: Cell, eco: Economy): Card | null {
     const served = housesServed(s, b);
     if (served !== null) lines.push({ text: N.serves(served) });
     if (def.jobs) lines.push({ text: T.nova.jobs(def.jobs) + (eco.efficiency < 1 && eco.efficiency > 0 ? ` · ${N.efficiency(Math.round(eco.efficiency * 100))}` : '') });
-    if (def.food || def.silver) lines.push({ text: N.makes((def.food ?? 0) * eco.efficiency, (def.silver ?? 0) * eco.efficiency) });
+    if (def.silver) lines.push({ text: N.makes(def.silver * eco.efficiency) });
     if (def.jobs && eco.efficiency === 0) lines.push({ text: N.noWorkers, color: NOVA_CSS.bad });
   }
+  lines.push(...foodLines(s, b, eco));
   if (def.upkeep) lines.push({ text: N.upkeep(def.upkeep, upkeepCharged(s)), color: NOVA_CSS.gold });
   return { lines, foot, building: b, action, demolish: !def.protected };
+}
+
+/** Field, fisher, gatherer and granary: when it harvests, what it yields, what it keeps. */
+function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
+  const def = BUILDINGS[b.kind];
+  const N = T.nova;
+  const out: Line[] = [];
+  if (def.harvest) {
+    if (b.connected && harvestsIn(b, s.week)) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * eco.efficiency), color: NOVA_CSS.good });
+    else out.push({ text: N.harvestYear(calendar(Math.max(firstHarvestWeek(b.built), s.week + weeksToHarvest(s.week))).year), color: NOVA_CSS.good });
+    if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, color: NOVA_CSS.good } : { text: N.inspect.droughtDry, color: NOVA_CSS.warn });
+  }
+  if (def.gather && b.connected) {
+    const n = gatherFood(s, b) * eco.efficiency;
+    out.push(n > 0 ? { text: N.yields(n), color: NOVA_CSS.good } : { text: '✗ ' + N.inspect.noSource[def.gather.source], color: NOVA_CSS.bad });
+  }
+  if (def.storage) out.push({ text: N.stores(def.storage), color: b.connected ? NOVA_CSS.text : NOVA_CSS.muted });
+  return out;
 }
 
 /**
@@ -222,7 +255,10 @@ export class Inspector {
       const btnH = S.btn + S.labelH + px(10);
       this.side = right + w <= W - S.col - px(30) || left < S.margin + S.side + px(10) ? 'right' : 'left';
       const x = this.side === 'right' ? right : left;
-      const y = Math.max(S.margin + S.level, Math.min(H - S.margin - h - btnH, p.y - h / 2));
+      // Under the top bar, and above the bottom tools when it would reach them (never hides a control).
+      const lim = this.host.limits();
+      const bottom = x < lim.toolsRight ? lim.toolsTop - S.gap : H - S.margin;
+      const y = Math.max(lim.top + S.gap, Math.min(bottom - h - btnH, p.y - h / 2));
       return { x, y, arrow: { side: this.side === 'right' ? ('left' as const) : ('right' as const), at: p.y - y } };
     };
   }

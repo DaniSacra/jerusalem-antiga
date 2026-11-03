@@ -2,14 +2,194 @@
 
 Mantido pelo game-director. As regras e os números completos ficam em `docs/GAME_DESIGN.md`.
 
-## Pilares
-1. Simples: uma pessoa entende o jogo em menos de 1 minuto.
-2. Cidade viva: gente andando pelas ruas, casas evoluindo, coisas se mexendo.
-3. A diversão é posicionar bem: o bairro inteiro sobe de nível quando o lugar é bom.
-4. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a mecânica.
-5. Uma mecânica nova por vez, sempre liberada por meta.
+## Pilares (vigentes desde 2026-11-03, virada para sobrevivência)
+Novos, pedidos pelo usuário (vêm primeiro):
+1. Sobrevivência com recuperação: a tensão vem de comida, água, abrigo e
+   pessoas; a prata é o meio de construir. Perder gente dói, mas sempre dá
+   para se recuperar.
+2. Ritmo contemplativo: tempo em semanas, crescimento lento, mas cada
+   crescimento é conquistado e cada ação tem peso.
+3. Ciclo do ano: preparar (outono e primavera), resistir (verão seco e
+   inverno frio), recuperar, crescer.
 
-## Estado atual (após o pacote "Manutenção e falência", 2026-11-02)
+Mantidos:
+4. Simples: uma pessoa entende o jogo em menos de 1 minuto.
+5. Cidade viva: gente andando pelas ruas, casas evoluindo, coisas se mexendo.
+6. A diversão é posicionar bem: o bairro inteiro sobe de nível quando o lugar
+   é bom (agora também: rio, bosque e poço bem escolhidos salvam o inverno).
+7. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a
+   mecânica.
+8. Uma mecânica nova por vez, sempre liberada por meta. Exceção registrada:
+   o Pacote 1 da sobrevivência entra como bloco (decisão do usuário).
+
+## Em andamento: Pacote 1 "Ritmo em semanas + estações com colheita e celeiro"
+Aprovado pelo usuário em 2026-11-03; o game-director fechou os pontos abertos
+no mesmo dia e o pacote segue sem nova aprovação. Regras e números completos
+em `docs/GAME_DESIGN.md`. Sem sim-tester, playtester e fun-critic nesta
+entrega (pedido do usuário).
+
+Pilares: cria os pilares 1–3. Fortalece o 6 (rio, bosque e campo junto ao
+rio pesam). Risco para o 4 (mais regras: colheita, celeiro, estoque, seca,
+porta das famílias): controlado por uma frase de motivo para cada bloqueio e
+pela previsão "até a colheita". Quebra o 8 por decisão do usuário.
+
+### 1. Tempo em semanas
+- 1 passo = 1 semana; 13 semanas por estação, 52 por ano
+  (`weeksPerSeason` 13, `weekSeconds` 2,5; 1 ano = 130 s em 1x)
+- O jogo e o ano começam no **outono** (o ano agrícola): Ano 1 = outono,
+  inverno, primavera, verão; o Ano 2 começa no outono seguinte
+- Renomear month → week em core, dados, testes e textos (`weeksToChange`,
+  `debtWeeksToLose`, `familyCellsPerWeek`, `weekSeconds` …). Valores por passo
+  iguais, salvo os ajustes abaixo
+- Topo: "Outono · Ano 1 · Semana 3" (1–13). Vitória e derrota com "N anos e
+  N semanas". Estatísticas com gráficos das últimas 52 semanas
+
+### 2. Abertura variável
+- Prata 180. Custos: Rua 2, Casa 20, Campo 30, Poço 40, Pescador 25,
+  Coletora 25, Celeiro 60, Mercado 80, Oficina 70, Jardim 50, Templo 800
+- Caravana sorteada pela seed: 2–4 famílias já em tendas (casas comuns de
+  nível 1, de graça) encostadas no anel do altar; comida para 10–20 semanas do
+  consumo delas, cortada em 40 (sem celeiro). Frase de abertura com os números
+  reais: "A caravana chegou com 3 famílias e comida para 14 semanas"
+- Terreno sorteado: distância do rio, rochas e árvores variam por seed;
+  sempre há um bosque denso (requisito do gerador, ver Mapa)
+- Liberados no início: Rua, Casa, Campo, Poço, Pescador, Coletora
+- Manutenção só depois do objetivo 2 (igual)
+- Famílias novas só chegam se TODAS as casas (terrenos também) estiverem no
+  raio de um poço ligado e a previsão disser que a comida dura até a próxima
+  colheita; no máximo 1 a cada 2 semanas (`familyIntervalWeeks` 2), com chance
+  `familyChance` 0,6 por semana × fator da alegria. Sai a regra das 3 famílias
+  garantidas. Sem família por causa da porta: aviso com o motivo
+- Alvo: fim do Ano 1 com 6–10 casas
+
+### 3. Colheita
+- Campo semeia no outono, cresce no inverno, colhe nas 13 semanas da
+  primavera: 156 por ano (`harvest` 156 → 12 por semana × eficiência).
+  Mantém "1 campo alimenta 15 moradores de tenda" (antes 3 × 48 = 144)
+- Campo construído no outono colhe na primavera do mesmo ano; depois do
+  outono, só no ano seguinte. Prévia: "colhe na primavera do ano N"
+- O campo mantém 2 vagas e 1 prata por semana o ano todo (sem vagas que
+  somem no verão: o desemprego não piscaria a cada estação)
+
+### 4. Celeiro
+- Liberado pelo objetivo 3 "Primeira colheita". 3 x 3, 1 vaga, custo 60,
+  manutenção 2/sem, guarda 150. Sem celeiro a cidade guarda 40
+  (`baseFoodStorage`); celeiros ligados somam. O que passa do limite estraga,
+  com aviso "Comida estragando: construa um celeiro"
+- A capacidade não depende da vaga preenchida (comida guardada não some por
+  falta de gente); celeiro desligado não guarda
+
+### 5. Pesca e coleta (decisão a do usuário, forma escolhida pelo diretor)
+- Duas construções baratas com a MESMA regra: rendem pelas células do
+  recurso dentro do raio, com teto. 2 x 2, 1 vaga, custo 25, manutenção 1,
+  comida toda semana do ano (sem colheita, sem celeiro)
+  - Pescador: células de rio no raio 2 × 0,25, máximo 1,5/sem
+  - Coletora: árvores no raio 3 × 0,1, máximo 1,5/sem (bosque denso enche)
+- Construir em qualquer lugar (como as outras); rendendo 0, balão "longe do
+  rio" ou "sem árvores". Prévia mostra "Rende N comida/sem" (pilar 6)
+- Por que assim: uma regra só, dois botões fáceis de entender; o rio longe
+  custa rua e o bosque perto vale ouro, então a abertura pesa
+
+### 6. Previsão e avisos
+- Uma função pura de previsão semana a semana (consumo atual, pesca e coleta,
+  colheita dos campos semeados, seca já anunciada, limite de estoque) até o
+  começo da próxima colheita. Calculada uma vez por semana
+- Pílula de comida: "até a colheita" quando chega, senão "até o <estação>"
+- Avisos (Avisos e lista de problemas): comida não chega à colheita (toast no
+  começo do verão), comida estragando, "O inverno está chegando. Tendas sofrem
+  com o frio." (3 últimas semanas do outono, com tendas), seca anunciada,
+  motivo de não virem famílias
+
+### 7. Inverno e seca
+- Inverno com fome: tenda sai com 0,35/sem (`winterFamineLeaveChance`);
+  fora do inverno, como hoje (tenda 0,2; barro ou melhor cai de nível com
+  0,12 e nunca vai embora)
+- Ano seco sorteado pela seed (25%), nunca no Ano 1, nunca dois seguidos;
+  anunciado no 1º dia do inverno; colheita × 0,4, exceto campos encostados no
+  rio. O visual de seca do render passa a seguir o core
+
+### 8. Marcos
+- Primeira família, primeira casa de barro, primeira colheita, primeiro
+  inverno vencido, primeira casa de pedra, primeiro ano sem fome. Brilho,
+  moradores reunidos, 1 frase, sem pausar; lista nas Estatísticas
+
+### 9. Interface Clássica sai
+- Fica só a Nova. Sai a opção "Interface" das Configurações, o código e os
+  cenários visuais da Clássica, e a seção dela em `docs/GAME_DESIGN.md`
+
+### Objetivos
+| # | Texto | Alvo | Prêmio | Libera |
+|---|---|---|---|---|
+| 1 | Prepare o primeiro inverno | comida até a primavera do Ano 1 | +20 | – |
+| 2 | Água para todas as casas | todas no raio de um poço, mín. 4 casas | +30 | (manutenção começa) |
+| 3 | Primeira colheita | 12 de comida colhida | +30 | Celeiro |
+| 4 | Construa o celeiro | 1 ligado | +40 | – |
+| 5 | Tenha 6 casas de barro | 6 | +40 | Mercado |
+| 6 | Chegue a 50 moradores | 50 | +50 | Oficina |
+| 7 | O povo precisa de trabalho: 2 oficinas | 2 | +50 | Jardim |
+| 8 | Tenha 6 casas de pedra | 6 | +80 | – |
+| 9 | Chegue a 150 moradores | 150 | +120 | – |
+| 10 | Tenha 4 casas grandes | 4 | +150 | Templo |
+| 11 | Construa o Templo | 1 | vitória | – |
+
+- Objetivo 1 se cumpre quando a previsão chega à primavera do Ano 1, ou ao
+  chegar a primavera (o inverno passou; quem passou fome já pagou com tendas)
+- Objetivo 3 conta a comida colhida acumulada (vale mesmo se a colheita
+  acontecer antes de o objetivo 3 ser o atual)
+- Pescador e Coletora nascem liberados: sem eles o 1º inverno é fome certa
+
+### Números em `src/data`
+- `rules.json`: `weekSeconds` 2,5; `weeksPerSeason` 13; `startSeason`
+  "autumn"; `startSilver` 180; `caravan` { `minFamilies` 2, `maxFamilies` 4,
+  `minFoodWeeks` 10, `maxFoodWeeks` 20 }; `baseFoodStorage` 40;
+  `familyIntervalWeeks` 2; `familyChance` 0,6; `familyCellsPerWeek` 6; sai
+  `guaranteedFamilies` e `earlyFamilySpeedMultiplier`; `weeksToChange` 3;
+  `famineLeaveChance` 0,2; `winterFamineLeaveChance` 0,35;
+  `famineDropChance` 0,12; `debtWeeksToLose` 24; `drought` { `chance` 0,25,
+  `harvestFactor` 0,4, `safeYears` 1, `neverTwice` true };
+  `winterWarningWeeks` 3; `historyWeeks` 52; `startUnlocked` + "fisher",
+  "gatherer"; `map` com faixas (abaixo)
+- `rules.json > map`: `rocks` [35, 65], `olives` [45, 75], `palms` [35, 65],
+  `river.distance` [8, 18] (células da borda do altar até o rio),
+  `denseGrove` { `min` 1, `trees` 18, `radius` 3, `distance` [11, 20] }
+- `buildings.json`: custos novos; campo `harvest` 156 (sai `food` 3);
+  `granary` { 60, upkeep 2, 3 x 3, jobs 1, `storage` 150, supply };
+  `fisher` { 25, upkeep 1, 2 x 2, jobs 1, `gather` { `source` "river",
+  `radius` 2, `perCell` 0,25, `max` 1,5 }, supply }; `gatherer` { 25, upkeep
+  1, 2 x 2, jobs 1, `gather` { `source` "trees", `radius` 3, `perCell` 0,1,
+  `max` 1,5 }, supply }
+- `goals.json`: a tabela acima (tipos novos `foodUntilSpring`, `water`,
+  `harvest`)
+- `tutorial.json`: passos refeitos (poço, rua até rio ou bosque, pescador ou
+  coletora, campo, casa, família chegando); mini passos iguais
+- `visual.json`: fases das estações em 13 semanas; sai
+  `seasons.years.droughtChance` (a neve continua só visual); estágios do
+  campo; enchimento do celeiro; marcos
+- `walkers.json`: carregador campo → celeiro na primavera; pescador
+- `houses.json`: sem mudança
+
+### Fora deste pacote
+Madeira (o bosque denso só prepara), pasto, festa, caravana como evento,
+outros eventos, pedidos, história, frio sem fome, pesca e coleta por
+estação, vender ou comprar comida, oficina entristece vizinhos, festa na
+praça, categorias desligadas (com 10 construções elas passam a valer).
+
+### Riscos para o usuário observar no teste
+- Ano 1 apertado demais: prata 180 com custos dobrados e rua até o rio
+- Objetivo 3 trava um ano inteiro se o jogador não construir campo no
+  outono do Ano 1 (o tutorial e a prévia avisam)
+- Celeiros no fim do jogo: 150 moradores comem ~1.900 por ano; guardar 39
+  semanas pede ~8–10 celeiros 3 x 3 (mapa e prata). Se pesar, subir `storage`
+- Pesca e coleta empilham (dois pescadores contam o mesmo rio): podem
+  dispensar campos. Se acontecer, baixar `max` ou `perCell`
+- Porta das famílias fechada por muito tempo na primavera antes do celeiro
+  (limite 40): crescimento pode parar e parecer quebrado; o motivo tem que
+  estar visível
+- Seca de 25% com 0,4: um ano seco sem campo junto ao rio pode virar espiral
+- Coluna com 10 construções liga as categorias (um toque a mais)
+
+## Estado anterior à sobrevivência (após "Manutenção e falência", 2026-11-02)
+Histórico. O que mudou no Pacote 1 da sobrevivência vale acima.
 - Mapa 48 x 48. Altar 4 x 4 fixo no centro (canto em 22,22), cercado por um anel
   de rua (x e y de 21 a 26), e uma rua inicial na coluna 24 do anel até a entrada
   da cidade na borda sul (24,47); 41 células de rua de graça
@@ -90,7 +270,7 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   - avisos numa lista do core (`alerts`), mostrados como etiquetas empilhadas
     abaixo da barra, nesta ordem: dívida ("A cidade está em dívida: N meses"),
     saldo negativo ("Gastando mais do que ganha: maior custo Mercados 9/mês;
-    demolir serviços que atendem poucas casas"), desemprego
+    use Demolir em serviços que atendem poucas casas"), desemprego
   - tocar na prata mostra na linha de informação: impostos, oficinas,
     manutenção por tipo e saldo
   - dica e prévia da ferramenta: "Mercado: 40 prata, 3/mês"; Ver numa
@@ -98,7 +278,7 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
   - valor da prata: normal com saldo ≥ 0, laranja com saldo do mês negativo,
     vermelho piscando em dívida
 - Em dívida e com fome ao mesmo tempo, a etiqueta de dívida troca a dica para
-  "Dívida e fome: demolir serviços para pagar um campo"
+  "Dívida e fome: demolir serviços corta a manutenção"
 - Equilíbrio medido (100 seeds): Eficiente vence 100/100 sem dívida, mês 56;
   Comum vence 96/100, 82 com saldo negativo e 36 em dívida recuperada, mês 94;
   Distraído perde 81/100
@@ -357,6 +537,39 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-03 — Virada para sobrevivência (usuário): pilares novos 1–3 vêm
+  antes dos antigos; Pacote 1 "Ritmo em semanas + estações com colheita e
+  celeiro" aprovado como bloco. Motivo: o usuário quer tensão de comida, água
+  e abrigo no ciclo do ano.
+- 2026-11-03 — Tick = semana também no código; substitui "no código continua
+  `month`" e "Ano = tick ÷ 48 + 1, Sem 1–12". Ano = semana ÷ 52 + 1, começa
+  no outono. Motivo: 13 semanas por estação dão um ano verdadeiro de 52.
+- 2026-11-03 — Fonte fora da colheita = Pescador e Coletora com uma regra
+  só (recurso no raio × taxa, com teto 1,5). Motivo: do outono à primavera
+  são 26 semanas e a comida inicial dura no máximo 20; uma regra em dois
+  botões é o mais simples e faz rio e bosque pesarem na abertura.
+- 2026-11-03 — Campo 156 por ano (12/sem na primavera), não 144. Motivo:
+  mantém "1 campo = 15 moradores de tenda" com o ano de 52 semanas.
+- 2026-11-03 — Campo com vagas e prata o ano todo. Motivo: vagas sazonais
+  fariam o desemprego aparecer e sumir a cada estação (pilar 4).
+- 2026-11-03 — Celeiro guarda mesmo sem a vaga preenchida. Motivo: comida
+  sumindo por falta de gente seria punição sem explicação.
+- 2026-11-03 — Porta das famílias conta todas as casas, terrenos também.
+  Motivo: uma condição só e uma frase só ("N casas sem água").
+- 2026-11-03 — Caravana em tendas comuns de graça (sem tipo "provisória").
+  Motivo: KISS; "provisória" é só a frase da abertura.
+- 2026-11-03 — Seca 25% por ano, nunca no Ano 1 nem dois anos seguidos.
+  Motivo: o 1º ano ensina; dois secos seguidos tirariam a recuperação (pilar 1).
+- 2026-11-03 — Custos dobrados também em Mercado (80), Oficina (70) e Jardim
+  (50); Templo fica 800. Motivo: mesma proporção das construções básicas que
+  o usuário dobrou; o Templo já é o destino da prata.
+- 2026-11-03 — Meta "80 moradores" sai e 20 vira 50. Motivo: com a porta
+  das famílias o crescimento é lento; 11 objetivos já dão vários anos.
+- 2026-11-03 — Comida inicial cortada em 40 (usuário, decisão b); a frase
+  mostra as semanas reais.
+- 2026-11-03 — Interface Clássica sai (usuário, decisão c).
+- 2026-11-03 — Todo mapa tem ao menos um bosque denso (usuário, decisão e),
+  preparando a madeira; madeira fica fora deste pacote.
 - 2026-11-03 — Pacote "Interface D" (pedido do usuário): Nova padrão, Clássica
   como opção, só interface. Motivo: mapa mais livre no celular deitado e
   balões que explicam a construção tocada (pilares 1 e 3).
@@ -588,6 +801,18 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   humor (pilares 2 e 3). Falta medir com o sim-tester (duração e Distraído).
 
 ## Próximos candidatos
+Depois do Pacote 1 da sobrevivência (e de medir com sim-tester, playtester e
+fun-critic), em ordem, um por vez:
+1. Madeira: coleta no bosque denso e uso em construções
+2. Eventos leves (festa, caravana)
+3. Pedidos dos moradores
+4. Pasto, só se for diferente do campo
+5. História de Esdras e Neemias (ARA), só depois do playtest aprovar
+6. Painel de estatísticas, parte 3: principais problemas com dicas
+
+A lista abaixo é a de antes da virada; os itens já absorvidos (seca,
+celeiro, gráficos) saem dela, o resto será reavaliado depois do playtest.
+
 Em ordem, um pacote por vez (detalhes em `docs/revisoes/2026-11-02/plano.md`).
 - P2 "Ver antes de construir" (sem mecânica nova): conexão visível, áreas de
   poço e mercado com a ferramenta Casa, "aqui: até Casa de barro", menos

@@ -1,29 +1,53 @@
 import Phaser from 'phaser';
-import { alerts, indexOf, type Cell, type Economy, type GameState, type Placeable } from '../../core';
-import type { Speed } from '../Hud';
-import type { Segment } from '../info';
+import {
+  BUILDINGS,
+  calendar,
+  dimsOf,
+  firstHarvestWeek,
+  gatherFood,
+  indexOf,
+  type BuildingCategory,
+  type Building,
+  type Cell,
+  type Economy,
+  type GameState,
+  type MilestoneId,
+  type Placeable,
+} from '../../core';
 import { px, setNovaSpot } from '../layout';
-import type { UiMode } from '../settings';
+import { originFor } from '../MapView';
 import { T } from '../strings';
-import { Toasts, type Tone } from '../Toasts';
-import type { Tool } from '../tools';
+import { HEIGHT, TEX } from '../textures';
+import { Toasts, type ToastOptions, type Tone } from '../Toasts';
+import { COLUMN_ORDER, type Speed, type Tool } from '../tools';
 import { TutorialView, type TutorialTarget } from '../Tutorial';
-import type { ButtonSpot, UiView } from '../uiView';
 import type { UiHost } from '../../scenes/UIScene';
-import { BuildColumn, COLUMN_ORDER } from './BuildColumn';
+import { BuildColumn } from './BuildColumn';
 import { Inspector } from './Inspector';
-import { H, S } from './metrics';
+import { H, S, W } from './metrics';
+import { notices, type Notice } from './notices';
 import { Panels, type PanelArea } from './Panels';
 import { Tools, type PanelKind } from './Tools';
 import { TopBar } from './TopBar';
 import { darkPanel, ntext } from './widgets';
+
+/** Where a tool button is, for the tutorial arrow: center, size and the side the arrow comes from. */
+export interface ButtonSpot {
+  x: number;
+  y: number;
+  w: number;
+  side: 'left' | 'right' | 'bottom';
+}
+
+/** Taps this close to a control count as on it (the gaps between buttons never reach the map). */
+const SLOP = px(8);
 
 /**
  * Interface Nova: thin dark bars over the map, everything touchable round. Top bar (level, stats,
  * goal, season, speed, gear), side buttons (Objetivos, Avisos, Estatísticas), bottom tools (Mover,
  * Rua, Demolir), the build column at the right, balloons for the chosen and the tapped building.
  */
-export class NovaUi implements UiView {
+export class NovaUi {
   private top: TopBar;
   private column: BuildColumn;
   private tools: Tools;
@@ -31,16 +55,20 @@ export class NovaUi implements UiView {
   private inspector: Inspector;
   private toasts: Toasts;
   private tutorial: TutorialView;
-  private treeTag: Phaser.GameObjects.Container;
-  private treeText: Phaser.GameObjects.Text;
-  private treeBg: Phaser.GameObjects.Graphics;
+  /** Pill over the map cell under the pointer: "Cortar árvore · 5 prata", "Rende N comida/sem", "Colhe na primavera do ano N". */
+  private tag: Phaser.GameObjects.Container;
+  private tagText: Phaser.GameObjects.Text;
+  private tagBg: Phaser.GameObjects.Graphics;
+  private tagKey = '';
+  private tagAt: { x: number; y: number; w: number; h: number; lift: number } | null = null;
   private hover: Cell | null = null;
   private state: GameState | null = null;
   private tool: Tool = 'view';
   private allowed: ReadonlySet<Tool> | null = null;
+  private list: Notice[] = [];
 
-  constructor(scene: Phaser.Scene, private host: UiHost, onInterface: (mode: UiMode) => void) {
-    this.column = new BuildColumn(scene, (kind) => host.selectTool(kind));
+  constructor(scene: Phaser.Scene, private host: UiHost) {
+    this.column = new BuildColumn(scene, (kind) => host.selectTool(kind), () => this.top.rightBottom);
     this.top = new TopBar(scene, this.column.rect.x, {
       onGoals: () => this.togglePanel('goals'),
       onStats: () => this.togglePanel('stats'),
@@ -49,7 +77,6 @@ export class NovaUi implements UiView {
     });
     this.tools = new Tools(scene, (p) => this.togglePanel(p), (t) => host.selectTool(t));
     this.panels = new Panels(scene, (k) => this.panelArea(k), {
-      onUi: (mode) => onInterface(mode),
       onTurn: (dir) => host.turnMap(dir),
       onSettings: () => host.applySettings(),
     });
@@ -58,23 +85,23 @@ export class NovaUi implements UiView {
       act: (a) => host.showSpots(a.kind, a.target),
       demolish: (c) => host.demolishAt(c),
       close: () => host.deselect(),
+      limits: () => ({ top: this.top.bottom, toolsRight: this.tools.bottomRight + S.gap, toolsTop: this.tools.top }),
     });
     // Toasts and the tutorial bubble at the bottom, between the tools and the column.
     const left = this.tools.bottomRight + S.gap;
     const right = this.column.rect.x - S.gap;
-    // Toasts above the bottom tools, so a long one never covers a button.
-    this.toasts = new Toasts(scene, H - S.margin - S.labelH - S.tool - 2 * S.gap - 20);
+    // Toasts above the bottom tools, so a long one never covers a button; centered, so they never reach the column.
+    const half = Math.min(W / 2 - S.margin, right - W / 2);
+    this.toasts = new Toasts(scene, this.tools.top - S.gap * 2, 2 * half);
     this.tutorial = new TutorialView(scene, () => host.skipTutorial(), () => host.tutorialOk(), {
       cx: (left + right) / 2,
       bottom: H - S.margin,
       maxW: right - left,
       scale: Math.max(1, px(44) / 44),
     });
-    this.treeBg = scene.add.graphics();
-    this.treeText = ntext(scene, 0, 0, T.nova.cutTree, S.small).setOrigin(0.5);
-    this.treeTag = scene.add.container(0, 0, [this.treeBg, this.treeText]).setDepth(30).setVisible(false);
-    const tw = this.treeText.width + px(16);
-    darkPanel(this.treeBg, -tw / 2, -S.labelH / 2 - px(2), tw, S.labelH + px(4));
+    this.tagBg = scene.add.graphics();
+    this.tagText = ntext(scene, 0, 0, '', S.small).setOrigin(0.5);
+    this.tag = scene.add.container(0, 0, [this.tagBg, this.tagText]).setDepth(30).setVisible(false);
 
     // Where everything is, for the visual tests (window.layout.novaPoint).
     const spot = (b: { x: number; y: number; w: number } | null) => (b ? { x: b.x, y: b.y, d: b.w } : null);
@@ -98,19 +125,20 @@ export class NovaUi implements UiView {
 
   private togglePanel(kind: PanelKind) {
     this.panels.toggle(kind);
-    if (this.state) this.tools.refresh(this.tool, this.allowed, alerts(this.state), this.panels.open);
+    this.tools.refresh(this.tool, this.allowed, this.list, this.panels.open);
   }
 
-  /** Side panels open right of the side buttons; settings under the gear. */
+  /** Side panels open right of the side buttons, settings under the gear; both end above the bottom tools. */
   private panelArea(kind: PanelKind): PanelArea {
     const right = this.column.rect.x - S.gap;
+    const bottom = this.tools.top - S.gap;
     if (kind === 'settings') {
-      const y = S.margin + S.btn + S.gap;
-      return { x: S.margin, y, maxW: right - S.margin, maxH: H - y - S.margin, alignRight: true };
+      const y = this.top.rightBottom + S.gap;
+      return { x: S.margin, y, maxW: right - S.margin, maxH: bottom - y, alignRight: true };
     }
     const x = this.tools.sideRight + S.gap * 2;
     const y = this.tools.sideTop;
-    return { x, y, maxW: right - x, maxH: H - y - S.margin };
+    return { x, y, maxW: right - x, maxH: bottom - y };
   }
 
   refresh(s: GameState, eco: Economy, speed: Speed, tool: Tool, allowed: ReadonlySet<Tool> | null, selected: Cell | null) {
@@ -119,17 +147,12 @@ export class NovaUi implements UiView {
     this.allowed = allowed;
     this.top.refresh(s, eco, speed);
     this.column.refresh(s, tool, allowed);
-    const list = alerts(s);
-    for (const a of this.tools.newAlerts(list)) this.toasts.show(T.alert(a), a.kind === 'debt' ? 'bad' : 'info');
-    this.tools.refresh(tool, allowed, list, this.panels.open);
-    this.panels.refresh(s, eco);
+    this.list = notices(s, eco);
+    for (const n of this.tools.newAlerts(this.list)) if (n.toast) this.toasts.show(n.text, n.bad ? 'bad' : 'info');
+    this.tools.refresh(tool, allowed, this.list, this.panels.open);
+    this.panels.refresh({ s, e: eco, notices: this.list });
     this.inspector.refresh(s, eco, tool === 'view' ? selected : null);
-  }
-
-  setInfo(_segments: Segment[]) {}
-
-  hint(msg: string, bad: boolean) {
-    this.toasts.show(msg, bad ? 'bad' : 'info');
+    this.tagKey = '';
   }
 
   setTutorial(sentence: string | null, ok: boolean) {
@@ -148,7 +171,7 @@ export class NovaUi implements UiView {
     return this.top.anchor(name);
   }
 
-  isOverUi(x: number, y: number) {
+  private hit(x: number, y: number) {
     return (
       this.top.contains(x, y) ||
       this.column.contains(x, y) ||
@@ -159,7 +182,12 @@ export class NovaUi implements UiView {
     );
   }
 
-  setDayPhase(_icon: 'sun' | 'dusk' | 'moon', slow: boolean) {
+  /** On a control or within SLOP of one: a tap in the gap between two buttons never builds. */
+  isOverUi(x: number, y: number) {
+    return this.hit(x, y) || this.hit(x - SLOP, y) || this.hit(x + SLOP, y) || this.hit(x, y - SLOP) || this.hit(x, y + SLOP);
+  }
+
+  setSlow(slow: boolean) {
     this.panels.setSlow(slow);
   }
 
@@ -167,8 +195,17 @@ export class NovaUi implements UiView {
     this.top.setDrought(d);
   }
 
-  toast(msg: string, tone: Tone) {
-    this.toasts.show(msg, tone);
+  toast(msg: string, tone: Tone, opt: ToastOptions = {}) {
+    this.toasts.show(msg, tone, opt);
+  }
+
+  milestone(id: MilestoneId) {
+    this.toasts.show(T.milestone[id], 'good');
+  }
+
+  openCategory(c: BuildingCategory) {
+    this.panels.close();
+    this.column.openCategory(c);
   }
 
   unlocked(kind: Placeable) {
@@ -177,23 +214,63 @@ export class NovaUi implements UiView {
 
   setHover(cell: Cell | null) {
     this.hover = cell;
+    this.tagKey = '';
   }
 
+  /** Esc: closes the open panel or category strip (a tool's own tip or balloon goes away with the tool). */
   closeTop() {
-    return this.panels.close() || this.column.closeAll() || this.tools.closeTip();
+    return this.panels.close() || this.column.closeStrip();
   }
 
   update() {
     this.inspector.update();
-    // Demolir over a tree: "Cortar árvore · 5 prata" above it.
+    this.updateTag();
+  }
+
+  /** What the pill over the hovered cell says for the current tool, or null. */
+  private tagFor(s: GameState, c: Cell): { text: string; x: number; y: number; w: number; h: number; lift: number } | null {
+    const t = this.tool;
+    if (t === 'clear') {
+      const i = indexOf(s, c.x, c.y);
+      const tree = i >= 0 && !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
+      return tree ? { text: T.nova.cutTree, ...c, w: 1, h: 1, lift: px(40) } : null;
+    }
+    if (t === 'view' || t === 'road') return null;
+    const def = BUILDINGS[t];
+    if (!def.gather && !def.harvest) return null;
+    const o = originFor(t, c);
+    const { w, h } = dimsOf(t);
+    const lift = (HEIGHT[TEX.building(t)] ?? 40) + px(14);
+    if (def.harvest) return { text: T.nova.harvestYear(calendar(firstHarvestWeek(s.week)).year), ...o, w, h, lift };
+    const ghost: Building = { id: -1, kind: t, ...o, w, h, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: s.week };
+    return { text: T.nova.yields(gatherFood(s, ghost)), ...o, w, h, lift };
+  }
+
+  /** The hover pill follows the camera; its text is redone only when the cell, tool or city changes. */
+  private updateTag() {
     const s = this.state;
     const c = this.hover;
-    const i = s && c ? indexOf(s, c.x, c.y) : -1;
-    const tree = !!s && i >= 0 && this.tool === 'clear' && !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
-    this.treeTag.setVisible(tree);
-    if (tree) {
-      const p = this.host.cellScreen(c!.x, c!.y, 1, 1);
-      this.treeTag.setPosition(p.x, p.y - px(40) * Math.max(0.6, p.zoom));
+    if (!s || !c) {
+      this.tag.setVisible(false);
+      return;
+    }
+    const key = `${this.tool}|${c.x},${c.y}`;
+    if (key !== this.tagKey) {
+      this.tagKey = key;
+      const t = this.tagFor(s, c);
+      this.tagAt = t;
+      if (t) {
+        this.tagText.setText(t.text);
+        const tw = this.tagText.width + px(16);
+        this.tagBg.clear();
+        darkPanel(this.tagBg, -tw / 2, -S.labelH / 2 - px(2), tw, S.labelH + px(4));
+      }
+    }
+    const at = this.tagAt;
+    this.tag.setVisible(!!at);
+    if (at) {
+      const p = this.host.cellScreen(at.x, at.y, at.w, at.h);
+      this.tag.setPosition(p.x, p.y - at.lift * Math.max(0.6, p.zoom));
     }
   }
 }

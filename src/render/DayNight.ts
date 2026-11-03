@@ -49,8 +49,6 @@ export function sampleDay(t: number): DayLight {
   return { t, phase: a.phase, tint: mix(a.tint, b.tint, f), sky: mix(a.sky, b.sky, f), night, walkers: evening * (1 - (1 - w.night) * night) };
 }
 
-/** Icon shown next to the month for a phase. */
-export const phaseIcon = (p: DayPhase): 'sun' | 'dusk' | 'moon' => (p === 'night' ? 'moon' : p === 'sunset' || p === 'dawn' ? 'dusk' : 'sun');
 
 /**
  * Day and night over the map: a multiplied colour over the world (balloons, previews and the UI stay

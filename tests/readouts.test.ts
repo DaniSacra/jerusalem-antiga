@@ -5,7 +5,6 @@ import {
   checkPlace,
   cityLevel,
   computeEconomy,
-  foodRunsOut,
   goalCount,
   goalFraction,
   GOALS,
@@ -26,11 +25,25 @@ describe('city level and goal progress', () => {
   });
 
   it('progress is the share of the current goal, capped at 1', () => {
-    const s = emptyGame({ goalIndex: 0 }); // 6 houses connected to the road
+    const s = emptyGame({ goalIndex: 1 }); // water for every house, at least 4
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 29, 1);
     expect(goalFraction(s)).toBe(0);
-    for (let y = 27; y <= 31; y += 2) put(s, 'house', ROADSIDE, y, 1);
-    expect(goalFraction(s)).toBeCloseTo(3 / 6);
-    for (let y = 33; y <= 45; y += 2) put(s, 'house', ROADSIDE, y, 1);
+    put(s, 'well', EAST, 27);
+    expect(goalFraction(s)).toBeCloseTo(2 / 4);
+    put(s, 'well', EAST, 33);
+    for (let y = 31; y <= 35; y += 2) put(s, 'house', ROADSIDE, y);
+    expect(goalFraction(s)).toBe(1); // 5 of 5
+    expect(goalFraction(emptyGame({ goalIndex: 2, harvested: 40 }))).toBe(1); // 40 of 12
+  });
+
+  it('progress of the food goal follows the shrinking target, and is 1 once the spring came', () => {
+    const s = emptyGame({ goalIndex: 0, food: 6 });
+    put(s, 'house', ROADSIDE, 27, 1); // lasts 9 weeks, the spring is 26 away
+    expect(goalFraction(s)).toBeCloseTo(9 / 26);
+    s.week = 13;
+    expect(goalFraction(s)).toBeCloseTo(9 / 13);
+    s.week = 26;
     expect(goalFraction(s)).toBe(1);
   });
 
@@ -41,34 +54,16 @@ describe('city level and goal progress', () => {
 });
 
 describe('calendar', () => {
-  const perSeason = RULES.monthsPerSeason;
+  const perSeason = RULES.weeksPerSeason;
 
-  it('starts in spring of year 1, week 1', () => {
-    expect(calendar(0)).toEqual({ season: 'spring', year: 1, week: 1 });
+  it('starts in autumn of year 1, week 1', () => {
+    expect(calendar(0)).toEqual({ season: 'autumn', year: 1, week: 1 });
   });
 
   it('counts the week inside the season and the year after four seasons', () => {
-    expect(calendar(perSeason - 1)).toEqual({ season: 'spring', year: 1, week: perSeason });
-    expect(calendar(perSeason)).toEqual({ season: 'summer', year: 1, week: 1 });
-    expect(calendar(4 * perSeason + 4)).toEqual({ season: 'spring', year: 2, week: 5 });
-  });
-});
-
-describe('food forecast', () => {
-  it('is null while the food is not dropping', () => {
-    expect(foodRunsOut(50, 0, 0)).toBeNull();
-    expect(foodRunsOut(50, 3, 0)).toBeNull();
-  });
-
-  it('gives the months left and the season the food runs out in', () => {
-    // 86 food at -2 per month lasts 43 months: from month 0 that is month 43, in winter (12 per season).
-    expect(foodRunsOut(86, -2, 0)).toEqual({ months: 43, season: 'winter' });
-    expect(foodRunsOut(5, -2, 10)).toEqual({ months: 2, season: 'summer' });
-  });
-
-  it('is 0 months when the food is already gone', () => {
-    expect(foodRunsOut(0, -1, 0)).toEqual({ months: 0, season: 'spring' });
-    expect(foodRunsOut(-4, -1, 0)?.months).toBe(0);
+    expect(calendar(perSeason - 1)).toEqual({ season: 'autumn', year: 1, week: perSeason });
+    expect(calendar(perSeason)).toEqual({ season: 'winter', year: 1, week: 1 });
+    expect(calendar(4 * perSeason + 4)).toEqual({ season: 'autumn', year: 2, week: 5 });
   });
 });
 
@@ -178,6 +173,7 @@ describe('food made and eaten', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 2); // 6 residents eating 0.2 each
     put(s, 'field', EAST, 27);
+    s.week = 2 * RULES.weeksPerSeason; // first spring: the field built in autumn harvests
     const e = computeEconomy(s);
     expect(e.foodEaten).toBeCloseTo(1.2);
     expect(e.foodMade).toBeCloseTo(e.foodDelta + e.foodEaten);

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { markTutorial, TUTORIAL_EXTRAS, TUTORIAL_STEPS, tutorialStepDone, type GameState, type TutorialMark, type TutorialStep } from '../core';
 import VISUAL from '../data/visual.json';
-import { GAME_W, inRect, INFO_MAX_W, INFO_Y, type Rect } from './layout';
+import { inRect, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
 import type { Tool } from './tools';
@@ -39,6 +39,8 @@ export class TutorialGuide {
   private mark: TutorialMark;
   /** Goal 2 came while the main steps were still running: the balance step follows them. */
   private upkeepPending = false;
+  /** A step with no tool waits on the city (the family step): when something blocks it, every tool is free so the player can fix it. */
+  private free = false;
 
   constructor(s: GameState) {
     this.mark = markTutorial(s);
@@ -50,11 +52,16 @@ export class TutorialGuide {
     return null;
   }
 
-  /** During the main steps only the step's tool (and Ver) can be picked. */
+  /** During the main steps only the step's tools (and Mover) can be picked. */
   allowed(): ReadonlySet<Tool> | null {
-    if (this.phase !== 'steps') return null;
-    const tool = this.step!.tool;
-    return new Set<Tool>(tool ? ['view', tool] : ['view']);
+    if (this.phase !== 'steps' || this.free) return null;
+    const { tool, alt } = this.step!;
+    return new Set<Tool>(['view', ...(tool ? [tool] : []), ...(alt ? [alt] : [])]);
+  }
+
+  /** The step waits on something the player must fix first (no family can come): frees the tools. */
+  setBlocked(blocked: boolean) {
+    this.free = blocked && this.phase === 'steps' && !this.step?.tool;
   }
 
   /** Skips finished steps. Returns 'done' when the main steps just ended, 'next' on any other change. */
@@ -92,6 +99,7 @@ export class TutorialGuide {
 
   private advance(s: GameState): 'next' | 'done' {
     this.k++;
+    this.free = false;
     this.mark = markTutorial(s);
     if (this.phase === 'steps' && this.k >= TUTORIAL_STEPS.length) {
       saveSeen();
@@ -125,9 +133,6 @@ export interface TutorialArea {
   scale?: number;
 }
 
-/** Classic: centered above the info line. */
-const CLASSIC_AREA: TutorialArea = { cx: GAME_W / 2, bottom: INFO_Y - 10, maxW: INFO_MAX_W };
-
 /** The tutorial on the UI overlay: a one-sentence bubble above the bottom of the screen and a bobbing arrow. */
 export class TutorialView {
   private root: Phaser.GameObjects.Container;
@@ -139,7 +144,7 @@ export class TutorialView {
   private rect: Rect | null = null;
   private shown = '';
 
-  constructor(scene: Phaser.Scene, onSkip: () => void, onOk: () => void, private area: TutorialArea = CLASSIC_AREA) {
+  constructor(scene: Phaser.Scene, onSkip: () => void, onOk: () => void, private area: TutorialArea) {
     this.bg = scene.add.graphics();
     this.label = text(scene, 0, 0, '', 20, CSS.ink, true).setOrigin(0, 0.5);
     this.skipBtn = new RailButton(scene, 0, 0, SKIP_W, BTN_H, [text(scene, 0, -1, T.tutorial.skip, 17, CSS.ink, true).setOrigin(0.5)], onSkip);
