@@ -2,6 +2,7 @@ import { BUILDINGS, computeEconomy, craftOf, houseInfo, indexOf, RULES, upkeepCh
 import { CSS } from './palette';
 import { fmt, T, toolHead, toolHint } from './strings';
 import type { Tool } from './tools';
+import { treeKind } from './Seasons';
 
 export type Segment = { text: string; color?: string };
 
@@ -22,7 +23,7 @@ export function describeCell(s: GameState, x: number, y: number): Segment[] {
     }
     const f = s.feature[i];
     if (f === 'rock') return [title(T.feature.rock), SEP, { text: 'não dá para construir aqui' }];
-    if (f) return [title(T.feature[f]), SEP, { text: `use Limpar para cortar (${RULES.treeClearCost} prata)` }];
+    if (f) return [title(T.feature[treeKind(f, x, y)]), SEP, { text: `use Limpar para cortar (${RULES.treeClearCost} prata)` }];
     const g = s.ground[i];
     return [title(T.ground[g]), SEP, { text: g === 'river' ? 'não dá para construir aqui' : 'livre para construir' }];
   }

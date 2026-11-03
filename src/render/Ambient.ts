@@ -5,8 +5,11 @@ import { C } from './palette';
 import { cellHash, DEPTH, depthAt, footCenter, gridToWorld, WORLD } from './iso';
 import { TEX } from './textures';
 import type { FaunaKind } from './fauna';
+import { FIELDHAND_LOOK_COUNT } from './residents';
+import { treeKind, type SeasonLook } from './Seasons';
 
 const A = VISUAL.ambient;
+const SV = VISUAL.seasons;
 const rand = Math.random;
 /** Hanging cloth colours on the laundry lines. */
 const CLOTHS = [C.red, 0x5a7fb5, C.gold, 0xf4f0e6, 0x9a6ab0, 0x7fa65a];
@@ -37,13 +40,22 @@ interface Mover {
   lane?: Map<number, number>;
 }
 
+/** Someone picking olives or figs: beating the branches with a stick, or stooping to gather. */
+interface Picker {
+  img: Phaser.GameObjects.Image;
+  look: number;
+  beat: boolean;
+  phase: number;
+}
+
 interface Group {
   movers: Mover[];
   extra: Phaser.GameObjects.GameObject[];
   cloths: Phaser.GameObjects.Image[];
+  pickers: Picker[];
 }
 
-const empty = (): Group => ({ movers: [], extra: [], cloths: [] });
+const empty = (): Group => ({ movers: [], extra: [], cloths: [], pickers: [] });
 
 /**
  * Life around the city, only for looks: goats and chickens by the tents, donkeys tied by the
@@ -56,6 +68,9 @@ export class Ambient {
   private groups = new Map<string, Group>();
   private clouds: Phaser.GameObjects.Image[] = [];
   private animals = 0;
+  /** Olive and fig harvest in autumn (pickers by the trees near the city). */
+  private harvest = false;
+  private last: GameState | null = null;
 
   constructor(
     private scene: Phaser.Scene,
@@ -78,6 +93,7 @@ export class Ambient {
   }
 
   sync(s: GameState) {
+    this.last = s;
     const want = new Set<string>();
     const keep = (key: string, make: () => Group) => {
       want.add(key);
@@ -153,6 +169,27 @@ export class Ambient {
     }
     for (let k = 0; k < A.boats; k++) keep(`b${k}`, () => this.boat(s, k, dist));
 
+    // Autumn: pickers by the olive and fig trees closest to the city, a few cells apart.
+    if (this.harvest) {
+      const trees: { x: number; y: number }[] = [];
+      for (let y = 0; y < s.rows; y++) {
+        for (let x = 0; x < s.cols; x++) {
+          const f = s.feature[indexOf(s, x, y)];
+          if (f && nearCity(x, y) && (treeKind(f, x, y) === 'olive' || treeKind(f, x, y) === 'fig')) trees.push({ x, y });
+        }
+      }
+      trees.sort((a, b) => dist(a.x, a.y) - dist(b.x, b.y) || cellHash(a.x, a.y) - cellHash(b.x, b.y));
+      const picked: typeof trees = [];
+      for (const t of trees) {
+        if (picked.length >= SV.harvesters) break;
+        if (picked.some((o) => Math.abs(o.x - t.x) + Math.abs(o.y - t.y) < 3)) continue;
+        const spot = [[0, 1], [1, 0], [-1, 0], [0, -1]].find(([dx, dy]) => free(t.x + dx, t.y + dy));
+        if (!spot) continue;
+        picked.push(t);
+        keep(`h${t.x},${t.y}`, () => this.pickers(t.x, t.y, spot[0], spot[1]));
+      }
+    }
+
     for (const [key, g] of this.groups) {
       if (want.has(key)) continue;
       this.animals -= g.movers.length;
@@ -161,16 +198,28 @@ export class Ambient {
     }
   }
 
-  /** `t` seconds (real), `dt` game seconds (0 when paused), `night` 0..1, `overcast` 0..1 (rain or snow). */
-  update(t: number, dt: number, night: number, overcast = 0) {
+  /** `t` seconds (real), `dt` game seconds (0 when paused), `night` 0..1, `overcast` 0..1 (cloudy season, rain or snow). */
+  update(t: number, dt: number, night: number, overcast: number, look: SeasonLook) {
+    const [a0, a1] = SV.weather.cloudAlpha;
+    const alpha = (a0 + (a1 - a0) * overcast) * (1 - night);
     for (const c of this.clouds) {
       c.x += dt * (9 + 10 * overcast);
       if (c.x > WORLD.right + 600) c.x = WORLD.left - 600;
-      c.setAlpha((0.09 + 0.1 * overcast) * (1 - night));
+      c.setAlpha(alpha);
+    }
+    if (look.harvest !== this.harvest) {
+      this.harvest = look.harvest;
+      if (this.last) this.sync(this.last);
     }
     for (const g of this.groups.values()) {
       for (const m of g.movers) this.move(m, t, dt);
       g.cloths.forEach((c, k) => c.setAngle(Math.sin(t * 2.4 + k * 1.3 + c.x * 0.01) * 9));
+      for (const p of g.pickers) {
+        // Poses of the field hands: 0 and 1 a stick raised and struck (beating the branches), 2 and 3 stooping.
+        const f = (t * (p.beat ? 1.3 : 0.8) + p.phase) % 1;
+        const key = TEX.fieldhand(p.look, p.beat ? (f < 0.5 ? 0 : 1) : f < 0.6 ? 2 : 3);
+        if (p.img.texture.key !== key) p.img.setTexture(key);
+      }
     }
   }
 
@@ -289,6 +338,22 @@ export class Ambient {
     return m;
   }
 
+  /** A picker on the cell beside a tree (dx, dy toward it is the tree), with a basket of olives. */
+  private pickers(tx: number, ty: number, dx: number, dy: number): Group {
+    const gx = tx + 0.5 + dx * 0.62;
+    const gy = ty + 0.5 + dy * 0.62;
+    const w = gridToWorld(gx, gy);
+    const look = cellHash(tx, ty) % FIELDHAND_LOOK_COUNT;
+    const img = this.scene.add.image(w.x, w.y, TEX.fieldhand(look, 0)).setOrigin(0.5, 1).setDepth(depthAt(gx, gy) + 3);
+    // Face the tree.
+    img.setFlipX(gridToWorld(tx + 0.5, ty + 0.5).x < w.x);
+    const bx = tx + 0.5 + dx * 0.85 + 0.15;
+    const by = ty + 0.5 + dy * 0.85 + 0.15;
+    const b = gridToWorld(bx, by);
+    const basket = this.scene.add.image(b.x, b.y, TEX.basket).setOrigin(0.5, 1).setDepth(depthAt(bx, by) + 3);
+    return { ...empty(), extra: [basket], pickers: [{ img, look, beat: cellHash(tx, ty) % 3 !== 0, phase: rand() }] };
+  }
+
   /** A goat and two chickens (or just chickens) in a free cell next to a tent. */
   private yard(x: number, y: number, h: number): Group {
     const movers = [this.mover('chicken', h % 2, 'wander', x, y, 0.4, 0.5), this.mover('chicken', (h >>> 1) % 2, 'wander', x, y, 0.4, 0.5)];
@@ -365,7 +430,7 @@ export class Ambient {
         .setTint(CLOTHS[(h + i * 2) % CLOTHS.length])
         .setDepth(depth + 0.1),
     );
-    return { movers: [], extra: [g], cloths };
+    return { ...empty(), extra: [g], cloths };
   }
 
   // ---------- helpers ----------
@@ -404,5 +469,6 @@ export class Ambient {
     for (const m of g.movers) m.img.destroy();
     for (const o of g.extra) o.destroy();
     for (const c of g.cloths) c.destroy();
+    for (const p of g.pickers) p.img.destroy();
   }
 }

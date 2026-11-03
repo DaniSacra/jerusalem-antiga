@@ -204,6 +204,173 @@ async function shot(page, name, { scaffolds = false } = {}) {
   await page.screenshot({ path: `${OUT}/${name}.png` });
 }
 
+/**
+ * Sets the look of the year on a paused town: a month, the rare years (snow, drought), the weather
+ * (sky, rain level) and how wet the ground is, then waits until the map shows it (snowy copies of
+ * the textures included) and the drops are on screen.
+ */
+async function setLook(page, month, { snow = false, drought = false, sky = 'clear', level = 'medium', wet = 0 } = {}) {
+  await page.evaluate(([month, o]) => {
+    const g = window.game;
+    window.state.month = month;
+    g.seasons.force({ snow: o.snow, drought: o.drought });
+    g.weather.force(o.sky, o.sky === 'clear' ? 0 : 1, o.level);
+    g.weather.forceWet(o.wet);
+    g.refresh();
+  }, [month, { snow, drought, sky, level, wet }]);
+  // The look is applied on the next frames (a few snowy textures per frame): wait for them, not a fixed time.
+  await page.waitForFunction(
+    (m) => {
+      const map = window.game.map;
+      const M = window.core.RULES.monthsPerSeason;
+      return map.look && map.look.season === window.core.seasonOf(m) && Math.floor(map.look.at) === m % M && !map.snowDirty;
+    },
+    month,
+    { timeout: 20000 },
+  );
+}
+
+async function hideUi(page, hidden) {
+  await page.evaluate((h) => window.game.scene.setVisible(!h, 'ui'), hidden);
+  await page.waitForTimeout(150);
+}
+
+async function seasonsScenario(page, suffix) {
+  await startGame(page);
+  await buildTown(page);
+  await page.evaluate(() => {
+    window.game.setSpeed(0);
+    window.game.dayNight.setTime(0.3);
+    window.state.food = 1e4; // no famine balloons over the captures
+    // Groves around the town (buildTown clears the trees): olives (some drawn as almonds and figs) and palms.
+    const s = window.state;
+    for (let y = 8; y < 46; y++) {
+      for (let x = 2; x < 46; x++) {
+        const i = y * s.cols + x;
+        const h = (x * 7 + y * 13 + ((x * y) % 5)) % 9;
+        if (s.grid[i] || s.roads[i] || s.ground[i] === 'river' || h > 1) continue;
+        s.feature[i] = h === 0 ? 'olive' : (x + y) % 3 ? 'olive' : 'palm';
+      }
+    }
+    window.game.refresh();
+  });
+  const M = await page.evaluate(() => window.core.RULES.monthsPerSeason);
+  const look = () => page.evaluate(() => {
+    const l = window.game.map.look;
+    return { season: l.season, almond: l.almond, fig: l.fig, crop: l.crop, harvest: l.harvest, snow: l.snow, drought: l.drought, smoke: l.smoke };
+  });
+  const views = () => page.evaluate(() => [...window.game.map.views.values()].map((v) => v.main.texture.key));
+  const icon = () => page.evaluate(() => window.game.ui.hud.seasonIcon.texture.key);
+  /** The plaque's drought mark (icon and word): shown, and where, in screen px for a close capture. */
+  const droughtMark = () => page.evaluate(() => {
+    const [img, label] = window.game.ui.hud.drought;
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    return { on: img.visible && img.alpha > 0.9 && label.visible, k: r.height / window.game.scale.height, left: r.left, top: r.top, key: img.texture.key };
+  });
+
+  const seasons = [
+    ['spring', 0 * M + 5],
+    ['summer', 1 * M + 5],
+    ['autumn', 2 * M + 4],
+    ['winter', 3 * M + 3],
+  ];
+  for (const [season, month] of seasons) {
+    await setLook(page, month);
+    const l = await look();
+    assert(l.season === season, `month ${month} is ${season} (${l.season})`);
+    assert((await icon()) === `icon-${season}`, `the month shows the ${season} icon`);
+    assert(!(await droughtMark()).on, `no drought mark in a normal ${season}`);
+    if (season === 'spring') assert(l.crop === 'green', `green wheat in spring (${l.crop})`);
+    if (season === 'winter') {
+      assert(l.smoke === 1 && (await page.evaluate(() => window.game.map.smoke.emitting)), 'smoke from the houses in winter');
+      assert(l.almond === 'bare' && l.fig === 'bare', `almonds and figs bare in early winter (${l.almond}, ${l.fig})`);
+    }
+    if (season === 'autumn') {
+      assert(l.harvest, 'olive harvest in autumn');
+      const pickers = await page.evaluate(() => [...window.game.ambient.groups.values()].reduce((n, g) => n + g.pickers.length, 0));
+      assert(pickers > 0, `pickers by the olive trees (${pickers})`);
+    }
+    await page.waitForTimeout(1200); // petals and dust drift in
+    await shot(page, `seasons-${season}${suffix}`);
+    await hideUi(page, true);
+    await shot(page, `seasons-${season}-noui${suffix}`);
+    await hideUi(page, false);
+  }
+
+  // Late winter: the almond trees in bloom, figs still bare.
+  await setLook(page, 3 * M + 9);
+  const late = await look();
+  assert(late.almond === 'bloom' && late.fig === 'bare', `almond bloom in late winter (${late.almond}, ${late.fig})`);
+  await shot(page, `seasons-almond${suffix}`);
+
+  // Rain in three strengths: drops all over the screen (more the heavier), splashes, wet ground and puddles.
+  let last = 0;
+  for (const [level, wet] of [['light', 0.4], ['medium', 0.7], ['heavy', 1]]) {
+    await setLook(page, 3 * M + 2, { sky: 'rain', level, wet });
+    const drops = await page.evaluate(() => window.game.weather.rain.getAliveParticleCount());
+    assert(drops > Math.max(40, last), `rain falls (${level}: ${drops} drops, more than ${last})`);
+    last = drops;
+    const puddles = await page.evaluate(() => [...window.game.map.puddles.values()].filter((p) => p.visible && p.alpha > 0.3).length);
+    assert(puddles > 0, `puddles on the roads (${puddles})`);
+    await shot(page, `weather-rain-${level}${suffix}`);
+  }
+
+  // A snowy winter: snow on the ground, the roofs and the trees, and snow falling.
+  await setLook(page, 3 * M + 6, { snow: true, sky: 'snow' });
+  const sn = await look();
+  assert(sn.snow === 1, `snow cover in a snowy winter (${sn.snow})`);
+  const snowy = (await views()).filter((k) => k.endsWith('-snow')).length;
+  assert(snowy > 10, `roofs under snow (${snowy} buildings)`);
+  await shot(page, `weather-snow${suffix}`);
+
+  // A summer drought: cracked earth, brown grass, the river shrunk to mud banks, dry low wheat.
+  await setLook(page, 1 * M + 8, { drought: true });
+  const dr = await look();
+  assert(dr.drought === 1 && dr.crop === 'dry', `drought (${dr.drought}, ${dr.crop})`);
+  const mud = await page.evaluate(() => window.game.map.tiles.filter((t) => t.show === 'mud').length);
+  assert(mud > 20, `dry river banks (${mud} cells)`);
+  const mark = await droughtMark();
+  assert(mark.on && mark.key === 'icon-drought', `the plaque shows the drought mark (${JSON.stringify(mark)})`);
+  await shot(page, `seasons-drought${suffix}`);
+  // Close-up of the plaque: the drought mark above the season icon, nothing in the row moved.
+  const P = await page.evaluate(() => window.layout.PLAQUE);
+  await page.screenshot({ path: `${OUT}/seasons-drought-icon${suffix}.png`, clip: { x: mark.left + P.x * mark.k, y: mark.top, width: P.w * mark.k, height: (P.h + 8) * mark.k } });
+  // Zoomed out over the river: the drought's mud banks and the sky behind the diorama.
+  const cam = await page.evaluate(() => {
+    const c = window.game.cameras.main;
+    const old = { zoom: c.zoom, x: c.midPoint.x, y: c.midPoint.y };
+    const r = window.iso.gridToWorld(42, 24);
+    c.setZoom(0.5);
+    c.centerOn(r.x, r.y);
+    return old;
+  });
+  await page.waitForTimeout(300);
+  await shot(page, `seasons-drought-zoom${suffix}`);
+  await page.evaluate((o) => {
+    const c = window.game.cameras.main;
+    c.setZoom(o.zoom);
+    c.centerOn(o.x, o.y);
+  }, cam);
+  await hideUi(page, true);
+  await shot(page, `seasons-drought-noui${suffix}`);
+  await hideUi(page, false);
+
+  // Back to the seasons: one season toast when a month opens a new season.
+  await page.evaluate(([m]) => {
+    window.game.weather.force(null);
+    window.game.weather.forceWet(null);
+    window.game.seasons.force(null);
+    window.state.month = m - 1;
+    window.game.handleEvents(window.core.stepMonth(window.state, window.core.createRng(1)));
+    window.game.refresh();
+  }, [4 * M]);
+  const toasts = await page.evaluate(() => window.game.ui.toasts.list.map((t) => t.msg));
+  assert(toasts.some((m) => m.startsWith('Chegou a primavera')), `a toast announces the spring (${toasts})`);
+  await page.waitForTimeout(300);
+  assert(!(await droughtMark()).on, 'the drought mark goes away after the drought');
+  await shot(page, `seasons-toast${suffix}`);
+}
+
 /** Presses a button of the tutorial bubble ('skipBtn' or 'okBtn'). */
 async function clickTutorial(page, which) {
   const [x, y] = await page.evaluate((k) => {
@@ -556,49 +723,10 @@ const scenarios = {
     await shot(page, 'ambient-river');
   },
 
-  /** PC, paused town: each season's colours and the season icon, then rain, snow and a season toast. */
-  'seasons': {
-    context: PC,
-    async run(page) {
-      await startGame(page);
-      await buildTown(page);
-      await page.evaluate(() => {
-        window.game.setSpeed(0);
-        window.game.dayNight.setTime(0.3);
-      });
-      const M = await page.evaluate(() => window.core.RULES.monthsPerSeason);
-      for (const [k, season] of ['spring', 'summer', 'autumn', 'winter'].entries()) {
-        await page.evaluate(([m]) => {
-          window.state.month = m;
-          window.game.weather.force('clear', 0);
-          window.game.refresh();
-        }, [k * M + 3]);
-        await page.waitForTimeout(2500); // petals, dust and leaves drift in
-        const icon = await page.evaluate(() => window.game.ui.hud.seasonIcon.texture.key);
-        assert(icon === `icon-${season}`, `the month shows the ${season} icon (${icon})`);
-        await shot(page, `seasons-${season}`);
-      }
-      await page.evaluate(() => window.game.weather.force('rain'));
-      await page.waitForTimeout(1200);
-      const rain = await page.evaluate(() => window.game.weather.rain.getAliveParticleCount());
-      assert(rain > 20, `rain falls (${rain} drops)`);
-      await shot(page, 'weather-rain');
-      await page.evaluate(() => window.game.weather.force('snow'));
-      await page.waitForTimeout(2500);
-      await shot(page, 'weather-snow');
-      // Back to the seasons: one season toast when a month opens a new season.
-      await page.evaluate(([m]) => {
-        window.game.weather.force(null);
-        window.state.month = m - 1;
-        window.game.handleEvents(window.core.stepMonth(window.state, window.core.createRng(1)));
-        window.game.refresh();
-      }, [4 * M]);
-      const toasts = await page.evaluate(() => window.game.ui.toasts.list.map((t) => t.msg));
-      assert(toasts.some((m) => m.startsWith('Chegou a primavera')), `a toast announces the spring (${toasts})`);
-      await page.waitForTimeout(300);
-      await shot(page, 'seasons-toast');
-    },
-  },
+  /** PC, paused town: every season, late-winter almond bloom, rain light / medium / heavy, snow and drought, with and without the UI. */
+  'seasons': { context: PC, run: (page) => seasonsScenario(page, '') },
+  /** The same on a landscape phone (844 x 390). */
+  'seasons-phone': { context: PHONE, run: (page) => seasonsScenario(page, '-phone') },
 
   async 'town-art'(page) {
     await startGame(page);

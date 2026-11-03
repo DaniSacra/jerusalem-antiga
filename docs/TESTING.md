@@ -66,7 +66,8 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `families-arrive` | terrenos ao lado da rua em 3x; espera família andando e tenda pronta | `families-walking`, `families-arrived` |
 | `happiness` | pausado, cidade de `buildTown` com jardim e comida: carinha da placa segue o humor; toque na carinha mostra o detalhe; casa ao lado do jardim (motivos na linha de informação); fome deixa a carinha triste e põe balões tristes; prévia do Jardim com raio | `happiness-breakdown`, `happiness-house`, `happiness-sad`, `overlay-garden` |
 | `ambient` | cidade de `buildTown` de manhã: galinhas, jumentos, pombas, barcos, lavadeiras, ovelhas e varais existem, nenhum bicho com textura faltando (`__MISSING`); zoom no rio perto do primeiro barco | `ambient-town`, `ambient-river` |
-| `seasons` | PC, cidade de `buildTown` pausada: cores das 4 estações e ícone da estação na placa; chuva forçada (gotas caindo), neve forçada; toast da primavera ao virar o ano | `seasons-spring`, `seasons-summer`, `seasons-autumn`, `seasons-winter`, `weather-rain`, `weather-snow`, `seasons-toast` |
+| `seasons` | PC, cidade de `buildTown` pausada com bosques em volta: as 4 estações (ícone certo, sem aviso de seca, trigo verde na primavera, fumaça e árvores peladas no inverno, catadores no outono), com e sem a interface; amendoeiras floridas no fim do inverno; chuva fraca, média e forte (mais gotas a cada nível, poças nas ruas); inverno com neve (telhados com neve); seca (rio com lama, trigo seco, aviso "Seca" visível na placa e recorte da placa; de longe, no zoom mínimo, sobre o rio); toast da primavera ao virar o ano, e o aviso de seca sumiu | `seasons-spring`, `seasons-summer`, `seasons-autumn`, `seasons-winter` (e cada uma com `-noui`), `seasons-almond`, `weather-rain-light`, `weather-rain-medium`, `weather-rain-heavy`, `weather-snow`, `seasons-drought`, `seasons-drought-icon`, `seasons-drought-noui`, `seasons-drought-zoom`, `seasons-toast` |
+| `seasons-phone` | o mesmo no celular deitado 844 x 390 | as mesmas, com `-phone` no fim |
 | `town-art` | monta uma cidade com todos os níveis e prédios (inclui jardim); templo conectado; prévias | `town-art`, `overlay-temple-preview`, `overlay-house-sacred-area` |
 | `day-night` | PC: cidade de `buildTown` pausada em manhã, tarde dourada, pôr do sol e noite (ícone certo ao lado do mês, metade dos moradores e luzes acesas à noite); painel de opções e ciclo desligado (sempre dia) | `day-night-morning`, `day-night-golden`, `day-night-sunset`, `day-night-night`, `day-night-options`, `day-night-off` |
 | `scaffold-roads` | ruas com passos de moradores (uma gasta, uma calçada, uma comum); oficina nova com andaime que some depois | `roads-wear`, `scaffold`, `scaffold-done` |
@@ -95,8 +96,12 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.layout` — posições da interface (`src/render/layout.ts`): `speedButton(k)` (0 pausa,
   1 1x, 2 3x), `leftButton(k)` (0 Ver, 1 Rua, 2 Jardim, 3 Limpar, 4 ↺, 5 ↻), `buildButton(k)` (0 Casa …
   5 Templo), `plaqueSlot(k)` (0 mês, 1 prata, 2 comida, 3 moradores, 4 felicidade, 5 trabalho), `OPTIONS`, `GOAL_Y`, `BTN`.
-  `window.game.weather.force('rain' | 'snow' | 'clear' | null)` fixa o clima (null volta ao sorteio
-  das estações). `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
+  `window.game.weather.force('rain' | 'snow' | 'clear' | null, força = 1, 'light' | 'medium' | 'heavy')`
+  fixa o clima e já enche a tela de gotas (null volta ao sorteio das estações);
+  `weather.forceWet(0..1 | null)` fixa o chão molhado e as poças; `window.game.seasons.force({ snow, drought } | null)`
+  força inverno com neve e/ou verão com seca em todos os anos (null volta ao sorteio pela semente).
+  A estação e o mês vêm de `state.month`. Em `game.map`: `look` (a aparência aplicada), `snowDirty`
+  (texturas com neve ainda sendo desenhadas), `tiles` (o que cada célula mostra), `puddles`. `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
   fantasma e `window.game.ui.tutorial` o balão (`skipBtn`, `okBtn`).
   `window.game.ui.isOverUi(x, y)` diz se um ponto está sob a interface; `window.game.ui.hud.shown`
   é o aviso mostrado e `hud.closeRect` o X dele.
@@ -142,6 +147,11 @@ async 'meu-cenario'(page) {
   `game.dayNight.current`, `game.wear.step(state, x, y)` e `game.wear.level(state, x, y)`.
 - O navegador sem placa de vídeo é lento: prefira `page.waitForFunction(...)` esperando um estado
   do jogo em vez de tempos fixos longos.
+  O Phaser limita o tempo de cada quadro (no máximo ~200 ms, e 16 ms logo depois de abrir ou
+  quando a janela perde o foco), então no Chromium lento 1 s de relógio pode ser só um punhado
+  de quadros de jogo: partículas e animações não "andam" o que o tempo fixo sugere. Era por isso
+  que a verificação "rain falls" falhava às vezes; agora `weather.force` adianta as partículas
+  e o cenário espera pela condição.
 
 ## Simulação de equilíbrio (`tools/sim`)
 

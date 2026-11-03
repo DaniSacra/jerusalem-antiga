@@ -99,6 +99,11 @@ export class UIScene extends Phaser.Scene {
     this.options.setSlow(slow);
   }
 
+  /** The drought mark on the plaque (looks only), from the season look's drought (0..1). */
+  setDrought(d: number) {
+    this.hud.setDrought(d);
+  }
+
   toast(msg: string, tone: Tone = 'info') {
     this.toasts.show(msg, tone);
   }

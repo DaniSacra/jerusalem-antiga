@@ -42,7 +42,7 @@ import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { DRAG_TOOLS, isPlaceTool, TOOLS, type Tool } from '../render/tools';
 import { Walkers } from '../render/Walkers';
-import { mulColor, seasonLook } from '../render/Seasons';
+import { mulColor, SeasonClock } from '../render/Seasons';
 import type { Weather } from '../render/Weather';
 import type { UIScene, UiHost } from './UIScene';
 
@@ -98,6 +98,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private ui: UIScene | null = null;
   /** Rain, snow and what the wind carries, on its own overlay scene (null until it starts). */
   private weather: Weather | null = null;
+  /** The look of the year (seasons, and the rare snowy winters and droughts drawn from the map seed). */
+  private seasons!: SeasonClock;
 
   private tool: Tool = 'view';
   /** Non-square buildings (the market) are placed rotated; kept between placements. */
@@ -133,7 +135,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once. */
   create(data?: { tutorial?: boolean }) {
     generateTextures(this);
-    this.rng = createRng((Math.random() * 2 ** 32) >>> 0);
+    const seed = (Math.random() * 2 ** 32) >>> 0;
+    this.rng = createRng(seed);
+    this.seasons = new SeasonClock(seed);
     this.state = createGame(this.rng);
     this.guide = data?.tutorial || !tutorialSeen() ? new TutorialGuide(this.state) : null;
     this.ghost = this.guide ? ghostRoad(this.state) : [];
@@ -189,12 +193,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepMonth(this.state, this.rng));
     if (steps) this.refresh();
-    // Seasons and weather: colours of the grass, sand and trees, a tint over the world, rain or snow.
-    const look = seasonLook(this.state.month, this.clock / RULES.monthSeconds);
-    this.map.setSeason(look);
-    this.weather?.update((delta / 1000) * speed, look, this.dayNight.degraded);
-    const wet = this.weather?.state.amount ?? 0;
-    this.dayNight.setExtraTint(mulColor(look.tint, this.weather?.tint ?? 0xffffff));
+    // Seasons and weather: the ground, trees, river and roads of the season, wet ground and
+    // puddles after rain, a tint over the world and the sky, rain or snow, heat shimmer in summer.
+    const look = this.seasons.at(this.state.month, this.clock / RULES.monthSeconds);
+    const w = this.weather;
+    w?.update((delta / 1000) * speed, look, this.dayNight.degraded);
+    this.map.setSeason(look, w?.wet ?? 0, w?.puddles ?? 0);
+    this.dayNight.setExtraTint(mulColor(look.tint, w?.tint ?? 0xffffff), mulColor(look.sky, w?.skyTint ?? 0xffffff));
+    this.dayNight.setShimmer(w && w.sky !== 'clear' ? 0 : look.shimmer);
     this.dayNight.update((delta / 1000) * speed, delta);
     const light = this.dayNight.current;
     if (this.dayNight.degraded !== this.map.degraded) {
@@ -202,10 +208,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.map.sync(this.state, this.eco.efficiency);
     }
     this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
-    this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night, wet);
+    this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night, Math.max(look.clouds, w?.clouds ?? 0), look);
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.monthSeconds, light.walkers * (this.weather?.walkers ?? 1));
     if (this.guide) this.updateTutorial(delta);
     this.ui?.setDayPhase(phaseIcon(light.phase), this.dayNight.degraded);
+    this.ui?.setDrought(look.drought);
   }
 
   // ---------- state -> view ----------

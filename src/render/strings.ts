@@ -27,6 +27,8 @@ export const T = {
     autumn: 'Chegou o outono: as primeiras chuvas',
     winter: 'Chegou o inverno: frio e chuva',
   } satisfies Record<Season, string>,
+  /** Mark on the plaque during a summer drought (looks only). */
+  drought: 'Seca',
   /** Name under the turn arrows. */
   turn: 'Girar',
   speed: (v: number) => (v === 0 ? '❚❚' : `${v}x`),
@@ -146,7 +148,8 @@ export const T = {
   lockedCost: (n: number) => `Meta ${n}`,
   lockedHint: (kind: Placeable) => `${toolName(kind)}: ${FEMININE.has(kind) ? 'liberada' : 'liberado'} ao cumprir a Meta ${unlockingGoal(kind)}.`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
-  feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira' } satisfies Record<Feature, string>,
+  /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
+  feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
   need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo', garden: 'Jardim' } satisfies Record<NeedKind, string>,
 };
 

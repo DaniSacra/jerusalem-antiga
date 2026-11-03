@@ -1,65 +1,188 @@
-import { RULES, SEASONS, type Season } from '../core';
+import { createRng, RULES, SEASONS, type Feature, type Season } from '../core';
 import VISUAL from '../data/visual.json';
+import { cellHash } from './iso';
 
-export type Drift = 'petals' | 'dust' | 'leaves' | null;
+const S = VISUAL.seasons;
+
+export type Drift = 'petals' | 'dust' | null;
+/** Leaves of the trees that change over the year (olives and palms keep theirs). */
+export type TreeState = 'bare' | 'bloom' | 'leaf' | 'yellow';
+export type CropStage = keyof typeof S.crops.stages;
+/** What a tree cell shows: olive cells are drawn as olives, almonds or figs (looks only). */
+export type TreeKind = Feature | 'almond' | 'fig';
+
+const mixCh = (a: number, b: number, s: number, f: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * f);
+const mulCh = (a: number, b: number, s: number) => Math.round((((a >> s) & 255) * ((b >> s) & 255)) / 255);
+
+/** Channel-wise blend of two colours (called every frame: no closures). */
+export const mixColor = (a: number, b: number, f: number) => (mixCh(a, b, 16, f) << 16) | (mixCh(a, b, 8, f) << 8) | mixCh(a, b, 0, f);
+
+/** Channel-wise product of two colours (two tints over each other). */
+export const mulColor = (a: number, b: number) => (mulCh(a, b, 16) << 16) | (mulCh(a, b, 8) << 8) | mulCh(a, b, 0);
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /**
- * How a season looks: its grass (blending into the next one's by `f`, 0..1), colours multiplied
- * over the world, the trees and the sand, and its weather.
+ * The rare years of a game: a snowy winter (about 1 in 5) and a summer drought. Drawn per year
+ * from the map seed, so a game is reproducible. Looks only for now; kept pure so it can move to
+ * the core when it becomes a rule.
+ */
+export interface YearLuck {
+  snow: boolean;
+  drought: boolean;
+}
+
+export function yearLuck(seed: number, year: number): YearLuck {
+  const r = createRng((seed ^ Math.imul(year + 1, 0x9e3779b1)) >>> 0);
+  return { snow: r() < S.years.snowChance, drought: r() < S.years.droughtChance };
+}
+
+/** Olive cells shown as almond or fig trees (stable per cell, shares in visual.json). */
+export function treeKind(f: Feature, x: number, y: number): TreeKind {
+  if (f !== 'olive') return f;
+  const u = ((cellHash(x, y) >>> 20) % 1000) / 1000;
+  return u < S.treeShare.almond ? 'almond' : u < S.treeShare.almond + S.treeShare.fig ? 'fig' : 'olive';
+}
+
+/**
+ * How the world looks at a moment of the year. Colours are multiplied over the world (`tint`), the
+ * camera background (`sky`), the roads, the river and the olives and palms; the grass and sand
+ * have their own textures per season, blending into the next season's over its last months
+ * (`f`, 0..1, spread cell by cell). `snow` and `drought` (0..1) cover the ground in rare years.
  */
 export interface SeasonLook {
   season: Season;
   next: Season;
   f: number;
+  /** Months into the season (0..monthsPerSeason). */
+  at: number;
   tint: number;
+  sky: number;
+  road: number;
+  water: number;
+  ripple: number;
   trees: number;
-  sand: number;
-  /** Chance that a weather spell brings rain or snow, and the share of it that is snow. */
+  /** Chance that a weather spell is wet, and the weights of light, medium and heavy rain. */
   rain: number;
-  snow: number;
+  levels: number[];
   drift: Drift;
+  /** Chimney smoke from the houses, cloud shadows and heat shimmer (0..1). */
+  smoke: number;
+  clouds: number;
+  shimmer: number;
+  almond: TreeState;
+  fig: TreeState;
+  crop: CropStage;
+  /** People pick olives and figs by the trees. */
+  harvest: boolean;
+  /** Snow cover (0..1); wet spells fall as snow while it lasts. */
+  snow: number;
+  /** Summer drought (0..1): cracked earth, brown grass, a narrower river. */
+  drought: number;
+  /** Changes only when the ground textures must change (grass blend, snow, drought). */
+  groundKey: string;
 }
 
-const LOOKS = Object.fromEntries(
-  SEASONS.map((k) => {
-    const l = VISUAL.seasons.looks[k];
-    return [k, { season: k, next: k, f: 0, tint: Number(l.tint), trees: Number(l.trees), sand: Number(l.sand), rain: l.rain, snow: l.snow, drift: l.drift as Drift }];
-  }),
-) as Record<Season, SeasonLook>;
+type Keys<T> = [number, T][];
 
-/** Channel-wise blend of two colours. */
-export const mixColor = (a: number, b: number, f: number) => {
-  const ch = (s: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * f);
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
-};
+/** Value of the last key at or before `at`. */
+function phase<T>(keys: Keys<T>, at: number): T {
+  let v = keys[0][1];
+  for (const [m, k] of keys) if (m <= at) v = k;
+  return v;
+}
 
-/** Channel-wise product of two colours (two tints over each other). */
-export const mulColor = (a: number, b: number) => {
-  const ch = (s: number) => Math.round((((a >> s) & 255) * ((b >> s) & 255)) / 255);
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
-};
+/** Piecewise linear value between keys. */
+function ramp(keys: Keys<number>, at: number): number {
+  for (let k = 0; k < keys.length - 1; k++) {
+    const [m0, v0] = keys[k];
+    const [m1, v1] = keys[k + 1];
+    if (at < m1) return at <= m0 ? v0 : v0 + ((v1 - v0) * (at - m0)) / (m1 - m0);
+  }
+  return keys[keys.length - 1][1];
+}
+
+const LOOKS = S.looks;
+const col = (s: string) => Number(s);
+const PH = S.phases as unknown as Record<'almond' | 'fig' | 'crop' | 'drift', Record<Season, Keys<string>>> & { harvest: Record<Season, Keys<number>> };
+const DROUGHT_TINT = col(S.droughtLook.tint);
+
+function buildLook(pos: number, luckOf: (year: number) => YearLuck): SeasonLook {
+  const M = RULES.monthsPerSeason;
+  const k = Math.floor(pos / M);
+  const season = SEASONS[k % SEASONS.length];
+  const next = SEASONS[(k + 1) % SEASONS.length];
+  const at = pos - k * M;
+  const luck = luckOf(Math.floor(pos / (M * SEASONS.length)));
+  const a = LOOKS[season];
+  const b = LOOKS[next];
+  const into = at - (M - S.blendMonths);
+  const f = into <= 0 ? 0 : (1 - Math.cos(Math.min(1, into / S.blendMonths) * Math.PI)) / 2;
+  const mix = (x: string, y: string) => mixColor(col(x), col(y), f);
+  const num = (x: number, y: number) => x + (y - x) * f;
+
+  const sn = S.snow;
+  const snow = season === 'winter' && luck.snow ? clamp01((at - sn.from) / sn.ramp) * clamp01((sn.to - at) / sn.ramp) : 0;
+  const dr = S.drought;
+  const drought = !luck.drought ? 0 : season === 'summer' ? clamp01((at - dr.from) / dr.ramp) : season === 'autumn' ? clamp01(1 - at / dr.fadeInAutumn) : 0;
+  const drift = phase(PH.drift[season], at);
+  const crop = phase(PH.crop[season], at) as CropStage;
+  return {
+    season,
+    next,
+    f,
+    at,
+    tint: mulColor(mix(a.tint, b.tint), mixColor(0xffffff, DROUGHT_TINT, drought)),
+    sky: mix(a.sky, b.sky),
+    road: mix(a.road, b.road),
+    water: mix(a.water, b.water),
+    ripple: mix(a.ripple, b.ripple),
+    trees: mulColor(mix(a.trees, b.trees), mixColor(0xffffff, col(S.snowLook.trees), snow)),
+    rain: ramp(a.rain as Keys<number>, at),
+    levels: a.levels,
+    drift: drought > 0.3 ? 'dust' : drift === 'none' ? null : (drift as Drift),
+    smoke: Math.max(num(a.smoke, b.smoke), snow),
+    clouds: num(a.clouds, b.clouds),
+    shimmer: num(a.shimmer, b.shimmer) * (1 + 0.5 * drought),
+    almond: phase(PH.almond[season], at) as TreeState,
+    fig: phase(PH.fig[season], at) as TreeState,
+    crop: drought > 0.5 ? 'dry' : crop,
+    harvest: phase(PH.harvest[season], at) > 0,
+    snow,
+    drought,
+    groundKey: `${season},${next},${f.toFixed(3)},${snow.toFixed(3)},${drought.toFixed(3)}`,
+  };
+}
 
 /**
- * The look at a moment of the game (month plus the fraction of the current one): the season's own
- * colours, blending into the next season over its last `blendMonths` months.
+ * The season clock of a game: the look at a moment (month plus the fraction of the current one),
+ * quantized to `stepsPerMonth`, so the same object comes back until it changes (no allocation per
+ * frame, and callers can compare by identity).
  */
-export function seasonLook(month: number, monthFrac: number): SeasonLook {
-  const M = RULES.monthsPerSeason;
-  const pos = month + monthFrac;
-  const k = Math.floor(pos / M) % SEASONS.length;
-  const a = LOOKS[SEASONS[k]];
-  const b = LOOKS[SEASONS[(k + 1) % SEASONS.length]];
-  const blend = VISUAL.seasons.blendMonths;
-  const into = (pos % M) - (M - blend);
-  if (into <= 0) return a;
-  const f = (1 - Math.cos(Math.min(1, into / blend) * Math.PI)) / 2;
-  return {
-    ...(f < 0.5 ? a : b),
-    season: a.season,
-    next: b.season,
-    f,
-    tint: mixColor(a.tint, b.tint, f),
-    trees: mixColor(a.trees, b.trees, f),
-    sand: mixColor(a.sand, b.sand, f),
-  };
+export class SeasonClock {
+  private q = -1;
+  private look!: SeasonLook;
+  /** Dev hook: fixes the rare years (null: drawn from the seed). */
+  private override: Partial<YearLuck> | null = null;
+
+  constructor(private seed: number) {}
+
+  luck(year: number): YearLuck {
+    return { ...yearLuck(this.seed, year), ...this.override };
+  }
+
+  /** Dev hook for the tests: forces a snowy winter and / or a drought every year (null: back to the seed). */
+  force(o: Partial<YearLuck> | null) {
+    this.override = o;
+    this.q = -1;
+  }
+
+  at(month: number, monthFrac: number): SeasonLook {
+    const q = Math.floor((month + monthFrac) * S.stepsPerMonth);
+    if (q !== this.q) {
+      this.q = q;
+      this.look = buildLook(q / S.stepsPerMonth, (y) => this.luck(y));
+    }
+    return this.look;
+  }
 }

@@ -13,6 +13,7 @@ import * as F from './fauna';
 import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
+import { mixColor, type TreeState } from './Seasons';
 import { drawFieldhand, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, residentSize } from './residents';
 
 type G = Phaser.GameObjects.Graphics;
@@ -21,8 +22,17 @@ type P3 = [number, number, number?];
 export const TEX = {
   /** Ground tile; `deco` adds wild flowers, a bush or pebbles (some cells only). */
   ground: (g: Ground, v: number, deco = false) => `ground-${g}-${v}${deco ? '-d' : ''}`,
-  /** Grass of a season (the map swaps them as the year turns). */
-  grass: (season: Season, v: number, deco = false) => `grass-${season}-${v}${deco ? '-d' : ''}`,
+  /** Grass and sand of a season or a drought (the map swaps them as the year turns). */
+  grass: (look: Season | 'drought', v: number, deco = false) => `grass-${look}-${v}${deco ? '-d' : ''}`,
+  sand: (look: Season | 'drought', v: number, deco = false) => `sand-${look}-${v}${deco ? '-d' : ''}`,
+  /** Snow-covered ground (snowy winters) and the dry cracked mud of a shrunken river (drought). */
+  snowGround: (v: number, deco = false) => `snow-${v}${deco ? '-d' : ''}`,
+  mud: (v: number) => `mud-${v}`,
+  /** Almond and fig trees (drawn on some olive cells) in each state of the year. */
+  tree: (kind: 'almond' | 'fig', v: number, state: TreeState) => `${kind}-${v}-${state}`,
+  /** Rain puddle on a road, and a basket of picked olives (autumn harvest). */
+  puddle: (v: number) => `puddle-${v}`,
+  basket: 'basket',
   /** Animals, boats, washerwomen and cloth (frame = colour or pose). */
   fauna: (kind: FaunaKind, frame = 0) => `fauna-${kind}-${frame}`,
   /** Street with junctions `mask`; `wear` 0 packed earth, 1 wider and lighter (busy), 2 stone paving. */
@@ -61,11 +71,11 @@ export const TEX = {
   family: 'family',
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
-  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options' | Season) => `icon-${name}`,
-  /** Weather particles: rain streak, splash ring, falling leaf and petal (snow and dust use `soft`). */
+  /** `drought`: a strong sun over cracked earth (shown next to the season icon in a drought). */
+  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options' | 'drought' | Season) => `icon-${name}`,
+  /** Weather particles: rain streak, splash ring and petal (snow and dust use `soft`). */
   rain: 'rain',
   splash: 'splash',
-  leaf: 'leaf',
   petal: 'petal',
   /** Face of a mood (plaque happiness slot). */
   mood: (m: Mood) => `mood-${m}`,
@@ -100,6 +110,11 @@ export const PARTS = {
 };
 
 const SHADOW_K = 0.016;
+
+const SL = VISUAL.seasons.snowLook;
+const SNOW = { base: Number(SL.base), shade: Number(SL.shade), roof: SL.roof };
+/** Set while drawing the snowy copy of a texture (see snowTexture). */
+let snowing = false;
 const SQRT2 = Math.SQRT2;
 
 class Pen {
@@ -141,8 +156,9 @@ class Pen {
     this.g.lineBetween(pa.x, pa.y, pb.x, pb.y);
   }
 
-  /** Flat quad on the ground (or at height z). */
+  /** Flat quad on the ground (or at height z). Snow covers the solid ones above the ground (roofs, tops). */
   rect(color: number, x0: number, y0: number, x1: number, y1: number, z = 0, alpha = 1) {
+    if (snowing && z > 0.5 && alpha > 0.9) color = mixColor(color, SNOW.base, SNOW.roof);
     this.poly(color, [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], alpha);
   }
 
@@ -211,7 +227,12 @@ function hull(pts: { x: number; y: number }[]) {
 const SMALL = { w: 108, h: 128, ax: 40, ay: 96 };
 const TILE = { w: TW + 2, h: TH + 2, ax: TW / 2 + 1, ay: TH / 2 + 1 };
 
-function make(scene: Phaser.Scene, key: string, size: { w: number; h: number; ax: number; ay: number }, draw: (p: Pen) => void, height = 0, mirror = false) {
+type Size = { w: number; h: number; ax: number; ay: number };
+/** How each texture was drawn, so a snowy copy can be drawn later. */
+const RECIPE = new Map<string, { size: Size; draw: (p: Pen) => void; height: number; mirror: boolean }>();
+
+function make(scene: Phaser.Scene, key: string, size: Size, draw: (p: Pen) => void, height = 0, mirror = false) {
+  RECIPE.set(key, { size, draw, height, mirror });
   ORIGIN[key] = [size.ax / size.w, size.ay / size.h];
   HEIGHT[key] = height;
   if (scene.textures.exists(key)) return;
@@ -220,6 +241,26 @@ function make(scene: Phaser.Scene, key: string, size: { w: number; h: number; ax
   g.generateTexture(key, size.w, size.h);
   g.destroy();
 }
+
+/**
+ * The snowy copy of a texture (roofs, tops and tree crowns under snow), drawn the first time it is
+ * asked for: snow is rare, so these are only made in snowy winters, a few at a time.
+ */
+export function snowTexture(scene: Phaser.Scene, key: string): string {
+  const r = RECIPE.get(key);
+  if (!r) return key;
+  const snowKey = `${key}-snow`;
+  snowing = true;
+  try {
+    make(scene, snowKey, r.size, r.draw, r.height, r.mirror);
+  } finally {
+    snowing = false;
+  }
+  return snowKey;
+}
+
+/** True when the snowy copy of a texture is already drawn. */
+export const hasSnowTexture = (scene: Phaser.Scene, key: string) => scene.textures.exists(`${key}-snow`);
 
 function makeFlat(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G) => void) {
   ORIGIN[key] = [0.5, 0.5];
@@ -234,39 +275,78 @@ const DIAMOND = 0.515;
 
 // ---------- ground ----------
 
-/** Grass of each season: base colour, tuft colour, flowers or leaves of the decorated tiles and frost. */
-const SEASON_GRASS: Record<Season, { base: number; tuft: number; deco: number[]; frost: boolean }> = Object.fromEntries(
-  (Object.entries(VISUAL.seasons.looks) as [Season, (typeof VISUAL.seasons.looks)['spring']][]).map(([k, l]) => [
-    k,
-    { base: Number(l.grassBase), tuft: Number(l.grassTuft), deco: l.grassDeco.map(Number), frost: k === 'winter' },
-  ]),
-) as Record<Season, { base: number; tuft: number; deco: number[]; frost: boolean }>;
+/** Ground of a season or a drought: base and tuft colours, flowers of the decorated tiles, flowers on the plain ones, cracks. */
+interface Turf {
+  base: number;
+  tuft: number;
+  deco: number[];
+  flowers: number;
+  cracks?: number;
+}
+const DL = VISUAL.seasons.droughtLook;
+const SEASON_TURF = Object.fromEntries(
+  (Object.entries(VISUAL.seasons.looks) as [Season, (typeof VISUAL.seasons.looks)['spring']][]).map(([k, l]) => {
+    const grass: Turf = { base: Number(l.grassBase), tuft: Number(l.grassTuft), deco: l.grassDeco.map(Number), flowers: l.grassFlowers };
+    const sand: Turf = { base: Number(l.sandBase), tuft: C.tuft, deco: [], flowers: 0 };
+    return [k, { grass, sand }];
+  }),
+) as Record<Season | 'drought', { grass: Turf; sand: Turf }>;
+SEASON_TURF.drought = {
+  grass: { base: Number(DL.grassBase), tuft: Number(DL.grassTuft), deco: [0xa88a58, 0x8c7048], flowers: 0, cracks: Number(DL.crack) },
+  sand: { base: Number(DL.sandBase), tuft: C.tuft, deco: [], flowers: 0, cracks: Number(DL.crack) },
+};
 /** Small tone steps between the four ground variants. */
 const VARIANT_TONE = [1, 0.985, 1.015, 0.975];
 
-function groundTile(p: Pen, kind: Ground, v: number, season: Season | null = null) {
+/** Thin dark cracks of dry earth, with a light lip on one side. */
+function cracks(p: Pen, color: number, r: () => number, n: number) {
+  for (let i = 0; i < n; i++) {
+    let x = -0.38 + r() * 0.76;
+    let y = -0.38 + r() * 0.76;
+    let a = r() * Math.PI * 2;
+    for (let k = 0; k < 3; k++) {
+      a += (r() - 0.5) * 1.6;
+      const nx = Math.max(-0.45, Math.min(0.45, x + Math.cos(a) * 0.14));
+      const ny = Math.max(-0.45, Math.min(0.45, y + Math.sin(a) * 0.14));
+      p.line(shade(color, 1.5), 1, [x, y + 0.02], [nx, ny + 0.02], 0.35);
+      p.line(color, k ? 1 : 1.4, [x, y], [nx, ny], 0.75);
+      x = nx;
+      y = ny;
+    }
+  }
+}
+
+/** A small red anemone (or other wild flower) with a dark heart. */
+function flower(p: Pen, color: number, x: number, y: number) {
+  p.ball(color, x, y, 2, 1.5);
+  p.ball(shade(color, 0.45), x, y, 2, 0.5);
+}
+
+function groundTile(p: Pen, kind: Ground, v: number, turf: Turf | null = null) {
   const r = createRng(300 + v * 7 + kind.length);
-  const sg = season && kind === 'grass' ? SEASON_GRASS[season] : null;
-  const base = sg ? shade(sg.base, VARIANT_TONE[v]) : kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
-  const tuft = sg ? sg.tuft : C.tuft;
+  const base = turf ? shade(turf.base, VARIANT_TONE[v]) : kind === 'sand' ? C.sand[v] : kind === 'grass' ? C.grass[v] : C.water;
+  const tuft = turf ? turf.tuft : C.tuft;
   p.rect(base, -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
   const spot = (m = 0.4) => [-m + r() * m * 2, -m + r() * m * 2] as const;
   if (kind === 'river') {
     p.rect(C.waterDeep, -0.2, -DIAMOND, 0.2, DIAMOND, 0, 0.35);
     return;
   }
-  // Large soft patches break the tile grid; small speckles give grain.
-  for (let i = 0; i < 2; i++) {
+  // Large soft patches break the tile grid; small speckles give grain (gentle on seasonal grass,
+  // so a green winter meadow reads clean instead of dotted).
+  const soft = !!turf && kind === 'grass';
+  for (let i = 0; i < (soft ? 3 : 2); i++) {
     const [x, y] = spot(0.25);
-    p.disc(shade(base, r() < 0.5 ? 0.96 : 1.05), x, y, 0, 0.18 + r() * 0.1, 0.55);
+    p.disc(shade(base, r() < 0.5 ? 0.95 : 1.05), x, y, 0, 0.18 + r() * 0.1, 0.55);
   }
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < (soft ? 4 : 7); i++) {
     const [x, y] = spot();
-    p.disc(shade(base, r() < 0.5 ? 0.92 : 1.08), x, y, 0, 0.03 + r() * 0.06, 0.7);
+    p.disc(shade(base, r() < 0.5 ? (soft ? 0.97 : 0.92) : soft ? 1.03 : 1.08), x, y, 0, 0.03 + r() * 0.06, 0.7);
   }
+  if (turf?.cracks) cracks(p, turf.cracks, r, kind === 'sand' ? 4 : 2);
   if (kind === 'sand') {
     // Wind ripples and a few pebbles.
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < (turf?.cracks ? 1 : 3); i++) {
       const [x, y] = spot(0.35);
       const a = p.p(x - 0.1, y + 0.02);
       const m = p.p(x, y - 0.03);
@@ -286,29 +366,71 @@ function groundTile(p: Pen, kind: Ground, v: number, season: Season | null = nul
       p.g.fillStyle(C.rockLight);
       p.g.fillEllipse(c.x, c.y, 2.6, 1.6);
     }
-  } else {
-    for (let i = 0; i < 6; i++) {
-      const [x, y] = spot();
-      const b = p.p(x, y);
-      const tall = 3 + r() * 3;
-      p.g.lineStyle(1.2, i % 3 ? tuft : shade(base, 1.22), 0.9);
-      p.g.lineBetween(b.x, b.y, b.x - 2, b.y - tall * 0.8);
-      p.g.lineBetween(b.x, b.y, b.x, b.y - tall);
-      p.g.lineBetween(b.x, b.y, b.x + 2, b.y - tall * 0.8);
-    }
-    if (v === 0) {
-      const [x, y] = spot(0.3);
-      p.ball(sg ? sg.deco[0] : 0xf2e6b0, x, y, 2, 1.1);
-      p.ball(sg ? sg.deco[1 % sg.deco.length] : 0xd98a6a, x + 0.08, y - 0.04, 2, 1.1);
-    }
-    // Winter: white frost specks.
-    if (sg?.frost) {
-      for (let i = 0; i < 10; i++) {
-        const [x, y] = spot();
-        p.disc(0xf4f8fc, x, y, 0, 0.012 + r() * 0.02, 0.8);
-      }
-    }
+    return;
   }
+  for (let i = 0; i < (turf?.cracks ? 3 : 6); i++) {
+    const [x, y] = spot();
+    const b = p.p(x, y);
+    const tall = (turf?.cracks ? 2 : 3) + r() * 3;
+    p.g.lineStyle(1.2, i % 3 ? tuft : shade(base, 1.18), 0.9);
+    p.g.lineBetween(b.x, b.y, b.x - 2, b.y - tall * 0.8);
+    p.g.lineBetween(b.x, b.y, b.x, b.y - tall);
+    p.g.lineBetween(b.x, b.y, b.x + 2, b.y - tall * 0.8);
+  }
+  if (!turf && v === 0) {
+    const [x, y] = spot(0.3);
+    p.ball(0xf2e6b0, x, y, 2, 1.1);
+    p.ball(0xd98a6a, x + 0.08, y - 0.04, 2, 1.1);
+  }
+  // Wild flowers on plain tiles too (anemones in spring), in small clusters.
+  if (turf && turf.flowers && v % 2 === 0) {
+    const [x, y] = spot(0.3);
+    for (let i = 0; i < turf.flowers; i++) flower(p, turf.deco[(i + v) % turf.deco.length], x + (r() - 0.5) * 0.22, y + (r() - 0.5) * 0.22);
+  }
+}
+
+/** Snow over the ground: soft blue-grey hollows, a few grass tips and stones poking through. */
+function snowTile(p: Pen, v: number, deco: boolean) {
+  const r = createRng(500 + v * 11);
+  const spot = (m = 0.4) => [-m + r() * m * 2, -m + r() * m * 2] as const;
+  p.rect(shade(SNOW.base, VARIANT_TONE[v]), -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
+  for (let i = 0; i < 3; i++) {
+    const [x, y] = spot(0.28);
+    p.disc(SNOW.shade, x, y, 0, 0.12 + r() * 0.12, 0.45);
+  }
+  for (let i = 0; i < 3; i++) {
+    const [x, y] = spot();
+    const b = p.p(x, y);
+    p.g.lineStyle(1, 0x7d8a6a, 0.7);
+    p.g.lineBetween(b.x, b.y, b.x - 1.5, b.y - 2.5);
+    p.g.lineBetween(b.x, b.y, b.x + 1, b.y - 3);
+  }
+  if (!deco) return;
+  const [bx, by] = spot(0.22);
+  p.ball(C.oliveDark, bx, by, 3, 3.2);
+  p.ball(SNOW.base, bx - 0.02, by - 0.02, 5, 2.6);
+}
+
+/** Dry cracked mud where the river shrank in a drought. */
+function mudTile(p: Pen, v: number) {
+  const r = createRng(600 + v * 5);
+  const mud = shade(Number(DL.mud), VARIANT_TONE[v]);
+  p.rect(mud, -DIAMOND, -DIAMOND, DIAMOND, DIAMOND);
+  // Curled plates of dried mud: light tops between dark cracks, and a few stones left by the water.
+  for (let i = 0; i < 5; i++) p.disc(shade(mud, 1.16), -0.32 + r() * 0.64, -0.32 + r() * 0.64, 0, 0.1 + r() * 0.06, 0.8);
+  cracks(p, shade(mud, 0.55), r, 6);
+  for (let i = 0; i < 2; i++) p.ball(C.rock, -0.3 + r() * 0.6, -0.3 + r() * 0.6, 0.5, 1.6);
+}
+
+/** A rain puddle on a packed-earth road: dark water with a pale reflection of the sky. */
+function puddle(p: Pen, v: number) {
+  const r = createRng(800 + v * 3);
+  const x = (r() - 0.5) * 0.16;
+  const y = (r() - 0.5) * 0.16;
+  p.disc(0x6a5a48, x, y, 0, 0.17 + v * 0.015, 0.35);
+  p.disc(0x7c8c98, x, y, 0, 0.14 + v * 0.015, 0.85);
+  p.disc(0xc4d4e0, x - 0.03, y - 0.02, 0, 0.07, 0.6);
+  p.disc(0x7c8c98, x + 0.12, y + 0.06, 0, 0.05, 0.8);
 }
 
 /**
@@ -415,6 +537,7 @@ function olive(p: Pen, v: number) {
   blobs.forEach(([x, y, r]) => p.g.fillCircle(base.x + x - 3, base.y + y - 3, r * 0.45));
   p.g.fillStyle(0x4b5a33);
   [[-6, -24], [5, -28], [2, -18], [-2, -34], [9, -21]].forEach(([x, y]) => p.g.fillCircle(base.x + x * m, base.y + y, 1.3));
+  snowCaps(p.g, blobs, base.x, base.y);
 }
 
 function palm(p: Pen, v: number) {
@@ -451,6 +574,93 @@ function palm(p: Pen, v: number) {
   }
   p.g.fillStyle(0x7a4f2a);
   [[-2, 3], [2, 4], [0, 2]].forEach(([x, y]) => p.g.fillCircle(top.x + x, top.y + y, 2.2));
+  if (snowing) {
+    p.g.fillStyle(SNOW.base, 0.9);
+    p.g.fillEllipse(top.x, top.y - 1, 16, 5);
+  }
+}
+
+/** Snow caps on round crowns (the upper part of each blob), when drawing a snowy copy. */
+function snowCaps(g: G, blobs: [number, number, number][], bx: number, by: number) {
+  if (!snowing) return;
+  g.fillStyle(SNOW.base, 0.95);
+  blobs.forEach(([x, y, r]) => g.fillEllipse(bx + x - 1, by + y - r * 0.5, r * 1.5, r * 0.8));
+}
+
+/** Branches of a bare deciduous tree from (x, y) on screen: forks drawn to `depth`, returning the tips. */
+function branches(g: G, x: number, y: number, len: number, ang: number, width: number, depth: number, color: number, r: () => number, tips: [number, number][]) {
+  const ex = x + Math.cos(ang) * len;
+  const ey = y + Math.sin(ang) * len;
+  g.lineStyle(width, color);
+  g.lineBetween(x, y, ex, ey);
+  if (depth === 0) {
+    tips.push([ex, ey]);
+    return;
+  }
+  for (const d of [-0.45, 0.42]) branches(g, ex, ey, len * (0.66 + r() * 0.12), ang + d + (r() - 0.5) * 0.3, Math.max(1, width * 0.65), depth - 1, color, r, tips);
+}
+
+/**
+ * Almond tree: a slender grey-brown tree. Bare in winter, a cloud of white and pink blossom at
+ * the end of winter (before the leaves), light green leaves from spring to autumn.
+ */
+function almond(p: Pen, v: number, state: TreeState) {
+  const r = createRng(60 + v);
+  const m = v % 2 ? -1 : 1;
+  p.disc(C.shadow, 0.26, -0.04, 0, 0.26, 0.18);
+  const b = p.p(0, 0);
+  const bark = 0x6a5446;
+  p.g.lineStyle(4, bark);
+  p.g.lineBetween(b.x, b.y, b.x + m, b.y - 12);
+  const tips: [number, number][] = [];
+  for (const a of [-2.2, -1.55, -0.95]) branches(p.g, b.x + m, b.y - 12, 9, a + m * 0.05, 2.4, 2, bark, r, tips);
+  if (state === 'bare') {
+    if (snowing) tips.forEach(([x, y]) => p.g.fillStyle(SNOW.base).fillCircle(x, y - 0.5, 1.8));
+    return;
+  }
+  const colors = state === 'bloom' ? [0xfbf6f2, 0xf6d4dc, 0xffffff, 0xeeb4c4] : [0x8fae5c, 0xa8c470, 0x7a9a4c];
+  const size = state === 'bloom' ? 3.2 : 3.6;
+  tips.forEach(([x, y], k) => {
+    for (let i = 0; i < 3; i++) {
+      p.g.fillStyle(colors[(k + i) % colors.length]);
+      p.g.fillCircle(x + (r() - 0.5) * 6, y + (r() - 0.5) * 5, size * (0.7 + r() * 0.5));
+    }
+  });
+  if (state === 'bloom') tips.forEach(([x, y]) => p.g.fillStyle(0xd86a8a).fillCircle(x + 1, y + 1, 0.9));
+  if (snowing) tips.forEach(([x, y]) => p.g.fillStyle(SNOW.base).fillCircle(x, y - 2, 2));
+}
+
+/**
+ * Fig tree: a low tree with a pale grey trunk and a wide crown of big leaves. Bare in winter,
+ * leafing out in spring, yellowing in autumn.
+ */
+function fig(p: Pen, v: number, state: TreeState) {
+  const r = createRng(80 + v);
+  const m = v % 2 ? -1 : 1;
+  p.disc(C.shadow, 0.3, -0.05, 0, 0.34, 0.2);
+  const b = p.p(0, 0);
+  const bark = 0x9a9084;
+  p.g.lineStyle(5, shade(bark, 0.8));
+  p.g.lineBetween(b.x, b.y, b.x - m, b.y - 8);
+  const tips: [number, number][] = [];
+  for (const a of [-2.6, -2, -1.15, -0.55]) branches(p.g, b.x - m, b.y - 8, 8, a, 3, 1, bark, r, tips);
+  if (state === 'bare') {
+    tips.forEach(([x, y]) => p.g.fillStyle(shade(bark, 0.8)).fillCircle(x, y, 1.4));
+    if (snowing) tips.forEach(([x, y]) => p.g.fillStyle(SNOW.base).fillCircle(x, y - 1, 2));
+    return;
+  }
+  const [dark, light] = state === 'yellow' ? [0xc0a03c, 0xe2c862] : [0x4f8a32, 0x74ac46];
+  const blobs: [number, number, number][] = tips.map(([x, y]) => [x - b.x, y - b.y, 6 + r() * 2]);
+  blobs.push([0, -18, 8]);
+  // Yellowing figs have already lost part of their leaves.
+  const keep = state === 'yellow' ? blobs.filter((_, k) => k % 3 !== 1) : blobs;
+  for (const [color, dy] of [[dark, 2], [light, 0]] as const) {
+    p.g.fillStyle(color);
+    keep.forEach(([x, y, s]) => p.g.fillCircle(b.x + x, b.y + y + dy, s));
+  }
+  p.g.fillStyle(shade(light, 1.2));
+  keep.forEach(([x, y, s]) => p.g.fillCircle(b.x + x - 2, b.y + y - 2, s * 0.35));
+  snowCaps(p.g, keep, b.x, b.y);
 }
 
 // ---------- building helpers ----------
@@ -689,14 +899,15 @@ export function scaffoldTexture(scene: Phaser.Scene, w: number, h: number): stri
 }
 
 /** Extra ground detail on some cells: wild flowers and a bush on grass, pebbles and a shrub on sand. */
-function groundDeco(p: Pen, kind: Ground, v: number, season: Season | null = null) {
+function groundDeco(p: Pen, kind: Ground, v: number, turf: Turf | null = null) {
   const r = createRng(700 + v * 13 + kind.length);
   const spot = (m: number) => [-m + r() * m * 2, -m + r() * m * 2] as const;
   if (kind === 'grass') {
-    const petals = season ? SEASON_GRASS[season].deco : [0xf2e6b0, 0xd98a6a, 0xb59ad8, 0xf4f0e6, 0xe8c040];
+    const petals = turf ? turf.deco : [0xf2e6b0, 0xd98a6a, 0xb59ad8, 0xf4f0e6, 0xe8c040];
     for (let i = 0; i < 9; i++) {
       const [x, y] = spot(0.36);
-      p.ball(petals[(i + v) % petals.length], x, y, 2, 1.1);
+      if (turf?.flowers) flower(p, petals[(i + v) % petals.length], x, y);
+      else p.ball(petals[(i + v) % petals.length], x, y, 2, 1.1);
     }
   } else {
     for (let i = 0; i < 5; i++) {
@@ -710,7 +921,7 @@ function groundDeco(p: Pen, kind: Ground, v: number, season: Season | null = nul
   const c = p.p(bx, by);
   p.g.fillStyle(C.shadow, 0.12);
   p.g.fillEllipse(c.x + 2, c.y + 1, 9, 3);
-  const leaf = kind === 'grass' ? (season === 'summer' ? 0xa89a5a : season === 'autumn' ? 0xa8823e : C.olive) : shade(C.oliveLight, 0.95);
+  const leaf = kind === 'grass' ? (turf ? shade(turf.tuft, 1.05) : C.olive) : turf?.cracks ? 0xa08a58 : shade(C.oliveLight, 0.95);
   p.ball(leaf, bx, by, 3, 3.2);
   p.ball(shade(leaf, 1.15), bx - 0.03, by - 0.02, 4.5, 2);
 }
@@ -2784,6 +2995,28 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(0xdceefa);
     g.fillCircle(20, 20, 3);
   });
+  // Drought: a fierce sun over cracked earth.
+  icon('drought', (g) => {
+    g.fillStyle(0xa8703a);
+    g.fillRect(2, 31, 36, 7);
+    g.lineStyle(1.5, 0x5e3a1c, 1);
+    for (const [x0, x1] of [[6, 11], [16, 13], [24, 29], [33, 31]]) {
+      g.lineBetween(x0, 30, x1, 34);
+      g.lineBetween(x1, 34, x0 + 2, 38);
+    }
+    g.lineStyle(3.5, 0xd8481e, 1);
+    for (let k = 0; k < 12; k++) {
+      const a = (k * Math.PI) / 6;
+      const l = k % 2 ? 12.5 : 15;
+      g.lineBetween(20 + Math.cos(a) * 9.5, 16 + Math.sin(a) * 9.5, 20 + Math.cos(a) * l, 16 + Math.sin(a) * l);
+    }
+    g.fillStyle(0xf08a24);
+    g.fillCircle(20, 16, 9);
+    g.fillStyle(0xffd24a);
+    g.fillCircle(20, 16, 5.5);
+    g.fillStyle(0xfff4c0, 0.9);
+    g.fillCircle(18, 14, 2.2);
+  });
   icon('view', (g) => {
     g.lineStyle(5, C.woodDark, 1);
     g.lineBetween(25, 25, 35, 35);
@@ -2900,15 +3133,21 @@ export function generateTextures(scene: Phaser.Scene): void {
         groundTile(p, g, v);
         groundDeco(p, g, v);
       });
-    for (const season of SEASONS)
+    for (const look of [...SEASONS, 'drought'] as const)
       for (const deco of [false, true])
-        make(scene, TEX.grass(season, v, deco), TILE, (p) => {
-          groundTile(p, 'grass', v, season);
-          if (deco) groundDeco(p, 'grass', v, season);
-        });
+        for (const kind of ['grass', 'sand'] as const)
+          make(scene, (kind === 'grass' ? TEX.grass : TEX.sand)(look, v, deco), TILE, (p) => {
+            groundTile(p, kind, v, SEASON_TURF[look][kind]);
+            if (deco) groundDeco(p, kind, v, SEASON_TURF[look][kind]);
+          });
+    for (const deco of [false, true]) make(scene, TEX.snowGround(v, deco), TILE, (p) => snowTile(p, v, deco));
+    make(scene, TEX.mud(v), TILE, (p) => mudTile(p, v));
+    make(scene, TEX.puddle(v), TILE, (p) => puddle(p, v));
     make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
+    for (const state of ['bare', 'bloom', 'leaf'] as const) make(scene, TEX.tree('almond', v, state), SMALL, (p) => almond(p, v, state), 36);
+    for (const state of ['bare', 'leaf', 'yellow'] as const) make(scene, TEX.tree('fig', v, state), SMALL, (p) => fig(p, v, state), 34);
   }
   for (let mask = 0; mask < 16; mask++) for (const wear of [0, 1, 2]) make(scene, TEX.road(mask, wear), TILE, (p) => road(p, mask, wear));
   // Every building is drawn at its real footprint: [draw, canvas height above ground, balloon height].
@@ -2953,21 +3192,24 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillCircle(16, 16, (16 * k) / 5);
     }
   });
-  raw(TEX.rain, 3, 18, (g) => {
-    g.fillStyle(0xdfe8f4, 0.35);
-    g.fillRect(0, 0, 3, 18);
-    g.fillStyle(0xffffff, 0.75);
-    g.fillRect(1, 4, 1, 14);
+  raw(TEX.rain, 4, 24, (g) => {
+    g.fillStyle(0xdfe8f4, 0.3);
+    g.fillRect(0, 0, 4, 24);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillRect(1, 5, 2, 19);
   });
   raw(TEX.splash, 16, 8, (g) => {
     g.lineStyle(1.5, 0xffffff, 0.8);
     g.strokeEllipse(8, 4, 14, 6);
   });
-  raw(TEX.leaf, 10, 6, (g) => {
-    g.fillStyle(0xffffff);
-    g.fillEllipse(5, 3, 10, 5);
-    g.lineStyle(1, 0x000000, 0.25);
-    g.lineBetween(1, 3, 9, 3);
+  ORIGIN[TEX.basket] = [0.5, 1];
+  raw(TEX.basket, 14, 10, (g) => {
+    g.fillStyle(0x7a5532);
+    g.fillEllipse(7, 6, 13, 7);
+    g.fillStyle(0xa8804e);
+    g.fillEllipse(7, 5, 12, 5);
+    g.fillStyle(0x3e4a2a);
+    for (const [x, y] of [[4, 4], [7, 3], [10, 4], [6, 5], [9, 5]]) g.fillCircle(x, y, 1.6);
   });
   raw(TEX.petal, 6, 5, (g) => {
     g.fillStyle(0xffffff);

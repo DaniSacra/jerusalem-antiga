@@ -1,10 +1,14 @@
 import Phaser from 'phaser';
+import VISUAL from '../data/visual.json';
 import { alerts, currentGoal, goalProgress, happinessOn, moodOf, seasonOf, type Alert, type Economy, type GameState } from '../core';
 import { ALERT_Y, BANNER_MAX_W, GAME_W, GOAL_H, GOAL_Y, inRect, PLAQUE, plaqueSlot, SPEED, SPEED_BTN, speedButton, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { signed, T } from './strings';
 import { TEX } from './textures';
 import { RailButton, stonePanel, text } from './ui';
+
+/** Drought strength (0..1) where the plaque's drought mark starts fading in, and over how much it gets full. */
+const DROUGHT_HUD = VISUAL.seasons.drought.hud;
 
 export const SPEEDS = [1, 3, 0] as const;
 export type Speed = (typeof SPEEDS)[number];
@@ -46,6 +50,9 @@ export class Hud {
   private face!: Phaser.GameObjects.Image;
   /** The month's icon is the season. */
   private seasonIcon!: Phaser.GameObjects.Image;
+  /** Drought mark (strong sun + "Seca") right above the season icon, in the free left end of the title row. */
+  private drought: [Phaser.GameObjects.Image, Phaser.GameObjects.Text];
+  private droughtAlpha = 0;
   /** Tap target of the happiness slot (off, like the face, until the garden is unlocked). */
   private faceZone!: Phaser.GameObjects.Zone;
   private speedButtons: [Speed, RailButton][] = [];
@@ -107,6 +114,13 @@ export class Hud {
     });
 
     this.phase = scene.add.image(0, ROW_Y, TEX.icon('sun')).setScale(0.62);
+    // Drought: its own spot, so nothing in the row moves when it shows.
+    const m = plaqueSlot(0);
+    this.drought = [
+      scene.add.image(m.x + 16, TITLE_Y + 1, TEX.icon('drought')).setScale(0.6),
+      text(scene, m.x + 32, TITLE_Y + 1, T.drought, 15, CSS.warn, true).setOrigin(0, 0.5),
+    ];
+    for (const o of this.drought) o.setAlpha(0).setVisible(false);
 
     // Goal banner: tapping shows the whole goal in the info line.
     this.goalBg = scene.add.graphics();
@@ -242,6 +256,14 @@ export class Hud {
     this.lastAlerts = alerts(state);
     for (const kind of this.dismissed) if (!this.lastAlerts.some((a) => a.kind === kind)) this.dismissed.delete(kind);
     this.showAlert();
+  }
+
+  /** Fades the drought mark in and out with the drought's strength (0..1). */
+  setDrought(d: number) {
+    const a = Math.max(0, Math.min(1, (d - DROUGHT_HUD.from) / DROUGHT_HUD.fade));
+    if (a === this.droughtAlpha) return;
+    this.droughtAlpha = a;
+    for (const o of this.drought) o.setAlpha(a).setVisible(a > 0);
   }
 
   setPhase(icon: 'sun' | 'dusk' | 'moon') {

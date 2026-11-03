@@ -28,9 +28,9 @@ import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, scaffoldTexture, setTex } from './textures';
+import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
-import type { SeasonLook } from './Seasons';
+import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
 import { FieldCrew } from './Fieldhands';
 import { Lights } from './Lights';
@@ -45,6 +45,11 @@ interface BuildingView {
   kind: BuildingKind;
   root: Phaser.GameObjects.Container;
   main: Phaser.GameObjects.Image;
+  /** Texture of the finished drawing without snow, and the house shade of mud or stone. */
+  key: string;
+  shade: number;
+  /** Wheat or barley: the crop changes with the year. */
+  grain: boolean;
   wheat: Phaser.GameObjects.Image[];
   /** Farmers working in a field. */
   crew?: FieldCrew;
@@ -86,23 +91,56 @@ const BALLOON_SCREEN_SCALE = 1.2;
 const keyOf = (b: Rect & { kind: BuildingKind; level?: number; variant?: number; mirrored?: boolean }) =>
   TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
 
-/** Houses get a small per-plot nudge and a slightly different shade of mud or stone. */
-function applyLook(img: Phaser.GameObjects.Image, b: Building) {
-  if (b.kind !== 'house') return;
+/** Houses get a small per-plot nudge and a slightly different shade of mud or stone (returned). */
+function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
+  if (b.kind !== 'house') return 0xffffff;
   const h = cellHash(b.x, b.y);
   const grey = Math.round(255 * (0.9 + ((h >>> 5) % 11) * 0.01));
-  img.setPosition((h % 5) - 2, ((h >>> 3) % 3) - 1).setTint((grey << 16) | (grey << 8) | grey);
+  img.setPosition((h % 5) - 2, ((h >>> 3) % 3) - 1);
+  return (grey << 16) | (grey << 8) | grey;
+}
+
+const SV = VISUAL.seasons;
+const WEATHER = SV.weather;
+const WET_TINT = Number(WEATHER.wetTint);
+const CROP_STAGES = Object.fromEntries(Object.entries(SV.crops.stages).map(([k, v]) => [k, { tint: Number(v.tint), scale: v.scale }])) as Record<CropStage, { tint: number; scale: number }>;
+/** Snow lies on roofs and trees once the cover passes this, and lies on a ground cell past its own threshold. */
+const ROOF_SNOW = 0.35;
+/** Snowy copies of building and tree textures drawn per frame at most (they are made on first use). */
+const SNOW_BUDGET = 3;
+
+/** A ground cell and what it shows now (texture class and tint). */
+interface Tile {
+  img: Phaser.GameObjects.Image;
+  ground: 'sand' | 'grass' | 'river';
+  v: number;
+  deco: boolean;
+  /** 0..1: when this cell changes in a blend (so changes spread over the map). */
+  turn: number;
+  /** River cells on the bank (1 = the first, 2 = the next where the river is wide) dry to mud in a drought. */
+  bank: number;
+  show: 'sand' | 'grass' | 'snow' | 'mud' | 'river';
+  key: string;
+}
+
+interface FeatureView {
+  key: string;
+  img: Phaser.GameObjects.Image;
+  sway: number;
+  tree: TreeKind;
 }
 
 /** Road texture for a cell, with its junctions turned to the current view. */
 const roadKey = (s: GameState, x: number, y: number, wear = 0) => TEX.road(viewMask(roadMask(s, x, y)), wear);
 
 export class MapView {
-  private features = new Map<number, { key: string; img: Phaser.GameObjects.Image; sway: number }>();
+  private features = new Map<number, FeatureView>();
   private roads = new Map<number, Phaser.GameObjects.Image>();
+  /** Puddles on some road cells, shown after rain. */
+  private puddles = new Map<number, Phaser.GameObjects.Image>();
   private views = new Map<number, BuildingView>();
   private balloons = new Map<number, Balloon>();
-  private riverCells: Cell[] = [];
+  private riverCells: (Cell & { tile: Tile })[] = [];
   private water: Phaser.GameObjects.Graphics;
   /** Dashed marks over roads that are not connected to the altar. */
   private looseRoads: Phaser.GameObjects.Graphics;
@@ -114,11 +152,23 @@ export class MapView {
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
   private ground: Phaser.GameObjects.GameObject[] = [];
-  /** Sand tiles (tinted by the season) and grass tiles (a texture per season; `turn` 0..1 is when each one changes). */
-  private sand: Phaser.GameObjects.Image[] = [];
-  private grass: { img: Phaser.GameObjects.Image; v: number; deco: boolean; turn: number; key: string }[] = [];
-  /** Last season colours applied (sand, trees), so tiles are only re-tinted when they change. */
-  private seasonKey = '';
+  private tiles: Tile[] = [];
+  /** The season look and wetness last applied: nothing is redone until they change. */
+  private look: SeasonLook | null = null;
+  private wetStep = -1;
+  private puddleStep = -1;
+  /** Colours applied now: roads, trees, rocks and buildings (wet roofs are darker), puddle alpha. */
+  private tints = { road: 0xffffff, trees: 0xffffff, rock: 0xffffff, build: 0xffffff, sand: 0xffffff, water: 0xffffff, ripple: C.waterLight };
+  private puddleAlpha = 0;
+  private trees: Record<'almond' | 'fig', TreeState> = { almond: 'leaf', fig: 'leaf' };
+  private crop: CropStage = 'gold';
+  /** Snow on roofs and trees; `snowDirty` while some still have to swap their texture. */
+  private snowy = false;
+  private snowDirty = false;
+  /** Chimney smoke over the houses (thicker in winter), from one emitter. */
+  private smoke: Phaser.GameObjects.Particles.ParticleEmitter;
+  private chimneys: { x: number; y: number }[] = [];
+  private smokeShare = 0;
   private lights: Lights;
   /** Set when the frame rate stayed low: no campfire sparks. */
   degraded = false;
@@ -152,6 +202,30 @@ export class MapView {
         emitting: false,
       })
       .setDepth(DEPTH.fx);
+    const chimney = new Phaser.Geom.Point();
+    this.smoke = scene.add
+      .particles(0, 0, TEX.soft, {
+        lifespan: 3200,
+        speedY: { min: -22, max: -12 },
+        speedX: { min: 5, max: 16 },
+        scale: { start: 0.5, end: 1.7 },
+        alpha: { start: 0.85, end: 0 },
+        tint: 0xd6d2ca,
+        frequency: 1000,
+        emitting: false,
+        emitZone: {
+          type: 'random',
+          source: {
+            getRandomPoint: (p: Phaser.Types.Math.Vector2Like) => {
+              const c = this.chimneys[Math.floor(Math.random() * this.chimneys.length)] ?? chimney;
+              p.x = c.x + (Math.random() - 0.5) * 6;
+              p.y = c.y;
+              return p;
+            },
+          },
+        } as Phaser.Types.GameObjects.Particles.EmitZoneData,
+      })
+      .setDepth(DEPTH.fx);
     this.sync(state, computeEconomy(state).efficiency);
     this.ready = true;
   }
@@ -178,14 +252,18 @@ export class MapView {
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         const g = s.ground[indexOf(s, x, y)];
-        if (g === 'river') this.riverCells.push({ x, y });
         const c = footCenter(x, y);
         const h = cellHash(x, y);
         const deco = g !== 'river' && ((h >>> 8) % 1000) / 1000 < VISUAL.ambient.decoShare;
-        const img = sc.add.image(c.x, c.y, TEX.ground(g, h % VARIANTS, deco)).setDepth(DEPTH.ground);
+        const key = TEX.ground(g, h % VARIANTS, deco);
+        const img = sc.add.image(c.x, c.y, key).setDepth(DEPTH.ground);
         this.ground.push(img);
-        if (g === 'sand') this.sand.push(img);
-        if (g === 'grass') this.grass.push({ img, v: h % VARIANTS, deco, turn: ((h >>> 16) % 1000) / 1000, key: '' });
+        const land = (dx: number) => x - dx >= 0 && s.ground[indexOf(s, x - dx, y)] !== 'river';
+        const wide = x + 2 < s.cols && s.ground[indexOf(s, x + 2, y)] === 'river';
+        const bank = g !== 'river' ? 0 : land(1) ? 1 : land(2) && wide ? 2 : 0;
+        const tile: Tile = { img, ground: g, v: h % VARIANTS, deco, turn: ((h >>> 16) % 1000) / 1000, bank, show: g, key };
+        this.tiles.push(tile);
+        if (g === 'river') this.riverCells.push({ x, y, tile });
       }
     }
     // Light sandy bank where land meets the river.
@@ -206,6 +284,8 @@ export class MapView {
     for (const o of this.ground) o.destroy();
     for (const f of this.features.values()) f.img.destroy();
     for (const r of this.roads.values()) r.destroy();
+    for (const r of this.puddles.values()) r.destroy();
+    this.smoke.destroy();
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
     [this.water, this.looseRoads, this.trails, this.overlay, this.preview, this.serves].forEach((o) => o.destroy());
@@ -241,21 +321,45 @@ export class MapView {
       this.balloons.delete(id);
     }
     this.lights.sync(s, (b) => HEIGHT[keyOf(b)] ?? 20, this.degraded);
+    this.chimneys = s.buildings
+      .filter((b) => b.kind === 'house')
+      .map((b) => {
+        const c = footCenter(b.x, b.y, b.w, b.h);
+        return { x: c.x, y: c.y - (HEIGHT[keyOf(b)] ?? 20) * 0.85 };
+      });
+    this.paintSmoke();
+  }
+
+  /** Texture of a tree or rock: almonds and figs follow the year. */
+  private featureKey(tree: TreeKind, x: number, y: number) {
+    const v = cellHash(x, y) % VARIANTS;
+    return tree === 'almond' || tree === 'fig' ? TEX.tree(tree, v, this.trees[tree]) : TEX.feature(tree, v);
   }
 
   private syncFeature(s: GameState, x: number, y: number) {
     const i = indexOf(s, x, y);
     const f = s.feature[i];
-    const key = f ? TEX.feature(f, cellHash(x, y) % VARIANTS) : null;
+    const tree = f ? treeKind(f, x, y) : null;
+    const key = tree ? this.featureKey(tree, x, y) : null;
     const cur = this.features.get(i);
     if (cur?.key === key) return;
     cur?.img.destroy();
     this.features.delete(i);
-    if (!key) return;
+    if (!key || !tree) return;
     const c = footCenter(x, y);
-    // Palms sway more than olives in the light wind; rocks stay still.
-    const sway = f === 'palm' ? 1.6 : f === 'olive' ? 0.7 : 0;
-    this.features.set(i, { key, img: setTex(this.scene.add.image(c.x, c.y, key), key).setDepth(depthAt(x + 0.5, y + 0.5)), sway });
+    // Palms sway more than the other trees in the light wind; rocks stay still.
+    const sway = tree === 'palm' ? 1.6 : tree === 'rock' ? 0 : 0.7;
+    const img = setTex(this.scene.add.image(c.x, c.y, key), this.dress(key)).setDepth(depthAt(x + 0.5, y + 0.5));
+    img.setTint(sway ? this.tints.trees : this.tints.rock);
+    this.features.set(i, { key, img, sway, tree });
+  }
+
+  /** The texture to show for a drawing: its snowy copy while snow lies, once it is drawn. */
+  private dress(key: string) {
+    if (!this.snowy) return key;
+    if (hasSnowTexture(this.scene, key)) return `${key}-snow`;
+    this.snowDirty = true;
+    return key;
   }
 
   private syncRoad(s: GameState, x: number, y: number) {
@@ -264,6 +368,8 @@ export class MapView {
     if (!s.roads[i]) {
       cur?.destroy();
       this.roads.delete(i);
+      this.puddles.get(i)?.destroy();
+      this.puddles.delete(i);
       return;
     }
     const key = roadKey(s, x, y, this.wear.level(s, x, y));
@@ -274,7 +380,12 @@ export class MapView {
       return;
     }
     const c = footCenter(x, y);
-    this.roads.set(i, this.scene.add.image(c.x, c.y, key).setDepth(DEPTH.road).setAlpha(alpha));
+    this.roads.set(i, this.scene.add.image(c.x, c.y, key).setDepth(DEPTH.road).setAlpha(alpha).setTint(this.tints.road));
+    const h = cellHash(x, y);
+    if (((h >>> 10) % 1000) / 1000 < WEATHER.puddleShare) {
+      const p = this.scene.add.image(c.x, c.y, TEX.puddle(h % VARIANTS)).setDepth(DEPTH.road + 0.2);
+      this.puddles.set(i, p.setAlpha(this.puddleAlpha).setVisible(this.puddleAlpha > 0));
+    }
   }
 
   /** Faded roads get a dashed center line along each arm, so "not connected" reads at a glance. */
@@ -332,13 +443,15 @@ export class MapView {
       this.views.set(b.id, v);
     }
     const key = keyOf(b);
-    if (v.main.texture.key !== key) {
+    if (v.key !== key) {
       // A house going up a level shows the scaffold briefly, then its new drawing.
       if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
-      if (!v.scaffold) setTex(v.main, key);
+      v.key = key;
+      if (!v.scaffold) setTex(v.main, this.dress(key));
     }
     v.level = b.level;
-    applyLook(v.main, b);
+    v.shade = applyLook(v.main, b);
+    v.main.setTint(mulColor(v.shade, this.tints.build));
   }
 
   /** Hides a building behind a wooden scaffold with dust for `ms`, then shows it with a little bounce. */
@@ -354,7 +467,7 @@ export class MapView {
       img.destroy();
       v.scaffold = undefined;
       parts.forEach((o) => o.active && o.setVisible(true));
-      setTex(v.main, keyOf(b));
+      setTex(v.main, this.dress(v.key));
       applyLook(v.main, b);
       this.puff(v.root.x, v.root.y, b.w * b.h);
       this.scene.tweens.add({ targets: v.root, scaleY: { from: 0.9, to: 1 }, duration: 220, ease: 'Back.easeOut' });
@@ -371,11 +484,13 @@ export class MapView {
     const c = footCenter(b.x, b.y, b.w, b.h);
     const key = keyOf(b);
     const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.w / 2, b.y + b.h / 2));
-    const main = setTex(sc.add.image(0, 0, key), key);
+    const main = setTex(sc.add.image(0, 0, key), this.dress(key));
     root.add(main);
-    const view: BuildingView = { kind: b.kind, root, main, wheat: [], level: b.level };
+    const grain = b.kind === 'field' && SV.crops.grains.includes(b.variant ?? 0);
+    const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: b.level };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
+      if (grain) this.paintCrop(view);
       root.add(view.wheat);
       view.crew = new FieldCrew(sc, root, view.wheat, b.mirrored ?? false);
     }
@@ -463,6 +578,35 @@ export class MapView {
     for (const c of cells) g.fillPoints(rectCorners(c.x, c.y, 1, 1), true);
   }
 
+  /**
+   * Free spots in green with a light dotted outline around the area, so they read over the
+   * green grass of winter and spring as well as over sand and dry grass.
+   */
+  private spots(cells: Cell[]) {
+    this.fillCells(cells, C.fits, 0.45);
+    const inside = new Set(cells.map((c) => c.y * COLS + c.x));
+    const g = this.overlay;
+    g.lineStyle(2, C.cream, 0.95);
+    const edges: [number, number, number, number, number, number][] = [
+      [0, -1, 0, 0, 1, 0],
+      [1, 0, 1, 0, 1, 1],
+      [0, 1, 0, 1, 1, 1],
+      [-1, 0, 0, 0, 0, 1],
+    ];
+    for (const c of cells) {
+      for (const [dx, dy, x0, y0, x1, y1] of edges) {
+        const nx = c.x + dx;
+        const ny = c.y + dy;
+        if (nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS && inside.has(ny * COLS + nx)) continue;
+        for (let t = 0.1; t < 1; t += 0.3) {
+          const a = gridToWorld(c.x + x0 + (x1 - x0) * t, c.y + y0 + (y1 - y0) * t);
+          const b = gridToWorld(c.x + x0 + (x1 - x0) * (t + 0.15), c.y + y0 + (y1 - y0) * (t + 0.15));
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
+      }
+    }
+  }
+
   /** Cells covered by every spot where a building of this kind fits next to the network. */
   private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
     const seen = new Set<number>();
@@ -519,8 +663,8 @@ export class MapView {
     if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.sacred), C.gold, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
-    if (tool === 'temple') this.fillCells(this.spotsArea(s, 'temple'), C.fits, 0.4);
-    if (tool === 'house' && guide?.houseSpots) this.fillCells(this.spotsArea(s, 'house'), C.fits, 0.4);
+    if (tool === 'temple') this.spots(this.spotsArea(s, 'temple'));
+    if (tool === 'house' && guide?.houseSpots) this.spots(this.spotsArea(s, 'house'));
 
     if (!hover) return;
     const o = originFor(tool, hover, rotated);
@@ -560,19 +704,122 @@ export class MapView {
   }
 
   /**
-   * The season on the map: each grass tile takes the next season's texture once the blend passes
-   * its own threshold (so the change spreads over the map), and the sand and trees get the colours.
+   * The season and the weather on the map. Grass and sand cells take the next season's texture
+   * once the blend passes their own threshold (so the change spreads over the map), and snow, a
+   * drought's cracked earth and the dry river bank spread the same way; roads, trees, the river
+   * and the buildings get the season's colours and darken while wet; puddles fill the roads after
+   * rain. Only redone when the look (quantized in time) or the quantized wetness changes.
    */
-  setSeason(look: SeasonLook) {
-    for (const t of this.grass) {
-      const key = TEX.grass(look.f > t.turn ? look.next : look.season, t.v, t.deco);
-      if (key !== t.key) t.img.setTexture((t.key = key));
+  setSeason(look: SeasonLook, wet: number, puddles: number) {
+    const wetStep = Math.round(wet * WEATHER.wetSteps);
+    const puddleStep = Math.round(puddles * WEATHER.wetSteps);
+    const prev = this.look;
+    if (look === prev && wetStep === this.wetStep && puddleStep === this.puddleStep) return;
+    this.look = look;
+    const ground = look.groundKey !== prev?.groundKey;
+    if (ground) for (const t of this.tiles) this.pickTile(t, look);
+    if (puddleStep !== this.puddleStep) {
+      this.puddleStep = puddleStep;
+      this.puddleAlpha = puddleStep / WEATHER.wetSteps;
+      for (const p of this.puddles.values()) p.setAlpha(this.puddleAlpha).setVisible(this.puddleAlpha > 0);
     }
-    const key = `${look.sand},${look.trees}`;
-    if (key === this.seasonKey) return;
-    this.seasonKey = key;
-    for (const img of this.sand) img.setTint(look.sand);
-    for (const f of this.features.values()) if (f.sway) f.img.setTint(look.trees);
+    const snowy = look.snow > ROOF_SNOW;
+    const trees = look.almond !== this.trees.almond || look.fig !== this.trees.fig;
+    if (snowy !== this.snowy || trees) {
+      this.snowy = snowy;
+      this.trees = { almond: look.almond, fig: look.fig };
+      this.redress();
+    }
+    if (look.crop !== this.crop) {
+      this.crop = look.crop;
+      for (const v of this.views.values()) if (v.grain) this.paintCrop(v);
+    }
+    if (look !== prev || wetStep !== this.wetStep || ground) {
+      this.wetStep = wetStep;
+      this.paintTints(look);
+    }
+    this.paintSmoke();
+  }
+
+  /** Texture of a ground cell for the look. */
+  private pickTile(t: Tile, look: SeasonLook) {
+    let show: Tile['show'] = t.ground;
+    let key: string;
+    if (t.ground === 'river') {
+      const dry = t.bank === 1 ? look.drought > t.turn * 0.6 : t.bank === 2 && look.drought > 0.6 + t.turn * 0.4;
+      show = dry ? 'mud' : 'river';
+      key = show === 'mud' ? TEX.mud(t.v) : TEX.ground('river', t.v);
+    } else if (look.snow > t.turn) {
+      show = 'snow';
+      key = TEX.snowGround(t.v, t.deco);
+    } else {
+      const state = look.drought > t.turn ? 'drought' : look.f > t.turn ? look.next : look.season;
+      key = (t.ground === 'grass' ? TEX.grass : TEX.sand)(state, t.v, t.deco);
+    }
+    t.show = show;
+    if (key !== t.key) t.img.setTexture((t.key = key));
+  }
+
+  /** Re-tints the ground, roads, trees and buildings for the look and the wetness. */
+  private paintTints(look: SeasonLook) {
+    const wet = mixColor(0xffffff, WET_TINT, this.wetStep / WEATHER.wetSteps);
+    const t = this.tints;
+    t.sand = wet;
+    t.water = look.water;
+    t.ripple = look.ripple;
+    t.road = mulColor(look.road, wet);
+    t.rock = wet;
+    t.trees = mulColor(look.trees, mixColor(0xffffff, wet, 0.5));
+    t.build = this.snowy ? 0xffffff : wet;
+    for (const tile of this.tiles) {
+      const tint = tile.show === 'river' ? t.water : tile.show === 'snow' || tile.show === 'mud' ? 0xffffff : t.sand;
+      if (tile.img.tintTopLeft !== tint) tile.img.setTint(tint);
+    }
+    for (const r of this.roads.values()) r.setTint(t.road);
+    for (const f of this.features.values()) f.img.setTint(f.sway ? t.trees : t.rock);
+    for (const v of this.views.values()) v.main.setTint(mulColor(v.shade, t.build));
+  }
+
+  /** Swaps trees and buildings to their texture for the year (snowy copies a few per frame, see update). */
+  private redress() {
+    for (const [i, f] of this.features) {
+      const x = i % COLS;
+      const y = Math.floor(i / COLS);
+      const key = this.featureKey(f.tree, x, y);
+      f.key = key;
+      setTex(f.img, this.dress(key));
+    }
+    for (const v of this.views.values()) if (!v.scaffold) setTex(v.main, this.dress(v.key));
+  }
+
+  /** Draws the missing snowy copies, a few per frame, and puts them on. */
+  private snowWork() {
+    if (!this.snowDirty) return;
+    let budget = SNOW_BUDGET;
+    const take = (img: Phaser.GameObjects.Image, key: string) => {
+      if (budget <= 0 || img.texture.key !== key) return;
+      if (!hasSnowTexture(this.scene, key)) budget--;
+      setTex(img, snowTexture(this.scene, key));
+    };
+    for (const f of this.features.values()) take(f.img, f.key);
+    for (const v of this.views.values()) if (!v.scaffold) take(v.main, v.key);
+    if (budget > 0) this.snowDirty = false;
+  }
+
+  /** Wheat and barley: green and low after sowing, golden at the end of spring, low and dry in a drought. */
+  private paintCrop(v: BuildingView) {
+    const st = CROP_STAGES[this.crop];
+    for (const w of v.wheat) w.setTint(st.tint).setScale(1, st.scale);
+  }
+
+  /** Chimney smoke: a little all year, from every house in winter. */
+  private paintSmoke() {
+    const per = (this.look?.smoke ?? 0) * WEATHER.smokePerHouse * (this.degraded ? 0.5 : 1);
+    const rate = per * this.chimneys.length;
+    const on = rate > 0.2;
+    if (on && rate !== this.smokeShare) this.smoke.setFrequency(1000 / rate);
+    this.smokeShare = rate;
+    if (this.smoke.emitting !== on) this.smoke.emitting = on;
   }
 
   // ---------- per-frame animation ----------
@@ -587,6 +834,7 @@ export class MapView {
     const balloonScale = Math.max(1, BALLOON_SCREEN_SCALE / zoom);
     this.serves.setScale(balloonScale);
     this.drawWater(t);
+    this.snowWork();
     this.lights.update(t, night);
     for (const f of this.features.values()) if (f.sway) f.img.setAngle(Math.sin(t * 1.3 + f.img.x * 0.03) * f.sway);
     for (const v of this.views.values()) {
@@ -609,13 +857,14 @@ export class MapView {
   private drawWater(t: number) {
     const g = this.water;
     g.clear();
-    for (const { x, y } of this.riverCells) {
+    for (const { x, y, tile } of this.riverCells) {
+      if (tile.show === 'mud') continue;
       const h = cellHash(x, y);
       const o = (t * 0.35 + (h % 100) / 100) % 1;
       const gx = x + 0.25 + ((h >>> 8) % 50) / 100;
       const a = gridToWorld(gx, y + o);
       const b = gridToWorld(gx, y + Math.min(1, o + 0.22));
-      g.lineStyle(1.6, C.waterLight, 0.75 * Math.sin(o * Math.PI));
+      g.lineStyle(1.6, this.tints.ripple, 0.75 * Math.sin(o * Math.PI));
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
   }

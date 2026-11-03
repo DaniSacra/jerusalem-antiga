@@ -3,7 +3,8 @@ import Phaser from 'phaser';
 /**
  * Image finish of the map camera in one cheap pass: a soft vignette and an optional miniature blur
  * that grows toward the top and bottom edges (the middle band stays sharp). 9 texture reads per
- * pixel at most, and none extra when the blur is off.
+ * pixel at most, and none extra when the blur is off. In summer the air shimmers with the heat
+ * (the picture wobbles a pixel or two sideways in thin bands).
  */
 const FRAG = `
 precision mediump float;
@@ -13,10 +14,17 @@ uniform float uBlur;
 uniform float uBand;
 uniform float uVignette;
 uniform float uVignetteRadius;
+uniform float uShimmer;
+uniform float uTime;
 varying vec2 outTexCoord;
 
 void main() {
   vec2 uv = outTexCoord;
+  if (uShimmer > 0.0) {
+    // Heat shimmer: thin horizontal bands of air wobbling sideways, stronger low on the screen.
+    float w = sin(uv.y * 220.0 + uTime * 5.0) * sin(uv.y * 37.0 - uTime * 1.3);
+    uv.x += w * uShimmer * (1.4 - uv.y) / uResolution.x;
+  }
   vec4 col = texture2D(uMainSampler, uv);
   if (uBlur > 0.0) {
     float edge = smoothstep(uBand, 1.0, abs(uv.y - 0.5) * 2.0);
@@ -47,6 +55,8 @@ export class FinishPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeli
   band = 0.45;
   vignette = 0.3;
   vignetteRadius = 0.55;
+  /** Heat shimmer amplitude in pixels (0 = off). */
+  shimmer = 0;
 
   constructor(game: Phaser.Game) {
     super({ game, name: FinishPipeline.KEY, fragShader: FRAG });
@@ -57,6 +67,8 @@ export class FinishPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeli
     this.set1f('uBand', this.band);
     this.set1f('uVignette', this.vignette);
     this.set1f('uVignetteRadius', this.vignetteRadius);
+    this.set1f('uShimmer', this.shimmer);
+    this.set1f('uTime', this.game.loop.time / 1000);
     this.set2f('uResolution', this.renderer.width, this.renderer.height);
   }
 }

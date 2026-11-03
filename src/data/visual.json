@@ -47,25 +47,86 @@
     "vignetteRadius": 0.5,
     "vignetteStrength": 0.28,
     "tiltBand": 0.5,
-    "tiltBlur": 3.5
+    "tiltBlur": 3.5,
+    "shimmer": 0.8
   },
   "seasons": {
     "blendMonths": 2,
-    "looks": {
-      "spring": { "tint": "0xfbfff6", "grassBase": "0xa6b45c", "grassTuft": "0x6f8a3a", "grassDeco": ["0xf7c6d6", "0xffffff", "0xe8c040", "0xd98ab0", "0xb59ad8"], "trees": "0xf0ffe8", "sand": "0xffffff", "rain": 0.3, "snow": 0, "drift": "petals" },
-      "summer": { "tint": "0xfff4dc", "grassBase": "0xd6c27c", "grassTuft": "0xb09a52", "grassDeco": ["0xe8d090", "0xc8a860"], "trees": "0xfff0c4", "sand": "0xfff6e6", "rain": 0, "snow": 0, "drift": "dust" },
-      "autumn": { "tint": "0xfcebd8", "grassBase": "0xb89a5c", "grassTuft": "0x8a6a34", "grassDeco": ["0xc8642a", "0xe0963a", "0xa8522a", "0xd8b04a"], "trees": "0xffc88a", "sand": "0xf8eee2", "rain": 0.35, "snow": 0, "drift": "leaves" },
-      "winter": { "tint": "0xe2e8f2", "grassBase": "0x9ea68c", "grassTuft": "0x76806a", "grassDeco": ["0xf4f8fc", "0xdce6ee"], "trees": "0xd2dcd8", "sand": "0xe6e8ee", "rain": 0.55, "snow": 0.4, "drift": null }
+    "stepsPerMonth": 4,
+    "years": { "snowChance": 0.2, "droughtChance": 0.3 },
+    "snow": { "from": 3, "to": 9, "ramp": 0.75 },
+    "drought": { "from": 2, "ramp": 3, "fadeInAutumn": 4, "hud": { "from": 0.25, "fade": 0.25 } },
+    "treeShare": { "almond": 0.3, "fig": 0.18 },
+    "harvesters": 6,
+    "phases": {
+      "almond":  { "spring": [[0, "bloom"], [2, "leaf"]], "summer": [[0, "leaf"]], "autumn": [[0, "leaf"], [8, "bare"]], "winter": [[0, "bare"], [7, "bloom"]] },
+      "fig":     { "spring": [[0, "bare"], [3, "leaf"]], "summer": [[0, "leaf"]], "autumn": [[0, "leaf"], [4, "yellow"]], "winter": [[0, "bare"]] },
+      "crop":    { "spring": [[0, "green"], [8, "gold"]], "summer": [[0, "straw"]], "autumn": [[0, "straw"], [9, "young"]], "winter": [[0, "young"], [6, "green"]] },
+      "drift":   { "spring": [[0, "petals"], [9, "none"]], "summer": [[0, "dust"]], "autumn": [[0, "dust"], [8, "none"]], "winter": [[0, "none"], [7, "petals"]] },
+      "harvest": { "spring": [[0, 0]], "summer": [[0, 0]], "autumn": [[0, 0], [2, 1], [11, 0]], "winter": [[0, 0]] }
     },
+    "crops": {
+      "grains": [0, 1],
+      "stages": {
+        "young": { "tint": "0x8fd06a", "scale": 0.55 },
+        "green": { "tint": "0x9ad672", "scale": 0.95 },
+        "gold":  { "tint": "0xffffff", "scale": 1 },
+        "straw": { "tint": "0xf6e6c0", "scale": 0.7 },
+        "dry":   { "tint": "0xc09a6c", "scale": 0.5 }
+      }
+    },
+    "looks": {
+      "spring": {
+        "tint": "0xfcfff4", "sky": "0xf4fcff", "rain": [[0, 0.4], [6, 0.2], [10, 0]], "levels": [0.5, 0.35, 0.15],
+        "grassBase": "0x86b84a", "grassTuft": "0x5f9434", "grassFlowers": 4, "grassDeco": ["0xd8302a", "0xe8483a", "0xffffff", "0xf2d040", "0xb07ad0", "0xd8302a"],
+        "sandBase": "0xdcc18e", "road": "0xfcf8f0", "water": "0xffffff", "ripple": "0xd0f0ff", "trees": "0xf0ffe6",
+        "smoke": 0.15, "clouds": 0.15, "shimmer": 0
+      },
+      "summer": {
+        "tint": "0xfff8e8", "sky": "0xfff6e4", "rain": [[0, 0]], "levels": [1, 0, 0],
+        "grassBase": "0xd6c07c", "grassTuft": "0xb39a56", "grassFlowers": 0, "grassDeco": ["0xe4cc8a", "0xc8a860", "0xb8945a"],
+        "sandBase": "0xf0dcae", "road": "0xfffaf0", "water": "0xe8f6ee", "ripple": "0xe8fbff", "trees": "0xf2ecc8",
+        "smoke": 0.1, "clouds": 0, "shimmer": 1
+      },
+      "autumn": {
+        "tint": "0xfaf0e0", "sky": "0xf4ece2", "rain": [[0, 0], [7, 0], [12, 0.45]], "levels": [0.6, 0.3, 0.1],
+        "grassBase": "0xbca46a", "grassTuft": "0x8f7a46", "grassFlowers": 1, "grassDeco": ["0xf4f0e6", "0xe8e2d0", "0x9a8a5a"],
+        "sandBase": "0xdcbd8a", "road": "0xf4ece0", "water": "0xdce8ee", "ripple": "0xc8e4f2", "trees": "0xeae8cc",
+        "smoke": 0.3, "clouds": 0.25, "shimmer": 0.3
+      },
+      "winter": {
+        "tint": "0xdfe5ee", "sky": "0xc4ccd8", "rain": [[0, 0.55], [12, 0.5]], "levels": [0.3, 0.4, 0.3],
+        "grassBase": "0x6faa44", "grassTuft": "0x4f8a32", "grassFlowers": 0, "grassDeco": ["0x5a9a3a", "0x8cc25a", "0xf4f4ea"],
+        "sandBase": "0xc8b48e", "road": "0xd8d0c4", "water": "0xb8c8d6", "ripple": "0xb4ccdc", "trees": "0xd6e6da",
+        "smoke": 1, "clouds": 0.55, "shimmer": 0
+      }
+    },
+    "droughtLook": { "grassBase": "0xb89a62", "grassTuft": "0x8c6e40", "sandBase": "0xecd2a0", "crack": "0x8a6a44", "mud": "0x86684a", "dust": 3, "tint": "0xfff0dc" },
+    "snowLook": { "base": "0xeef2f6", "shade": "0xd2dce8", "tint": "0xf2f4f8", "roof": 0.82, "trees": "0xe8eef0" },
     "weather": {
-      "spellSeconds": [10, 24],
+      "spellSeconds": [6, 12],
       "fadeSeconds": 2.5,
-      "rainDrops": 9,
-      "splashes": 3,
-      "snowFlakes": 4,
+      "levels": {
+        "light":  { "drops": 10, "splashes": 3,  "tint": "0xd6dce6", "sky": "0xc4ccd8", "wet": 0.05, "clouds": 0.5, "wind": 0.12 },
+        "medium": { "drops": 22, "splashes": 7,  "tint": "0xbcc4d2", "sky": "0xa4aebe", "wet": 0.1,  "clouds": 0.8, "wind": 0.2 },
+        "heavy":  { "drops": 40, "splashes": 13, "tint": "0xb4bcca", "sky": "0x95a0b4", "wet": 0.2,  "clouds": 1,   "wind": 0.3 }
+      },
+      "maxDrops": 900,
+      "degradedShare": 0.5,
+      "snowFlakes": 6,
+      "snowTint": "0xe6eaf2",
       "drifters": 1.5,
-      "rainTint": "0xbcc4d4",
-      "rainWalkers": 0.5
+      "rainWalkers": 0.5,
+      "drySeconds": 16,
+      "summerDry": 2.5,
+      "puddleFrom": 0.3,
+      "puddleRise": 0.12,
+      "puddleFall": 0.05,
+      "wetTint": "0xb8b2aa",
+      "wetSteps": 10,
+      "cloudAlpha": [0.08, 0.32],
+      "puddleShare": 0.35,
+      "smokePerHouse": 0.5
     }
   },
   "tutorial": {

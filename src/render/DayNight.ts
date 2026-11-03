@@ -70,8 +70,9 @@ export class DayNight {
   /** Off in the visual tests (software rendering is slow), so screenshots keep the finish. */
   fpsGuard = true;
   private sample = { time: 0, frames: 0 };
-  /** Season and weather colour, multiplied with the light of the time of day. */
+  /** Season and weather colours of the world and the sky, multiplied with the light of the time of day. */
   private extra = 0xffffff;
+  private extraSky = 0xffffff;
 
   constructor(private scene: Phaser.Scene) {
     const cam = scene.cameras.main;
@@ -111,9 +112,15 @@ export class DayNight {
     this.paint();
   }
 
-  /** Season and weather colour over the world (white: none). */
-  setExtraTint(c: number) {
-    this.extra = c;
+  /** Season and weather colour over the world and the sky behind the diorama (white: none). */
+  setExtraTint(world: number, sky: number) {
+    this.extra = world;
+    this.extraSky = sky;
+  }
+
+  /** Heat shimmer over the map (0..1, summer afternoons); none at night. */
+  setShimmer(v: number) {
+    if (this.finish) this.finish.shimmer = v * VISUAL.finish.shimmer * (1 - this.light.night);
   }
 
   /** Jumps to a time of day (dev hook for tests). */
@@ -135,7 +142,7 @@ export class DayNight {
     const tint = mulColor(this.light.tint, this.extra);
     this.shade.setFillStyle(tint).setVisible(tint !== 0xffffff);
     this.stars.setAlpha(night).setVisible(night > 0.02);
-    this.scene.cameras.main.setBackgroundColor(sky);
+    this.scene.cameras.main.setBackgroundColor(mulColor(sky, this.extraSky));
   }
 
   private watchFps(realMs: number) {

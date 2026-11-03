@@ -230,7 +230,10 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
 
 - **Placa no centro do topo:** "Jerusalém" em cima; embaixo, ícone + número, sem rótulo: Mês (o
   ícone é a estação: flor de amendoeira, feixe de trigo, folha ou floco de neve; ao lado, sol,
-  entardecer ou lua, conforme a hora do dia),
+  entardecer ou lua, conforme a hora do dia; durante uma seca aparece logo acima do ícone da
+  estação, no canto livre da linha do nome, um sol forte sobre terra rachada com a palavra "Seca",
+  que surge e some aos poucos com a força da seca, de 0,25 a 0,5, `seasons.drought.hud` em
+  `visual.json`, sem mexer nos outros itens da placa),
   Prata e Comida com variação por mês (+X/mês; vermelho se negativa), Moradores, Felicidade (só
   depois de liberar o Jardim: carinha verde sorrindo, amarela séria ou vermelha triste, conforme o
   humor da média, e o número, verde quando feliz e vermelho quando triste) e Trabalho
@@ -342,22 +345,44 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
 O ano tem 4 estações de **12 meses** cada (`monthsPerSeason` em `rules.json`; 24 s a 1x), começando
 na primavera: primavera, verão, outono, inverno. Ainda **não mudam nenhuma regra** (a mecânica,
 como a seca do verão, vem depois). O core só diz a estação do mês (`src/core/seasons.ts`) e
-avisa quando uma começa (evento `season`); cores e clima ficam em `visual.json` (`seasons`) e
-`src/render/Seasons.ts` e `Weather.ts`.
+avisa quando uma começa (evento `season`); cores, fases e chances ficam em `visual.json`
+(`seasons`) e o desenho em `src/render/Seasons.ts`, `Weather.ts` e `MapView.ts`. O ciclo segue o
+da região de Jerusalém: inverno chuvoso e verde, verão seco.
 
-- **Grama:** cada estação tem a sua: verde viva com flores na primavera, palha seca no verão,
-  ocre com folhas caídas no outono e cinza esverdeado com geada no inverno. Nos últimos 2 meses de
-  uma estação a grama vai virando a da próxima, célula por célula, espalhando pelo mapa.
-- **Cor do mundo:** um leve tom por estação (fresco, quente, âmbar, frio) somado ao do dia e da
-  noite; areia e árvores (palmeiras e oliveiras) também mudam de tom.
-- **Clima:** períodos de 10–24 s de jogo. A cada período a estação sorteia chuva, neve ou céu
-  limpo: primavera 30% de chuva, verão nunca (seco), outono 35% (as primeiras chuvas), inverno 55%
-  (40% dela é neve). Chuva com respingos e céu mais escuro; neve com flocos e tom claro; as
-  nuvens ficam mais fortes e só metade dos moradores sai à rua. O clima entra e sai devagar.
-- **Vento:** com céu limpo, pétalas de amendoeira na primavera, poeira no verão e folhas no
-  outono atravessam a tela.
+- **A cena inteira muda:** cada estação tem a sua grama e a sua areia (texturas próprias), e uma
+  cor própria para as ruas, o rio, as oliveiras e palmeiras, a luz do mundo e o céu atrás do
+  mapa. Nos últimos 2 meses de uma estação tudo vai virando a próxima, célula por célula.
+- **Inverno:** grama verde viva e limpa (sem pontinhos), céu nublado, luz mais fria, chuva
+  frequente (55%, muitas vezes forte), fumaça saindo de todas as casas. Amendoeiras e figueiras
+  sem folhas.
+- **Fim do inverno (meses 7–12):** as amendoeiras florescem (flores brancas e rosadas) e as
+  pétalas voam com o vento; figueiras ainda peladas.
+- **Primavera:** o verde no auge, com campos de anêmonas vermelhas e flores do campo na grama;
+  pétalas no vento; o trigo e a cevada verdes ficam dourados no fim da estação (mês 8 em diante).
+  A chuva vai rareando (40% → 0).
+- **Verão:** tudo seco: grama amarelada, areia mais clara e ofuscante, céu limpo, poeira no vento
+  e o ar tremendo de calor. Nunca chove. Os campos ficam com a palha baixa.
+- **Outono:** seco no começo (poeira); as primeiras chuvas chegam no fim (0% → 45%). Nada de
+  folhas laranja caindo: oliveiras e palmeiras não perdem as folhas; as figueiras amarelam.
+  Colheita: do mês 2 ao 11, catadores batem os galhos e juntam azeitonas e figos em cestos ao
+  lado das árvores perto da cidade.
+- **Árvores:** parte das oliveiras do mapa é desenhada como amendoeira (30%) ou figueira (18%),
+  sempre as mesmas células; a linha de informação mostra o nome certo.
+- **Chuva:** gotas pela tela inteira, inclinadas pelo vento, em três intensidades (fraca, média,
+  forte: mais gotas, mais vento, céu e luz mais escuros, sombras de nuvens mais fortes), com
+  respingos no chão. O chão e os telhados escurecem molhados e continuam molhados depois da chuva,
+  secando devagar (mais rápido no verão); poças aparecem nas ruas e somem mais devagar ainda.
+  Os períodos de clima duram 6–12 s e são sorteados de novo quando a estação muda ou quando a neve
+  ou a seca começam ou acabam (o clima nunca passa para a estação errada).
+- **Neve (rara):** cerca de 1 inverno em 5. Do mês 3 ao 9 do inverno a neve cobre o chão (célula
+  por célula), os telhados e as árvores, e a chuva cai como neve.
+- **Seca (rara):** cerca de 1 verão em 3 (sorteio, sem efeito nas regras por enquanto): a partir
+  do mês 2 a terra racha, a grama fica marrom, o rio estreita com margens de lama seca, o trigo
+  fica baixo e seco e a poeira aumenta; ela passa nos primeiros meses do outono. Enquanto durar,
+  a placa mostra o aviso "Seca" acima do ícone da estação (ver Interface). Neve e seca são
+  sorteadas por ano a partir da semente do mapa, então a mesma partida repete os mesmos anos.
 - A chuva, a neve e o vento ficam numa camada própria entre o mapa e a interface (o zoom não muda
-  o tamanho deles). Em aparelhos lentos, metade das partículas.
+  o tamanho deles). Em aparelhos lentos, metade das partículas (e um teto de gotas).
 
 ## Câmera e controles (estilo Pocket City)
 
