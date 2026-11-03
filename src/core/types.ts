@@ -6,6 +6,8 @@ export type BuildingKind = 'house' | 'field' | 'well' | 'market' | 'workshop' | 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export type BuildableKind = Exclude<BuildingKind, 'altar'>;
+/** Groups of the build menu (see menu.ts): housing, water and food, work, special. */
+export type BuildingCategory = 'home' | 'supply' | 'work' | 'special';
 /** Everything the player can place: buildings and road. */
 export type Placeable = BuildableKind | 'road';
 /** Area services; "sacred" is the radius of the altar or a temple. Gardens only add happiness. */
@@ -66,6 +68,8 @@ export type Craft = 'pottery' | 'smithy' | 'carpentry' | 'weaving' | 'dyeing' | 
 
 export interface BuildingDef {
   name: string;
+  /** Build menu group; only buildings the player can place have one. */
+  category?: BuildingCategory;
   cost: number;
   jobs: number;
   /** Footprint width (x) and height (y) in cells; default 1x1, h defaults to w. */
@@ -118,6 +122,8 @@ export interface Rules {
   upkeepStartsAfterGoal: number;
   /** Months in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
   monthsPerSeason: number;
+  /** Up to this many buildings the build column lists them all; above it, it shows the categories. */
+  toolColumnMax: number;
   workerShare: number;
   /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
   unemploymentAlert: number;

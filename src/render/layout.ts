@@ -8,6 +8,14 @@ export const GAME_W = 1280;
 const ASPECT = typeof window === 'undefined' ? 16 / 9 : window.innerWidth / window.innerHeight;
 export const GAME_H = Math.round(Math.min(720, Math.max(MIN_H, GAME_W / ASPECT)));
 
+/** Real screen px per game px (Phaser FIT scales the 1280-wide game to the window); 1 outside a browser. */
+export const SCREEN_K = typeof window === 'undefined' ? 1 : Math.min(window.innerWidth / GAME_W, window.innerHeight / GAME_H);
+/** Game px for a size given in real screen px (sizes of the Nova interface are set in real px). */
+export const px = (real: number) => real / SCREEN_K;
+/** Phone layout of the Nova interface: decided on the real screen (short, or a touch-first pointer), not on GAME_H. */
+export const IS_PHONE =
+  typeof window !== 'undefined' && (window.innerHeight < 500 || (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches));
+
 export interface Rect {
   x: number;
   y: number;
@@ -77,3 +85,12 @@ export const speedButton = (k: number) => ({ x: SPEED.x + PAD + SPEED_BTN / 2 + 
 export const leftButton = (k: number) => ({ x: LEFT_RAIL.x + LEFT_RAIL.w / 2, y: LEFT_RAIL.y + PAD + LEFT_BTN / 2 + k * (LEFT_BTN + BTN_GAP) + (k >= 4 ? DIVIDER : 0) });
 /** Right rail: 0 Casa, 1 Campo, 2 Poço, 3 Mercado, 4 Oficina, 5 Templo. */
 export const buildButton = (k: number) => ({ x: RIGHT_RAIL.x + RIGHT_RAIL.w / 2, y: RIGHT_RAIL.y + PAD + BTN / 2 + k * (BTN + BTN_GAP) });
+
+/**
+ * Live centers of the Nova interface parts (registered when it is built), for the visual tests through
+ * `window.layout.novaPoint(name)`: `d` is the button size in game px. Names: level, gear, speed-N,
+ * side-goals|alerts|stats, tool-view|road|clear, build-<kind>, pill-silver|food|goal|season, column.
+ */
+const novaSpots = new Map<string, () => { x: number; y: number; d: number } | null>();
+export const setNovaSpot = (name: string, at: () => { x: number; y: number; d: number } | null) => novaSpots.set(name, at);
+export const novaPoint = (name: string) => novaSpots.get(name)?.() ?? null;

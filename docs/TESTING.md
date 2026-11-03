@@ -81,6 +81,10 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | `turn-map` | mercado, casa e poço; clica ↻ no trilho esquerdo (6º botão, depois de Ver, Rua, Jardim, Limpar e ↺) (não constrói nada), arrasta rua no mapa girado e confere as células; E/E e Q | `turn-0`, `turn-1`, `turn-3`, `turn-2` |
 | `debt` | pausado em dívida com fome: faixa de aviso da dívida, prata vermelha, custos em vermelho nos trilhos, toast ao tentar construir, família saindo a pé; toque na prata (detalhe na linha de informação); a 1x chega à derrota; "Tentar de novo" começa um mapa novo | `debt-alerts`, `debt-silver-info`, `defeat`, `defeat-retry` |
 | `victory` | constrói o templo e espera a vitória | `temple-celebration`, `victory` |
+| `nova-phone` | Interface Nova no celular 844 x 390: Nova é a padrão; todo botão redondo (nível, engrenagem, velocidade, Objetivos, Avisos, Estatísticas, Mover, Rua, Demolir e as 7 construções) ≥ 44 px reais e dentro da altura da tela (a coluna cabe sem corte); nenhuma parte do topo encosta em outra; Mercado escolhido com o balão à esquerda da coluna; nenhum texto < 12 px reais; Jardim bloqueado não é escolhido ("Libera no objetivo N"); casa de barro tocada com o balão e a ação principal (destaca os lugares no mapa); Avisos, Objetivos, Estatísticas e Configurações abrem e fecham com Esc | `nova-phone`, `nova-phone-chosen`, `nova-phone-locked`, `nova-phone-house`, `nova-phone-spots`, `nova-phone-alerts`, `nova-phone-goals`, `nova-phone-stats`, `nova-phone-settings` |
+| `nova-phone-wide` | o mesmo no celular 915 x 412 | as mesmas, com `phone-wide` |
+| `nova-pc` | o mesmo no PC 1366 x 768 (com mouse; coluna com nome, preço e tecla; pílula da Alegria e "até o <estação>") | as mesmas, com `pc` |
+| `nova-switch` | PC: a engrenagem abre as Configurações; trocar para a Clássica reconstrói só a interface, grava `jerusalem.ui` e a partida continua no mesmo mês | `nova-switch-settings`, `nova-switch-classic` |
 
 ### Ganchos de desenvolvimento
 
@@ -140,6 +144,14 @@ async 'meu-cenario'(page) {
   "out" do Phaser); mova duas vezes antes de conferir a prévia.
 - `shot(page, nome)` espera as construções novas terminarem de subir (andaime) antes da captura;
   use `{ scaffolds: true }` para fotografar o andaime. `buildTown(page)` monta a cidade de exemplo.
+- `startGame` abre os cenários antigos na **Clássica** (grava `jerusalem.ui` = `classic`), porque as
+  posições deles vêm de `layout.ts`; `startGame(page, { ui: 'nova' })` abre na Nova. Na Nova, as
+  posições vêm de `window.layout.novaPoint(nome)` (centro e tamanho `d` em px do jogo):
+  `level`, `gear`, `speed-0|1|3` (no celular os três dão o mesmo botão), `side-goals|alerts|stats`,
+  `tool-view|road|clear`, `build-<tipo>`, `pill-silver|food|goal|season`, `column`; com
+  `uiPoint(page, 'novaPoint', 'build-market')` e `clickUi(page, 'novaPoint', 'gear')`. A interface
+  ativa fica em `window.game.ui.view` (`top`, `column`, `tools`, `panels`, `inspector`) e
+  `window.game.ui.nova` diz se é a Nova.
 - `startGame` marca o tutorial como visto (`jerusalem.tutorialDone` no `localStorage`) antes de abrir
   a página, salvo com `{ tutorial: true }`.
 - `startGame` desliga o controle de quadros por segundo (`game.dayNight.fpsGuard = false`), para o

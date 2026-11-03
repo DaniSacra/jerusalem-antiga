@@ -27,3 +27,27 @@ export function saveSettings() {
     // Private mode or blocked storage: the option still works for this session.
   }
 }
+
+/** The two interfaces over the same game: Nova (default) and Clássica. */
+export type UiMode = 'nova' | 'classic';
+const UI_KEY = 'jerusalem.ui';
+let uiChoice: UiMode | null = null;
+
+export function uiMode(): UiMode {
+  if (uiChoice) return uiChoice;
+  try {
+    uiChoice = localStorage.getItem(UI_KEY) === 'classic' ? 'classic' : 'nova';
+  } catch {
+    uiChoice = 'nova';
+  }
+  return uiChoice;
+}
+
+export function setUiMode(mode: UiMode) {
+  uiChoice = mode;
+  try {
+    localStorage.setItem(UI_KEY, mode);
+  } catch {
+    // Blocked storage: the choice lasts for this session.
+  }
+}

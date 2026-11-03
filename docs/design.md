@@ -49,7 +49,8 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 - Oficina com 6 ofícios (olaria, ferraria, carpintaria, tecelagem, tinturaria,
   curtume), só aparência; o artesão carrega um objeto do ofício
 - Barra no topo com prata, comida (pisca vermelha durante a fome), moradores,
-  trabalho, mês e meta atual
+  trabalho, mês e meta atual (Clássica; a Nova, padrão desde 2026-11-03, está
+  na seção do pacote "Interface D")
 - Clareza: rua sem ligação ao altar desenhada apagada e tracejada, com aviso
   ao construir; balão "sem rua" com ícone próprio; balão "sem trabalhadores"
   em locais de trabalho com eficiência 0; com a ferramenta Templo, destaque
@@ -124,6 +125,73 @@ mecânica nova. Fortalece os pilares 1 e 5.
 - Bugs pequenos do Ambient, do rio, das Opções e do GameScene
 - Aceite: novato chega à meta 3 sem perder e sem explicação; nenhuma derrota
   antes da meta 2; Eficiente vence sem dívida; clareza do fun-critic ≥ 8
+
+## Em andamento: pacote "Interface D" (aprovado pelo usuário 2026-11-03)
+Só interface. Nenhuma regra, custo, número de economia ou meta muda. Regras e
+tamanhos completos em `docs/GAME_DESIGN.md`, seção "Interface Nova". Mockups:
+celular 844 x 390 e PC 1366 x 768 enviados pelo usuário.
+
+Pilares: fortalece o 1 (menos texto no mapa, uma palavra por coisa, toque
+grande) e o 3 (balão da construção tocada mostra o que falta e o ganho de
+evoluir). Neutro no 2 (o mapa fica mais livre). Não toca o 4 nem o 5 (zero
+mecânica nova).
+
+Escopo (ENTRA AGORA):
+- Opção "Interface: Nova / Clássica" nas Configurações, Nova padrão, salva no
+  navegador (`jerusalem.ui`). Trocar reconstrói só a `UIScene`; a partida
+  continua. A Clássica fica como está, mudando só as palavras (abaixo)
+- Uma palavra por coisa nas duas interfaces (copywriter): tick = "semana",
+  meta = "Objetivo", felicidade = "Alegria", Ver = "Mover", Limpar =
+  "Demolir". No código os nomes internos (`month`, `goal`, `happiness`)
+  continuam
+- Estilo: painel `#24190E` 75%, borda clara 20%, botão pergaminho `#F4E8CC`,
+  destaque `#E2A93B`, texto `#FFF4DC` (tudo em `palette.ts`). Tocável redondo;
+  informativo com cantos arredondados. Tamanhos em px reais de tela (o layout
+  converte pela escala): nada < 12 px, toque ≥ 44 px
+- Topo esquerdo: círculo de nível (= objetivos cumpridos + 1) com anel do
+  progresso do objetivo atual; pílulas Prata e Comida (com variação por
+  semana), Moradores; no PC também Alegria (só com o Jardim liberado, como
+  hoje) e "até o <estação>" na comida quando o saldo de comida é negativo
+  (estação em que a comida acaba, pedido do usuário);
+  pílula do objetivo
+- Topo direito: estação · Ano · Sem, velocidade (celular 1 botão que alterna
+  1x → 3x → pausa; PC 3 botões), engrenagem
+- Lateral esquerda: Objetivos (lista), Avisos (lista + selo com a contagem),
+  Estatísticas (painel simples, sem gráficos). Sai a faixa de aviso do mapa
+- Inferior esquerdo: Mover, Rua, Demolir (PC com a tecla no rótulo)
+- Coluna direita: Casa, Campo, Poço, Mercado, Oficina, Jardim, Templo, com a
+  miniatura da arte; bloqueada com cadeado e "Libera no objetivo N"; selo
+  "novo"; balão da construção escolhida (PC com vagas, alcance e "Saldo
+  depois")
+- Balão da construção tocada com Mover (substitui a linha de informação),
+  com ação principal, Demolir e Fechar
+- Categorias em `buildings.json` e a regra "até 8 mostra a lista, acima de 8
+  mostra as 4 categorias" pronta e testada, sem efeito hoje (7 construções)
+- Funções puras novas, só de leitura, com testes: calendário (ano, estação,
+  semana), nível da cidade, semanas de comida restantes, saldo depois de uma
+  construção, grupos da coluna
+
+Números em `src/data`: `category` por construção em `buildings.json`;
+`toolColumnMax` 8 em `rules.json`. Cores e tamanhos de tela no `palette.ts` e
+no `layout.ts` (visual, não são regra).
+
+Quem faz: ui-designer (layout e controles), sprite-artist (ícones redondos,
+cadeado, poeira e pedrinhas do Demolir, tom vermelho sob o cursor), copywriter
+(palavras e frases dos balões), test-reviewer (funções puras), code-reviewer.
+`docs/TESTING.md` ganha os cenários novos.
+
+Aceite:
+- `npm test`, `tsc`, `test:visual` com cenários da Nova em 844 x 390,
+  915 x 412 e 1366 x 768 (início, balão de construção escolhida, balão de casa
+  tocada, Avisos, Objetivos, Estatísticas, Configurações, bloqueada) e os da
+  Clássica continuando a passar
+- playtester: um novato acha Casa, Rua, Poço e o objetivo sem ajuda, e o
+  tutorial funciona nas duas interfaces
+- Nenhum texto < 12 px reais e nenhum toque < 44 px no 844 x 390
+
+Fora deste pacote: gráficos nas Estatísticas (precisam guardar histórico, é
+estado novo); variação por semana em Moradores; ícone de hora do dia na pílula da estação; categorias
+ativas; "Saldo depois" no celular; qualquer regra nova.
 
 ## Absorvido: pacote "Avisos a tempo" (itens repartidos no P1, P2 e P3)
 Aprovado antes da revisão de 2026-11-02; "Atende N casas" foi para o P1, os
@@ -289,6 +357,43 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-03 — Pacote "Interface D" (pedido do usuário): Nova padrão, Clássica
+  como opção, só interface. Motivo: mapa mais livre no celular deitado e
+  balões que explicam a construção tocada (pilares 1 e 3).
+- 2026-11-03 — O tick passa a se chamar "semana" na tela, nas DUAS
+  interfaces (Ano = tick ÷ 48 + 1, Sem = semana da estação 1–12); no código
+  continua `month`. Junto: "Objetivo", "Alegria", "Mover", "Demolir" nas duas.
+  Motivo: toasts, avisos, tutorial e telas finais são compartilhados; dois
+  vocabulários seriam strings duplicadas (DRY) e o jogador confundiria ao
+  trocar. 12 semanas por estação também é mais verdadeiro que 12 meses.
+- 2026-11-03 — Teclas não mudam: 1 Mover, 2 Rua, 3–9 construções, 0 Demolir
+  (o mockup "Demolir · 9" está errado; 9 é o Templo).
+- 2026-11-03 — Girar a visão vai para as Configurações na Nova; Q e E
+  continuam no PC. Motivo: girar é raro e o botão disputaria espaço com o mapa.
+- 2026-11-03 — Na Nova a linha de informação sai: construção escolhida e
+  construção tocada viram balões; detalhe da prata, de alegria e de trabalho
+  vão para as Estatísticas (tocar numa pílula abre as Estatísticas); detalhe
+  do objetivo vai para a lista de Objetivos; mensagens curtas ("Sem espaço
+  para o templo") viram toasts; o tutorial continua com o seu balão.
+- 2026-11-03 — Estatísticas entram agora sem gráficos: só números que o core
+  já calcula (prata por fonte e manutenção por tipo, comida, trabalho, casas
+  por nível, alegria com motivos). Gráficos ficam no candidato 9.
+- 2026-11-03 — Sem faixa de aviso no mapa (Nova): selo vermelho no botão
+  Avisos, que pulsa quando entra um aviso novo, mais um toast com o texto na
+  primeira vez de cada aviso. Motivo: sem a faixa, a dívida não pode passar
+  despercebida; a prata continua piscando vermelha em dívida.
+- 2026-11-03 — Ação principal da casa tocada: "Onde pôr um mercado" escolhe a
+  ferramenta do que falta e destaca no mapa os lugares que atendem a casa
+  (`spotsServing`). Pedido explícito do usuário na especificação da Versão D
+  (o game-director tinha proposto não destacar, para preservar o pilar 3).
+- 2026-11-03 — Trabalho sai do topo na Nova (fica nas Estatísticas, no aviso
+  de desemprego e no balão "sem trabalhadores"). Motivo: menos números no topo
+  (pilar 1). O playtester confirma se o jogador ainda entende o equilíbrio.
+- 2026-11-03 — Categorias da coluna: dados e regra prontos e testados, mas
+  inativos com 7 construções. Não contradiz "Sem flyout": com até 8 o jogador
+  continua com um toque só.
+- 2026-11-03 — Nível da cidade (candidato 8) entra só como mostrador
+  (objetivos cumpridos + 1); não libera nada.
 - 2026-11-02 — Revisão de 2026-11-02 (`docs/revisoes/2026-11-02/plano.md`):
   o usuário respondeu "sim" às 7 perguntas e aprovou o Pacote 1 "Primeira
   partida sem ajuda". Motivo: o playtest real mostrou que quem nunca jogou
@@ -505,9 +610,10 @@ Depois, em ordem:
    do usuário)
 6. Pasto, só se for diferente do campo
 7. História de Esdras e Neemias (ARA), só depois do playtest aprovar
-8. Nível da cidade = metas cumpridas + 1
-9. Painel de estatísticas (absorve a lista de avisos do core e o detalhe da
-   prata)
+8. (Entrou como mostrador no pacote "Interface D", 2026-11-03.) Nível da
+   cidade com efeito próprio, só se algum pacote precisar
+9. Painel de estatísticas, parte 2: gráficos (exige guardar histórico) e
+   principais problemas. A parte 1 (números de hoje) entrou na "Interface D"
 
 Ajustes de equilíbrio em espera (dependem do sim-tester): oficina 8 de prata,
 imposto menor de pedra/casa grande.

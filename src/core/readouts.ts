@@ -1,0 +1,91 @@
+import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
+import { placeSpots } from './actions';
+import { serviceOf } from './coverage';
+import { computeEconomy } from './economy';
+import { currentGoal, goalProgress } from './goals';
+import { cellsInRadius, cellsOf, indexOf } from './grid';
+import { SEASONS, seasonOf } from './seasons';
+import type { BuildableKind, Building, Cell, GameState, Season } from './types';
+
+/** Values derived from the state for the interface. Read only: nothing here changes the game. */
+
+/** City level shown on the HUD: goals done + 1. */
+export const cityLevel = (s: GameState) => s.goalIndex + 1;
+
+/** Progress (0..1) of the current goal; 1 when every goal is done. */
+export function goalFraction(s: GameState): number {
+  const goal = currentGoal(s);
+  return goal ? Math.min(1, goalProgress(s, goal) / goal.target) : 1;
+}
+
+/** Number of goals in the game. */
+export const goalCount = () => GOALS.length;
+
+/** Season, year (from 1) and week of the season (from 1) of a month tick. */
+export function calendar(month: number): { season: Season; year: number; week: number } {
+  const perYear = RULES.monthsPerSeason * SEASONS.length;
+  return { season: seasonOf(month), year: Math.floor(month / perYear) + 1, week: (month % RULES.monthsPerSeason) + 1 };
+}
+
+/**
+ * When the food runs out at this monthly balance: months left and the season it happens in.
+ * Null when the food is not dropping.
+ */
+export function foodRunsOut(food: number, foodDelta: number, month: number): { months: number; season: Season } | null {
+  if (foodDelta >= 0) return null;
+  const months = Math.max(0, Math.floor(food / -foodDelta));
+  return { months, season: seasonOf(month + months) };
+}
+
+/**
+ * Monthly silver balance if one more connected building of this kind existed (its upkeep, jobs
+ * and production; the new coverage is left out).
+ */
+export function balanceAfter(s: GameState, kind: BuildableKind): number {
+  const ghost: Building = { id: -1, kind, x: 0, y: 0, w: 1, h: 1, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false };
+  return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
+}
+
+/** Houses with a family inside the radius of a service building; null for kinds with no service. */
+export function housesServed(s: GameState, b: Building): number | null {
+  if (!serviceOf(b.kind)) return null;
+  if (!b.connected) return 0;
+  const area = new Set(cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.w, b.h));
+  return s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
+}
+
+/** What a house gains on its next level (residents and base tax), or null at the top level. */
+export function upgradeGain(level: number): { residents: number; tax: number } | null {
+  const cur = HOUSE_LEVELS[level];
+  const next = HOUSE_LEVELS[level + 1];
+  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax } : null;
+}
+
+export interface Spot extends Cell {
+  rotated: boolean;
+}
+
+/**
+ * Where a building of this kind fits (free land touching the connected roads, silver ignored)
+ * with its radius reaching the given building. Both orientations for non-square kinds.
+ */
+export function spotsServing(s: GameState, kind: BuildableKind, target: Building): Spot[] {
+  const r = BUILDINGS[kind].radius ?? 0;
+  const out: Spot[] = [];
+  for (const rotated of canRotate(kind) ? [false, true] : [false]) {
+    const { w, h } = dimsOf(kind, rotated);
+    for (const c of placeSpots(s, kind, rotated)) {
+      const reachX = c.x - r <= target.x + target.w - 1 && c.x + w - 1 + r >= target.x;
+      const reachY = c.y - r <= target.y + target.h - 1 && c.y + h - 1 + r >= target.y;
+      if (reachX && reachY) out.push({ ...c, rotated });
+    }
+  }
+  return out;
+}
+
+/** Houses (plots included) at each level, index = level (0 plot .. top level). */
+export function housesByLevel(s: GameState): number[] {
+  const out = HOUSE_LEVELS.map(() => 0);
+  for (const b of s.buildings) if (b.kind === 'house') out[b.level]++;
+  return out;
+}

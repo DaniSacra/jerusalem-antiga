@@ -1,11 +1,11 @@
 {
-  "house":    { "name": "Casa",    "cost": 10,  "w": 2, "h": 2, "jobs": 0 },
-  "field":    { "name": "Campo",   "cost": 15, "upkeep": 1,  "w": 2, "h": 2, "jobs": 2, "food": 3, "silver": 1, "variants": 4 },
-  "well":     { "name": "Poço",    "cost": 20, "upkeep": 3,  "w": 2, "h": 2, "jobs": 0, "radius": 4 },
-  "market":   { "name": "Mercado", "cost": 40, "upkeep": 4,  "w": 2, "h": 4, "jobs": 3, "radius": 5 },
-  "workshop": { "name": "Oficina", "cost": 35, "upkeep": 2,  "w": 3, "h": 3, "jobs": 3, "silver": 5,
+  "house":    { "name": "Casa", "category": "home",    "cost": 10,  "w": 2, "h": 2, "jobs": 0 },
+  "field":    { "name": "Campo", "category": "supply",   "cost": 15, "upkeep": 1,  "w": 2, "h": 2, "jobs": 2, "food": 3, "silver": 1, "variants": 4 },
+  "well":     { "name": "Poço", "category": "supply",    "cost": 20, "upkeep": 3,  "w": 2, "h": 2, "jobs": 0, "radius": 4 },
+  "market":   { "name": "Mercado", "category": "work", "cost": 40, "upkeep": 4,  "w": 2, "h": 4, "jobs": 3, "radius": 5 },
+  "workshop": { "name": "Oficina", "category": "work", "cost": 35, "upkeep": 2,  "w": 3, "h": 3, "jobs": 3, "silver": 5,
                 "crafts": ["pottery", "smithy", "carpentry", "weaving", "dyeing", "tannery"] },
-  "garden":   { "name": "Jardim",  "cost": 25,  "upkeep": 1,  "w": 2, "h": 2, "jobs": 0, "radius": 3 },
-  "temple":   { "name": "Templo",  "cost": 800, "upkeep": 10, "w": 6, "h": 6, "jobs": 2, "radius": 12, "protected": true },
+  "garden":   { "name": "Jardim", "category": "home",  "cost": 25,  "upkeep": 1,  "w": 2, "h": 2, "jobs": 0, "radius": 3 },
+  "temple":   { "name": "Templo", "category": "special",  "cost": 800, "upkeep": 10, "w": 6, "h": 6, "jobs": 2, "radius": 12, "protected": true },
   "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "radius": 3, "protected": true }
 }

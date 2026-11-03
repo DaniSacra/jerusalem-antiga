@@ -9,6 +9,9 @@ export interface Economy {
   /** 0..1 */
   efficiency: number;
   foodDelta: number;
+  /** Food made this month (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
+  foodMade: number;
+  foodEaten: number;
   /** Monthly silver balance: taxes + production - upkeep. */
   silverDelta: number;
   taxes: number;
@@ -78,6 +81,8 @@ export function computeEconomy(s: GameState): Economy {
     jobs,
     efficiency,
     foodDelta: round2(foodProd * efficiency - eaten),
+    foodMade: round2(foodProd * efficiency),
+    foodEaten: round2(eaten),
     silverDelta: round2(taxes + sum(production) - sum(upkeep)),
     taxes: round2(taxes),
     production,

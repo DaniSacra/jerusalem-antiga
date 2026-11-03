@@ -8,7 +8,7 @@
  */
 import Phaser from 'phaser';
 import VISUAL from '../data/visual.json';
-import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type Mood, type Season, type WalkerType } from '../core';
+import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type BuildableKind, type BuildingCategory, type Mood, type Season, type WalkerType } from '../core';
 import * as F from './fauna';
 import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
@@ -79,7 +79,21 @@ export const TEX = {
   petal: 'petal',
   /** Face of a mood (plaque happiness slot). */
   mood: (m: Mood) => `mood-${m}`,
+  /** Small stone thrown out when something is demolished. */
+  pebble: 'pebble',
+  /**
+   * Round-button thumbnails (THUMB x THUMB, centered, clipped to a circle; see uiArt.ts): a building,
+   * a build-menu category, and their greyed locked versions.
+   */
+  thumb: (kind: BuildableKind) => `thumb-${kind}`,
+  thumbLocked: (kind: BuildableKind) => `thumb-${kind}-locked`,
+  categoryThumb: (c: BuildingCategory) => `thumb-cat-${c}`,
+  categoryThumbLocked: (c: BuildingCategory) => `thumb-cat-${c}-locked`,
+  /** Interface line icon (ICON x ICON, see uiArt.ts), drawn dark (for light buttons) or light (for dark ones). */
+  uiIcon: (name: UiIcon, tone: 'dark' | 'light' = 'dark') => `ui-${name}-${tone}`,
 };
+/** Line icons of the interface (see TEX.uiIcon). */
+export type UiIcon = 'hand' | 'handGrab' | 'road' | 'hammer' | 'flag' | 'alert' | 'stats' | 'gear' | 'pause' | 'play' | 'lock';
 export const VARIANTS = 4;
 /** Skin and clothes combinations drawn for each walker type. */
 export const WALKER_LOOKS = 3;
@@ -3210,6 +3224,12 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.fillEllipse(7, 5, 12, 5);
     g.fillStyle(0x3e4a2a);
     for (const [x, y] of [[4, 4], [7, 3], [10, 4], [6, 5], [9, 5]]) g.fillCircle(x, y, 1.6);
+  });
+  raw(TEX.pebble, 7, 6, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillPoints([{ x: 1, y: 3 }, { x: 3, y: 0.5 }, { x: 6, y: 1.5 }, { x: 6.5, y: 4 }, { x: 4, y: 5.5 }, { x: 1.5, y: 5 }], true);
+    g.fillStyle(0xbdbdbd);
+    g.fillPoints([{ x: 4, y: 5.5 }, { x: 6.5, y: 4 }, { x: 6, y: 2.5 }, { x: 3.5, y: 3.5 }], true);
   });
   raw(TEX.petal, 6, 5, (g) => {
     g.fillStyle(0xffffff);

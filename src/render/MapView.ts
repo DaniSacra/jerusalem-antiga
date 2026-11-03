@@ -177,6 +177,9 @@ export class MapView {
   private dust: Phaser.GameObjects.Particles.ParticleEmitter;
   /** Worn dirt paths between neighbouring houses (under everything but the ground). */
   private trails: Phaser.GameObjects.Graphics;
+  /** Building under the demolish tool (tinted red, pulsing), and the places that would solve a need. */
+  private demolishId: number | null = null;
+  private solve: Phaser.GameObjects.Graphics;
 
   constructor(
     private scene: Phaser.Scene,
@@ -188,6 +191,7 @@ export class MapView {
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
     this.trails = scene.add.graphics().setDepth(DEPTH.road - 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
+    this.solve = scene.add.graphics().setDepth(DEPTH.overlay + 0.5).setVisible(false);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
     this.serves = text(scene, 0, 0, '', 18, CSS.light, true).setOrigin(0.5, 1).setStroke(CSS.ink, 5).setDepth(DEPTH.preview + 1).setVisible(false);
     this.lights = new Lights(scene);
@@ -288,7 +292,7 @@ export class MapView {
     this.smoke.destroy();
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
-    [this.water, this.looseRoads, this.trails, this.overlay, this.preview, this.serves].forEach((o) => o.destroy());
+    [this.water, this.looseRoads, this.trails, this.overlay, this.solve, this.preview, this.serves].forEach((o) => o.destroy());
     this.lights.destroyAll();
     this.dust.destroy();
   }
@@ -570,6 +574,55 @@ export class MapView {
     tweens.add({ targets: v.root, y: groundY - 10, scaleX: 0.92, scaleY: 1.08, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
   }
 
+  /**
+   * Tints a building red (pulsing) to show it is the one the demolish tool would remove; null puts
+   * the last one back. Only the drawing is tinted: crops and fires keep their colours.
+   */
+  highlightDemolish(b: Building | null) {
+    const id = b?.id ?? null;
+    if (id === this.demolishId) return;
+    const old = this.demolishId !== null ? this.views.get(this.demolishId) : undefined;
+    if (old) old.main.setTint(mulColor(old.shade, this.tints.build));
+    this.demolishId = id;
+  }
+
+  /**
+   * Shows the places that would solve a need (e.g. where a market would reach a house): the union of
+   * these grid rectangles in a soft gold-green that pulses, with a light edge. Replaces the last ones.
+   */
+  showSpots(rects: readonly Rect[]) {
+    const g = this.solve;
+    g.clear();
+    const cells = new Set<number>();
+    for (const r of rects) for (const c of footprint(r.x, r.y, r.w, r.h)) cells.add(c.y * COLS + c.x);
+    const list = [...cells].map((i) => ({ x: i % COLS, y: Math.floor(i / COLS) }));
+    g.fillStyle(C.solve.fill, 0.42);
+    for (const c of list) g.fillPoints(rectCorners(c.x, c.y, 1, 1), true);
+    // The edge of the area: a wide soft line and a thin bright one.
+    const edges: [number, number, number, number, number, number][] = [
+      [0, -1, 0, 0, 1, 0],
+      [1, 0, 1, 0, 1, 1],
+      [0, 1, 0, 1, 1, 1],
+      [-1, 0, 0, 0, 0, 1],
+    ];
+    for (const [width, color, alpha] of [[6, C.solve.edge, 0.45], [2, C.solve.glow, 1]] as const) {
+      g.lineStyle(width, color, alpha);
+      for (const c of list) {
+        for (const [dx, dy, x0, y0, x1, y1] of edges) {
+          if (cells.has((c.y + dy) * COLS + c.x + dx) && c.x + dx >= 0 && c.x + dx < COLS) continue;
+          const a = gridToWorld(c.x + x0, c.y + y0);
+          const b = gridToWorld(c.x + x1, c.y + y1);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
+      }
+    }
+    g.setVisible(list.length > 0);
+  }
+
+  clearSpots() {
+    this.solve.clear().setVisible(false);
+  }
+
   // ---------- tool overlay ----------
 
   private fillCells(cells: Iterable<Cell>, color: number, alpha: number) {
@@ -846,6 +899,12 @@ export class MapView {
         v.flame?.setScale(k * (1 - f * 0.6), k * (1 + f));
         v.glow.setAlpha(0.45 + f);
       }
+    }
+    if (this.solve.visible) this.solve.setAlpha(0.65 + Math.sin(t * 3.2) * 0.35);
+    const doomed = this.demolishId !== null ? this.views.get(this.demolishId) : undefined;
+    if (doomed) {
+      const red = mixColor(C.demolish.soft, C.demolish.strong, 0.5 + Math.sin(t * 6) * 0.5);
+      doomed.main.setTint(mulColor(mulColor(doomed.shade, this.tints.build), red));
     }
     for (const b of this.balloons.values()) {
       b.root.y = b.baseY + Math.sin(t * 3 + b.phase) * 2;

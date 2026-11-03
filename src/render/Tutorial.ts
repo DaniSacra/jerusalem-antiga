@@ -116,7 +116,19 @@ const SKIP_W = 170;
 const OK_W = 130;
 const BTN_H = 44;
 
-/** The tutorial on the UI overlay: a one-sentence bubble above the info line and a bobbing arrow. */
+/** Where the tutorial bubble goes: its horizontal center, its bottom edge and its widest size. */
+export interface TutorialArea {
+  cx: number;
+  bottom: number;
+  maxW: number;
+  /** Size multiplier of the bubble (the Nova keeps its buttons at 44 real px on phones). */
+  scale?: number;
+}
+
+/** Classic: centered above the info line. */
+const CLASSIC_AREA: TutorialArea = { cx: GAME_W / 2, bottom: INFO_Y - 10, maxW: INFO_MAX_W };
+
+/** The tutorial on the UI overlay: a one-sentence bubble above the bottom of the screen and a bobbing arrow. */
 export class TutorialView {
   private root: Phaser.GameObjects.Container;
   private bg: Phaser.GameObjects.Graphics;
@@ -127,7 +139,7 @@ export class TutorialView {
   private rect: Rect | null = null;
   private shown = '';
 
-  constructor(scene: Phaser.Scene, onSkip: () => void, onOk: () => void) {
+  constructor(scene: Phaser.Scene, onSkip: () => void, onOk: () => void, private area: TutorialArea = CLASSIC_AREA) {
     this.bg = scene.add.graphics();
     this.label = text(scene, 0, 0, '', 20, CSS.ink, true).setOrigin(0, 0.5);
     this.skipBtn = new RailButton(scene, 0, 0, SKIP_W, BTN_H, [text(scene, 0, -1, T.tutorial.skip, 17, CSS.ink, true).setOrigin(0.5)], onSkip);
@@ -158,18 +170,21 @@ export class TutorialView {
       this.point(null);
       return;
     }
+    // Laid out at scale 1 from the bubble's corner; the root is moved there and scaled.
+    const k = this.area.scale ?? 1;
     const buttons = SKIP_W + 16 + (ok ? OK_W + 12 : 0);
-    this.label.setText(sentence).setWordWrapWidth(INFO_MAX_W - buttons - 40);
+    this.label.setText(sentence).setWordWrapWidth(this.area.maxW / k - buttons - 40);
     const h = Math.max(BUBBLE_H, this.label.height + 20);
     const w = Math.round(this.label.width + buttons + 44);
-    const x = (GAME_W - w) / 2;
-    const y = INFO_Y - 10 - h;
-    this.rect = { x, y, w, h };
+    const x = this.area.cx - (w * k) / 2;
+    const y = this.area.bottom - h * k;
+    this.rect = { x, y, w: w * k, h: h * k };
+    this.root.setPosition(x, y).setScale(k);
     this.bg.clear();
-    panel(this.bg, x, y, w, h, C.parchment, 14);
-    this.label.setPosition(x + 22, y + h / 2);
-    this.okBtn.container.setVisible(ok).setPosition(x + 22 + this.label.width + 16 + OK_W / 2, y + h / 2);
-    this.skipBtn.root.setPosition(x + w - 12 - SKIP_W / 2, y + h / 2);
+    panel(this.bg, 0, 0, w, h, C.parchment, 14);
+    this.label.setPosition(22, h / 2);
+    this.okBtn.container.setVisible(ok).setPosition(22 + this.label.width + 16 + OK_W / 2, h / 2);
+    this.skipBtn.root.setPosition(w - 12 - SKIP_W / 2, h / 2);
   }
 
   point(target: TutorialTarget | null) {

@@ -220,9 +220,115 @@ Só aparência: nenhuma regra de economia depende disso.
   ligada; sem destino do tipo, vai a uma construção qualquer. O artesão carrega um objeto do
   ofício da oficina para onde vai (jarro, martelo, tábua, rolo de tecido, pano tingido ou couro).
 
-Ferramentas bloqueadas aparecem apagadas com o texto "Meta N".
+Ferramentas bloqueadas aparecem apagadas com o texto "Objetivo N" na Clássica e com cadeado na Nova.
 
 ## Interface
+
+Há duas interfaces com **a mesma lógica**: a **Nova** (padrão) e a **Clássica**. A escolha fica nas
+Configurações ("Interface: Nova / Clássica"), salva no navegador (`jerusalem.ui`); trocar reconstrói
+só a camada de interface e a partida continua. Nenhuma regra muda entre elas.
+
+**Palavras na tela (as duas interfaces):** o tick do jogo se chama **semana** (Ano = tick ÷ 48 + 1,
+Sem = semana dentro da estação, 1 a 12; "por semana", "/sem"); a meta se chama **Objetivo**; a
+felicidade, **Alegria**; a ferramenta Ver, **Mover**; Limpar, **Demolir**. Este documento continua
+usando os nomes internos (mês, meta, felicidade), que são os do código.
+
+### Interface Nova (padrão)
+
+Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte desenhada em código.
+
+- **Estilo:** painéis marrom escuro `#24190E` a 75%, borda clara a 20%, cantos arredondados; botões
+  pergaminho `#F4E8CC` com borda marrom; destaque dourado `#E2A93B`; texto `#FFF4DC` (tudo em
+  `palette.ts`). **Tudo que se toca é redondo**; o que só informa tem cantos arredondados.
+  Tamanhos em px reais de tela (o layout converte pela escala do jogo): celular números 15, textos
+  13; PC números 17, textos 13–15; **nada abaixo de 12 px**; **toque mínimo 44 px**.
+- **Topo esquerdo:**
+  - círculo **Nível** (= objetivos cumpridos + 1; só mostrador, não libera nada) com anel dourado
+    do progresso do objetivo atual; 56 px no celular, 72 no PC;
+  - pílulas **Prata** e **Comida** com a variação por semana (verde positiva, vermelha negativa) e
+    **Moradores**; no PC com rótulo, mais **Alegria** (só depois de liberar o Jardim, como a
+    carinha da Clássica) e, quando a comida cai, "até o <estação>" (a estação em que a comida acaba:
+    comida ÷ queda por semana, para baixo). Cores de alerta como na Clássica: prata laranja com saldo negativo e vermelha piscando
+    em dívida; comida vermelha piscando na fome. Tocar numa pílula abre as Estatísticas;
+  - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 9", texto, barra e "3/5".
+    Tocar abre a lista de Objetivos.
+- **Topo direito:** pílula "Primavera · Ano 2 · Sem 5" (ícone da estação; na seca, o ícone da seca
+  no lugar); velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
+  3x, o ativo dourado); engrenagem das Configurações.
+- **Lateral esquerda** (botões redondos):
+  - **Objetivos** (bandeira): lista dos 9 objetivos, cumpridos, atual (com progresso) e próximos,
+    com prêmio e o que libera;
+  - **Avisos** (triângulo): selo vermelho com a contagem da lista do core (`alerts()`); tocar abre a
+    lista com o texto de cada aviso. Quando entra um aviso novo o botão pulsa e aparece um toast com
+    o texto (uma vez por episódio). **Não há faixa de aviso sobre o mapa;**
+  - **Estatísticas** (gráfico): painel só com números que o core já calcula: prata (impostos,
+    produção por tipo, manutenção por tipo, saldo), comida (produção, consumo, saldo, semanas
+    restantes), trabalho (trabalhadores, vagas, sem vaga, eficiência), casas por nível e alegria
+    (felizes, contentes, tristes e motivos). Sem gráficos.
+- **Inferior esquerdo** (botões redondos com nome embaixo; no PC com a tecla, ex. "Mover · 1"):
+  - **Mover** (mão): arrastar move o mapa; tocar numa construção abre o balão dela;
+  - **Rua**: arrastar constrói, como hoje;
+  - **Demolir** (martelo): a construção sob o cursor/dedo fica avermelhada; ao demolir, poeira e
+    pedrinhas; sobre árvore, "Cortar árvore · 5 prata". Regras de Limpar sem mudança.
+- **Coluna direita de construções**, nesta ordem: Casa, Campo, Poço, Mercado, Oficina, Jardim,
+  Templo. Botão redondo com a miniatura da arte do jogo; celular 46 px só o desenho; PC 86 px com
+  desenho, nome e "preço · tecla N". Escolhida: borda dourada com brilho. Sem prata: acinzentada e
+  preço em vermelho. Bloqueada: cinza, borda tracejada e cadeado (PC: "objetivo N"); tocar mostra
+  "Libera no objetivo N". Ao liberar ganha um selo "novo" até ser tocada (não é salvo). Tocar de novo
+  no Mercado gira a prévia. **Não há botão "Construir":** escolher a construção já é a ferramenta.
+- **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
+  "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
+  depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
+  eficiência que a cidade teria; antes do Objetivo 2, sem manutenção). Fecha ao trocar de
+  ferramenta ou ao tocar no mapa para construir.
+- **Balão da construção tocada** (com Mover), ao lado dela com seta, seguindo a câmera; some ao
+  tocar fora:
+  - casas: "nível atual → próximo", o que já tem (verde) e o que falta (vermelho, incluindo "sem
+    rua"), quadro "Ao evoluir" com os ganhos (moradores e imposto), alegria com os motivos;
+    terreno vazio diz se há família a caminho;
+  - outras construções: o que faz, quantas casas atende (serviços), vagas, produção, manutenção
+    por semana e conexão (desconectada: "não funciona, mas paga manutenção");
+  - ruas, árvores e terreno: uma linha só;
+  - botões redondos: **ação principal** dourada quando há algo a fazer (casa sem o próximo serviço:
+    "Onde pôr um mercado" escolhe a ferramenta e destaca no mapa os lugares livres, ligados à
+    rua, cujo raio atende a casa), **Demolir** (não aparece no altar e no templo) e
+    **Fechar**.
+- **Sem linha de informação:** o que ela mostrava foi para os balões, as Estatísticas e a lista de
+  Objetivos; mensagens curtas ("Sem espaço para o templo…") viram toasts.
+- **Toasts** como na Clássica, no centro de baixo. Balões de problema sobre as construções, a
+  prévia, os destaques das ferramentas e o tom vermelho da fome também iguais.
+- **Configurações:** Interface Nova/Clássica, **Girar a visão** (↺ ↻; no PC continuam Q e E), Dia e
+  noite e Efeito maquete.
+- **Tutorial:** mesmos passos e frases; a seta aponta os botões da Nova e o balão fica acima da
+  parte de baixo da tela; o último passo aponta a pílula do objetivo.
+- **Categorias** (`category` em `buildings.json`): Moradia (Casa, Jardim), Água e comida (Poço,
+  Campo), Trabalho (Mercado, Oficina), Especiais (Templo). Com até `toolColumnMax` (8, em
+  `rules.json`) construções a coluna mostra todas; acima disso mostra as 4 categorias e tocar numa
+  abre uma faixa com as construções dela. Hoje são 7, então só aparece a lista.
+- **Detalhes decididos na implementação (ui-designer):**
+  - celular ou PC pelo tamanho real da tela: altura real < 500 px ou ponteiro grosso (toque) = celular;
+  - no PC, o cursor sobre o mapa com Mover é uma mão aberta, que fecha enquanto arrasta o mapa; com
+    Demolir, a construção sob o cursor fica avermelhada (pulsando), e sobre árvore aparece a pílula
+    "Cortar árvore · 5 prata";
+  - Rua e Demolir mostram uma dica curta num balão acima do botão ao serem escolhidos (some ao tocar
+    no mapa);
+  - Demolir no balão da construção tocada pede confirmação: o primeiro toque vira "Certeza?" por
+    2,5 s, o segundo demole;
+  - tocar em terreno livre ou no rio fecha o balão da construção tocada; ruas, árvores e rochas
+    mostram uma linha;
+  - "Onde pôr um poço/mercado/o templo" escolhe a construção e destaca no mapa os lugares; sem
+    nenhum, toast "Nenhum lugar livre por perto: abra uma rua ao lado". Os destaques somem ao
+    construir, trocar de ferramenta ou fechar o balão (e voltam depois de girar o mapa). Casa sem
+    rua ou construção desligada: "Ligar à rua" escolhe Rua;
+  - toasts da Nova ficam acima das ferramentas de baixo; o balão do tutorial fica embaixo, entre as
+    ferramentas e a coluna, e cresce para os botões terem 44 px reais;
+  - no PC, se a pílula da estação não couber ao lado da velocidade, ela desce para baixo da
+    velocidade (nunca cobre as pílulas); o texto do objetivo é cortado com "…" se não couber;
+  - Esc fecha primeiro o painel ou balão aberto, depois o balão da construção tocada, e só então
+    volta para Mover.
+- **Tamanhos de teste:** 844 x 390, 915 x 412 e 1366 x 768.
+
+### Interface Clássica
 
 Layout inspirado em Pharaoh: A New Era, com arte própria desenhada em código (pedra clara com
 detalhes dourados, cores e fonte de `palette.ts`). O mapa ocupa quase a tela toda: nada de barras
@@ -245,7 +351,8 @@ de largura total. Posições e tamanhos em `src/render/layout.ts`.
   **Tocar na carinha** mostra: "Felicidade N · X felizes, Y contentes, Z tristes · Feliz paga mais
   imposto e atrai famílias · Jardim e altar alegram; fome e desemprego entristecem".
 - **Opções** (engrenagem no canto superior direito; em telas muito largas, ao lado do topo do trilho
-  direito): painel com "Dia e noite: ligado/desligado" e "Efeito maquete: ligado/desligado". As
+  direito): painel com "Interface: Nova/Clássica", "Dia e noite: ligado/desligado" e "Efeito
+  maquete: ligado/desligado". As
   escolhas ficam salvas no navegador. Se o aparelho for lento, o efeito maquete aparece desligado
   "(aparelho lento)". Tocar fora fecha o painel.
 - **Faixa da meta** (dourada, logo abaixo da placa): "1. Tenha 6 casas ligadas à rua  5/6" (a fonte
@@ -388,14 +495,15 @@ da região de Jerusalém: inverno chuvoso e verde, verão seco.
 
 | | Celular | PC |
 |---|---|---|
-| Ver | arrastar move a câmera; tocar seleciona | idem com o mouse |
+| Mover (Ver) | arrastar move a câmera; tocar seleciona | idem com o mouse |
 | Ferramentas de construção | arrastar constrói; dois dedos movem | arrastar constrói; botão direito move |
 | Zoom | pinça | roda do mouse |
 
 - **Tamanho da tela:** a largura do jogo é 1280 e a altura acompanha o formato da tela, entre
   560 e 720 (celular 844 x 390 → 1280 x 591, sem faixas laterais e com tudo ~22% maior).
 - Zoom entre 0,5x e 2x. A câmera começa centralizada no altar.
-- **Girar o mapa:** duas setas (↺ ↻) no fim do trilho esquerdo giram a visão 90° (Q e E no PC). Só a visão gira; as regras não mudam. A câmera continua olhando o mesmo
+- **Girar o mapa:** duas setas (↺ ↻) giram a visão 90° (Q e E no PC): no fim do trilho esquerdo
+  na Clássica, nas Configurações na Nova. Só a visão gira; as regras não mudam. A câmera continua olhando o mesmo
   ponto, as junções das ruas e a ordem de desenho acompanham o giro, e as construções mantêm a luz
   do mesmo lado (o Mercado troca entre o desenho 2 x 4 e 4 x 2 conforme fica na tela).
 - Rua, Casa, Campo e Limpar constroem arrastando; o arraste preenche as células em passos
@@ -408,9 +516,11 @@ da região de Jerusalém: inverno chuvoso e verde, verão seco.
 - No toque, o arraste só começa a construir depois de 150 ms com um dedo só (a pinça não
   constrói). Nada é construído nem começa um gesto sob a placa, a faixa da meta, a faixa de aviso,
   a velocidade, os trilhos ou a linha de informação (quando aparece). Continuar uma rua a partir de uma rua existente não mostra "Local inválido".
-- Atalhos no PC: 1–9 e 0 escolhem a ferramenta (Ver, Rua, Casa, Campo, Poço, Mercado, Oficina,
-  Jardim, Templo, Limpar), R gira o Mercado, Q e E giram o mapa, Espaço troca a
-  velocidade, Esc volta para Ver.
+- Atalhos no PC (iguais nas duas interfaces): 1–9 e 0 escolhem a ferramenta (Mover, Rua, Casa,
+  Campo, Poço, Mercado, Oficina, Jardim, Templo, Demolir), R gira o Mercado, Q e E giram o mapa,
+  Espaço troca a velocidade, Esc fecha o balão ou painel aberto e, sem nenhum, volta para Mover.
+- Na Nova, a área sob pílulas, botões redondos, coluna, balões e painéis também conta como
+  interface (nada é construído nem começa um gesto ali).
 
 ## Vida na cidade
 

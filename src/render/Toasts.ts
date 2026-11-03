@@ -5,7 +5,7 @@ import { text } from './ui';
 
 const DURATION = 2200;
 const MAX = 3;
-/** Toasts sit just above the info line and stack upward, leaving the top for the goal and the alert. */
+/** Classic: toasts sit just above the info line and stack upward, leaving the top for the goal and the alert. */
 const Y0 = INFO_Y - 28;
 
 interface Toast {
@@ -19,7 +19,8 @@ export type Tone = 'info' | 'bad' | 'good';
 export class Toasts {
   private list: Toast[] = [];
 
-  constructor(private scene: Phaser.Scene) {}
+  /** `y0`: center of the newest toast; older ones stack upward. */
+  constructor(private scene: Phaser.Scene, private y0 = Y0) {}
 
   show(msg: string, tone: Tone = 'info') {
     const existing = this.list.find((t) => t.msg === msg);
@@ -36,7 +37,7 @@ export class Toasts {
     bg.fillRoundedRect(-w / 2 + 2, -h / 2 + 3, w, h, 12);
     bg.fillStyle(tone === 'bad' ? C.ui.alertBad : tone === 'good' ? 0x4f7f34 : C.ink, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
-    const root = s.add.container(GAME_W / 2, Y0, [bg, label]).setDepth(30).setAlpha(0);
+    const root = s.add.container(GAME_W / 2, this.y0, [bg, label]).setDepth(30).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
     const toast: Toast = { msg, root, timer: s.time.delayedCall(DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
@@ -58,6 +59,6 @@ export class Toasts {
   }
 
   private layout() {
-    this.list.forEach((t, k) => this.scene.tweens.add({ targets: t.root, y: Y0 - k * 46, duration: 150 }));
+    this.list.forEach((t, k) => this.scene.tweens.add({ targets: t.root, y: this.y0 - k * 46, duration: 150 }));
   }
 }

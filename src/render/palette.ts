@@ -64,7 +64,21 @@ export const C = {
     infoBg: 0x4a3523,
     alertBad: 0xa8392b,
     alertWarn: 0xc56a1c,
+    /** Line icons drawn light, for dark buttons (the dark ones use `ink`). */
+    iconLight: 0xfdf7e8,
+    /** Soft outline around the building thumbnails, so light stone reads on a light button. */
+    thumbOutline: 0x4a3523,
+    /** Locked thumbnails: their colours are turned to grey and lifted toward this. */
+    lockedGrey: 0x8f8a80,
+    /** Mouse hand cursor (Mover): fill inside the ink outline. */
+    cursorFill: 0xfdf7e8,
   },
+  /** Building under the demolish tool, pulsing between the two. */
+  demolish: { soft: 0xffb4a4, strong: 0xff6a52 },
+  /** Places that would solve a need (e.g. "where to put a market"): fill, edge and inner glow. */
+  solve: { fill: 0xcfe07a, edge: 0xf6dc8c, glow: 0xfff6c8 },
+  /** Dust raised when something is demolished (the pebbles use the rock colours). */
+  dust: 0xd9c49a,
 };
 
 export const CSS = {
@@ -87,3 +101,47 @@ export function shade(color: number, f: number): number {
   const ch = (v: number) => Math.max(0, Math.min(255, Math.round(f < 1 ? v * f : v + (255 - v) * (f - 1))));
   return (ch((color >> 16) & 255) << 16) | (ch((color >> 8) & 255) << 8) | ch(color & 255);
 }
+
+// ---------- Interface Nova (ui-designer) ----------
+
+/** Interface Nova: dark see-through panels, parchment buttons, gold highlight, light text. */
+export const NOVA = {
+  panel: 0x24190e,
+  panelAlpha: 0.75,
+  /** Subtle light border of the panels. */
+  edge: 0xfff4dc,
+  edgeAlpha: 0.2,
+  parchment: 0xf4e8cc,
+  /** Parchment of a button without silver or locked. */
+  parchmentDim: 0xcfc4ad,
+  /** Dark brown border of the parchment buttons. */
+  border: 0x3b2a1a,
+  gold: 0xe2a93b,
+  goldLight: 0xffd77a,
+  text: 0xfff4dc,
+  good: 0x6fbf5a,
+  bad: 0xd8483a,
+  /** Progress bar track and the empty part of the level ring. */
+  track: 0x5a4630,
+  /** Balloon of the building tapped with Mover: the "Ao evoluir" box. */
+  box: 0x3a2a18,
+  /** Balloons and panels with several lines of text: a bit denser than the bars, to stay readable over the map. */
+  balloonAlpha: 0.88,
+  /** Red selo of the alerts button. */
+  badge: 0xc8372b,
+};
+
+export const NOVA_CSS = {
+  text: '#fff4dc',
+  muted: '#d2c09a',
+  gold: '#e2a93b',
+  good: '#8fd17f',
+  bad: '#ff8a7a',
+  warn: '#ffb15c',
+  ink: '#3b2a1a',
+  /** Price on a parchment button without enough silver. */
+  inkBad: '#b02a1c',
+};
+
+/** Rounded and readable, system fonts only (the game is an offline app): falls back to the classic font. */
+export const NOVA_FONT = 'ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", "Varela Round", "Trebuchet MS", Verdana, sans-serif';

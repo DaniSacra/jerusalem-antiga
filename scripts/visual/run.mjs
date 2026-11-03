@@ -86,8 +86,10 @@ async function setSpeed(page, speed) {
 }
 
 /** Opens the game, leaves the title screen and waits for the UI to be attached. The first-game
- * tutorial is skipped (marked as seen) unless `tutorial` is set. */
-async function startGame(page, { tutorial = false } = {}) {
+ * tutorial is skipped (marked as seen) unless `tutorial` is set. `ui` picks the interface: the older
+ * scenarios use the Clássica (their positions come from layout.ts), the `nova-*` ones the Nova. */
+async function startGame(page, { tutorial = false, ui = 'classic' } = {}) {
+  await page.addInitScript((mode) => localStorage.setItem('jerusalem.ui', mode), ui);
   if (!tutorial) await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
   await page.goto(URL);
   await page.waitForFunction(() => document.querySelector('canvas'));
@@ -1073,6 +1075,27 @@ const scenarios = {
     },
   },
 
+  'nova-phone': { context: PHONE, run: (page) => novaScenario(page, 'phone') },
+  'nova-phone-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => novaScenario(page, 'phone-wide') },
+  'nova-pc': { context: PC, run: (page) => novaScenario(page, 'pc') },
+
+  /** Settings switch Nova -> Clássica -> Nova; the game goes on (same state, same month). */
+  'nova-switch': {
+    context: PC,
+    async run(page) {
+      await startGame(page, { ui: 'nova' });
+      const month0 = await page.evaluate(() => (window.state.month = 7));
+      await clickUi(page, 'novaPoint', 'gear');
+      assert(await page.evaluate(() => window.game.ui.view.panels.open === 'settings'), 'the gear opens the settings');
+      await shot(page, 'nova-switch-settings');
+      await page.evaluate(() => window.game.ui.view.panels.h.onUi('classic'));
+      await page.waitForFunction(() => window.game.ui.nova === false);
+      assert(await page.evaluate(() => localStorage.getItem('jerusalem.ui') === 'classic'), 'the choice is saved');
+      assert(await page.evaluate((m) => window.state.month === m, month0), 'the game goes on');
+      await shot(page, 'nova-switch-classic');
+    },
+  },
+
   async clarity(page) {
     await startGame(page);
     await page.evaluate(() => {
@@ -1235,6 +1258,117 @@ const scenarios = {
     await shot(page, 'victory');
   },
 };
+
+/** Minimum size (real screen px) of the visible texts of the interface. */
+const minUiText = (page) =>
+  page.evaluate(() => {
+    const k = document.querySelector('canvas').getBoundingClientRect().width / 1280;
+    let min = Infinity;
+    const walk = (o, sc) => {
+      if (!o.visible) return;
+      const s2 = sc * (o.scaleY ?? 1);
+      if (o.type === 'Text' && o.text.trim()) min = Math.min(min, parseFloat(o.style.fontSize) * s2 * k);
+      if (o.list) o.list.forEach((c) => walk(c, s2));
+    };
+    window.game.ui.children.list.forEach((o) => walk(o, 1));
+    return min;
+  });
+
+/**
+ * The Nova interface on one screen size: start, sizes (44 px touch, 12 px text, the 7 column buttons
+ * fit, no top bar overlaps), chosen building balloon, locked building, tapped house balloon with the
+ * main action, Avisos, Objetivos, Estatísticas and Configurações.
+ */
+async function novaScenario(page, suffix) {
+  await startGame(page, { ui: 'nova' });
+  const phone = suffix !== 'pc';
+  const { tap } = phone ? await touchInput(page) : { tap: null };
+  const press = async (name) => {
+    const p = await uiPoint(page, 'novaPoint', name);
+    if (tap) await tap(p);
+    else await page.mouse.click(...(await gameToPage(page, ...p)));
+    await page.waitForTimeout(150);
+  };
+  assert(await page.evaluate(() => window.game.ui.nova), 'the Nova is the default interface');
+  await shot(page, `nova-${suffix}`);
+
+  // Every round button is at least 44 real px; the 7 column buttons fit the screen height.
+  const sizes = await page.evaluate(() => {
+    const k = document.querySelector('canvas').getBoundingClientRect().width / 1280;
+    const names = ['level', 'gear', 'speed-1', 'side-goals', 'side-alerts', 'side-stats', 'tool-view', 'tool-road', 'tool-clear',
+      ...['house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'].map((b) => `build-${b}`)];
+    return names.map((n) => {
+      const p = window.layout.novaPoint(n);
+      return { n, real: p.d * k, top: p.y - p.d / 2, bottom: p.y + p.d / 2 };
+    });
+  });
+  const H = await page.evaluate(() => window.game.scale.height);
+  for (const b of sizes) {
+    assert(b.real >= 44, `${b.n} is at least 44 real px (got ${b.real.toFixed(1)})`);
+    assert(b.top >= 0 && b.bottom <= H, `${b.n} fits the screen height (${b.top.toFixed(0)}..${b.bottom.toFixed(0)} of ${H})`);
+  }
+  const overlaps = await page.evaluate(() => {
+    const r = window.game.ui.view.top.rects().filter(Boolean);
+    const out = [];
+    for (let i = 0; i < r.length; i++)
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i];
+        const b = r[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.push([i, j]);
+      }
+    return out;
+  });
+  assert(overlaps.length === 0, `no top bar parts overlap (${JSON.stringify(overlaps)})`);
+
+  // Chosen building: the balloon at the left of the column.
+  await setupHudCity(page);
+  await press('build-market');
+  assert(await page.evaluate(() => window.game.tool === 'market'), 'the Mercado button picks the market');
+  assert(await page.evaluate(() => window.game.ui.view.column.balloon.visible), 'the chosen building balloon shows');
+  assert((await minUiText(page)) >= 11.9, 'no text under 12 real px');
+  await shot(page, `nova-${suffix}-chosen`);
+
+  // Locked: "Libera no objetivo N", nothing picked.
+  await page.evaluate(() => {
+    window.state.unlocked = window.state.unlocked.filter((k) => k !== 'garden');
+    window.game.selectTool('view');
+  });
+  await press('build-garden');
+  assert(await page.evaluate(() => window.game.tool === 'view'), 'a locked building is not picked');
+  await shot(page, `nova-${suffix}-locked`);
+
+  // Tapped house (Mover): balloon with what it has and lacks, and the main action.
+  await page.evaluate(() => {
+    const s = window.state;
+    const b = s.buildings.find((x) => x.kind === 'house' && x.level === 2);
+    const w = window.iso.gridToWorld(b.x + 1, b.y + 1);
+    window.game.cameras.main.centerOn(w.x, w.y);
+    window.game.selected = { x: b.x, y: b.y };
+    window.game.refresh();
+  });
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => window.game.ui.view.inspector.open), 'the tapped house balloon shows');
+  await shot(page, `nova-${suffix}-house`);
+  const action = await page.evaluate(() => {
+    const b = window.game.ui.view.inspector.btns[0].root.getWorldTransformMatrix();
+    return [b.tx, b.ty];
+  });
+  if (tap) await tap(action);
+  else await page.mouse.click(...(await gameToPage(page, ...action)));
+  await page.waitForTimeout(200);
+  await shot(page, `nova-${suffix}-spots`);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.game.selectTool('view'));
+
+  for (const [name, kind] of [['side-alerts', 'alerts'], ['side-goals', 'goals'], ['side-stats', 'stats'], ['gear', 'settings']]) {
+    await press(name);
+    assert(await page.evaluate((k) => window.game.ui.view.panels.open === k, kind), `${name} opens ${kind}`);
+    assert((await minUiText(page)) >= 11.9, `no text under 12 real px in ${kind}`);
+    await shot(page, `nova-${suffix}-${kind}`);
+    await page.keyboard.press('Escape');
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === null), `Esc closes ${kind}`);
+  }
+}
 
 /** Taps a page point (before the game scene exists). */
 async function cdpTapPage(page, x, y) {
