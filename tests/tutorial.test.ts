@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDINGS,
   createGame,
   createRng,
   ghostRoad,
@@ -116,5 +117,37 @@ describe('served houses', () => {
     expect(servedHouses(s, 'well', EAST, 27)).toEqual([near]);
     expect(servedHouses(s, 'house', EAST, 27)).toEqual([]); // no radius
     expect(servedHouses(s, 'market', EAST, 36, true).map((b) => b.y)).toEqual([42]);
+  });
+});
+
+describe('ghost road (fallbacks)', () => {
+  it('tries west, then north, then east, and is empty when all are blocked', () => {
+    const s = emptyGame();
+    const block = (line: { x: number; y: number }[]) => (s.feature[indexOf(s, line[line.length - 1].x, line[line.length - 1].y)] = 'rock');
+    const west = ghostRoad(s);
+    expect(west.every((c) => c.y === west[0].y && c.x < 22)).toBe(true);
+    block(west);
+    const north = ghostRoad(s);
+    expect(north).toHaveLength(6);
+    expect(north.every((c) => c.x === north[0].x && c.y < 22)).toBe(true);
+    block(north);
+    const east = ghostRoad(s);
+    expect(east).toHaveLength(6);
+    expect(east.every((c) => c.y === east[0].y && c.x > 25)).toBe(true);
+    block(east);
+    expect(ghostRoad(s)).toEqual([]);
+  });
+});
+
+describe('served houses (radius edge)', () => {
+  // A 2x2 well at (EAST, 27) with radius 4 reaches rows 23..32.
+  it('counts a house with one cell at the edge of the radius, not one just beyond', () => {
+    const r = BUILDINGS.well.radius!;
+    const edge = emptyGame();
+    const touching = put(edge, 'house', ROADSIDE, 28 + r, 2); // rows 32..33: row 32 is inside
+    expect(servedHouses(edge, 'well', EAST, 27)).toEqual([touching]);
+    const far = emptyGame();
+    put(far, 'house', ROADSIDE, 29 + r, 1); // rows 33..34: outside
+    expect(servedHouses(far, 'well', EAST, 27)).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
-import { EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
   it('charges the cost and occupies every cell of the footprint', () => {
@@ -106,6 +106,21 @@ describe('temple placement', () => {
       const touches = [...Array(w + 2)].some((_, dx) => [...Array(h + 2)].some((_, dy) => s.network[indexOf(s, o.x - 1 + dx, o.y - 1 + dy)]));
       expect(touches).toBe(true);
     }
+  });
+});
+
+describe('placement spots', () => {
+  it('lists rotated market spots that fit rotated, ignoring silver and locks', () => {
+    const s = emptyGame({ silver: 0, unlocked: ['road'] });
+    const up = placeSpots(s, 'market');
+    const turned = placeSpots(s, 'market', true);
+    expect(turned.length).toBeGreaterThan(0);
+    expect(turned).not.toEqual(up);
+    s.silver = 1e6;
+    s.unlocked = ['market'];
+    for (const o of turned) expect(checkPlace(s, 'market', o.x, o.y, true)).toEqual({ ok: true });
+    // Upright, a 2x4 market fits beside the starting road.
+    expect(up).toContainEqual({ x: westOf('market'), y: 30 });
   });
 });
 

@@ -203,3 +203,35 @@ describe('upkeep starts after goal 2', () => {
   });
 });
 
+describe('upkeep start (edges)', () => {
+  it('goal 1 does not start upkeep nor announce it', () => {
+    const s = emptyGame({ goalIndex: 0, silver: 0 });
+    put(s, 'well', EAST, 27);
+    for (let y = 27; y <= 37; y += 2) put(s, 'house', ROADSIDE, y, 1); // 6 tents: goal 1 done
+    const events: GameEvent[] = [];
+    checkGoal(s, events);
+    expect(s.goalIndex).toBe(1);
+    expect(events.map((e) => e.type)).toEqual(['goal']);
+    expect(upkeepCharged(s)).toBe(false);
+    expect(computeEconomy(s).upkeep).toEqual({});
+  });
+
+  it('in stepMonth: the month goal 2 is done is still free, the next one pays upkeep', () => {
+    const never = () => 0.99;
+    const s = emptyGame({ goalIndex: 1, silver: 0, food: 1000 });
+    put(s, 'well', EAST, 27);
+    for (let y = 27; y <= 39; y += 2) put(s, 'house', ROADSIDE, y, 1); // 21 residents
+    const free = computeEconomy(s);
+    expect(free.upkeep).toEqual({});
+    const first = stepMonth(s, never);
+    expect(first.filter((e) => e.type === 'upkeepStart')).toHaveLength(1);
+    expect(s.silver).toBe(Math.round((free.silverDelta + 30) * 100) / 100); // taxes + reward, no upkeep
+    expect(upkeepCharged(s)).toBe(true);
+    const paid = computeEconomy(s);
+    expect(paid.upkeep).toEqual({ well: BUILDINGS.well.upkeep });
+    const before = s.silver;
+    const second = stepMonth(s, never);
+    expect(second.some((e) => e.type === 'upkeepStart')).toBe(false);
+    expect(s.silver).toBe(Math.round((before + paid.silverDelta) * 100) / 100);
+  });
+});

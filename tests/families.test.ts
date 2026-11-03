@@ -122,3 +122,14 @@ describe('families', () => {
     expect(s.grid[indexOf(s, start.x, start.y)]).toBeNull();
   });
 });
+
+describe('fast first families', () => {
+  it('with many plots in one month, only the first 3 dispatched are fast', () => {
+    const s = emptyGame();
+    for (let y = 27; y <= 35; y += 2) put(s, 'house', ROADSIDE, y); // 5 plots
+    stepMonth(s, always);
+    expect(s.families).toHaveLength(5);
+    expect(s.families.filter((f) => f.fast)).toHaveLength(3);
+    for (const f of s.families) expect(f.step).toBe(familySpeed(f)); // all set out and walked this month
+  });
+});

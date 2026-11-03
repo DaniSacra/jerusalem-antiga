@@ -31,3 +31,20 @@ describe('seasons', () => {
     expect(seasons(stepMonth(s, rng))).toEqual([]);
   });
 });
+
+describe('seasons over a full year', () => {
+  it('emits summer, autumn, winter and spring in order, one every season, over 4 seasons', () => {
+    const s = emptyGame({ month: 0 });
+    const rng = createRng(42);
+    const got: { month: number; season: string }[] = [];
+    for (let k = 0; k < 4 * M; k++) {
+      for (const e of stepMonth(s, rng)) if (e.type === 'season') got.push({ month: s.month, season: e.season });
+    }
+    expect(got).toEqual([
+      { month: M, season: 'summer' },
+      { month: 2 * M, season: 'autumn' },
+      { month: 3 * M, season: 'winter' },
+      { month: 4 * M, season: 'spring' },
+    ]);
+  });
+});
