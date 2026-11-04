@@ -34,6 +34,7 @@ import {
   templeSpots,
   weeksToHarvest,
   unemployed,
+  upkeepCharged,
   type Building,
   type BuildableKind,
   type GameState,
@@ -233,7 +234,9 @@ export class SurvivalBot {
       if (noMarket.length >= (this.p.planner ? 2 : 3) && this.service(s, 'market', noMarket)) return true;
     }
 
-    // 5. Temple.
+    // 5. Temple: built as soon as it is unlocked and affordable (with a little margin).
+    const templeReady = s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple');
+    if (templeReady && s.silver >= costOf('temple') + 40 && templeSpots(s).length) return this.place(s, 'temple');
     if (goal?.type === 'build' && goal.kind === 'temple') {
       if (templeSpots(s).length) {
         if (s.silver >= costOf('temple')) return this.place(s, 'temple');
@@ -402,7 +405,9 @@ export class SurvivalBot {
       const eco = computeEconomy(s);
       if (eco.yearJobs + BUILDINGS[kind].jobs > eco.workers + 1) return false;
     }
-    const spot = this.spotFor(s, kind);
+    // A boxed-in city lays a long road (demolishing if needed) to reach open land for food and services.
+    const far = ['granary', 'field', 'fisher', 'gatherer', 'market', 'well'].includes(kind);
+    const spot = this.spotFor(s, kind) ?? (far ? this.spotFor(s, kind, false, true) : null);
     if (!spot) return false;
     return this.reach(s, kind, spot.r, spot.dig);
   }
@@ -442,7 +447,9 @@ export class SurvivalBot {
   private affords(s: GameState, kind: BuildableKind) {
     if (!this.p.planner) return true;
     const eco = computeEconomy(s);
-    const after = eco.silverDelta - (BUILDINGS[kind].upkeep ?? 0);
+    // Before upkeep starts, the planner counts the upkeep it will pay (it knows the rule).
+    const coming = upkeepCharged(s) ? 0 : s.buildings.reduce((a, b) => a + (BUILDINGS[b.kind].upkeep ?? 0), 0);
+    const after = eco.silverDelta - coming - (BUILDINGS[kind].upkeep ?? 0);
     return !(after < 0 && s.silver - costOf(kind) < -after * 20);
   }
 

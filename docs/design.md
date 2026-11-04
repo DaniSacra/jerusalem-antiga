@@ -82,6 +82,12 @@ Especificação completa em `docs/revisoes/2026-11-04/plano.md`, seção 2. Resu
   - resultado (100 seeds): Comum com 9 casas no fim do Ano 1, 40% de vitórias na semana 572
     (~30 min), fome em algum inverno em 39%; prata parada > 26 semanas em 28/100 (critério F falha:
     cortar mais imposto derrubava as vitórias)
+- **Aprovado pelo usuário depois das revisões (2026-11-04):** Templo liberado no objetivo 8 (a
+  vitória continua pedindo os 500 moradores do objetivo 9); manutenção depois do objetivo 4;
+  `winter.foodFactor` 1,25 → 1,4; ajustes de bot do sim-tester (cidade fechada abre rua longa,
+  planejador conta a manutenção que vai começar, templo construído assim que liberado e pago).
+  Medido (100 seeds): Comum 42% de vitórias em ~30 min, 7 derrotas, prata parada 9/100;
+  Eficiente 23%; Distraído 4% (67 derrotas, assunto do P5)
 
 ## Superado: Pacote 2 "Anos que contam" (escopo 2026-11-04)
 Escopo em `docs/revisoes/2026-11-03/plano-pacote2.md`; não foi implementado. O que foi aproveitado

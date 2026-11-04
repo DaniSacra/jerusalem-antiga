@@ -48,8 +48,8 @@ describe('goals', () => {
       ['residents', 150, null, 80, 'garden', null],
       ['houses', 2, 4, 100, null, null],
       ['residents', 250, null, 120, null, null],
-      ['houses', 6, 4, 150, null, null],
-      ['residents', 500, null, 200, 'temple', 8],
+      ['houses', 6, 4, 150, 'temple', null],
+      ['residents', 500, null, 200, null, 8],
       ['build', 1, 'temple', 0, null, null],
     ]);
     expect(GOALS.at(-1)!.victory).toBe(true);
@@ -66,7 +66,7 @@ describe('goals', () => {
     expect(unlockingGoal('market')).toBe(3);
     expect(unlockingGoal('workshop')).toBe(4);
     expect(unlockingGoal('garden')).toBe(5);
-    expect(unlockingGoal('temple')).toBe(9);
+    expect(unlockingGoal('temple')).toBe(8); // built before the 500 residents; the victory still asks for them
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
@@ -190,8 +190,8 @@ describe('goals that wait for their year (fromYear)', () => {
     expect(yearOf(7 * WEEKS_PER_YEAR)).toBe(8);
   });
 
-  it('goal 9 (the temple) waits for the Year 8, even with the residents long reached', () => {
-    expect(goal.unlock).toBe('temple');
+  it('goal 9 (500 residents) waits for the Year 8, even with the residents long reached', () => {
+    expect(goal.unlock).toBeUndefined();
     expect(goal.fromYear).toBe(8);
     const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house'], week: 0 });
     bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
@@ -203,12 +203,12 @@ describe('goals that wait for their year (fromYear)', () => {
       checkGoal(s, events);
     }
     expect(events).toEqual([]);
-    expect(s.unlocked).not.toContain('temple');
+    expect(s.goalIndex).toBe(i);
     s.week = opens;
     expect(goalOpen(s, goal)).toBe(true);
     checkGoal(s, events);
     expect(events).toEqual([goalEvent(i)]);
-    expect(s.unlocked).toContain('temple');
+    expect(s.goalIndex).toBe(i + 1);
   });
 
   it('in stepWeek the goal is done the week the Year 8 begins', () => {

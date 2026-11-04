@@ -72,7 +72,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
 | Oficina | 50 | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |
 | Jardim | 35 | 1/sem | 2 x 2 | – | – | 3 | liberado pelo Objetivo 5; deixa as casas no raio mais felizes |
-| Templo | 800 | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido |
+| Templo | 800 | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início |
 
 - **Pescador e Coletora** (`gather` em `buildings.json`, uma regra só): produção por semana =
@@ -87,10 +87,10 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Oficina:** cada oficina **ligada** soma 10% à comida de todos os campos (`fieldBonus`), até
   +30% (`fieldBonusMax`; a 4ª oficina só dá vagas). Vale também na previsão; não vale para pescador
   e coletora. Nenhuma construção dá prata: a prata vem só de impostos e prêmios.
-- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 3** (60 moradores)
+- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 4** (3 casas de pedra)
   (`upkeepStartsAfterGoal` em `rules.json`). Antes disso nada é cobrado: o "+X/sem" não a desconta
   e não há aviso de saldo nem dívida por ela; os balões dizem "manutenção N/sem depois do
-  Objetivo 3". Ao cumprir o Objetivo 3 aparece, uma vez, "A partir de agora, as construções custam
+  Objetivo 4". Ao cumprir o Objetivo 4 aparece, uma vez, "A partir de agora, as construções custam
   prata por semana. Fique de olho no saldo." (passo do tutorial ou toast).
   A partir daí é cobrada toda semana de toda construção, **mesmo desconectada**, e também depois da
   vitória.
@@ -261,11 +261,11 @@ A cada semana, nesta ordem (`simulation.ts`):
    pescador, coletora e o resto (`isWorking`). Eficiência = trabalhadores / vagas, no máximo 100%
    (100% se não houver vagas). A previsão de comida segue essa eficiência semana a semana.
 3. Comida += colheita (fora do inverno, com o bônus das oficinas) + pesca + coleta − consumo. Cada
-   morador come 0,2 por semana (`food` em `houses.json`); **no inverno come × 1,25**
+   morador come 0,2 por semana (`food` em `houses.json`); **no inverno come × 1,4**
    (`winter.foodFactor`) e quem mora em **tenda come × 1,75** (`winter.tentFoodFactor`). Se a
    comida chega a 0 com saldo negativo: **fome**. A comida nunca fica negativa. Depois, o que
    passa do estoque (50 + celeiros) **estraga**.
-4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (só depois do Objetivo 3; o campo paga manutenção o ano todo). A prata **pode ficar negativa** (dívida).
+4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (só depois do Objetivo 4; o campo paga manutenção o ano todo). A prata **pode ficar negativa** (dívida).
    Esse saldo é o "+X/sem" da pílula.
 5. Novas famílias (veja Famílias); depois todas andam (as novas já na mesma semana), e as que
    chegam transformam o terreno em tenda.
@@ -331,13 +331,13 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 |---|---|---|---|---|
 | 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
 | 2 | Tenha 3 casas de barro | 3 | +40 | – |
-| 3 | Chegue a 60 moradores | 60 | +50 | Mercado (e a manutenção começa) |
-| 4 | Tenha 3 casas de pedra | 3 | +60 | Oficina |
+| 3 | Chegue a 60 moradores | 60 | +50 | Mercado |
+| 4 | Tenha 3 casas de pedra | 3 | +60 | Oficina (e a manutenção começa) |
 | 5 | Chegue a 150 moradores | 150 | +80 | Jardim |
 | 6 | Tenha 2 casas grandes | 2 | +100 | – |
 | 7 | Chegue a 250 moradores | 250 | +120 | – |
-| 8 | Tenha 6 casas grandes | 6 | +150 | – |
-| 9 | Chegue a 500 moradores a partir do Ano 8 | 500, só do Ano 8 em diante (`fromYear`) | +200 | Templo |
+| 8 | Tenha 6 casas grandes | 6 | +150 | Templo |
+| 9 | Chegue a 500 moradores a partir do Ano 8 | 500, só do Ano 8 em diante (`fromYear`) | +200 | – |
 | 10 | Construa o Templo | 1 | vitória | – |
 
 Um ou dois objetivos por ano, por cerca de 10 anos. "Primeira colheita" continua só como marco.
@@ -350,7 +350,8 @@ O tipo `water` (casas com poço) ainda existe no core, sem objetivo que o use, a
   comida voltar. O alvo nunca é 0. Uma cidade vazia (ninguém morando nem a caminho) tem progresso 0:
   o objetivo não se cumpre com todos indo embora.
 - **`fromYear`:** o objetivo só se cumpre a partir desse ano (`goalOpen`); o texto mostra "a partir
-  do Ano N" na pílula e na lista, e o cadeado do Templo diz "Libera no objetivo 9 · Ano 8".
+  do Ano N" na pílula e na lista. O Templo libera no Objetivo 8, para o jogador juntar prata e
+  construí-lo antes; a vitória vem quando os objetivos 9 (500 moradores) e 10 (o Templo) se cumprem.
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
 
@@ -462,7 +463,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
   depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
-  eficiência que a cidade teria; antes do Objetivo 3, sem manutenção). Num local de trabalho que
+  eficiência que a cidade teria; antes do Objetivo 4, sem manutenção). Num local de trabalho que
   não dá comida (mercado, oficina, templo…), quando as vagas dele tiram trabalhadores dos que dão
   comida, também "Comida depois: ±X/sem" (`foodAfter`; vermelho se negativo), no celular também.
   Fecha ao trocar de ferramenta ou ao tocar no mapa para construir.
@@ -624,7 +625,7 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   mira fica 90 px acima do dedo, então tocar na ponta da seta constrói no lugar marcado.
 - O passo da manutenção aponta a prata pelo lado direito da pílula e sempre mostra o seu texto.
 - Mini passos (só para quem não pulou), sem travar ferramentas:
-  - Ao cumprir o Objetivo 3: a seta aponta a prata e o balão traz a mensagem da manutenção com o
+  - Ao cumprir o Objetivo 4: a seta aponta a prata e o balão traz a mensagem da manutenção com o
     botão "Entendi".
   - Depois: "Casas de barro com mercado perto viram casas de pedra", com a seta no Mercado.
     Conclui com 1 mercado ligado.
