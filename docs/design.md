@@ -51,10 +51,31 @@ por cima das seções abaixo:
   vence 98%; tutorial perde 0 de 16. Mas a partida dura ~2,5 min, as metas 1–4 caem em 9 semanas,
   o campo dá 89% da comida e 19–42% estraga
 
-## Próximo: Pacote 2 "Água sai e mapa" (aprovado pelo usuário em 2026-11-04)
-Especificação completa, pronta para implementar: `docs/revisoes/2026-11-04/plano-p2.md` (com o
-esboço do P3 "Madeira e pedra" no fim). Nenhuma regra nova: a Praça troca o Poço, o Parque troca o
-Jardim e o raio do altar. Resumo (atual → novo):
+## Próximo: Pacote 3 "Madeira e pedra" (especificado em 2026-11-04, falta a aprovação do usuário)
+Especificação completa: `docs/revisoes/2026-11-04/plano-p3.md`. Mecânica nova (uma): **materiais de
+obra**. Resumo:
+- Lenhador (início; 25 prata, manutenção 1, 2 x 2, 2 vagas, 0,25 por árvore no raio 3, teto 3/sem) e
+  Pedreira (objetivo 2; 40 prata + 10 madeira, manutenção 2, 2 x 2, 3 vagas, 0,4 por rocha no raio 2,
+  teto 3/sem), com a regra da Coletora. Trabalham o ano todo
+- Estoque da cidade sem limite e sem depósito; a caravana traz 20 de madeira
+- Custos: casa nova 5 madeira; celeiro, mercado e oficina 10 madeira; parque 5 pedra; templo 800 +
+  300 pedra + 150 madeira. Evolução: barro 5 madeira, pedra 10 pedra, casa grande 10 pedra + 5
+  madeira, pagos ao subir; sem material a casa espera pronta (13/13), como a pausa da fome
+- Rua, campo, praça, pescador, coletora e lenhador nunca pedem material
+- Corte: a cada 10 de madeira o Lenhador corta a árvore mais próxima; o toco não bloqueia (constrói
+  em cima de graça) e volta a ser árvore em 104 semanas. Lenhador e Coletora disputam o bosque
+- Topo: uma pílula Materiais entre Comida e Moradores (pedra só depois do objetivo 2), vermelha
+  quando há casa esperando. Materiais fora da porta das famílias. O inverno não consome material
+  (lenha é o P4)
+- Antes da linha de base: ajustes do P2 que as revisões confirmarem (`familyFoodReserveWeeks` 2 → 1
+  para a fome no inverno; templo sem lugar)
+
+## Feito: Pacote 2 "Água sai e mapa" (no main: f9dfc4c..da5a8bb)
+Especificação: `docs/revisoes/2026-11-04/plano-p2.md`. Medido (sim-tester, d901a12): Comum 46% de
+vitórias em ~27 min, 0 derrotas, prata parada 3/100. Abertos: fome no inverno ~11% (alvo 25–60%) e
+templo sem lugar ao ser liberado (M2 ~26%, parece o bot). Revisões do P2 em andamento.
+Nenhuma regra nova: a Praça troca o Poço, o Parque troca o Jardim e o raio do altar. Resumo (atual →
+novo):
 - Poço sai (dados, código, arte e textos). Sai a porta `water` e o objetivo `water`. Não há saves a
   migrar (só `tutorialDone` e configurações)
 - Casas: barro = rua + **praça**; pedra = + mercado; casa grande = + **parque** (o altar sai da
@@ -633,6 +654,25 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04 — P3: madeira e pedra num estoque da cidade sem limite e sem depósito. Motivo: um
+  limite pediria uma construção nova (segunda mecânica); o freio é o teto da produção e o bosque
+  que encolhe. Limite só no P4, se o material parado falhar (W4).
+- 2026-11-04 — P3: sem material a casa espera pronta (13/13) e paga ao subir; construir sem material
+  é como sem prata. Motivo: regras já conhecidas (pausa da fome, botão cinza).
+- 2026-11-04 — P3: materiais fora da porta das famílias; comida e madeira nunca pedem material (rua,
+  campo, praça, pescador, coletora, lenhador). Motivo: a porta fica uma frase; sempre há caminho
+  de volta (pilar 1).
+- 2026-11-04 — P3: Lenhador e Coletora disputam as árvores, com aviso na prévia; o toco não bloqueia
+  e rebrota em 104 semanas. Motivo: é a escolha do usuário (cortar custa frutos); o toco livre faz
+  o Lenhador abrir espaço e ajuda o templo a achar lugar.
+- 2026-11-04 — P3: uma pílula Materiais no topo, a pedra só depois do objetivo 2; no celular sem
+  variação por semana. Motivo: phone first (844 x 390) e uma matéria-prima por vez.
+- 2026-11-04 — A fome no inverno baixa (~11%) não se conserta no P3: `familyFoodReserveWeeks` 2 → 1
+  entra como ajuste do P2, antes da linha de base do P3, se o sim-tester-p2 confirmar; depois vem a
+  lenha do P4. Motivo: não misturar a medida da mecânica nova com o conserto de um número antigo.
+- 2026-11-04 — fun-critic-p2: objetivo 8 → 12 e prêmio do 9 → 400 DEPOIS (medir J3 no P3); Coletora
+  0,2 DEPOIS (medir o corte primeiro); Limpar 10 FORA (o Lenhador abre o bosque); casa grande imposto
+  3,5 DEPOIS (P9); "Bairro completo" DEPOIS (gatilho novo).
 - 2026-11-04 — P2 "Água sai e mapa" aprovado pelo usuário (seguir o roteiro). Casas evoluem por
   praça, mercado e parque; o altar sai da evolução. Motivo: as decisões do usuário de 04/11 ("não do
   altar") valem mais que a lista de pacotes ("… e altar").
@@ -962,9 +1002,8 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
 Um pacote por vez, cada um medido antes do próximo (detalhes em
 `docs/revisoes/2026-11-04/plano.md`, seção 1):
 1. ~~Ritmo (com a seca no Ano 3)~~ feito (196cd9d, a06d471)
-2. **Próximo:** Água sai e mapa (+ câmera do tutorial e fila de toasts do antigo P2), especificado em
-   `docs/revisoes/2026-11-04/plano-p2.md`
-3. Madeira e pedra (esboço no fim de `plano-p2.md`; especificação depois do P2 medido)
+2. ~~Água sai e mapa~~ feito (f9dfc4c..da5a8bb), `docs/revisoes/2026-11-04/plano-p2.md`
+3. **Próximo:** Madeira e pedra, especificado em `docs/revisoes/2026-11-04/plano-p3.md`
 4. Lenha e inverno (neve, reserva do celeiro)
 5. Recuperação (dívida gradual, derrota com a cidade quase vazia)
 6. Obras com tempo + templo calibrado para ~30%
