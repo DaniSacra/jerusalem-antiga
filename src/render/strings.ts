@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 export const T = {
@@ -8,7 +8,7 @@ export const T = {
   start: 'Começar',
   howTo: [
     'Comida para o inverno: pesque, colete e plante campos no outono.',
-    'Dê água às casas com poços e guarde a colheita num celeiro.',
+    `Dê água às casas com poços. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -20,7 +20,7 @@ export const T = {
     spring: 'Chegou a primavera: os campos voltam a dar comida',
     summer: 'Chegou o verão: dias quentes e secos',
     autumn: 'Chegou o outono: hora de plantar os campos',
-    winter: 'Chegou o inverno: os campos congelam',
+    winter: 'Inverno: só pescador e coletora dão comida',
   } satisfies Record<Season, string>,
   allGoals: 'Todos os objetivos cumpridos!',
   /** Opening sentence (big toast at the start of a game). */
@@ -46,13 +46,20 @@ export const T = {
   /** Why no new family comes (Avisos and the statistics problems). */
   familyBlock: {
     famine: 'Nenhuma família vem: falta comida. Pesque ou colete',
-    water: 'Nenhuma família vem: há casa sem água. Construa um poço perto',
-    food: 'Nenhuma família vem: a comida não dura até a colheita. Pesque ou colete',
+    water: 'Nenhuma família vem: casa longe do poço. Construa outro poço',
+    food: 'Nenhuma família vem: a comida não dura até a primavera. Pesque ou colete',
+    storage: 'Nenhuma família vem: o estoque está cheio',
     wait: 'Uma nova família pode chegar em breve',
     noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
   } satisfies Record<FamilyBlock, string>,
+  /** Why no new family comes; "storage" names the store size and how to get a granary. */
+  familyBlockText(block: FamilyBlock, s: GameState): string {
+    if (block !== 'storage') return T.familyBlock[block];
+    const granary = s.unlocked.includes('granary') ? 'Construa o celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
+    return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
+  },
   familyLeft: 'Uma família foi embora: fome',
-  famine: 'Falta comida: pesque, colete ou plante campos',
+  famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
@@ -78,10 +85,13 @@ export const T = {
         : `Em dívida: ${weeks(a.weeksLeft)} para a cidade ser abandonada. Reduza a manutenção`;
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
-    if (a.kind === 'foodShort') return 'A comida não dura até a colheita: pesque, colete ou plante campos';
-    if (a.kind === 'spoiling') return 'Comida estragando: construa um celeiro';
-    if (a.kind === 'winterComing') return 'O inverno está chegando. Tendas sofrem com o frio.';
-    if (a.kind === 'drought') return 'As chuvas estão fracas este ano';
+    if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
+    if (a.kind === 'spoiling')
+      return a.locked
+        ? `Estoque cheio (${a.capacity}): o excesso estraga. O celeiro libera no objetivo ${unlockingGoal('granary')}`
+        : 'Comida estragando: construa um celeiro';
+    if (a.kind === 'winterComing') return 'O inverno está chegando: com fome, famílias vão embora. Guarde comida';
+    if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
     return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa uma oficina ou um campo`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
@@ -101,10 +111,10 @@ export const T = {
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
     step: {
-      well: 'Construa um poço perto das tendas da caravana',
-      road: 'Puxe uma rua até o rio ou o bosque, pelo caminho marcado',
+      road: 'Puxe uma rua pelo caminho marcado, até onde há comida',
       gather: 'Construa um pescador junto ao rio ou uma coletora perto das árvores',
-      field: 'Construa um campo: ele dá comida, menos no inverno',
+      field: 'Construa um campo: ele dá comida já, até o inverno congelar',
+      well: 'Construa um poço perto das tendas da caravana',
       house: 'Construa uma casa encostada na rua, perto do poço',
       family: 'Uma família está chegando!',
       upkeep: 'Agora poços, campos e demais construções custam prata por semana',
@@ -115,7 +125,6 @@ export const T = {
     ok: 'Entendi',
     again: 'Rever o tutorial',
     done: 'Muito bem! Agora siga os objetivos no alto da tela',
-    locked: 'Siga o tutorial, ou toque em Pular tutorial',
   },
   mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
   happinessPart: {
@@ -162,17 +171,27 @@ export const T = {
       return out.season === now && out.weeks < RULES.weeksPerSeason ? `acaba em ${out.weeks} sem` : this.foodUntil[out.season];
     },
     /** The food lasts until the next harvest. */
-    foodToHarvest: 'até a colheita',
+    foodToHarvest: 'até a primavera',
+    /** The food pill in a famine, in place of the weeks left. */
+    famine: 'FOME',
+    /** The season pill in a dry year. */
+    drought: 'Seca',
+    /** The food pill when the store is nearly full and still filling (the rest would spoil). */
+    full: 'cheio',
     /** Phone food pill when the food will not last: the weeks left. */
     foodShortPhone: (n: number) => `⚠ ${n} sem`,
     /** Food kept out of what the stores hold ("38/40"). */
     stock: (food: number, cap: number) => `${food}/${cap}`,
     goal: 'Objetivo',
     goalOf: (n: number, total: number) => `Objetivo ${n} de ${total}`,
-    progress: (p: number, target: number) => `${Math.min(p, target)}/${target}`,
+    /** `weeks`: the goal counts weeks (food until spring). */
+    progress: (p: number, target: number, weeks = false) => `${Math.min(p, target)}/${target}${weeks ? ' sem' : ''}`,
     seasonName: { spring: 'Primavera', summer: 'Verão', autumn: 'Outono', winter: 'Inverno' } satisfies Record<Season, string>,
     calendar: (season: Season, year: number, week: number, long: boolean) =>
       `${T.nova.seasonName[season]} · Ano ${year} · ${long ? 'Semana' : 'Sem'} ${week}`,
+    /** The fields' next turn after the calendar ("inverno em 5 sem"); the phone drops the year and week for it. */
+    fieldTurn: (turn: { season: 'winter' | 'spring'; weeks: number }) => `${turn.season === 'winter' ? 'inverno' : 'primavera'} em ${turn.weeks} sem`,
+    calendarPhone: (season: Season, turn: { season: 'winter' | 'spring'; weeks: number }) => `${T.nova.seasonName[season]} · ${T.nova.fieldTurn(turn)}`,
     /** Name of a bottom tool, with its key on PC ("Mover · 1"). */
     withKey: (name: string, key: string) => `${name} · ${key}`,
     /** Price and key inside a PC column button. */
@@ -186,6 +205,7 @@ export const T = {
     jobs: (n: number) => `${n} ${n === 1 ? 'vaga' : 'vagas'}`,
     reach: (n: number) => `alcance ${n}`,
     balanceAfter: (n: number) => `Saldo depois: ${signed(n)}/sem`,
+    foodAfter: (n: number) => `Comida depois: ${signed(n)}/sem`,
     /** What each building is for, in one sentence. */
     effect: {
       house: 'Abriga uma família. Cresce com poço, mercado e altar perto.',
@@ -193,7 +213,7 @@ export const T = {
       well: 'Tendas com poço por perto viram casas de barro.',
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
-      gatherer: 'Colhe frutos das árvores: dá comida o ano todo.',
+      gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: 'Dá trabalho e prata.',
       garden: 'Alegra as casas por perto: mais imposto e mais famílias.',
@@ -267,14 +287,14 @@ export const T = {
       top: 'nível máximo',
       residents: (n: number, tax: number) => `${n} moradores · imposto ${fmt(tax)}/sem`,
       evolve: 'Ao evoluir',
-      gain: (residents: number, tax: number) => `+${residents} moradores · +${fmt(tax)} de imposto/sem`,
+      gain: (residents: number, tax: number, food: number) => `+${residents} moradores · +${fmt(tax)} de imposto · come +${fmt(food)}/sem`,
       noRoad: 'sem rua',
       famine: 'fome: não evolui',
       plotNoRoad: 'Sem rua: nenhuma família chega. Ligue à rua',
       plotComing: 'Uma família está a caminho',
       plotWaiting: 'Esperando uma família',
       harvesting: (n: number) => `Colhendo: ${fmt(n)} comida/sem`,
-      frozen: 'Congelado no inverno: volta na primavera',
+      frozen: (weeks: number) => `Congelado no inverno: volta em ${weeks} sem`,
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
       droughtDry: 'Ano seco: longe do rio, colhe menos',
       noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada' },
@@ -286,6 +306,7 @@ export const T = {
       disconnected: 'sem rua: não funciona, mas paga manutenção',
       noWorkers: 'Sem trabalhadores: faltam moradores',
       efficiency: (pct: number) => `eficiência ${pct}%`,
+      fewWorkers: (pct: number) => `Faltam trabalhadores: rende ${pct}%`,
       altar: 'Centro da cidade, onde as ruas começam.',
       road: (linked: boolean, entrance: boolean) => `${entrance ? 'Rua · entrada da cidade' : 'Rua'} · ${linked ? 'ligada ao altar ✓' : 'não ligada ao altar ✗'}`,
       tree: (name: string) => `${name} · Demolir corta por ${RULES.treeClearCost} prata`,
@@ -311,10 +332,10 @@ function duration(n: number): string {
   return y === 0 ? weeks(w) : w === 0 ? years : `${years} e ${weeks(w)}`;
 }
 
-/** Formats a number with up to one decimal, Brazilian style. */
+/** Formats a number Brazilian style: up to two decimals below 1 (0,25), else up to one. */
 export function fmt(n: number): string {
-  const r = Math.round(n * 10) / 10;
-  return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',');
+  const k = Math.abs(n) < 1 ? 100 : 10;
+  return String(Math.round(n * k) / k).replace('.', ',');
 }
 
 export const signed = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n));

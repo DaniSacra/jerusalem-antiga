@@ -58,22 +58,24 @@ describe('goals', () => {
     expect(goalProgress(s, GOALS[0])).toBeGreaterThan(before);
   });
 
-  it('goal 2: water for every house (plots too, at least 4), then upkeep starts', () => {
+  it('goal 2: water for every house with a family (at least 4), then upkeep starts', () => {
     const s = emptyGame({ silver: 0, goalIndex: 1 });
     put(s, 'well', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
-    put(s, 'house', ROADSIDE, 31); // a plot
+    put(s, 'house', ROADSIDE, 31, 1);
+    put(s, 'house', ROADSIDE, 33); // a plot does not count
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events).toEqual([]); // 3 houses with water, the target is at least 4
     expect(goalTarget(s, GOALS[1])).toBe(4);
-    put(s, 'house', ROADSIDE, 41); // far from the well
+    put(s, 'house', ROADSIDE, 41, 1); // far from the well
     expect(goalTarget(s, GOALS[1])).toBe(4);
     checkGoal(s, events);
     expect(events).toEqual([]);
-    put(s, 'house', ROADSIDE, 43);
-    expect(goalTarget(s, GOALS[1])).toBe(5); // every house
+    put(s, 'house', ROADSIDE, 43, 1);
+    put(s, 'house', ROADSIDE, 45); // a plot out of reach does not hold the goal back
+    expect(goalTarget(s, GOALS[1])).toBe(5); // every house with a family
     put(s, 'well', EAST, 41);
     checkGoal(s, events);
     expect(events).toEqual([{ type: 'goal', index: 1, reward: 30, unlock: undefined }]);

@@ -173,7 +173,7 @@ async function buildTown(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
     s.silver = 1e6;
-    s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+    s.unlocked = ['road', 'house', 'field', 'well', 'fisher', 'gatherer', 'granary', 'market', 'workshop', 'garden', 'temple'];
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
     for (let x = 12; x <= 36; x++) {
@@ -202,6 +202,13 @@ async function buildTown(page) {
     put('market', 34, 19); // 2x4 upright
     put('temple', 25, 32);
     put('garden', 19, 22); // beside the altar ring, cheers the houses above it
+    put('granary', 18, 24); // food store, beside the altar ring
+    put('gatherer', 13, 26);
+    for (const [x, y] of [[15, 26], [16, 27], [15, 28]]) s.feature[y * s.cols + x] = 'olive'; // its grove
+    // A fisher by the river east of the town, on a road from the east wall.
+    let rx = 37;
+    while (s.ground[27 * s.cols + rx + 2] !== 'river' && rx < s.cols - 3) core.place(s, 'road', rx++, 27);
+    put('fisher', rx, 27);
     put('field', 3, 3); // disconnected: shows the "no road" balloon
     window.game.refresh();
     const cam = window.game.cameras.main;
@@ -256,7 +263,7 @@ async function seasonsScenario(page, suffix) {
   await page.evaluate(() => {
     window.game.setSpeed(0);
     window.game.dayNight.setTime(0.3);
-    window.state.food = 1e4; // no famine balloons over the captures
+    window.state.food = window.core.foodCapacity(window.state); // full stores: no famine balloons over the captures
     // Groves around the town (buildTown clears the trees): olives (some drawn as almonds and figs) and palms.
     const s = window.state;
     for (let y = 8; y < 46; y++) {
@@ -488,50 +495,63 @@ async function playTutorial(page, suffix) {
   const caravan = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
   assert(caravan.some((m) => m.startsWith('A caravana chegou com')), `the caravan sentence opens the game (${caravan})`);
 
-  // 1. Well near the caravan tents: the preview says how many houses it serves.
-  assert((await tutorialStep(page)) === 'well', 'the tutorial starts with the well');
+  // 1. Road to the best food spot, along the marked road. The clock stands still on build steps.
+  assert((await tutorialStep(page)) === 'road', 'the tutorial starts with the road to the food');
+  await page.evaluate(() => window.game.setSpeed(3));
+  const week0 = await page.evaluate(() => window.state.week);
+  await page.waitForTimeout(1500);
+  assert((await page.evaluate(() => window.state.week)) === week0, 'the clock stands still on a build step');
+  await page.evaluate(() => window.game.setSpeed(0));
   await shotStep('step-1');
-  await tool(page, 2); // Rua is locked during the step
-  assert(await page.evaluate(() => window.game.tool === 'view'), 'only the step tool can be picked');
-  assert((await pressBuild(page, 'well')) === 'well', 'the column picks the well (category, then the building)');
-  const tent = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'house' && b.level >= 1));
-  const spot = await page.evaluate(([x, y]) => {
-    const { state: s, core } = window;
-    return core.placeSpots(s, 'well').sort((a, b) => Math.abs(a.x - x) + Math.abs(a.y - y) - (Math.abs(b.x - x) + Math.abs(b.y - y)))[0];
-  }, [tent.x, tent.y]);
-  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
-  await page.waitForTimeout(200);
-  const serves = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
-  assert(serves && serves.startsWith('Atende'), `the well preview says how many houses it serves (${serves})`);
-  await shotStep('step-1-preview');
-  await placeNear(page, 'well', tent);
-  assert((await tutorialStep(page)) === 'road', 'a well ends step 1');
-
-  // 2. Road toward the river or the grove, along the marked road.
-  await shotStep('step-2');
+  await tool(page, 2);
+  assert(await page.evaluate(() => window.game.tool === 'road'), 'the Rua key picks the road');
+  await page.evaluate(() => window.game.selectTool('view'));
+  assert((await pressBuild(page, 'well')) === 'well', 'tools never lock: the well can be picked on the road step');
+  await page.evaluate(() => window.game.selectTool('view'));
   await press(page, ...(await uiPoint(page, 'tool-road')));
   assert(await page.evaluate(() => window.game.tool === 'road'), 'the Rua button picks the road');
   const ghost = await page.evaluate(() => window.game.ghost.map((c) => [c.x, c.y]));
-  assert(ghost.length >= 4, `a marked road of at least 4 cells (${ghost.length})`);
+  assert(ghost.length >= 2, `a marked road (${ghost.length})`);
   await dragCells(page, ghost);
-  assert((await tutorialStep(page)) === 'gather', 'dragging the marked road ends step 2');
+  const built = await page.evaluate((g) => g.map(([x, y]) => window.state.roads[window.core.indexOf(window.state, x, y)] ? 1 : 0).join(''), ghost);
+  assert((await tutorialStep(page)) === 'gather', `dragging the marked road ends step 1 (${JSON.stringify(ghost)} built ${built}, silver ${await page.evaluate(() => window.state.silver)})`);
 
-  // 3. Fisher or gatherer: the preview says what it yields.
-  await shotStep('step-3');
-  assert((await pressBuild(page, 'gatherer')) === 'gatherer', 'the step also allows the gatherer (alt)');
-  await page.evaluate(() => window.game.setHover(window.game.ghost.at(-1)));
+  // 2. Fisher or gatherer at the end of the road: the preview says what it yields.
+  await shotStep('step-2');
+  const spot = await page.evaluate(() => window.game.spot);
+  assert(spot && spot.food >= 1.2, `the road leads to a spot that brings food (${JSON.stringify(spot)})`);
+  assert((await pressBuild(page, spot.kind)) === spot.kind, `the column picks the ${spot.kind}`);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
   await page.waitForTimeout(200);
   const yields = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
-  assert(yields && yields.startsWith('Rende'), `the gatherer preview says what it yields (${yields})`);
-  await shotStep('step-3-preview');
-  await placeNear(page, 'gatherer', await page.evaluate(() => window.game.ghost.at(-1)));
-  assert((await tutorialStep(page)) === 'field', 'a gatherer ends step 3');
+  assert(yields && yields.startsWith('Rende'), `the preview says what it yields (${yields})`);
+  await shotStep('step-2-preview');
+  await page.evaluate(([k, x, y]) => {
+    window.core.place(window.state, k, x, y);
+    window.game.refresh();
+  }, [spot.kind, spot.x, spot.y]);
+  assert((await tutorialStep(page)) === 'field', 'a fisher or gatherer ends step 2');
 
-  // 4. Field: "colhe na primavera do ano 1".
+  // 3. Field, now in the autumn.
   await pressBuild(page, 'field');
-  await shotStep('step-4');
+  await shotStep('step-3');
   await placeNear(page, 'field');
-  assert((await tutorialStep(page)) === 'house', 'a field ends step 4');
+  assert((await tutorialStep(page)) === 'well', 'a field ends step 3');
+
+  // 4. Well near the caravan tents: the preview says how many houses it serves.
+  assert((await pressBuild(page, 'well')) === 'well', 'the column picks the well (category, then the building)');
+  const tent = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'house' && b.level >= 1));
+  const wellAt = await page.evaluate(([x, y]) => {
+    const { state: s, core } = window;
+    return core.placeSpots(s, 'well').sort((a, b) => Math.abs(a.x - x) + Math.abs(a.y - y) - (Math.abs(b.x - x) + Math.abs(b.y - y)))[0];
+  }, [tent.x, tent.y]);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [wellAt.x, wellAt.y]);
+  await page.waitForTimeout(200);
+  const serves = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
+  assert(serves && serves.startsWith('Atende'), `the well preview says how many houses it serves (${serves})`);
+  await shotStep('step-4');
+  await placeNear(page, 'well', tent);
+  assert((await tutorialStep(page)) === 'house', 'a well ends step 4');
 
   // 5. House next to the road, near the well.
   await pressBuild(page, 'house');
@@ -547,7 +567,7 @@ async function playTutorial(page, suffix) {
   await page.waitForTimeout(700);
   await shotStep('step-6');
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
-  assert(await page.evaluate(() => window.game.guide.allowed() === null), 'tools are free after step 6');
+  assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after step 6');
 
   // Goal 3: the balance message, then the market.
   await page.evaluate(() => {
@@ -567,7 +587,7 @@ async function playTutorial(page, suffix) {
   assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
 }
 
-/** The family step never traps the player: with the families blocked, the bubble says why and the tools are free. */
+/** The family step never traps the player: with the families blocked, the bubble says why, no toast repeats it and the clock runs. */
 async function tutorialBlocked(page) {
   await startGame(page, { tutorial: true });
   await page.evaluate(() => {
@@ -581,9 +601,119 @@ async function tutorialBlocked(page) {
     core.place(s, 'house', spot.x, spot.y);
     window.game.refresh();
   });
-  const why = await page.evaluate(() => [window.core.familyBlock(window.state), window.game.guide.allowed()]);
-  assert(why[0] === 'water' && why[1] === null, `blocked families free the tools (${JSON.stringify(why)})`);
+  const why = await page.evaluate(() => [window.core.familyBlock(window.state), window.game.guide.holdsClock, window.game.ui.view.toasts.list.map((t) => t.msg)]);
+  assert(why[0] === 'water' && why[1] === false, `blocked families, and the clock runs (${JSON.stringify(why)})`);
+  assert(!why[2].some((m) => m.startsWith('Nenhuma família')), `no family toast during the tutorial (${why[2]})`);
   await shot(page, 'tutorial-family-blocked');
+}
+
+/**
+ * A road drag (finger on the phone, mouse on the PC) from a map cell that ends over a button: the
+ * button must not fire, because the press did not start on it.
+ */
+async function dragOntoButton(page, from, [bx, by]) {
+  const start = await cellToScreen(page, ...from);
+  const mid = [(start[0] + bx) / 2, (start[1] + by) / 2];
+  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
+    const { touch } = await touchInput(page);
+    await touch('touchStart', [start]);
+    await page.waitForTimeout(220);
+    for (const p of [mid, [bx, by]]) {
+      await touch('touchMove', [p]);
+      await page.waitForTimeout(60);
+    }
+    await touch('touchEnd', []);
+  } else {
+    await page.mouse.move(...(await gameToPage(page, ...start)));
+    await page.mouse.down();
+    await page.mouse.move(...(await gameToPage(page, ...mid)), { steps: 5 });
+    await page.mouse.move(...(await gameToPage(page, bx, by)), { steps: 5 });
+    await page.mouse.up();
+  }
+  await page.waitForTimeout(250);
+}
+
+/** Releasing a road drag over "Pular tutorial" or the pause skips nothing and pauses nothing. */
+async function dragReleaseOnButton(page, suffix) {
+  await startGame(page, { tutorial: true });
+  await page.evaluate(() => window.game.setSpeed(1));
+  await press(page, ...(await uiPoint(page, 'tool-road')));
+  assert(await page.evaluate(() => window.game.tool === 'road'), 'the road is picked');
+  const skip = await page.evaluate(() => {
+    const m = window.game.ui.view.tutorial.skipBtn.root.getWorldTransformMatrix();
+    return [m.tx, m.ty];
+  });
+  const from = await page.evaluate(() => window.game.ghost[0]);
+  await dragOntoButton(page, [from.x, from.y], skip);
+  assert(await page.evaluate(() => window.game.guide !== null), 'a drag released on "Pular tutorial" does not skip it');
+  const pause = await page.evaluate(() => window.layout.novaPoint('speed-0') ?? window.layout.novaPoint('speed-1'));
+  assert(pause, 'the speed button is on screen');
+  await dragOntoButton(page, [from.x, from.y], [pause.x, pause.y]);
+  assert(await page.evaluate(() => window.game.speed === 1), 'a drag released on the speed button does not change it');
+  await shot(page, `drag-release-on-button${suffix}`);
+}
+
+/** "Comida depois" on the preview of a food building and in the balloon of a workplace that takes workers. */
+async function previewFoodAfter(page, suffix) {
+  await startGame(page);
+  await page.evaluate(() => {
+    window.game.setSpeed(0);
+    window.state.silver = 1e4;
+  });
+  const spot = await page.evaluate(() => window.core.foodSpot(window.state));
+  await page.evaluate((road) => {
+    for (const c of road) window.core.place(window.state, 'road', c.x, c.y);
+    window.game.refresh();
+  }, spot.road);
+  await pick(page, spot.kind);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
+  await page.waitForTimeout(250);
+  const tag = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(tag && tag.startsWith('Rende') && tag.includes('Comida depois'), `the preview says what it yields and the food after (${tag})`);
+  await shot(page, `preview-food-after${suffix}`);
+  // A market with 1 worker for many jobs: the balloon warns about the food it costs.
+  await page.evaluate(() => {
+    window.state.unlocked.push('market');
+    window.game.setHover(null);
+  });
+  await page.evaluate((s) => {
+    window.core.place(window.state, s.kind, s.x, s.y); // 1 job, then the market's 3: more jobs than workers
+    window.game.refresh();
+  }, spot);
+  await pick(page, 'market');
+  await page.waitForTimeout(250);
+  const lines = await page.evaluate(() => JSON.parse(window.game.ui.view.column.balloon.key || '[]').map((l) => l.text));
+  await shot(page, `preview-food-after-market${suffix}`);
+  return lines;
+}
+
+/** The season pill counts down to the winter (and to the spring in winter); the food pill says FOME in a famine. */
+async function harvestCountdown(page, suffix) {
+  await startGame(page);
+  await page.evaluate(() => window.game.setSpeed(0));
+  await page.waitForTimeout(200);
+  const pill = () => page.evaluate(() => window.game.ui.view.top.season.texts.filter((t) => t.visible).map((t) => t.text).join(' '));
+  const autumn = await pill();
+  assert(autumn.includes('inverno em'), `autumn counts down to the winter (${autumn})`);
+  await shot(page, `harvest-countdown-autumn${suffix}`);
+  await page.evaluate(() => {
+    const s = window.state;
+    s.week = window.core.RULES.weeksPerSeason + 4; // winter
+    s.food = 0;
+    s.famine = true;
+    window.game.refresh();
+  });
+  await page.waitForTimeout(200);
+  const winter = await pill();
+  assert(winter.includes('primavera em'), `winter counts down to the spring (${winter})`);
+  const food = await page.evaluate(() => window.game.ui.view.top.food.texts.filter((t) => t.visible).map((t) => t.text).join(' '));
+  assert(food.includes('FOME'), `the food pill says FOME in a famine (${food})`);
+  const fit = await page.evaluate(() => {
+    const p = window.game.ui.view.top.season;
+    return { right: p.root.x + p.w, width: window.game.ui.cameras.main.width };
+  });
+  assert(fit.right <= fit.width, `the season pill fits the screen (${JSON.stringify(fit)})`);
+  await shot(page, `harvest-countdown-winter${suffix}`);
 }
 
 // ---------- scenarios ----------
@@ -625,11 +755,43 @@ const scenarios = {
   'tutorial-pc': { context: PC, run: (page) => playTutorial(page, '-pc') },
   /** The family step with the families blocked: the reason shows and the tools are free (never stuck). */
   'tutorial-blocked': { context: PC, run: tutorialBlocked },
+  /** "Comida depois" on the food preview, and on the balloon of a workplace that takes workers. */
+  'preview-food-after': { context: PHONE, run: (page) => previewFoodAfter(page, '') },
+  'preview-food-after-pc': {
+    context: PC,
+    async run(page) {
+      const lines = await previewFoodAfter(page, '-pc');
+      assert(lines.some((l) => l.startsWith('Comida depois')), `the market balloon says the food after (${lines})`);
+    },
+  },
+  /** Countdown to the winter and the spring on the season pill; FOME on the food pill. */
+  'harvest-countdown': { context: PHONE, run: (page) => harvestCountdown(page, '') },
+  'harvest-countdown-pc': { context: PC, run: (page) => harvestCountdown(page, '-pc') },
+  /** A toast that comes while a panel is open waits until the panel closes. */
+  async 'toast-panel'(page) {
+    await startGame(page);
+    await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+    await clickUi(page, 'side-stats');
+    await page.waitForTimeout(200);
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'the statistics are open');
+    await page.evaluate(() => window.game.ui.toast('Teste: um aviso chegando', 'info'));
+    await page.waitForTimeout(300);
+    const over = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
+    assert(over.length === 0, `no toast over the open panel (${over})`);
+    await shot(page, 'toast-panel-open');
+    await clickUi(page, 'side-stats');
+    await page.waitForTimeout(400);
+    assert((await page.evaluate(() => window.game.ui.view.toasts.list.length)) === 1, 'the toast comes when the panel closes');
+    await shot(page, 'toast-panel-closed');
+  },
+  /** A drag that ends over a button does not press it (phone and PC). */
+  'drag-release-on-button': { context: PHONE, run: (page) => dragReleaseOnButton(page, '') },
+  'drag-release-on-button-pc': { context: PC, run: (page) => dragReleaseOnButton(page, '-pc') },
 
   /** Skipping ends the tutorial for good; with the storage blocked the game still runs. */
   async 'tutorial-skip'(page) {
     await startGame(page, { tutorial: true });
-    assert(await page.evaluate(() => window.game.guide?.step?.id === 'well'), 'a first game starts the tutorial');
+    assert(await page.evaluate(() => window.game.guide?.step?.id === 'road'), 'a first game starts the tutorial');
     await clickTutorial(page, 'skipBtn');
     assert(await page.evaluate(() => window.game.guide === null), 'Pular tutorial ends it');
     assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'skipping is remembered');
@@ -916,6 +1078,8 @@ const scenarios = {
       s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
       s.feature = s.feature.map(() => null);
       for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
+      for (const c of core.campRoad()) s.roads[c.y * s.cols + c.x] = false; // and their camp road
+      core.refreshCity(s);
       for (let x = 12; x <= 36; x++) core.place(s, 'road', x, 18);
       for (let y = 18; y <= 31; y++) core.place(s, 'road', 12, y);
       for (let x = 12; x <= 24; x++) core.place(s, 'road', x, 31);
@@ -1202,6 +1366,7 @@ const scenarios = {
       s.unlocked.push('market');
       s.feature = s.feature.map(() => null);
       core.place(s, 'market', 22, 30); // upright 2x4, west of the road
+      window.roadsBefore = s.roads.filter(Boolean).length;
       core.place(s, 'house', 25, 30);
       core.place(s, 'well', 25, 33);
       window.game.cycleSpeed();
@@ -1216,7 +1381,7 @@ const scenarios = {
     await page.waitForTimeout(300);
     assert((await page.evaluate(() => window.iso.getRotation())) === 1, 'the clockwise arrow turns the view');
     await page.keyboard.press('Escape');
-    assert((await stats(page)).roads === 41, 'clicking the arrow builds nothing');
+    assert((await stats(page)).roads === (await page.evaluate(() => window.roadsBefore)), 'clicking the arrow builds nothing');
     await tool(page, 2); // Rua: picking must follow the turned view
     await mouseDrag(page, [[27, 28], [30, 28]]);
     const built = await page.evaluate(() => [27, 28, 29, 30].every((x) => window.state.roads[28 * window.state.cols + x]));

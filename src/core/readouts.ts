@@ -1,13 +1,30 @@
 import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
 import { placeSpots } from './actions';
 import { serviceOf } from './coverage';
-import { computeEconomy } from './economy';
+import { computeEconomy, round2, type Economy } from './economy';
+import { familyBlock, type FamilyBlock } from './families';
+import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalProgress, goalTarget } from './goals';
-import { cellsInRadius, cellsOf, indexOf } from './grid';
+import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
+import { fieldHarvest, gatherFood } from './harvest';
 import { seasonOf, WEEKS_PER_YEAR } from './seasons';
 import type { BuildableKind, Building, Cell, GameState, Season } from './types';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
+
+/** What the screen reads about the city, computed once per refresh. */
+export interface CityReadout {
+  eco: Economy;
+  /** `foodForecast` for a year. */
+  forecast: FoodForecast;
+  /** Why no new family comes (`familyBlock`). */
+  block: FamilyBlock | null;
+}
+
+export function readCity(s: GameState): CityReadout {
+  const eco = computeEconomy(s);
+  return { eco, forecast: foodForecast(s, eco), block: familyBlock(s, eco) };
+}
 
 /** City level shown on the HUD: goals done + 1. */
 export const cityLevel = (s: GameState) => s.goalIndex + 1;
@@ -37,6 +54,32 @@ export function balanceAfter(s: GameState, kind: BuildableKind): number {
   return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
 }
 
+export interface FoodAfter {
+  /** Weekly food balance with the new building (after the worker efficiency). */
+  delta: number;
+  /** Food the new building itself brings a week (after the worker efficiency). */
+  yields: number;
+  /** Worker efficiency with the new building's jobs. */
+  efficiency: number;
+}
+
+/**
+ * Weekly food if one more building of this kind stood at `at`: its own food and the jobs it adds,
+ * with the efficiency that follows (a workplace with too few workers makes every food building
+ * bring less). At a spot it works only when it touches the connected roads; with no spot it is
+ * taken as connected, and a fisher or gatherer brings nothing (its food depends on the spot).
+ */
+export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAfter {
+  const { w, h } = dimsOf(kind, at?.rotated);
+  // With no spot the ghost stands off the map: no river or trees around it.
+  const { x, y } = at ?? { x: -s.cols, y: -s.rows };
+  const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
+  const ghost: Building = { id: -1, kind, x, y, w, h, level: 0, upStreak: 0, downStreak: 0, connected, variant: 0, mirrored: false, built: s.week };
+  const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost] });
+  const own = gatherFood(s, ghost) + fieldHarvest(s, ghost, s.week);
+  return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), efficiency: eco.efficiency };
+}
+
 /** Houses with a family inside the radius of a service building; null for kinds with no service. */
 export function housesServed(s: GameState, b: Building): number | null {
   if (!serviceOf(b.kind)) return null;
@@ -46,10 +89,11 @@ export function housesServed(s: GameState, b: Building): number | null {
 }
 
 /** What a house gains on its next level (residents and base tax), or null at the top level. */
-export function upgradeGain(level: number): { residents: number; tax: number } | null {
+export function upgradeGain(level: number): { residents: number; tax: number; food: number } | null {
   const cur = HOUSE_LEVELS[level];
   const next = HOUSE_LEVELS[level + 1];
-  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax } : null;
+  const eats = (l: typeof cur) => l.residents * l.food;
+  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(next) - eats(cur)) } : null;
 }
 
 export interface Spot extends Cell {

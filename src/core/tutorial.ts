@@ -1,20 +1,21 @@
 import TUTORIAL from '../data/tutorial.json';
 import { isFreeLand } from './actions';
-import { BUILDINGS, dimsOf, RULES } from './data';
-import { cellsInRadius, cellsOf, indexOf } from './grid';
+import { BUILDINGS, dimsOf } from './data';
+import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } from './grid';
+import { isGatherSource } from './harvest';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
 export type TutorialStepId = 'well' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
 export interface TutorialStep {
   id: TutorialStepId;
-  /** The tool allowed during the step (null: just watch, or tap). */
+  /** The tool the step points at (null: just watch, or tap). Every tool stays usable. */
   tool: Placeable | null;
-  /** A second tool the step also allows (the gatherer beside the fisher). */
+  /** A second tool the step also points at (the gatherer beside the fisher). */
   alt?: Placeable;
   target: number;
 }
 
-/** The six steps of the first game, then the two short ones (balance at goal 2, then the market). */
+/** The six steps of the first game (food first: road, fisher or gatherer, field; then well, house, family), then the two short ones (balance at goal 2, then the market). */
 export const TUTORIAL_STEPS = TUTORIAL.steps as TutorialStep[];
 export const TUTORIAL_EXTRAS = TUTORIAL.extras as TutorialStep[];
 
@@ -22,19 +23,24 @@ export const TUTORIAL_EXTRAS = TUTORIAL.extras as TutorialStep[];
 export interface TutorialMark {
   roads: number;
   houses: number;
+  /** The suggested road when the step started. */
+  ghost: Cell[];
 }
 
 const networkRoads = (s: GameState) => s.network.filter(Boolean).length;
 const connected = (s: GameState, kind: BuildableKind, minLevel = 0) =>
   s.buildings.filter((b) => b.kind === kind && b.connected && b.level >= minLevel).length;
 
-export const markTutorial = (s: GameState): TutorialMark => ({ roads: networkRoads(s), houses: connected(s, 'house') });
+export const markTutorial = (s: GameState): TutorialMark => ({ roads: networkRoads(s), houses: connected(s, 'house'), ghost: ghostRoad(s) });
 
 /** Progress of a step toward its target; the step is done once it reaches it. */
 export function tutorialProgress(s: GameState, step: TutorialStep, mark: TutorialMark): number {
   switch (step.id) {
-    case 'road':
-      return networkRoads(s) - mark.roads;
+    case 'road': {
+      // Done once the suggested road is built, or as many new road cells elsewhere.
+      const built = mark.ghost.every((c) => s.roads[indexOf(s, c.x, c.y)]);
+      return built || networkRoads(s) - mark.roads >= mark.ghost.length ? 1 : 0;
+    }
     case 'gather':
       return connected(s, 'fisher') + connected(s, 'gatherer');
     case 'house':
@@ -50,35 +56,90 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
   }
 }
 
+/** The clock stands still on a build step (the player reads and builds without hurry); it runs on a step that waits on the city. */
+export const tutorialHoldsClock = (step: TutorialStep | null) => !!step?.tool;
+
 export const tutorialStepDone = (s: GameState, step: TutorialStep, mark: TutorialMark) => tutorialProgress(s, step, mark) >= step.target;
 
-/**
- * A suggested road of `ghostLength` cells leaving the altar's ring straight out (west, north, east
- * or south of the ring), toward the river or the nearest trees: of the lines whose cells are all
- * free, the one ending closest to a river or tree cell. Empty if none is free.
- */
-export function ghostRoad(s: GameState): Cell[] {
-  const { x: ax, y: ay } = RULES.map.altar;
-  const { w, h } = dimsOf('altar');
-  const mid = { x: ax + Math.floor(w / 2) - 1, y: ay + Math.floor(h / 2) - 1 };
-  const n = TUTORIAL.ghostLength;
-  const lines: Cell[][] = [
-    Array.from({ length: n }, (_, k) => ({ x: ax - 2 - k, y: mid.y })),
-    Array.from({ length: n }, (_, k) => ({ x: mid.x, y: ay - 2 - k })),
-    Array.from({ length: n }, (_, k) => ({ x: ax + w + 1 + k, y: mid.y })),
-    Array.from({ length: n }, (_, k) => ({ x: mid.x + 2, y: ay + h + 1 + k })),
-  ];
-  const free = lines.filter((line) => line.every((c) => isFreeLand(s, c.x, c.y)));
-  const goals: Cell[] = [];
-  for (let i = 0; i < s.ground.length; i++) {
-    if (s.ground[i] === 'river' || s.feature[i] === 'olive' || s.feature[i] === 'palm') goals.push({ x: i % s.cols, y: Math.floor(i / s.cols) });
-  }
-  const reach = (line: Cell[]) => {
-    const end = line[line.length - 1];
-    return Math.min(Infinity, ...goals.map((g) => Math.max(Math.abs(g.x - end.x), Math.abs(g.y - end.y))));
-  };
-  return free.reduce<Cell[] | null>((best, line) => (!best || reach(line) < reach(best) ? line : best), null) ?? [];
+/** Where the tutorial sends the player for food: a fisher or gatherer spot and the road to it. */
+export interface FoodSpot {
+  kind: 'fisher' | 'gatherer';
+  /** Top-left cell of the building. */
+  x: number;
+  y: number;
+  /** Food a week once connected (before the worker efficiency). */
+  food: number;
+  /** Road cells to build, from the network to the cell beside the building (empty when it already touches it). */
+  road: Cell[];
 }
+
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+/** Road steps over free land from the connected network (0 on it), with the previous cell of each. */
+function roadDistances(s: GameState): { dist: Int32Array; prev: Int32Array } {
+  const dist = new Int32Array(s.cols * s.rows).fill(-1);
+  const prev = new Int32Array(s.cols * s.rows).fill(-1);
+  const queue: number[] = [];
+  s.network.forEach((on, i) => {
+    if (on && s.roads[i]) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  });
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q];
+    const x = i % s.cols;
+    const y = Math.floor(i / s.cols);
+    for (const [dx, dy] of DIRS) {
+      if (!isFreeLand(s, x + dx, y + dy)) continue;
+      const j = indexOf(s, x + dx, y + dy);
+      if (dist[j] >= 0) continue;
+      dist[j] = dist[i] + 1;
+      prev[j] = i;
+      queue.push(j);
+    }
+  }
+  return { dist, prev };
+}
+
+/**
+ * The best food spot for the start: of the fisher and gatherer spots on free land that bring at
+ * least `minSpotFood` a week, the one that brings the most, and of those the one with the shortest
+ * new road. Null when no spot brings enough or none can be reached.
+ */
+export function foodSpot(s: GameState): FoodSpot | null {
+  const { dist, prev } = roadDistances(s);
+  let best: (FoodSpot & { end: number }) | null = null;
+  for (const kind of ['fisher', 'gatherer'] as const) {
+    const g = BUILDINGS[kind].gather!;
+    const { w, h } = dimsOf(kind);
+    for (let y = 0; y + h <= s.rows; y++) {
+      for (let x = 0; x + w <= s.cols; x++) {
+        const rect = { x, y, w, h };
+        if (!footprint(x, y, w, h).every((c) => isFreeLand(s, c.x, c.y))) continue;
+        const food = Math.min(g.max, cellsInRadius(s, x, y, g.radius, w, h).filter((i) => isGatherSource(s, i, g.source)).length * g.perCell);
+        if (food < TUTORIAL.minSpotFood) continue;
+        let end = -1;
+        for (const c of borderCells(s, rect)) {
+          if (!inBounds(s, c.x, c.y)) continue;
+          const i = indexOf(s, c.x, c.y);
+          if (dist[i] >= 0 && (end < 0 || dist[i] < dist[end])) end = i;
+        }
+        if (end < 0) continue;
+        if (best && (food < best.food || (food === best.food && dist[end] >= dist[best.end]))) continue;
+        best = { kind, x, y, food, road: [], end };
+      }
+    }
+  }
+  if (!best) return null;
+  const road: Cell[] = [];
+  for (let i = best.end; dist[i] > 0; i = prev[i]) road.unshift({ x: i % s.cols, y: Math.floor(i / s.cols) });
+  const { end: _end, ...spot } = best;
+  return { ...spot, road };
+}
+
+/** The suggested road of the tutorial: the road to `foodSpot` (empty when there is none to build). */
+export const ghostRoad = (s: GameState): Cell[] => foodSpot(s)?.road ?? [];
 
 /** Houses with a family that a service of this kind placed at (x, y) would reach. */
 export function servedHouses(s: GameState, kind: BuildableKind, x: number, y: number, rotated = false): Building[] {

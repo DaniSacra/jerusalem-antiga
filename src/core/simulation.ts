@@ -141,14 +141,14 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
 
   s.silver = round2(s.silver + eco.silverDelta);
 
-  // New families set out and walk in the same week.
-  dispatchFamilies(s, rng);
-  moveFamilies(s, events, rng);
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
-  houseMilestones(s, events);
 
   s.week++;
   if (seasonStarts(s.week)) newSeason(s, rng, events);
+  // New families set out and walk in the new week, the one the screen shows (same gate as the UI).
+  dispatchFamilies(s, rng);
+  moveFamilies(s, events, rng);
+  houseMilestones(s, events);
   const after = computeEconomy(s);
   s.peakPopulation = Math.max(s.peakPopulation, after.residents);
   record(s, after);

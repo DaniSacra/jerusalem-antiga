@@ -43,6 +43,17 @@ export function weeksToHarvest(week: number): number {
   return d;
 }
 
+/**
+ * The next turn of the fields: out of winter, the weeks until the winter freezes them; in winter,
+ * the weeks until the spring thaws them.
+ */
+export function nextFieldTurn(week: number): { season: 'winter' | 'spring'; weeks: number } {
+  if (!harvestsIn(week)) return { season: 'spring', weeks: weeksToHarvest(week) };
+  let d = 1;
+  while (harvestsIn(week + d)) d++;
+  return { season: 'winter', weeks: d };
+}
+
 /** River or tree cells within a gathering building's radius. */
 export function gatherCells(s: GameState, b: Building): number {
   const g = BUILDINGS[b.kind].gather;

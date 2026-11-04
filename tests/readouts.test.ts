@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   balanceAfter,
+  BUILDINGS,
   calendar,
   checkPlace,
   cityLevel,
   computeEconomy,
+  foodAfter,
   goalCount,
   goalFraction,
   GOALS,
@@ -13,10 +15,11 @@ import {
   needMet,
   place,
   RULES,
+  seasonOf,
   spotsServing,
   upgradeGain,
 } from '../src/core';
-import { EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { besideRiver, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('city level and goal progress', () => {
   it('level is goals done + 1', () => {
@@ -32,7 +35,7 @@ describe('city level and goal progress', () => {
     put(s, 'well', EAST, 27);
     expect(goalFraction(s)).toBeCloseTo(2 / 4);
     put(s, 'well', EAST, 33);
-    for (let y = 31; y <= 35; y += 2) put(s, 'house', ROADSIDE, y);
+    for (let y = 31; y <= 35; y += 2) put(s, 'house', ROADSIDE, y, 1);
     expect(goalFraction(s)).toBe(1); // 5 of 5
     expect(goalFraction(emptyGame({ goalIndex: 2, harvested: 40 }))).toBe(1); // 40 of 12
   });
@@ -95,6 +98,49 @@ describe('balance after building', () => {
   });
 });
 
+describe('food after building', () => {
+  /** One tent (3 residents: 1 worker) and a fisher by the river that the worker keeps busy. */
+  const town = () => {
+    const s = emptyGame({ week: 0 }); // autumn: fields give food
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'fisher', besideRiver(s, 30), 30);
+    return s;
+  };
+
+  it('a workplace that takes the only worker lowers the food: every food building brings less', () => {
+    const s = town();
+    const now = computeEconomy(s);
+    expect(now.efficiency).toBe(1);
+    const after = foodAfter(s, 'market');
+    expect(after.efficiency).toBeCloseTo(1 / 4); // 1 worker for 1 + 3 jobs
+    expect(after.delta).toBeLessThan(now.foodDelta);
+    expect(after.yields).toBe(0);
+  });
+
+  it('a field brings its harvest times the efficiency with its own jobs', () => {
+    const s = town();
+    const at = { x: westOf('field'), y: 30, rotated: false };
+    const after = foodAfter(s, 'field', at);
+    expect(after.efficiency).toBeCloseTo(1 / 3); // 1 worker for 1 + 2 jobs
+    expect(after.yields).toBeCloseTo((BUILDINGS.field.harvest! / 39) / 3, 1);
+    // The fisher brings a third too: the city gains less than the field's full harvest.
+    expect(after.delta - computeEconomy(s).foodDelta).toBeLessThan(BUILDINGS.field.harvest! / 39);
+  });
+
+  it('a spot off the roads works for nothing: no food, no jobs', () => {
+    const s = town();
+    const after = foodAfter(s, 'field', { x: 2, y: 2, rotated: false });
+    expect(after.yields).toBe(0);
+    expect(after.delta).toBe(computeEconomy(s).foodDelta);
+  });
+
+  it('a field in the winter brings nothing and takes no workers', () => {
+    const s = town();
+    while (seasonOf(s.week) !== 'winter') s.week++;
+    expect(foodAfter(s, 'field', { x: westOf('field'), y: 30, rotated: false }).yields).toBe(0);
+  });
+});
+
 describe('houses served', () => {
   it('counts houses with a family inside the radius of a service', () => {
     const s = emptyGame();
@@ -116,8 +162,8 @@ describe('houses served', () => {
 
 describe('house upgrade gain', () => {
   it('gives the residents and tax gained on the next level', () => {
-    expect(upgradeGain(1)).toEqual({ residents: 3, tax: 1 });
-    expect(upgradeGain(3)).toEqual({ residents: 6, tax: 2.5 });
+    expect(upgradeGain(1)).toEqual({ residents: 3, tax: 1, food: 0.3 }); // tent 0.6 → mud-brick 0.9 a week
+    expect(upgradeGain(3)).toEqual({ residents: 6, tax: 2.5, food: 1.52 }); // stone 2 → big 3.52
   });
 
   it('is null at the top level', () => {

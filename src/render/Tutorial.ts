@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
-import { markTutorial, TUTORIAL_EXTRAS, TUTORIAL_STEPS, tutorialStepDone, type GameState, type TutorialMark, type TutorialStep } from '../core';
+import { markTutorial, TUTORIAL_EXTRAS, TUTORIAL_STEPS, tutorialHoldsClock, tutorialStepDone, type GameState, type TutorialMark, type TutorialStep } from '../core';
 import VISUAL from '../data/visual.json';
 import { inRect, type Rect } from './layout';
 import { C, CSS } from './palette';
 import { T } from './strings';
-import type { Tool } from './tools';
 import { button, panel, RailButton, text } from './ui';
 
 const KEY = 'jerusalem.tutorialDone';
@@ -27,7 +26,7 @@ function saveSeen() {
 }
 
 /**
- * Where the tutorial is: the six main steps (tools limited to the step's), then waiting for goal 2,
+ * Where the tutorial is: the six main steps (the clock stands still on the build steps), then waiting for goal 2,
  * then the short steps (balance, market), then off.
  */
 type Phase = 'steps' | 'wait' | 'extras' | 'off';
@@ -39,8 +38,6 @@ export class TutorialGuide {
   private mark: TutorialMark;
   /** Goal 2 came while the main steps were still running: the balance step follows them. */
   private upkeepPending = false;
-  /** A step with no tool waits on the city (the family step): when something blocks it, every tool is free so the player can fix it. */
-  private free = false;
 
   constructor(s: GameState) {
     this.mark = markTutorial(s);
@@ -52,16 +49,14 @@ export class TutorialGuide {
     return null;
   }
 
-  /** During the main steps only the step's tools (and Mover) can be picked. */
-  allowed(): ReadonlySet<Tool> | null {
-    if (this.phase !== 'steps' || this.free) return null;
-    const { tool, alt } = this.step!;
-    return new Set<Tool>(['view', ...(tool ? [tool] : []), ...(alt ? [alt] : [])]);
+  /** The main steps are running (the bubble speaks for the city: no family toasts). */
+  get running(): boolean {
+    return this.phase === 'steps';
   }
 
-  /** The step waits on something the player must fix first (no family can come): frees the tools. */
-  setBlocked(blocked: boolean) {
-    this.free = blocked && this.phase === 'steps' && !this.step?.tool;
+  /** The clock stands still on a main build step. */
+  get holdsClock(): boolean {
+    return this.phase === 'steps' && tutorialHoldsClock(this.step);
   }
 
   /** Skips finished steps. Returns 'done' when the main steps just ended, 'next' on any other change. */
@@ -99,7 +94,6 @@ export class TutorialGuide {
 
   private advance(s: GameState): 'next' | 'done' {
     this.k++;
-    this.free = false;
     this.mark = markTutorial(s);
     if (this.phase === 'steps' && this.k >= TUTORIAL_STEPS.length) {
       saveSeen();

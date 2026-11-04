@@ -26,14 +26,17 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 | `economy.test.ts` | eficiência, produção, construções desconectadas não produzem nem contam vagas, vagas do templo, manutenção (inclusive de desconectadas; rua, casa e altar grátis; só cobrada depois do Objetivo 3, com o evento `upkeepStart` uma vez), saldo exibido = impostos + oficinas + campos − manutenção, maior custo, consumo de comida por nível, campo com 468 de colheita e sem `food`, pessoas sem trabalho e limite do aviso de desemprego (só com a Oficina liberada) |
 | `actions.test.ts` | custos e locais inválidos, tamanhos das construções, mercado girado, posicionamento do templo (6 x 6, bloqueios, exige rua, lista de posições possíveis), lugares de casa encostados na rede (`placeSpots`, tutorial), limpar, proteção do altar e do templo |
 | `houses.test.ts` | evolução e regressão (rua, poço, mercado, altar ou templo), atendimento por qualquer célula da casa, fome (casas caem; tendas abandonadas com `famineLeaveChance` e evento de família saindo; sem fome nunca), informações e balões (incluindo "sem trabalhadores") |
-| `families.test.ts` | chegada de famílias (da entrada até virar tenda), no máximo uma a cada `familyIntervalWeeks` (limite exato), chance × fator da alegria, porta das famílias (`familyBlock`: fome, água — toda casa ligada, terrenos inclusive; casa desligada não conta —, comida até a colheita, espera, sem terreno; nessa ordem), tendas da caravana sem poço fecham a porta, terreno com família a caminho, desconexão e demolição, desvio de rota, saída pelo altar |
+| `families.test.ts` | chegada de famílias (da entrada até virar tenda), no máximo uma a cada `familyIntervalWeeks` (limite exato), chance × fator da alegria, porta das famílias (`familyBlock`: fome, água — só casas ligadas com família; terreno vazio sem água não fecha —, comida até a primavera com as casas no nível alvo, cada família a caminho e a nova como tenda, `storage` quando só o estoque corta, espera, sem terreno; nessa ordem; a mesma resposta no meio do passo e depois dele), cidade vazia nunca trava (sem moradores nem família a caminho, água e comida não fecham; o intervalo continua), tendas da caravana sem poço fecham a porta, terreno com família a caminho, desconexão e demolição, desvio de rota, saída pelo altar |
 | `happiness.test.ts` | felicidade desligada antes do Jardim (contente, sem motivos, imposto e famílias iguais aos de uma cidade sem felicidade); felicidade da casa (base, altar/templo, jardim só conectado e no raio, poço, mercado, fome, desemprego com teto, limites 0–100), três humores, fator do imposto e das famílias (1 enquanto contente, extremos), imposto da casa feliz e triste, média da cidade (50 sem famílias), parte sem vaga, famílias mais rápidas na cidade feliz, contagem por humor, informação da casa com felicidade e imposto real, balão de casa triste |
 | `debt.test.ts` | manutenção levando a prata abaixo de 0, construir e cortar bloqueados em dívida (demolir não; prata 0 não é dívida), contagem da dívida (início, zera com prata ≥ 0, recomeça), derrota exatamente no mês 24 e simulação parada depois, maior população, ordem dos avisos (dívida, saldo negativo com maior custo, desemprego) |
 | `goals.test.ts` | os 11 objetivos (tipos, alvos, prêmios, liberações; um só de vitória), `unlockingGoal` (celeiro 3, mercado 5, oficina 6, jardim 7, templo 10), Objetivo 1 pela previsão (com pescador) e alvo que encolhe, Objetivo 2 com alvo máx(4, casas), Objetivo 3 pela comida colhida desde o começo (também numa colheita real) e `upkeepStart`, celeiro ligado, casas de barro, 50 moradores, 2 oficinas ligadas, casas grandes só conectadas, vitória com o templo, um objetivo por verificação |
 | `simulation.test.ts` | comida, prata, semana, fome (termina com a colheita da primavera), prata do campo e relógio (1 semana a cada 2,5 s em 1x) |
 | `seasons.test.ts` | 13 semanas por estação começando no outono, ordem das estações, primeira semana de cada estação, um evento `season` só quando a estação muda, `seasonCount`/`START_SEASON`, ano agrícola do outono ao verão no `calendar`, jogo novo na semana 1 do outono do Ano 1 |
-| `tutorial.test.ts` | os 6 passos da sobrevivência (poço, rua, pescador ou coletora, campo, casa, família) e os mini passos, `markTutorial` (ruas e casas ligadas), condição de cada passo (ruas novas na rede, casa nova ligada sem contar a caravana, pescador/coletora ligado, marco da primeira família — também numa chegada real —, campo, poço, mercado; o do saldo só por toque), caminho fantasma de 8 células livre, reto e encostado no anel em 60 seeds, escolhendo a linha que termina mais perto do rio ou de árvore, indo às árvores quando estão mais perto, trocando de lado quando bloqueado e vazio com os 4 lados bloqueados, casas atendidas por um serviço ("Atende N casas") |
-| `survival.test.ts` | caravana por semente (2–4 tendas ligadas ao norte e a oeste do anel, comida de 10–20 semanas cortada em 40, semanas anunciadas reais, prata inicial), colheita só na primavera (`harvestsIn`, `firstHarvestWeek`, campo feito no inverno colhe no ano seguinte, última semana do outono ainda semeia, desconectado não colhe, eficiência, evento `harvestStart` com o total, `harvested`), `weeksToHarvest`, consumo semanal, estoque com e sem celeiro (desligado não guarda), estrago (`spoilStart` uma vez, limite exato não estraga, perder o celeiro), previsão (semanas e estação, colheita e limite, seca anunciada, horizonte, primavera conta até o ano seguinte), inverno (tendas saem com 35%, casa de barro protege, `winterLoss`), seca (× 0,4, campo no rio protegido, nunca no Ano 1 nem 2 seguidas, chance, aviso do inverno à primavera), avisos novos e sua ordem, marcos uma vez só (caravana não conta), histórico com `capacity`, objetivos `foodUntilSpring`, `water` e `harvest` com `goalTarget` , campo dá comida na primavera, verão e outono e congela no inverno (sem comida, prata nem vagas; pescador a 100%; manutenção mantida; previsão com a eficiência de cada semana) |
+| `tutorial.test.ts` | os 6 passos com a comida primeiro (rua, pescador ou coletora, campo, poço, casa, família) e os mini passos, relógio parado nos passos de construir e andando na família (`tutorialHoldsClock`), `markTutorial` (ruas, casas e o caminho sugerido), condição de cada passo (rua marcada pronta ou o mesmo número de ruas novas na rede, casa nova ligada sem contar a caravana, pescador/coletora ligado, marco da primeira família — também numa chegada real —, campo, poço, mercado; o do saldo só por toque), `foodSpot`/`ghostRoad` (em 200 sementes o lugar rende ≥ 1,2/sem e, construído como indicado, fica ligado e rende o prometido; caminho contínuo da rede até o lado da construção; prefere o que rende mais e depois a rua mais curta; nulo sem lugar que renda o bastante; contorna uma construção no caminho), casas atendidas por um serviço ("Atende N casas") |
+| `forecast.test.ts` | nível alvo de uma casa (`targetLevel`), um poço novo muda a previsão na hora, tendas extras (famílias a caminho), Objetivo 1 não se cumpre na semana 1 com uma caravana que vai passar fome, `lastsToHarvest` igual a `foodLastsToHarvest`, previsão e `stepWeek` dão a mesma semana de fome em combinações semeadas, `nextFieldTurn` (inverno em N sem fora do inverno, primavera em N sem no inverno) |
+| `readouts.test.ts` | nível da cidade e progresso do objetivo, calendário, saldo depois de construir, casas atendidas, ganho ao evoluir (com o que a casa passa a comer), lugares que atendem uma construção, casas por nível, comida feita e comida, `foodAfter` (um local de trabalho que tira o único trabalhador baixa a comida; o campo rende a colheita × a eficiência com as vagas dele; num lugar sem rua não rende nem ocupa vagas; no inverno o campo não rende) |
+| `viability.test.ts` | **viabilidade do Ano 1**: um plano mínimo (rua até a melhor comida, pescador ou coletora, campo, poço para as tendas, celeiro quando liberado, mais comida quando a previsão não chega à primavera, terreno perto de poço quando uma família pode vir) em 20 sementes: sem fome antes da semana 26, objetivos 1 a 3 no Ano 1, prata nunca negativa; invariantes: a prata inicial paga o kit mínimo, e 1 campo com o estoque base alimenta a caravana até a primavera (cai se `harvest` virar 50 ou o estoque base virar 10) |
+| `survival.test.ts` | caravana por semente (2–4 tendas num bloco 2 x 2 dos dois lados da rua do acampamento ao norte do anel; em 500 sementes há um lugar de poço livre e ligável que atende todas; comida de 14–22 semanas cortada em 50, semanas anunciadas reais, prata inicial), colheita só na primavera (`harvestsIn`, `firstHarvestWeek`, campo feito no inverno colhe no ano seguinte, última semana do outono ainda semeia, desconectado não colhe, eficiência, evento `harvestStart` com o total, `harvested`), `weeksToHarvest`, consumo semanal, estoque com e sem celeiro (desligado não guarda), estrago (`spoilStart` uma vez, limite exato não estraga, perder o celeiro), previsão (semanas e estação, colheita e limite, seca anunciada, horizonte, primavera conta até o ano seguinte), inverno (tendas saem com 35%, casa de barro protege, `winterLoss`), seca (× 0,4, campo no rio protegido, nunca no Ano 1 nem 2 seguidas, chance, aviso do inverno à primavera), avisos novos e sua ordem (comida curta em qualquer estação; estoque cheio com o tamanho e o objetivo do celeiro enquanto bloqueado), marcos uma vez só (caravana não conta), histórico com `capacity`, objetivos `foodUntilSpring`, `water` e `harvest` com `goalTarget` , campo dá comida na primavera, verão e outono e congela no inverno (sem comida, prata nem vagas; pescador a 100%; manutenção mantida; previsão com a eficiência de cada semana) |
 | `gather.test.ts` | Pescador e Coletora: dados, células de rio/árvore no raio (contadas à parte), 0,75 e 0,3 por célula com teto 4,5, mais longe rende menos, cortar árvore baixa, dois no mesmo recurso, desligado não rende, o ano todo com a eficiência, balões "sem fonte", "sem rua" e "sem trabalhadores" |
 | `looks.test.ts` | aparência das casas: semente determinística, variante dentro do número do nível, espelhamento, vizinhas do mesmo nível com variantes diferentes, novo sorteio ao mudar de nível; plantação do campo diferente da do campo vizinho; construções de uma só aparência ficam na variante 0; ofício da oficina (sorteio determinístico, vizinhas diferentes, guardado na variante) |
 | `walkers.test.ts` | tipos de morador: só aparecem quando a construção existe e está ligada, destino pelo tipo (poço, campo, mercado, oficina, altar/templo, ruas principais, borda), carregador campo → mercado e volta, destino aleatório de reserva, destino do artesão aponta a oficina e o ofício |
@@ -63,10 +66,17 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 | Cenário | O que faz e verifica | Screenshots |
 |---|---|---|
 | `title` | tela inicial; depois de ver o tutorial, com "Rever o tutorial"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-again`, `title-install` |
-| `tutorial` | celular 844 x 390, primeira partida: frase da caravana; os 6 passos (poço com "Atende N casas", rua pelo caminho fantasma arrastada com o dedo, coletora com "Rende N comida/sem" (o passo aceita pescador ou coletora), campo, casa, família com a câmera seguindo), só as ferramentas do passo liberadas, a coluna abre a categoria e depois escolhe; antes da família, `openFamilyDoor` (celeiros, comida e poços) abre a porta; depois o saldo no Objetivo 3 ("Entendi") e o mercado; tutorial gravado como feito | `tutorial-caravan`, `tutorial-step-1`, `tutorial-step-1-preview`, `tutorial-step-2`, `tutorial-step-3`, `tutorial-step-3-preview`, `tutorial-step-4` … `tutorial-step-6`, `tutorial-saldo`, `tutorial-market` |
+| `tutorial` | celular 844 x 390, primeira partida: frase da caravana; o relógio fica parado no passo de construir mesmo em 3x; ferramentas nunca travam (a tecla 2 e o Poço também funcionam no passo da rua); os 6 passos (rua pelo caminho fantasma até o lugar de comida, arrastada com o dedo depois de a câmera deslizar até ela; pescador ou coletora no lugar escolhido, com "Rende N comida/sem"; campo; poço com "Atende N casas"; casa; família com a câmera seguindo), a coluna abre a categoria e depois escolhe; antes da família, `openFamilyDoor` (celeiros, comida e poços) abre a porta; depois o saldo no Objetivo 3 ("Entendi") e o mercado; tutorial gravado como feito | `tutorial-caravan`, `tutorial-step-1`, `tutorial-step-2`, `tutorial-step-2-preview`, `tutorial-step-3` … `tutorial-step-6`, `tutorial-saldo`, `tutorial-market` |
 | `tutorial-pc` | o mesmo no PC 1366 x 768, com o mouse | as mesmas, com `-pc` no fim |
-| `tutorial-blocked` | PC: no passo da família com as famílias bloqueadas (casa sem poço), `familyBlock` dá o motivo e todas as ferramentas ficam livres (o tutorial nunca trava) | `tutorial-family-blocked` |
-| `tutorial-skip` | "Pular tutorial" encerra e fica gravado; as ferramentas voltam (tecla 2 escolhe Rua); com o `localStorage` bloqueado o tutorial roda e pular funciona sem erro | — |
+| `tutorial-blocked` | PC: no passo da família com as famílias bloqueadas (tendas sem poço), `familyBlock` dá o motivo no balão, o relógio anda e nenhum toast "Nenhuma família vem" aparece | `tutorial-family-blocked` |
+| `drag-release-on-button` | celular: uma rua arrastada do mapa que termina sobre "Pular tutorial" não pula o tutorial, e sobre a velocidade não a muda (botões só disparam com o toque que começou neles) | `drag-release-on-button` |
+| `drag-release-on-button-pc` | o mesmo no PC 1366 x 768, com o mouse | `drag-release-on-button-pc` |
+| `preview-food-after` | celular: rua até o lugar de comida e prévia do pescador ou coletora com "Rende N comida/sem" e "Comida depois"; depois o balão do Mercado com mais vagas que trabalhadores | `preview-food-after`, `preview-food-after-market` |
+| `preview-food-after-pc` | o mesmo no PC; o balão do Mercado diz "Comida depois" | as mesmas, com `-pc` no fim |
+| `harvest-countdown` | celular: pílula da estação com "inverno em N sem" no outono e "primavera em N sem" no inverno, cabendo na tela; na fome a pílula de comida diz "FOME" | `harvest-countdown-autumn`, `harvest-countdown-winter` |
+| `harvest-countdown-pc` | o mesmo no PC 1366 x 768 | as mesmas, com `-pc` no fim |
+| `toast-panel` | com as Estatísticas abertas, um toast novo espera; ao fechar, ele aparece | `toast-panel-open`, `toast-panel-closed` |
+| `tutorial-skip` | "Pular tutorial" encerra e fica gravado; a tecla 2 escolhe Rua; com o `localStorage` bloqueado o tutorial roda e pular funciona sem erro | — |
 | `options` | a engrenagem abre as Configurações; um clique no título do painel não muda a ferramenta nem seleciona nada, e o painel continua aberto | `options` |
 | `build-with-mouse` | começa com o altar e as tendas da caravana; rua e casas arrastando (teclas 2 e 3), poço e campo clicando (tecla 4, e 4 de novo passa para o Campo); conta ruas e construções | `build-with-mouse` |
 | `families-arrive` | terrenos ao lado da rua, `openFamilyDoor`, 3x; espera família andando e o marco "Primeira família" | `families-walking`, `families-arrived` |
@@ -116,8 +126,8 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
   força inverno com neve e/ou todo ano seco no desenho (null volta à semente para a neve e ao
   `state.drought` do core para a seca; a terra só racha da semana 4 da primavera ao começo do outono).
   A estação e o mês vêm de `state.week`. Em `game.map`: `look` (a aparência aplicada), `snowDirty`
-  (texturas com neve ainda sendo desenhadas), `tiles` (o que cada célula mostra), `puddles`. `window.game.guide` é o tutorial (`guide.step`, `guide.allowed()`), `window.game.ghost` o caminho
-  fantasma e `window.game.ui.tutorial` o balão (`skipBtn`, `okBtn`).
+  (texturas com neve ainda sendo desenhadas), `tiles` (o que cada célula mostra), `puddles`. `window.game.guide` é o tutorial (`guide.step`, `guide.running`, `guide.holdsClock`), `window.game.ghost` o caminho
+  fantasma, `window.game.spot` o lugar de comida para onde ele leva e `window.game.ui.tutorial` o balão (`skipBtn`, `okBtn`).
   `window.game.ui.isOverUi(x, y)` diz se um ponto está sob a interface (com 8 px de folga em volta
   dos controles). A interface fica em `window.game.ui.view` (`top`, `column`, `tools`, `panels`,
   `inspector`, `toasts` com `list` e `queue`, `tag` a pílula sobre a célula sob o cursor);
@@ -159,7 +169,8 @@ async 'meu-cenario'(page) {
 - No PC, o primeiro movimento do mouse depois de sair de um botão vai para a interface (evento
   "out" do Phaser); mova duas vezes antes de conferir a prévia.
 - `shot(page, nome)` espera as construções novas terminarem de subir (andaime) antes da captura;
-  use `{ scaffolds: true }` para fotografar o andaime. `buildTown(page)` monta a cidade de exemplo.
+  use `{ scaffolds: true }` para fotografar o andaime. `buildTown(page)` monta a cidade de exemplo
+  (com celeiro, coletora com o seu bosque e um pescador no rio a leste).
 - Há uma interface só (a Nova); a chave antiga `jerusalem.ui` é ignorada.
 - `startGame` marca o tutorial como visto (`jerusalem.tutorialDone` no `localStorage`) antes de abrir
   a página, salvo com `{ tutorial: true }`.
@@ -176,68 +187,48 @@ async 'meu-cenario'(page) {
 
 ## Simulação de equilíbrio (`tools/sim`)
 
-Partidas inteiras sem interface, rodando só o `src/core` com semente fixa, para medir duração e
-economia (usado pelo sim-tester). Os scripts são empacotados com o `rolldown` (já instalado com o
-Vite) em `node_modules/.cache/sim/` e rodados com o Node; nada vai para `dist/`.
+Partidas inteiras sem interface, rodando só o `src/core` com semente fixa, para medir a
+sobrevivência, a duração e a economia (usado pelo sim-tester). O script é empacotado com o
+`rolldown` (já instalado com o Vite) em `node_modules/.cache/sim/` e rodado com o Node; nada vai
+para `dist/`. A pasta `tools` entra no typecheck (`npx tsc --noEmit`).
 
 ```bash
-npm run sim                                   # 3 jogadores x 20 sementes, até 2000 meses, ~2 s
-npm run sim -- --bots comum --seeds 5         # um jogador, 5 sementes
-npm run sim -- --seed0 100 --weeks 600       # outras sementes, outro limite de meses
-npm run sim -- --csv <pasta>                  # curvas por partida (a cada 3 meses): prata, comida,
-                                              # moradores, eficiência, saldos, sem trabalho
+npm run sim                                   # 4 jogadores x 20 sementes, até 1000 semanas
+npm run sim -- --bots comum --seeds 100       # um jogador, 100 sementes
+npm run sim -- --brief                        # uma linha por jogador
 npm run sim -- --json                         # resultados brutos
-npm run sim -- --after 48                     # meses jogados depois da vitória (padrão 24; 0 = para na vitória)
-npm run sim -- --set buildings.temple.cost=2000 --set rules.familyChance=0.25 --drop-goal 4
-npm run sim -- --set bots.comum.actionsPerWeek=1
-npm run sim:dump -- <semente> <jogador> <mês> # desenha o mapa da partida naquele mês (aceita --set)
+npm run sim -- --rows                         # uma linha por partida
+npm run sim -- --trace comum:1:80             # semana a semana de uma partida (jogador:semente:semanas)
+npm run sim -- --set rules.workerShare=0.5 --set buildings.field.harvest=400 --drop-goal 4
 ```
 
 `--set tabela.caminho=json` muda números **só na memória** (tabelas `buildings`, `goals`,
-`houses`, `rules` e os perfis `bots`), para medir propostas sem editar `src/data`. `--drop-goal N`
-tira a meta N (contando de 1); o que ela liberava passa para a meta anterior.
+`houses` e `rules`), para medir propostas sem editar `src/data`. `--drop-goal N` tira a meta N
+(contando de 1); o que ela liberava passa para a meta anterior.
 
 | Arquivo | O que faz |
 |---|---|
-| `bots.ts` | jogadores automáticos: um perfil de números (`BotProfile`) + a mesma lógica de decisão. Só usam a API do core (`place`, `clearCell`, `computeEconomy`, `needMet`, `templeSpots`...) e leem custos dos dados, então mudanças de regra ou de números valem sem mexer nos jogadores |
-| `sim.ts` | `runGame(perfil, semente, meses, amostra, depois)`: roda uma partida e mede tudo; depois da vitória continua `depois` meses (a manutenção segue valendo) para ver se a cidade aguenta; `isDefeated(s)` encerra como derrota se o estado tiver `lost`, `defeated` ou `gameOver` |
-| `run.ts` | linha de comando e resumo por jogador (medianas e faixa mín–máx) |
+| `survival.ts` | os jogadores (`SurvivalBot`, perfis em `PROFILES`) e `run(perfil, semente, semanas)`, que joga uma partida e mede tudo. Só usam a API do core e leem custos dos dados |
+| `run.ts` | linha de comando e resumo por jogador |
 | `overrides.ts` | `--set` e `--drop-goal` |
-| `dump.ts` | mapa em texto (0–4 nível da casa, f campo, W poço, M mercado, K oficina, T templo, A altar, # rua ligada, + rua solta, R rocha, t árvore, ~ rio) |
+| `node.d.ts` | o pouco do Node que o script usa (`process.argv`), para o typecheck |
 
-Jogadores (todos com no máximo 2 gestos por mês: um traço de rua, um arraste de casas ou uma
-construção; o rng do jogador é separado do rng do jogo):
+Jogadores (perfis em `PROFILES`; o rng do jogador é separado do rng do jogo):
 
-- **eficiente** — segue uma grade de ruas (a cada 5 células, alinhada ao anel do altar), põe poço
-  e mercado antes das casas, casas perto do altar, campos e oficinas fora do raio do altar, campo
-  só quando ele de fato aumenta a comida, oficina com 3+ pessoas sem trabalho, reserva um lote 6 x 6
-  para o templo; no fim só gasta no que se paga e, quando o templo está a menos de um ano de saldo,
-  só junta prata. Olha o saldo do mês: não constrói algo com manutenção se a prata restante não
-  aguentar o déficit por 24 meses, e nunca gasta a ponto de terminar o mês com prata negativa.
-  Se o déficit ameaça, demole o serviço que menos rende (veja abaixo) na hora.
-- **comum** — segue a grade, reage aos problemas (comida negativa, casas sem poço/mercado, aviso
-  de desemprego) depois de 3 meses, às vezes constrói um poço ou mercado sem precisar, fica parado
-  10% dos meses e, com o templo liberado, só junta prata. Só corta manutenção depois de 6 meses de
-  saldo negativo ou 3 meses em dívida, e mesmo assim só em metade dos meses.
-- **distraido** — ruas e lugares quase ao acaso, só percebe a comida quando a fome chega, só reage
-  ao aviso de desemprego depois de ~10 meses, constrói serviços à toa, fica parado 30% dos meses e
-  não junta prata para o templo. Não percebe o saldo negativo; só corta manutenção depois de 8
-  meses em dívida, e em só 20% dos meses.
+- **eficiente** — conhece as regras: planeja a comida com a previsão, planta no outono, olha
+  as vagas antes de construir, faz o celeiro cedo e põe poços onde atendem mais casas.
+- **pescador** — como o eficiente, mas só planta o campo que o objetivo da colheita pede e
+  alimenta a cidade com pescadores e coletoras.
+- **comum** — reage ao que vê na tela com 3 semanas de atraso, fica parado 10% das vezes, não usa
+  a previsão nem sabe da época de plantar, mistura campo, pescador e coletora.
+- **distraido** — só percebe a comida na fome, fica parado 30% das vezes, lugares quase ao acaso.
 
-Cortar manutenção: o jogador demole a construção com manutenção (poço, campo, mercado, oficina)
-cuja saída mais melhora o saldo, medido numa cópia do estado com cada casa (e terreno) no nível
-mais alto que suas exigências permitem, e que não deixa a comida pior que hoje. Preso na meta das
-casas grandes, o jogador também leva poço ou mercado às casas da área sagrada e, sem lugar, demole
-um campo, uma oficina ou uma casa pequena perto delas.
-
-Medidas por partida: venceu/perdeu, mês de cada meta (e minutos a 1x), prata mínima, prata
-máxima antes de liberar o templo, meses com prata parada (> 120 antes do templo), meses com saldo
-de prata negativo, meses em dívida (prata < 0 ao fim do mês; total, episódios e maior sequência),
-meses apertados (em dívida, ou déficit × 12 maior que a prata), demolições para cortar
-manutenção, depois da vitória (perdeu? entrou em dívida? prata mínima), meses e episódios de fome (e se terminou em fome), pico de moradores, meses com
-aviso de desemprego, maior sequência de meses sem nada útil para fazer, maior sequência só juntando
-prata, se havia lugar para o templo ao liberá-lo e quantos meses até haver, ações e prata gasta por
-tipo.
+Medidas por partida: sobreviveu ao Ano 1, a cidade esvaziou, perdeu por dívida, venceu (e em
+quantas semanas e minutos a 1x), moradores nas semanas 52 e 104 e o pico, semanas de fome no Ano 1
+e no total, maior sequência de fome, tendas abandonadas (e no primeiro inverno), semana do
+primeiro campo, da primeira colheita e do primeiro celeiro, comida feita por campo, pescador e
+coletora e o quanto estragou, motivos da porta das famílias fechada (Ano 1 e total), anos secos,
+semana de cada objetivo, construções feitas.
 
 ## App instalável (`scripts/pwa-check.mjs`)
 

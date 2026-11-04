@@ -3,6 +3,7 @@ import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS, NOVA_FONT } from '../palette';
 import { TEX, type UiIcon } from '../textures';
 import { S } from './metrics';
+import { onTap } from '../ui';
 
 /** Text in the Nova font; `size` in game px (use the sizes of `S`). */
 export function ntext(scene: Phaser.Scene, x: number, y: number, str: string, size: number, color: string = NOVA_CSS.text, bold = true) {
@@ -130,15 +131,14 @@ export class RoundButton {
     this.root.setInteractive({ ...shape, useHandCursor: true });
     this.draw();
     const press = (on: boolean) => this.root.setScale(on ? 0.93 : 1);
-    this.root.on('pointerdown', () => {
-      press(true);
-      if (onDown) onPress();
-    });
-    this.root.on('pointerout', () => press(false));
-    this.root.on('pointerup', () => {
-      press(false);
-      if (!onDown) onPress();
-    });
+    if (onDown) {
+      this.root.on('pointerdown', () => {
+        press(true);
+        onPress();
+      });
+      this.root.on('pointerout', () => press(false));
+      this.root.on('pointerup', () => press(false));
+    } else onTap(this.root, onPress, press);
   }
 
   setLook(look: RoundLook) {

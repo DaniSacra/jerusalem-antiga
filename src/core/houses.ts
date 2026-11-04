@@ -40,6 +40,18 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
   };
 }
 
+/**
+ * The level a house with a family settles at with the services it has now: it climbs while the
+ * next level's needs are met and drops (never below a tent) while its own are missing.
+ */
+export function targetLevel(s: GameState, b: Building): number {
+  if (b.kind !== 'house' || b.level === 0) return 0;
+  let level = b.level;
+  while (level > 1 && !hasNeeds(s, b, HOUSE_LEVELS[level].needs)) level--;
+  while (level < HOUSE_LEVELS.length - 1 && hasNeeds(s, b, HOUSE_LEVELS[level + 1].needs)) level++;
+  return level;
+}
+
 /** A need is shown only once its building can be built (the altar always exists). */
 const needVisible = (s: GameState, need: NeedKind) => need === 'road' || need === 'sacred' || s.unlocked.includes(need);
 

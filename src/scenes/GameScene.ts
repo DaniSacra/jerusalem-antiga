@@ -4,13 +4,14 @@ import {
   canRotate,
   checkClear,
   clearCell,
-  computeEconomy,
+  readCity,
   createGame,
   createRng,
   dimsOf,
   fieldHarvest,
-  familyBlock,
-  ghostRoad,
+  type CityReadout,
+  foodSpot,
+  type FoodSpot,
   inBounds,
   indexOf,
   place,
@@ -98,7 +99,11 @@ function devSeed(): number | null {
 export class GameScene extends Phaser.Scene implements UiHost {
   private state!: GameState;
   private rng!: Rng;
-  private eco!: Economy;
+  /** Economy, food forecast and family gate, computed once per refresh. */
+  private city!: CityReadout;
+  private get eco(): Economy {
+    return this.city.eco;
+  }
   private map!: MapView;
   private walkers!: Walkers;
   private fx!: Effects;
@@ -125,11 +130,16 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private guide: TutorialGuide | null = null;
   /** The road the tutorial suggests (chosen once per game). */
   private ghost: Cell[] = [];
+  /** The fisher or gatherer spot at the end of that road (the gather step points at it). */
+  private spot: FoodSpot | null = null;
   /** A free house spot for the tutorial arrow (houses step). */
   private houseHint: Cell | null = null;
   /** The camera follows the first family for a moment (family step). */
   private follow: { id: number; until: number } | null = null;
   private followed = false;
+  /** The camera glides to the place of a new tutorial step (world point), and which step it did it for. */
+  private pan: { x: number; y: number } | null = null;
+  private pannedFor: string | null = null;
   private gesture: Gesture | null = null;
   /** Inside a drag step: builds wait and the city refreshes once at the end. */
   private batching = false;
@@ -160,11 +170,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.seasons = new SeasonClock(seed);
     this.state = createGame(this.rng);
     this.guide = data?.tutorial || !tutorialSeen() ? new TutorialGuide(this.state) : null;
-    this.ghost = this.guide ? ghostRoad(this.state) : [];
+    this.spot = this.guide ? foodSpot(this.state) : null;
+    this.ghost = this.spot?.road ?? [];
     this.houseHint = null;
     this.follow = null;
     this.followed = false;
-    this.eco = computeEconomy(this.state);
+    this.pan = null;
+    this.pannedFor = null;
+    this.city = readCity(this.state);
     this.tool = 'view';
     this.rotated = false;
     this.speedIndex = 0;
@@ -216,7 +229,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   update(_time: number, delta: number) {
     const speed = this.ui?.modalOpen ? 0 : this.speed;
-    const { acc, steps } = advanceClock(this.clock, delta / 1000, speed);
+    // The tutorial holds the weeks on its build steps (the first city is built without hurry);
+    // the city stays alive around it.
+    const { acc, steps } = advanceClock(this.clock, delta / 1000, this.guide?.holdsClock ? 0 : speed);
     this.clock = acc;
     for (let k = 0; k < steps; k++) this.handleEvents(stepWeek(this.state, this.rng));
     if (steps) this.refresh();
@@ -246,13 +261,13 @@ export class GameScene extends Phaser.Scene implements UiHost {
   // ---------- state -> view ----------
 
   private refresh() {
-    this.eco = computeEconomy(this.state);
+    this.city = readCity(this.state);
     this.map.sync(this.state, this.eco);
     this.ambient.sync(this.state);
     this.haulers.sync(this.state);
     this.checkTutorial();
     this.drawOverlay();
-    this.ui?.refresh(this.state, this.eco, this.speed, this.tool, this.guide?.allowed() ?? null, this.selected);
+    this.ui?.refresh(this.state, this.city, this.speed, this.tool, this.guide?.running ?? false, this.selected);
   }
 
   private handleEvents(events: GameEvent[]) {
@@ -335,11 +350,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.ui?.modalOpen) return;
     if (tool === this.tool && isPlaceTool(tool) && tool !== 'road' && canRotate(tool)) {
       this.rotate();
-      return;
-    }
-    const allowed = this.guide?.allowed();
-    if (allowed && !allowed.has(tool)) {
-      this.ui?.hint(T.tutorial.locked);
       return;
     }
     if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
@@ -437,12 +447,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.ui?.modalOpen) return;
     this.ui?.openCategory(c);
     const all = categoryKinds(c);
-    const allowed = this.guide?.allowed();
-    const open = all.filter((k) => this.state.unlocked.includes(k) && (!allowed || allowed.has(k)));
-    if (!open.length && allowed && all.some((k) => this.state.unlocked.includes(k))) {
-      this.ui?.hint(T.tutorial.locked);
-      return;
-    }
+    const open = all.filter((k) => this.state.unlocked.includes(k));
     if (!open.length) {
       this.ui?.hint(T.lockedHint(all[0]));
       return;
@@ -521,19 +526,30 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.ui?.setTutorial(null);
       return;
     }
-    // A tool the step does not allow goes back to Ver (after the drag, so a long road is not cut).
-    // A step that waits on the city (the family) frees the tools while no family can come, and says why.
-    const block = step.tool ? null : familyBlock(this.state, this.eco);
+    // A step that waits on the city (the family) says why no family can come.
+    const block = step.tool ? null : this.city.block;
     const stuck = block !== null && block !== 'wait' && this.state.families.length === 0;
-    guide.setBlocked(stuck);
-    const allowed = guide.allowed();
-    if (!this.gesture && allowed && !allowed.has(this.tool)) this.tool = 'view';
     if (step.id === 'house') {
       const a = RULES.map.altar;
       const d = (c: Cell) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
       this.houseHint = placeSpots(this.state, 'house').reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
     }
-    this.ui?.setTutorial(stuck ? T.familyBlock[block!] : T.tutorial.step[step.id], step.id === 'upkeep');
+    this.ui?.setTutorial(stuck ? T.familyBlockText(block!, this.state) : T.tutorial.step[step.id], step.id === 'upkeep');
+    if (step.id !== this.pannedFor) {
+      this.pannedFor = step.id;
+      this.pan = this.stepPlace(step.id);
+    }
+  }
+
+  /** The world point a tutorial step is about (the road, the food spot, the free house spot), if any. */
+  private stepPlace(id: string): { x: number; y: number } | null {
+    if (id === 'road' && this.ghost.length) {
+      const a = this.ghost[0];
+      const b = this.ghost.at(-1)!;
+      return footCenter(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(a.x - b.x) + 1, Math.abs(a.y - b.y) + 1);
+    }
+    const at = id === 'gather' && this.spot ? { ...this.spot, ...dimsOf(this.spot.kind) } : id === 'house' && this.houseHint ? { ...this.houseHint, ...dimsOf('house') } : null;
+    return at && footCenter(at.x, at.y, at.w, at.h);
   }
 
   /** Per frame: the arrow follows the map under the camera, and the camera follows the first family. */
@@ -543,17 +559,22 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
       this.followed = true;
     }
+    if (this.gesture?.moved) this.pan = null; // the player moves the camera: leave it there
     if (this.follow) {
       const p = this.walkers.familyPos(this.follow.id);
       if (!p || this.time.now > this.follow.until) this.follow = null;
-      else {
-        const cam = this.cameras.main;
-        const c = this.rig.toWorld(cam.width / 2, VIEW_CY);
-        const k = Math.min(1, (delta / 1000) * 4);
-        this.rig.centerAt(c.x + (p.x - c.x) * k, c.y + (p.y - c.y) * k, cam.width / 2, VIEW_CY);
-      }
-    }
+      else this.glide(p, delta);
+    } else if (this.pan && this.glide(this.pan, delta)) this.pan = null;
     this.ui?.pointTutorial(step ? this.tutorialTarget() : null);
+  }
+
+  /** Moves the camera a step toward a world point; true once it is there. */
+  private glide(p: { x: number; y: number }, delta: number): boolean {
+    const cam = this.cameras.main;
+    const c = this.rig.toWorld(cam.width / 2, VIEW_CY);
+    const k = Math.min(1, (delta / 1000) * 4);
+    this.rig.centerAt(c.x + (p.x - c.x) * k, c.y + (p.y - c.y) * k, cam.width / 2, VIEW_CY);
+    return Math.hypot(p.x - c.x, p.y - c.y) < 2;
   }
 
   /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
@@ -566,9 +587,13 @@ export class GameScene extends Phaser.Scene implements UiHost {
       if (b.side === 'bottom') return { x: b.x, y: b.y - b.w / 2 - 4, dir: 'down' };
       return b.side === 'right' ? { x: b.x - b.w / 2 + 4, y: b.y, dir: 'right' } : { x: b.x + b.w / 2 - 4, y: b.y, dir: 'left' };
     }
-    const cell = step.id === 'road' ? this.ghost.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]) : step.id === 'house' ? this.houseHint : null;
+    const cell =
+      step.id === 'road' ? this.ghost.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)])
+      : step.id === 'house' ? this.houseHint
+      : step.id === 'gather' && this.spot && this.tool === this.spot.kind ? this.spot
+      : null;
     if (!cell) return null;
-    const { w, h } = step.id === 'house' ? dimsOf('house') : { w: 1, h: 1 };
+    const { w, h } = step.id === 'house' ? dimsOf('house') : step.id === 'gather' && this.spot ? dimsOf(this.spot.kind) : { w: 1, h: 1 };
     const p = footCenter(cell.x, cell.y, w, h);
     return { ...this.toScreen(p.x, p.y), dir: 'down' };
   }
@@ -749,8 +774,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.warnLooseRoads(g.roads);
     }
     if (p.wasTouch) this.setHover(null);
-    const allowed = this.guide?.allowed();
-    if (allowed && !allowed.has(this.tool)) this.refresh(); // a step ended during the drag
   }
 
   /** Warns once if any road just built is not connected to the altar. */

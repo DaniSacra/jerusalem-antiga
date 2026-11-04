@@ -9,9 +9,12 @@ const DURATION = 2600;
 const MAX = 3;
 /** Above the balloons and panels (46–50), under the victory and defeat dialogs (100). */
 const DEPTH = 60;
+/** While a panel is open, the toasts already on screen go under it. */
+const UNDER_PANEL = 45;
 
 interface Toast {
   msg: string;
+  big: boolean;
   root: Phaser.GameObjects.Container;
   h: number;
   timer: Phaser.Time.TimerEvent;
@@ -35,6 +38,8 @@ interface Waiting {
 export class Toasts {
   private list: Toast[] = [];
   private queue: Waiting[] = [];
+  /** A panel is open: new toasts wait in line until it closes (they would cover it). */
+  private held = false;
 
   /** `y0`: bottom edge of the newest toast; `maxW`: widest a toast may be (it wraps). */
   constructor(private scene: Phaser.Scene, private y0: number, private maxW = px(520)) {}
@@ -46,7 +51,7 @@ export class Toasts {
       return;
     }
     if (this.queue.some((q) => q.msg === msg)) return;
-    if (this.list.length >= MAX) {
+    if (this.list.length >= this.room()) {
       // Bad news goes before the rest of the line.
       const w = { msg, tone, opt };
       if (tone === 'bad') {
@@ -56,6 +61,26 @@ export class Toasts {
       return;
     }
     this.add(msg, tone, opt);
+  }
+
+  /** Toasts allowed on screen now: none while a panel is open, one beside the opening sentence (big). */
+  private room() {
+    return this.held ? 0 : this.list.some((t) => t.big) ? 1 : MAX;
+  }
+
+  /** Holds new toasts while a panel is open; when it closes, the waiting ones come in. */
+  hold(on: boolean) {
+    if (on === this.held) return;
+    this.held = on;
+    for (const t of this.list) t.root.setDepth(on ? UNDER_PANEL : DEPTH);
+    this.flush();
+  }
+
+  private flush() {
+    while (this.queue.length && this.list.length < this.room()) {
+      const next = this.queue.shift()!;
+      this.add(next.msg, next.tone, next.opt);
+    }
   }
 
   private add(msg: string, tone: Tone, opt: ToastOptions) {
@@ -77,7 +102,7 @@ export class Toasts {
     if (opt.big) bg.lineStyle(px(2), NOVA.gold, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
     const root = s.add.container(GAME_W / 2, this.y0 - h / 2, [bg, label]).setDepth(DEPTH).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
-    const toast: Toast = { msg, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
+    const toast: Toast = { msg, big: !!opt.big, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
     this.layout();
   }
@@ -92,9 +117,8 @@ export class Toasts {
     this.list.splice(i, 1);
     t.timer.remove();
     t.root.destroy();
-    const next = this.queue.shift();
-    if (next) this.add(next.msg, next.tone, next.opt);
-    else this.layout();
+    this.layout();
+    this.flush();
   }
 
   private layout() {

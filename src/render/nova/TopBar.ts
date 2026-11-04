@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, seasonOf, currentGoal, foodCapacity, foodForecast, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, moodOf, lastsToHarvest, type Economy, type GameState, type Season } from '../../core';
+import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, moodOf, lastsToHarvest, type CityReadout, type GameState, type Season } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { fmtInt, signed, T } from '../strings';
 import { TEX } from '../textures';
 import { SPEEDS, type Speed } from '../tools';
+import { onTap as tapOnly } from '../ui';
 import type { TutorialTarget } from '../Tutorial';
 import { PHONE, S } from './metrics';
 import { darkPanel, icon, ntext, picture, RoundButton } from './widgets';
@@ -35,7 +36,8 @@ class Pill {
     this.icon = iconKey ? picture(scene, iconKey, h * 0.62) : null;
     this.root = scene.add.container(0, 0, [this.bg, this.bars, ...(this.icon ? [this.icon] : [])]);
     if (onTap) {
-      this.zone = scene.add.zone(0, 0, 10, h).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerup', onTap);
+      this.zone = scene.add.zone(0, 0, 10, h).setOrigin(0).setInteractive({ useHandCursor: true });
+      tapOnly(this.zone, onTap);
       this.root.add(this.zone);
     }
   }
@@ -173,7 +175,8 @@ export class TopBar {
     this.levelRing = scene.add.graphics();
     this.levelNum = ntext(scene, cx, cy - L * 0.08, '1', S.big).setOrigin(0.5);
     ntext(scene, cx, cy + L * 0.24, T.nova.level, S.small, NOVA_CSS.gold).setOrigin(0.5);
-    scene.add.zone(cx, cy, L, L).setInteractive({ hitArea: new Phaser.Geom.Circle(L / 2, L / 2, Math.max(L, px(44)) / 2), hitAreaCallback: Phaser.Geom.Circle.Contains, useHandCursor: true }).on('pointerup', h.onGoals);
+    const goals = scene.add.zone(cx, cy, L, L).setInteractive({ hitArea: new Phaser.Geom.Circle(L / 2, L / 2, Math.max(L, px(44)) / 2), hitAreaCallback: Phaser.Geom.Circle.Contains, useHandCursor: true });
+    tapOnly(goals, h.onGoals);
 
     this.silver = new Pill(scene, TEX.icon('silver'), S.pillH, h.onStats);
     this.food = new Pill(scene, TEX.icon('food'), S.pillH, h.onStats);
@@ -208,7 +211,7 @@ export class TopBar {
     }
   }
 
-  refresh(s: GameState, eco: Economy, speed: Speed) {
+  refresh(s: GameState, { eco, forecast: out }: CityReadout, speed: Speed) {
     this.speed = speed;
     const L = S.level;
     const cx = S.margin + L / 2;
@@ -233,14 +236,18 @@ export class TopBar {
     this.silver.set([...label(N.silver), { text: fmtInt(s.silver), color: silverColor, size: S.num }, delta(eco.silverDelta)]);
     this.silver.blink(sv, debt);
     // Forecast: "até a colheita" (green) when the food lasts, else when it runs out (red; phone: "⚠ N sem").
-    const out = foodForecast(s, eco);
     const lasts = lastsToHarvest(s, out);
     const cap = foodCapacity(s);
     const food = Math.floor(s.food);
     const full = food >= cap * STOCK_SHOWN;
-    const forecast: Part[] = lasts
-      ? PHONE ? [] : [{ text: '· ' + N.foodToHarvest, color: NOVA_CSS.good }]
-      : [{ text: PHONE ? N.foodShortPhone(out!.weeks) : '· ' + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }];
+    const dot = PHONE ? '' : '· ';
+    const forecast: Part[] = s.famine
+      ? [{ text: N.famine, color: NOVA_CSS.bad }]
+      : !lasts
+        ? [{ text: PHONE ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
+        : full && eco.foodDelta > 0
+          ? [{ text: dot + N.full, color: NOVA_CSS.warn }]
+          : PHONE ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }];
     const fv = label(N.food).length;
     this.food.set([
       ...label(N.food),
@@ -248,7 +255,7 @@ export class TopBar {
       delta(eco.foodDelta),
       ...forecast,
     ]);
-    this.food.blink(fv, s.famine);
+    this.food.blink(fv + 2, s.famine); // the "FOME" part
     this.people.set([...label(N.residents), { text: fmtInt(eco.residents), size: S.num }]);
     if (this.joy) {
       const on = happinessOn(s);
@@ -259,10 +266,16 @@ export class TopBar {
     }
 
     const { season, year, week } = calendar(s.week);
-    const sKey = `${season}|${year}|${week}`;
+    const sKey = `${season}|${year}|${week}|${s.drought}`;
     if (sKey !== this.lastSeason) {
       this.lastSeason = sKey;
-      this.season.set([{ text: N.calendar(season, year, week, !PHONE) }]);
+      // When the fields freeze (or thaw) next: the year turns around it.
+      const turn = nextFieldTurn(s.week);
+      const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
+      this.season.set([
+        ...(PHONE ? [{ text: N.calendarPhone(season, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
+        ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
+      ]);
     }
     this.iconOf = { season, dry: s.drought };
     this.seasonIcon();
@@ -313,7 +326,7 @@ export class TopBar {
           { text: head, color: NOVA_CSS.gold, size: S.small },
           { text: goal.text },
           ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
-          { text: N.progress(p, target), color: NOVA_CSS.gold },
+          { text: N.progress(p, target, goal.type === 'foodUntilSpring' && target > 1), color: NOVA_CSS.gold },
         ],
         maxW,
       );

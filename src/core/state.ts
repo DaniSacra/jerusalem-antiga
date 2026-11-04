@@ -2,10 +2,10 @@ import { dimsOf, HOUSE_LEVELS, RULES } from './data';
 import { round2 } from './economy';
 import { rollLook } from './looks';
 import { cellsOf, indexOf } from './grid';
-import { entranceCell, generateTerrain, startRoad } from './map';
+import { caravanSpots, entranceCell, generateTerrain, startRoad } from './map';
 import { refreshCity } from './refresh';
 import { between } from './rng';
-import type { Building, Cell, GameState, Rng } from './types';
+import type { Building, GameState, Rng } from './types';
 
 export function createGame(rng: Rng): GameState {
   const { cols, rows, altar } = RULES.map;
@@ -55,20 +55,8 @@ export function createGame(rng: Rng): GameState {
   return s;
 }
 
-/** Tent spots for the caravan: north of the ring around the altar, then west of it. */
-function caravanSpots(): Cell[] {
-  const { altar } = RULES.map;
-  const { w } = dimsOf('house');
-  return [
-    { x: altar.x - 1, y: altar.y - 1 - w },
-    { x: altar.x + 1, y: altar.y - 1 - w },
-    { x: altar.x + 3, y: altar.y - 1 - w },
-    { x: altar.x - 1 - w, y: altar.y + 1 },
-  ];
-}
-
 /**
- * The caravan that founds the city: 2–4 families in tents by the altar and food for 10–20 weeks
+ * The caravan that founds the city: 2–4 families in tents north of the altar and food for 14–22 weeks
  * of them, never more than the city can store without a granary (the weeks shown are the real ones).
  */
 function foundCaravan(s: GameState, rng: Rng) {

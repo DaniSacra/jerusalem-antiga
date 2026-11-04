@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   alerts,
+  campWellSpot,
+  checkPlace,
+  familyBlock,
+  indexOf,
+  needMet,
+  place,
   clearCell,
   BUILDINGS,
   byRiver,
@@ -304,12 +310,22 @@ describe('alerts', () => {
     expect(alerts(s).map((a) => a.kind)).not.toContain('winterComing');
   });
 
-  it('warns in summer when the food will not last until the harvest', () => {
-    const s = emptyGame({ week: SUMMER, food: 10 });
-    put(s, 'house', ROADSIDE, 27, 1);
-    expect(alerts(s).map((a) => a.kind)).toContain('foodShort');
-    s.week = WINTER;
-    expect(alerts(s).map((a) => a.kind)).not.toContain('foodShort');
+  it('warns in any season when the food will not last until the spring', () => {
+    for (const week of [0, SUMMER, WINTER]) {
+      const s = emptyGame({ week, food: 1 });
+      put(s, 'house', ROADSIDE, 27, 1);
+      expect(alerts(s).map((a) => a.kind)).toContain('foodShort');
+      s.food = 40; // a tent eats 0.6 a week: 40 lasts a year
+      expect(alerts(s).map((a) => a.kind)).not.toContain('foodShort');
+    }
+  });
+
+  it('spoiling says the store size and the goal that unlocks the granary while it is locked', () => {
+    const s = emptyGame({ spoiled: 3 });
+    s.unlocked = s.unlocked.filter((k) => k !== 'granary');
+    expect(alerts(s).find((a) => a.kind === 'spoiling')).toEqual({ kind: 'spoiling', amount: 3, capacity: RULES.baseFoodStorage, locked: true });
+    s.unlocked.push('granary');
+    expect(alerts(s).find((a) => a.kind === 'spoiling')).toMatchObject({ locked: false });
   });
 });
 
@@ -410,7 +426,7 @@ describe('survival goals', () => {
     expect(goalProgress(s, g)).toBe(SPRING - WINTER);
   });
 
-  it('food until spring is done by the forecast, or once the first spring begins', () => {
+  it('food until spring is done by the forecast, or in the spring once the city is not starving', () => {
     const s = emptyGame({ food: 40, goalIndex: 0 });
     put(s, 'house', ROADSIDE, 27, 1); // 40 / 0.6 = 66 weeks
     const events: GameEvent[] = [];
@@ -423,12 +439,17 @@ describe('survival goals', () => {
     checkGoal(t, []);
     expect(t.goalIndex).toBe(0);
     t.week = SPRING;
-    expect(goalTarget(t, goal('foodUntilSpring'))).toBe(0);
+    t.famine = true;
+    expect(goalTarget(t, goal('foodUntilSpring'))).toBe(1); // never 0/0
+    expect(goalProgress(t, goal('foodUntilSpring'))).toBe(0);
+    checkGoal(t, []);
+    expect(t.goalIndex).toBe(0); // waits while the city starves
+    t.famine = false;
     checkGoal(t, []);
     expect(t.goalIndex).toBe(1);
   });
 
-  it('water for every house: plots too, at least the target', () => {
+  it('water for every house with a family, at least the target', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
@@ -437,11 +458,12 @@ describe('survival goals', () => {
     expect(goalProgress(s, g)).toBe(0);
     put(s, 'well', EAST, 27);
     expect(goalProgress(s, g)).toBe(2);
-    for (let y = 31; y <= 37; y += 2) put(s, 'house', ROADSIDE, y); // 4 plots more, some out of the well
+    for (let y = 31; y <= 37; y += 2) put(s, 'house', ROADSIDE, y, 1); // 4 tents more, some out of the well
+    put(s, 'house', ROADSIDE, 39); // plots do not count
     expect(goalTarget(s, g)).toBe(6);
     expect(goalProgress(s, g)).toBeLessThan(6);
     expect(goalFraction({ ...s, goalIndex: 1 })).toBeCloseTo(goalProgress(s, g) / 6);
-    put(s, 'house', 2, 2); // a house off the roads counts neither way, like the family gate
+    put(s, 'house', 2, 2, 1); // a house off the roads counts neither way, like the family gate
     expect(goalTarget(s, g)).toBe(6);
   });
 
@@ -542,6 +564,7 @@ describe('forecast (edges)', () => {
     put(s, 'house', ROADSIDE, 27, 4);
     put(s, 'house', ROADSIDE, 29, 4);
     put(s, 'field', westOf('field'), 31).built = 0;
+    for (const k of Object.keys(s.coverage) as (keyof typeof s.coverage)[]) s.coverage[k].fill(true); // they stay big
     return s;
   };
 
@@ -630,15 +653,33 @@ describe('milestones (once)', () => {
 });
 
 describe('caravan (layout)', () => {
-  it('pitches the tents by the ring, north of it first and then west, for free', () => {
+  it('pitches the tents in a 2 x 2 camp on both sides of the camp road, the row by the ring first, for free', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const s = createGame(createRng(seed));
       expect(s.silver).toBe(RULES.startSilver);
       expect(s.families).toEqual([]);
       const tents = s.buildings.filter((b) => b.kind === 'house');
-      const spots = [{ x: 21, y: 19 }, { x: 23, y: 19 }, { x: 25, y: 19 }, { x: 19, y: 23 }].slice(0, tents.length);
+      const spots = [{ x: 21, y: 19 }, { x: 24, y: 19 }, { x: 21, y: 17 }, { x: 24, y: 17 }].slice(0, tents.length);
       expect(tents.map((t) => ({ x: t.x, y: t.y }))).toEqual(spots);
-      for (const t of tents) expect(s.grid[t.y * s.cols + t.x]).toBe(t);
+      for (const t of tents) {
+        expect(s.grid[t.y * s.cols + t.x]).toBe(t);
+        expect(t.connected).toBe(true);
+      }
+      for (let y = 17; y <= 20; y++) expect(s.network[indexOf(s, 23, y)]).toBe(true); // the camp road
+    }
+  });
+
+  it('in 500 maps one free, connected well spot by the camp waters every caravan tent', () => {
+    const spot = campWellSpot();
+    for (let seed = 1; seed <= 500; seed++) {
+      const s = createGame(createRng(seed));
+      s.unlocked = [...s.unlocked, 'well'];
+      expect(checkPlace(s, 'well', spot.x, spot.y).ok, `seed ${seed}`).toBe(true);
+      place(s, 'well', spot.x, spot.y);
+      const well = s.grid[indexOf(s, spot.x, spot.y)]!;
+      expect(well.connected).toBe(true);
+      for (const t of s.buildings.filter((b) => b.kind === 'house')) expect(needMet(s, t, 'well'), `seed ${seed}`).toBe(true);
+      expect(familyBlock(s)).not.toBe('water');
     }
   });
 

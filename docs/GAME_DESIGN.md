@@ -47,7 +47,10 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   como um contorno com cantos e um T onde a rua sul encontra o anel.
 - O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** (cerca de 6 construções).
 - **Caravana** (sorteada pela semente, `caravan` em `rules.json`): **2 a 4 famílias** já moram em
-  tendas (casas comuns de nível 1, de graça) encostadas no anel do altar. A comida inicial vale
+  tendas (casas comuns de nível 1, de graça) num **bloco compacto 2 x 2 ao norte do anel**, dos
+  dois lados de uma rua curta (`campRoad`, 4 células) que sai do anel; a fila encostada no anel
+  enche primeiro. Ao lado, a leste, fica um lugar 2 x 2 livre (`campWellSpot`) onde **um poço
+  alcança todas as tendas**. A comida inicial vale
   **14 a 22 semanas** do consumo delas, cortada no limite sem celeiro (50). Uma frase na abertura
   mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas".
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
@@ -161,16 +164,26 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
 ## Famílias
 
 - **Porta das famílias:** uma família nova só é enviada quando **as duas** condições valem:
-  1. **água:** todas as casas ligadas à rua (terrenos vazios também) estão no raio de um poço ligado;
-  2. **comida:** a previsão (veja Previsão de comida) diz que a comida dura até o começo da
-     próxima colheita.
+  1. **água:** todas as casas ligadas **com família** estão no raio de um poço ligado (terrenos
+     vazios não contam);
+  2. **comida:** a previsão (veja Previsão de comida) diz que a comida dura até a próxima
+     primavera, contando cada casa no nível que ela vai alcançar, **1 tenda por família a
+     caminho** e mais 1 tenda para a família nova.
+- **Cidade vazia nunca trava:** com 0 moradores e nenhuma família a caminho, a porta ignora água
+  e comida (o intervalo e a chance continuam valendo).
+- A porta é conferida **depois** de a semana avançar (`dispatchFamilies` e `moveFamilies` rodam
+  depois de `s.week++`), na mesma semana que a tela mostra.
 - Com a porta aberta, um terreno vazio conectado e sem família a caminho, e pelo menos
   **2 semanas** desde a última família enviada (`familyIntervalWeeks`), chega uma família com
   chance **0,6 por semana** (`familyChance`, vezes o fator da alegria). No máximo uma por vez.
   Não há mais famílias garantidas: a caravana é o começo.
-- **Quando ninguém vem**, o aviso diz o motivo, nesta ordem: "Nenhuma família vem: há casa sem água. Construa um poço perto", "Nenhuma família vem: a comida
-  não dura até a colheita. Pesque ou colete", "Nenhuma família vem: não há casa vazia. Construa uma
-  ao lado da rua" (sem terreno livre ligado). Com fome: "Nenhuma família vem: falta comida. Pesque ou colete".
+- **Quando ninguém vem**, o aviso diz o motivo, nesta ordem: "Nenhuma família vem: casa longe do
+  poço. Construa outro poço", "Nenhuma família vem: a comida não dura até a primavera. Pesque ou
+  colete", "Nenhuma família vem: o estoque só guarda N. O celeiro libera no objetivo 3" (ou
+  "Construa o celeiro"; motivo `storage`: a comida chegaria, mas o estoque corta), "Nenhuma
+  família vem: não há casa vazia. Construa uma ao lado da rua" (sem terreno livre ligado). Com
+  fome: "Nenhuma família vem: falta comida. Pesque ou colete". Durante o tutorial o motivo aparece
+  no balão do tutorial, sem toast.
 - A família sai da **entrada da cidade** e anda pelas ruas (caminho por busca em largura) até a
   casa, **6 células por semana** (`familyCellsPerWeek`). Ao chegar, o terreno vira tenda.
 - Se a rua do caminho for cortada, a família recalcula a rota; se não houver rota, ou a casa for
@@ -193,8 +206,9 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
   **12 por semana × eficiência**. **No inverno ele congela** (`harvestsIn`): não dá comida nem
   prata e não ocupa trabalhadores (sem lavradores no desenho), que ficam livres para pescador e
   coletora. O desafio é guardar comida para o inverno (estoque e celeiro).
-- A prévia mostra "Rende N comida/sem" (no inverno, "Congelado no inverno: volta na primavera"); o
-  balão do campo diz que ele dá comida na primavera, no verão e no outono.
+- A prévia mostra "Rende N comida/sem" e "Comida depois: ±X/sem" (veja Interface Nova); no
+  inverno, "Congelado no inverno: volta em N sem". O balão do campo diz que ele dá comida na
+  primavera, no verão e no outono.
 - O campo tem 2 vagas e dá 1 prata por semana fora do inverno. A colheita é anunciada uma vez por
   ano, na primeira semana da primavera.
 - **Seca:** cada ano é seco ou não, sorteado pela semente do mapa (`drought` em `rules.json`):
@@ -204,17 +218,20 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
 
 ## Previsão de comida
 
-Uma função pura (`foodForecast`), calculada uma vez por semana, simula semana a semana a partir de
-agora: consumo atual, pesca e coleta, colheita dos campos já semeados (com a seca, se já
-anunciada) e o limite do estoque (o que passa estraga). Ela responde em quantas semanas a comida
+Uma função pura (`foodForecast`), calculada uma vez por atualização da tela (junto com a
+economia, em `readCity`) e repassada à barra, aos painéis, aos avisos, ao inspetor e à cena,
+simula semana a semana a partir de agora: o consumo com **cada casa no nível que vai alcançar com
+os serviços de hoje** (`targetLevel`: um poço novo já mostra as casas de barro que vêm, comendo e
+trabalhando mais), pesca e coleta, os campos (com a seca, se já anunciada) e o limite do estoque
+(o que passa estraga). Ela responde em quantas semanas a comida
 acaba e se chega ao **começo da próxima colheita** (a próxima semana 1 da primavera; durante a
 primavera, a do ano seguinte, contando o que ainda vai ser colhido). Usada por:
 
 - **porta das famílias** (veja Famílias);
-- **pílula de comida:** "até a colheita" quando chega; senão "até o <estação>" (a estação em que
+- **pílula de comida:** "até a primavera" quando chega; senão "até o <estação>" (a estação em que
   acaba);
-- **aviso** "A comida não dura até a colheita: pesque, colete ou plante campos" (toast no
-  começo do verão e na lista de Avisos enquanto valer);
+- **aviso** "A comida não dura até a primavera: pesque, colete ou plante campos" (em qualquer
+  estação, na lista de Avisos enquanto valer; toast só se começar no verão);
 - **Objetivo 1.**
 
 ## Simulação
@@ -282,18 +299,20 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 - **Avisos** (`alerts()` no core), no botão Avisos e na lista de problemas das Estatísticas (PC),
   nesta ordem: dívida ("Em dívida: N semanas para a cidade ser abandonada. Reduza a manutenção"; com fome ao
   mesmo tempo: "Dívida e fome: demolir serviços corta a manutenção · N semanas"); fome; "A comida
-  não chega à próxima colheita…"; "Comida estragando: construa um celeiro"; "O inverno está
-  chegando. Tendas sofrem com o frio." (nas últimas 3 semanas do outono, `winterWarningWeeks`, se
-  houver tendas); "As chuvas estão fracas este ano" (do inverno ao fim da primavera de um ano
-  seco); "Nenhuma família vem: …"; saldo negativo ("Saldo −X/sem · maior custo: Tipo (N/sem) ·
+  não dura até a primavera…" (qualquer estação); "Comida estragando: construa um celeiro" (com o
+  celeiro ainda bloqueado: "Estoque cheio (50): o excesso estraga. O celeiro libera no objetivo
+  3"); "O inverno está chegando: com fome, famílias vão embora. Guarde comida" (nas últimas 3
+  semanas do outono, `winterWarningWeeks`, se houver tendas); "Ano seco: campos longe do rio
+  colhem 40%. Construa pescador ou coletora" (do inverno ao fim da primavera de um ano seco);
+  "Nenhuma família vem: …"; saldo negativo ("Saldo −X/sem · maior custo: Tipo (N/sem) ·
   use Demolir em serviços que atendem poucas casas"); desemprego.
 
 ## Objetivos (em sequência)
 
 | # | Texto | Alvo | Prêmio | Libera |
 |---|---|---|---|---|
-| 1 | Prepare o primeiro inverno | comida até a primavera do Ano 1 | +20 | – |
-| 2 | Água para todas as casas | todas as casas no raio de um poço ligado, com 4 casas ou mais | +30 | – |
+| 1 | Comida até a primavera | comida até a primavera do Ano 1 | +20 | – |
+| 2 | Água para todas as casas | todas as casas com família no raio de um poço ligado, com 4 ou mais | +30 | – |
 | 3 | Primeira colheita | 12 de comida colhida (acumulada) | +30 | Celeiro (e a manutenção começa) |
 | 4 | Construa o celeiro | 1 celeiro ligado | +40 | – |
 | 5 | Tenha 6 casas de barro | 6 | +40 | Mercado |
@@ -304,11 +323,13 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 10 | Tenha 4 casas grandes | 4 | +150 | Templo |
 | 11 | Construa o Templo | 1 | vitória | – |
 
-- **Objetivo 1** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão), até
-  as semanas que faltam para a primavera do Ano 1. Cumpre quando a previsão chega lá, ou quando a
-  primavera do Ano 1 começa (o inverno passou).
-- **Objetivo 2** (`water`): progresso = casas ligadas à rua no raio de um poço ligado; alvo =
-  máx(4, total de casas ligadas, terrenos inclusive).
+- **Objetivo 1** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão, com as
+  casas no nível alvo), até as semanas que faltam para a primavera do Ano 1; a pílula mostra a
+  unidade ("12/26 sem"). Cumpre quando a previsão chega lá (uma caravana que vai passar fome não
+  cumpre na semana 1). Na primavera, cumpre se a cidade não está com fome; com fome, espera a
+  comida voltar. O alvo nunca é 0.
+- **Objetivo 2** (`water`): progresso = casas ligadas **com família** no raio de um poço ligado;
+  alvo = máx(4, casas ligadas com família). Terrenos vazios não contam.
 - **Objetivo 3** (`harvest`): conta a comida colhida desde o começo da partida, mesmo antes de
   ele ser o atual.
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
@@ -377,16 +398,21 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     do progresso do objetivo atual; 56 px no celular, 72 no PC;
   - pílulas **Prata** e **Comida** com a variação por semana (verde positiva, vermelha negativa) e
     **Moradores**; no PC com rótulo, mais **Alegria** (só depois de liberar o Jardim). A Comida
-    mostra também "até a colheita" quando a previsão chega à próxima colheita, ou "até o <estação>"
+    mostra também "até a primavera" quando a previsão chega à próxima primavera, ou "até o <estação>"
     (a estação em que a comida acaba, pela previsão) em vermelho; no celular só aparece quando não
-    chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Com o
-    estoque a 75% do limite ou mais, o número vira "38/40" (laranja enquanto estraga). Cores de alerta: prata laranja com saldo negativo e
-    vermelha piscando em dívida; comida vermelha piscando na fome. Tocar numa pílula abre as
+    chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Na fome,
+    **"FOME"** em vermelho piscando no lugar disso. Com o estoque a 75% do limite ou mais, o número
+    vira "38/50" (laranja enquanto estraga), e se a comida ainda sobe aparece **"cheio"** em
+    laranja (o que passar vai estragar). Cores de alerta: prata laranja com saldo negativo e
+    vermelha piscando em dívida. Tocar numa pílula abre as
     Estatísticas;
   - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 11", texto, barra e "3/5".
     Tocar abre a lista de Objetivos.
-- **Topo direito:** pílula "Primavera · Ano 2 · Semana 5" (semana 1–13; no celular "Sem 5" se não
-  couber em 844 x 390; ícone da estação; num ano seco anunciado, o ícone da seca no lugar); velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
+- **Topo direito:** pílula "Outono · Ano 1 · Semana 5 · inverno em 9 sem" (semana 1–13; ícone da
+  estação; num ano seco anunciado, o ícone da seca no lugar e "· Seca" em laranja). A contagem é
+  a próxima virada dos campos (`nextFieldTurn`): fora do inverno, "inverno em N sem" (laranja nas
+  últimas 3 semanas); no inverno, "primavera em N sem". No celular a pílula troca o ano e a semana
+  pela contagem: "Outono · inverno em 9 sem"; velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
   3x, o ativo dourado); engrenagem das Configurações.
 - **Lateral esquerda** (botões redondos):
   - **Objetivos** (bandeira): lista dos 11 objetivos, cumpridos, atual (com progresso) e próximos,
@@ -415,8 +441,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
   depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
-  eficiência que a cidade teria; antes do Objetivo 3, sem manutenção). Fecha ao trocar de
-  ferramenta ou ao tocar no mapa para construir.
+  eficiência que a cidade teria; antes do Objetivo 3, sem manutenção). Num local de trabalho que
+  não dá comida (mercado, oficina, templo…), quando as vagas dele tiram trabalhadores dos que dão
+  comida, também "Comida depois: ±X/sem" (`foodAfter`; vermelho se negativo), no celular também.
+  Fecha ao trocar de ferramenta ou ao tocar no mapa para construir.
 - **Balão da construção tocada** (com Mover), ao lado dela com seta, seguindo a câmera; some ao
   tocar fora:
   - casas: "nível atual → próximo", o que já tem (verde) e o que falta (vermelho, incluindo "sem
@@ -471,14 +499,24 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     velocidade e da engrenagem, abaixo das pílulas do topo e acima de Mover, Rua e Demolir; os
     painéis terminam acima das ferramentas de baixo;
   - toasts: no máximo 3 na tela; os outros esperam em fila (os vermelhos na frente) e nenhum se
-    perde; ficam acima dos balões e painéis. A frase da caravana é um toast maior, por 5 s;
+    perde; ficam acima dos balões. Com um **painel aberto** nenhum toast aparece: eles esperam e
+    entram quando o painel fecha. A frase da caravana é um toast maior, por 5 s, e fica **sozinha**
+    (os outros esperam ela sair);
+  - **botões só disparam com o toque que começou neles** e não saiu deles (`onTap` em `ui.ts`):
+    uma rua arrastada que termina sobre "Pular tutorial" ou sobre a pausa não aperta nada;
+  - o nome de uma construção ou categoria na coluna do PC diminui a fonte até caber no botão
+    ("Água e comida");
   - "Local inválido" diz o motivo: "Tem uma árvore aqui: corte com Demolir", "Tem uma rocha aqui",
     "Não dá para construir no rio", "Já tem uma construção ou rua aqui", "Fora do mapa" (Demolir:
     "Nada para demolir aqui", "Rochas não podem ser removidas");
   - cortar uma árvore faz subir "−5" em vermelho sobre ela (no toque não há pílula de cursor);
-  - com Pescador, Coletora ou Campo, uma pílula sobre a prévia diz "Rende N comida/sem" ou "Colhe
-    na primavera do ano N"; o balão da construção escolhida diz a regra (por célula, alcance e
-    teto) ou "Guarda 150 de comida";
+  - com Pescador, Coletora ou Campo, uma pílula sobre a prévia diz, em duas linhas, "Rende N
+    comida/sem" (com a eficiência que a cidade terá com as vagas dela) e "Comida depois: ±X/sem"
+    (o saldo de comida da cidade com ela; a pílula fica vermelha se negativo); campo no inverno:
+    "Congelado no inverno: volta em N sem". O balão da construção escolhida diz a regra (por
+    célula, alcance e teto) ou "Guarda 150 de comida";
+  - no inspetor de pescador, coletora e campo trabalhando com menos de 100% de trabalhadores:
+    "Faltam trabalhadores: rende 67%" em laranja;
   - Estatísticas em duas abas: **Agora** (números e problemas) e **Histórico** (gráficos e marcos);
     a semana de cada marco é guardada pela interface quando ele chega;
   - o terreno vazio tocado diz por que nenhuma família vem (o mesmo motivo dos Avisos); "Nenhuma
@@ -506,12 +544,14 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima):
   prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local
   inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, objetivo cumprido,
-  "Oficina liberada: …", "Falta comida" (uma vez por episódio de fome), a frase da caravana, os
-  marcos, o primeiro texto de cada aviso e a chegada de cada estação ("Chegou o verão: dias quentes
-  e secos").
+  "Oficina liberada: …", "Falta comida: construa pescador ou coletora" (uma vez por episódio de
+  fome), a frase da caravana, os marcos, o primeiro texto de cada aviso (o de comida curta só se
+  começar no verão) e a chegada de cada estação ("Chegou o verão: dias quentes e secos";
+  inverno: "Inverno: só pescador e coletora dão comida").
 - Durante a fome, leve tom avermelhado sobre o mapa.
 - Tela inicial com 3 passos numerados (comida para o inverno: pesque, colete e plante no outono;
-  água para as casas e celeiro para guardar a colheita; objetivos, Templo e não ficar em dívida),
+  "Dê água às casas com poços. Sem celeiro, só cabem 50 de comida."; objetivos, Templo e não
+  ficar em dívida),
   uma linha de controles e o
   botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
   "Rever o tutorial", que começa um jogo novo com o tutorial.
@@ -532,28 +572,31 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
 - Um balão com **uma frase** fica embaixo, entre as ferramentas e a coluna, com o botão "Pular tutorial".
   Uma **seta dourada** que balança aponta onde tocar: o botão da ferramenta do passo até ela ser
   escolhida, depois o lugar no mapa.
-- Durante os 6 passos só a ferramenta do passo (e Mover) fica liberada; as outras ficam cinza.
-  Câmera, girar e velocidade continuam livres. Uma ferramenta que o passo não permite
-  volta para Mover ao fim do arraste (uma rua longa não é cortada).
-- Passos (cada um só avança com a sua ação; refeitos para a sobrevivência):
-  1. "Construa um poço perto das tendas da caravana": a prévia mostra o raio e "Atende N casas".
+- **As ferramentas nunca travam:** o tutorial só destaca (seta e caminho marcado). Câmera, girar
+  e velocidade continuam livres.
+- **O relógio fica parado nos passos de construir** (1 a 5: `tutorialHoldsClock`), para a
+  primeira cidade ser feita sem pressa, e volta a andar no passo 6 (a família chegando). A
+  velocidade escolhida fica guardada.
+- A cada passo a câmera desliza até o lugar dele (a rua marcada, o lugar do pescador ou da
+  coletora, o terreno da casa); se o jogador mexer na câmera, ela fica onde ele deixou.
+- Passos (cada um só avança com a sua ação; comida primeiro):
+  1. "Puxe uma rua pelo caminho marcado, até onde há comida": o caminho fantasma (`ghostRoad`) é
+     a rua mais curta, por terra livre, da rede até o **melhor lugar de pescador ou coletora**
+     (`foodSpot`): o de maior rendimento entre os que rendem pelo menos 1,2/sem
+     (`minSpotFood` em `tutorial.json`) e, entre esses, o de rua mais curta. Conclui quando a rua
+     marcada fica pronta, ou com o mesmo número de ruas novas ligadas ao altar em outro lugar.
+  2. "Construa um pescador junto ao rio ou uma coletora perto das árvores": a seta aponta o
+     lugar escolhido; a prévia mostra "Rende N comida/sem" e "Comida depois". Conclui com 1
+     pescador ou coletora ligado.
+  3. "Construa um campo: ele dá comida já, até o inverno congelar". Conclui com 1 campo ligado.
+  4. "Construa um poço perto das tendas da caravana": a prévia mostra o raio e "Atende N casas".
      Conclui com 1 poço ligado.
-  2. "Puxe uma rua até o rio ou o bosque, pelo caminho marcado": o caminho fantasma vai do anel
-     na direção do que estiver mais perto (rio ou árvores), com até 8 células
-     (`ghostLength`). Conclui com +4 ruas ligadas ao altar, em qualquer lugar.
-  3. "Construa um pescador junto ao rio ou uma coletora perto das árvores": a prévia mostra
-     "Rende N comida/sem". Conclui com 1 pescador ou coletora ligado.
-  4. "Construa um campo: ele dá comida, menos no inverno". Conclui com 1 campo ligado.
   5. "Construa uma casa encostada na rua, perto do poço": os terrenos livres no raio do poço e
      encostados na rede ficam verdes. Conclui com 1 casa nova ligada.
   6. "Uma família está chegando!": a câmera acompanha a família por 2 s
      (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
-     Agora siga os objetivos no alto da tela" e todas as ferramentas liberadas voltam. Se a porta
-     das famílias estiver fechada (fome, casa sem poço, comida que não chega à colheita, sem
-     terreno) e nenhuma família estiver andando, o balão mostra o motivo no lugar da frase e todas
-     as ferramentas ficam livres até a porta abrir, para o tutorial nunca travar.
-  - No passo 3 a seta aponta o Pescador (na faixa de Água e comida: primeiro a categoria); a
-    Coletora também vale.
+     Agora siga os objetivos no alto da tela". Se a porta das famílias estiver fechada e nenhuma
+     família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo).
 - Mini passos (só para quem não pulou), sem travar ferramentas:
   - Ao cumprir o Objetivo 3: a seta aponta a prata e o balão traz a mensagem da manutenção com o
     botão "Entendi".

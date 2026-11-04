@@ -89,7 +89,8 @@ describe('alerts', () => {
     s.unlocked.push('workshop', 'temple');
     put(s, 'temple', EAST, 34); // upkeep 10, 2 jobs
     for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents: tax 10, 15 workers
-    expect(alerts(s)).toEqual([
+    // (30 residents and no food buildings: the food warning shows too, tested in survival.test.ts)
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: 10 - 10 - U, costliest: 'temple', upkeep: 10 }, // taxes - temple - market
       { kind: 'unemployed', count: 10 },
@@ -97,7 +98,7 @@ describe('alerts', () => {
     s.silver = 0;
     s.debtWeeks = 0;
     s.buildings = s.buildings.filter((b) => b.kind !== 'temple');
-    expect(alerts(s)).toEqual([{ kind: 'unemployed', count: 12 }]); // balance 10 - U > 0, 15 workers for 3 jobs
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12 }]); // balance 10 - U > 0, 15 workers for 3 jobs
   });
 
   it('in debt and famine at once, the debt alert says so (demolish to afford a field)', () => {

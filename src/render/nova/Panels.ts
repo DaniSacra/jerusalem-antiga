@@ -3,7 +3,6 @@ import {
   BUILDINGS,
   calendar,
   foodCapacity,
-  foodForecast,
   gatherFood,
   goalProgress,
   goalTarget,
@@ -16,6 +15,7 @@ import {
   lastsToHarvest,
   type BuildingKind,
   type Economy,
+  type FoodForecast,
   type GameState,
   type WeekRecord,
 } from '../../core';
@@ -81,6 +81,7 @@ export interface PanelArea {
 export interface PanelData {
   s: GameState;
   e: Economy;
+  forecast: FoodForecast;
   notices: Notice[];
 }
 
@@ -277,7 +278,7 @@ export class Panels {
         const mark = done ? N.goals.done : cur ? N.goals.current : N.goals.next;
         // Phone: the reward and the unlock only on the current goal (the list must fit the short screen).
         const extra = PHONE && !cur ? '' : [g.victory ? N.goals.victory : N.goals.reward(g.reward), ...(g.unlock ? [N.goals.unlocks(g.unlock)] : [])].join(' · ');
-        const progress = cur ? [{ text: N.progress(goalProgress(s, g), goalTarget(s, g)), color: NOVA_CSS.gold }] : [];
+        const progress = cur ? [{ text: N.progress(goalProgress(s, g), goalTarget(s, g), g.type === 'foodUntilSpring' && goalTarget(s, g) > 1), color: NOVA_CSS.gold }] : [];
         lines.push({
           parts: [
             { text: mark, color: done ? NOVA_CSS.good : cur ? NOVA_CSS.gold : NOVA_CSS.muted },
@@ -292,7 +293,11 @@ export class Panels {
       const half = Math.ceil(lines.length / 2);
       return [[title(N.buttons.goals), ...lines.slice(0, half)], lines.slice(half)];
     }
-    if (kind === 'alerts') return [[title(N.buttons.alerts), ...this.noticeLines(d.notices)]];
+    if (kind === 'alerts') {
+      // One section per warning, so a long list flows into a second column instead of past the bottom.
+      const [first, ...rest] = this.noticeLines(d.notices);
+      return [[title(N.buttons.alerts), first], ...rest.map((l) => [l])];
+    }
     return this.tab === 'history' ? this.history(d) : this.numbers(d);
   }
 
@@ -303,7 +308,7 @@ export class Panels {
   }
 
   /** Estatísticas, tab "Agora": silver, food, work, houses, happiness and the problems. */
-  private numbers({ s, e, notices }: PanelData): Section[] {
+  private numbers({ s, e, forecast: out, notices }: PanelData): Section[] {
     const N = T.nova;
     const st = N.stats;
     const per = N.perWeek;
@@ -319,7 +324,6 @@ export class Panels {
 
     // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
     const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherFood(s, b) : 0), 0) * e.efficiency;
-    const out = foodForecast(s, e);
     const lasts = lastsToHarvest(s, out);
     const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodUntil[out!.season]}`;
     const cap = foodCapacity(s);

@@ -2,19 +2,19 @@ import Phaser from 'phaser';
 import {
   BUILDINGS,
   dimsOf,
-  fieldHarvest,
-  gatherFood,
+  foodAfter,
   harvestsIn,
+  weeksToHarvest,
   indexOf,
   type BuildingCategory,
-  type Building,
   type Cell,
-  type Economy,
+  type CityReadout,
   type GameState,
   type MilestoneId,
   type Placeable,
 } from '../../core';
 import { px, setNovaSpot } from '../layout';
+import { NOVA_CSS } from '../palette';
 import { originFor } from '../MapView';
 import { T } from '../strings';
 import { HEIGHT, TEX } from '../textures';
@@ -64,7 +64,6 @@ export class NovaUi {
   private hover: Cell | null = null;
   private state: GameState | null = null;
   private tool: Tool = 'view';
-  private allowed: ReadonlySet<Tool> | null = null;
   private list: Notice[] = [];
 
   constructor(scene: Phaser.Scene, private host: UiHost) {
@@ -125,7 +124,7 @@ export class NovaUi {
 
   private togglePanel(kind: PanelKind) {
     this.panels.toggle(kind);
-    this.tools.refresh(this.tool, this.allowed, this.list, this.panels.open);
+    this.tools.refresh(this.tool, this.list, this.panels.open);
   }
 
   /** Side panels open right of the side buttons, settings under the gear; both end above the bottom tools. */
@@ -141,17 +140,17 @@ export class NovaUi {
     return { x, y, maxW: right - x, maxH: bottom - y };
   }
 
-  refresh(s: GameState, eco: Economy, speed: Speed, tool: Tool, allowed: ReadonlySet<Tool> | null, selected: Cell | null) {
+  refresh(s: GameState, city: CityReadout, speed: Speed, tool: Tool, tutorial: boolean, selected: Cell | null) {
     this.state = s;
     this.tool = tool;
-    this.allowed = allowed;
-    this.top.refresh(s, eco, speed);
-    this.column.refresh(s, tool, allowed);
-    this.list = notices(s, eco);
-    for (const n of this.tools.newAlerts(this.list)) if (n.toast) this.toasts.show(n.text, n.bad ? 'bad' : 'info');
-    this.tools.refresh(tool, allowed, this.list, this.panels.open);
-    this.panels.refresh({ s, e: eco, notices: this.list });
-    this.inspector.refresh(s, eco, tool === 'view' ? selected : null);
+    this.top.refresh(s, city, speed);
+    this.column.refresh(s, tool);
+    this.list = notices(s, city);
+    // During the tutorial the bubble already says why no family comes: no toast for it.
+    for (const n of this.tools.newAlerts(this.list)) if (n.toast && !(tutorial && n.family)) this.toasts.show(n.text, n.bad ? 'bad' : 'info');
+    this.tools.refresh(tool, this.list, this.panels.open);
+    this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });
+    this.inspector.refresh(s, city, tool === 'view' ? selected : null);
     this.tagKey = '';
   }
 
@@ -223,12 +222,13 @@ export class NovaUi {
   }
 
   update() {
+    this.toasts.hold(!!this.panels.open);
     this.inspector.update();
     this.updateTag();
   }
 
   /** What the pill over the hovered cell says for the current tool, or null. */
-  private tagFor(s: GameState, c: Cell): { text: string; x: number; y: number; w: number; h: number; lift: number } | null {
+  private tagFor(s: GameState, c: Cell): { text: string; bad?: boolean; x: number; y: number; w: number; h: number; lift: number } | null {
     const t = this.tool;
     if (t === 'clear') {
       const i = indexOf(s, c.x, c.y);
@@ -241,9 +241,10 @@ export class NovaUi {
     const o = originFor(t, c);
     const { w, h } = dimsOf(t);
     const lift = (HEIGHT[TEX.building(t)] ?? 40) + px(14);
-    const ghost: Building = { id: -1, kind: t, ...o, w, h, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: s.week };
-    if (def.harvest) return { text: harvestsIn(s.week) ? T.nova.yields(fieldHarvest(s, ghost, s.week)) : T.nova.inspect.frozen, ...o, w, h, lift };
-    return { text: T.nova.yields(gatherFood(s, ghost)), ...o, w, h, lift };
+    if (def.harvest && !harvestsIn(s.week)) return { text: T.nova.inspect.frozen(weeksToHarvest(s.week)), ...o, w, h, lift };
+    // What it brings with the workers there are, and the city's food balance after it.
+    const after = foodAfter(s, t, { ...o, rotated: false });
+    return { text: `${T.nova.yields(after.yields)}\n${T.nova.foodAfter(after.delta)}`, bad: after.delta < 0, ...o, w, h, lift };
   }
 
   /** The hover pill follows the camera; its text is redone only when the cell, tool or city changes. */
@@ -260,10 +261,11 @@ export class NovaUi {
       const t = this.tagFor(s, c);
       this.tagAt = t;
       if (t) {
-        this.tagText.setText(t.text);
+        this.tagText.setText(t.text).setColor(t.bad ? NOVA_CSS.bad : NOVA_CSS.text);
         const tw = this.tagText.width + px(16);
+        const th = Math.max(S.labelH, this.tagText.height) + px(4);
         this.tagBg.clear();
-        darkPanel(this.tagBg, -tw / 2, -S.labelH / 2 - px(2), tw, S.labelH + px(4));
+        darkPanel(this.tagBg, -tw / 2, -th / 2, tw, th);
       }
     }
     const at = this.tagAt;

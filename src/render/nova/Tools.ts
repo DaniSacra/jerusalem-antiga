@@ -72,12 +72,8 @@ export class Tools {
     return H - S.margin - S.labelH - px(3) - S.tool;
   }
 
-  refresh(tool: Tool, allowed: ReadonlySet<Tool> | null, alerts: Notice[], open: PanelKind | null) {
-    for (const t of this.tools) {
-      const blocked = !!allowed && !allowed.has(t.tool);
-      t.btn.setLook({ selected: t.tool === tool });
-      t.btn.root.setAlpha(blocked ? 0.45 : 1);
-    }
+  refresh(tool: Tool, alerts: Notice[], open: PanelKind | null) {
+    for (const t of this.tools) t.btn.setLook({ selected: t.tool === tool });
     for (const [kind, btn] of this.side) btn.setLook({ selected: kind === open });
     this.badgeText.setText(String(alerts.length));
     this.badge.setVisible(alerts.length > 0);

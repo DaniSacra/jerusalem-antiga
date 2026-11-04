@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { BuildableKind, BuildingCategory, Building, Cell, Economy, GameState, MilestoneId, Placeable } from '../core';
+import type { BuildableKind, BuildingCategory, Building, Cell, CityReadout, GameState, MilestoneId, Placeable } from '../core';
 import { GAME_H, GAME_W } from '../render/layout';
 import { NovaUi, type ButtonSpot } from '../render/nova/NovaUi';
 import { C, CSS } from '../render/palette';
@@ -61,9 +61,9 @@ export class UIScene extends Phaser.Scene {
     this.view.update();
   }
 
-  /** `allowed`: the tools the tutorial leaves enabled (null: all); `selected`: the cell tapped with Mover. */
-  refresh(state: GameState, eco: Economy, speed: Speed, tool: Tool, allowed: ReadonlySet<Tool> | null = null, selected: Cell | null = null) {
-    this.view.refresh(state, eco, speed, tool, allowed, selected);
+  /** `tutorial`: the first-game steps are running; `selected`: the cell tapped with Mover. */
+  refresh(state: GameState, city: CityReadout, speed: Speed, tool: Tool, tutorial = false, selected: Cell | null = null) {
+    this.view.refresh(state, city, speed, tool, tutorial, selected);
     this.setFamine(state.famine);
   }
 

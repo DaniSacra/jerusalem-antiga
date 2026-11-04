@@ -1,4 +1,4 @@
-import { RULES, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
+import { RULES, campRoad, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
@@ -11,6 +11,7 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   // No caravan: only the altar, and a fixed food stock (tests of the caravan use createGame).
   s.buildings = s.buildings.filter((b) => b.kind === 'altar');
   s.grid = s.grid.map((b) => (b?.kind === 'altar' ? b : null));
+  for (const c of campRoad()) s.roads[indexOf(s, c.x, c.y)] = false; // no camp road without the caravan
   s.food = 30;
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);

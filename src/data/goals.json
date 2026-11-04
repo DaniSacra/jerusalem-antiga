@@ -1,5 +1,5 @@
 [
-  { "type": "foodUntilSpring", "target": 1, "reward": 20, "text": "Prepare o primeiro inverno" },
+  { "type": "foodUntilSpring", "target": 1, "reward": 20, "text": "Comida até a primavera" },
   { "type": "water",     "target": 4,   "reward": 30,  "text": "Água para todas as casas" },
   { "type": "harvest",   "target": 12,  "reward": 30,  "unlock": "granary",  "text": "Primeira colheita" },
   { "type": "build",     "target": 1,   "kind": "granary", "reward": 40, "text": "Construa o celeiro" },

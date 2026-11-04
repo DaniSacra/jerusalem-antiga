@@ -24,17 +24,30 @@ function pathTo(s: GameState, from: Cell | null, house: Building): Cell[] | null
 const awaitsFamily = (s: GameState, b: Building) => s.families.some((f) => f.houseId === b.id);
 
 /** Why no new family can set out now, or null when one can. */
-export type FamilyBlock = 'famine' | 'water' | 'food' | 'wait' | 'noPlot';
+export type FamilyBlock = 'famine' | 'water' | 'food' | 'storage' | 'wait' | 'noPlot';
+
+/** Houses with a family that lack water (empty plots do not count). */
+export const housesWithoutWater = (s: GameState) =>
+  s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && b.connected && !needMet(s, b, 'well'));
 
 /**
- * New families only come to a city where every connected house (plots too) has water and the food lasts
- * until the next harvest, at most one every `familyIntervalWeeks`, and only to a connected empty
- * plot. The checks go in this order, so the reason shown is the most important one.
+ * New families only come to a city where every house with a family has water and the food lasts
+ * until the next harvest (counting every house at its target level, the families on the way and
+ * the new one), at most one every `familyIntervalWeeks`, and only to a connected empty plot.
+ * An empty city (no residents, nobody on the way) skips the water and food checks, so it can
+ * always start again. The checks go in this order, so the reason shown is the most important one.
+ * `storage` means the food would last but the store cannot hold it.
  */
 export function familyBlock(s: GameState, eco: Economy = computeEconomy(s)): FamilyBlock | null {
   if (s.famine) return 'famine';
-  if (s.buildings.some((b) => b.kind === 'house' && b.connected && !needMet(s, b, 'well'))) return 'water';
-  if (!foodLastsToHarvest(s, eco)) return 'food';
+  const empty = eco.residents === 0 && s.families.length === 0;
+  if (!empty) {
+    if (housesWithoutWater(s).length > 0) return 'water';
+    const extraTents = s.families.length + 1;
+    if (!foodLastsToHarvest(s, eco, { extraTents })) {
+      return foodLastsToHarvest(s, eco, { extraTents, unlimited: true }) ? 'storage' : 'food';
+    }
+  }
   if (s.week - s.lastFamilyWeek < RULES.familyIntervalWeeks) return 'wait';
   if (!s.buildings.some((b) => openPlot(s, b))) return 'noPlot';
   return null;

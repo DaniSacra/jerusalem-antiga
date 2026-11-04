@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, buildMenu, costOf, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, buildMenu, computeEconomy, costOf, foodAfter, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -40,7 +40,6 @@ export class BuildColumn {
   /** Just unlocked and not chosen yet: "novo". */
   private fresh = new Set<BuildableKind>();
   private state: GameState | null = null;
-  private allowed: ReadonlySet<Tool> | null = null;
 
   /** `minY`: the balloons stay under this (the top right controls). */
   constructor(private scene: Phaser.Scene, private onPick: (kind: BuildableKind) => void, private minY: () => number = () => S.margin) {
@@ -69,6 +68,12 @@ export class BuildColumn {
     thumb.setDisplaySize(PHONE ? d - px(6) : d * 0.46, PHONE ? d - px(6) : d * 0.46);
     const label = kind ? BUILDINGS[kind].name : T.nova.category[category!];
     const name = PHONE ? null : ntext(s, 0, d * 0.13, label, S.small, NOVA_CSS.ink).setOrigin(0.5);
+    // A long name shrinks until it fits inside the round button, never under 12 px; a category
+    // name (no price under it) that still does not fit goes on two lines ("Água e / comida").
+    if (name) {
+      for (let size = S.small - px(0.5); name.width > d * 0.84 && size >= px(12); size -= px(0.5)) name.setFontSize(size);
+      if (name.width > d * 0.84 && !kind) name.setWordWrapWidth(d * 0.84).setAlign('center').setLineSpacing(-px(3)).setY(d * 0.2);
+    }
     const price = PHONE || !kind ? null : ntext(s, 0, d * 0.28, '', px(12), NOVA_CSS.ink, false).setOrigin(0.5);
     const ls = PHONE ? px(20) : px(26);
     const lockBg = s.add.graphics().fillStyle(NOVA.parchment, 1).fillCircle(0, 0, ls / 2).lineStyle(px(1.5), NOVA.border, 1).strokeCircle(0, 0, ls / 2);
@@ -99,10 +104,9 @@ export class BuildColumn {
     this.onPick(kind);
   }
 
-  refresh(s: GameState, tool: Tool, allowed: ReadonlySet<Tool> | null) {
+  refresh(s: GameState, tool: Tool) {
     this.state = s;
-    this.allowed = allowed;
-    for (const it of this.allItems()) this.paint(it, s, tool, allowed);
+    for (const it of this.allItems()) this.paint(it, s, tool);
     if (tool !== this.lastTool) {
       this.lastTool = tool;
       this.balloonFor = tool !== 'view' && tool !== 'road' && tool !== 'clear' ? tool : null;
@@ -115,13 +119,12 @@ export class BuildColumn {
     return [...this.items, ...(this.strip?.items ?? [])];
   }
 
-  private paint(it: Item, s: GameState, tool: Tool, allowed: ReadonlySet<Tool> | null) {
+  private paint(it: Item, s: GameState, tool: Tool) {
     if (it.category) {
       const kinds = categoryKinds(it.category);
       const locked = kinds.every((k) => !s.unlocked.includes(k));
       const selected = kinds.includes(tool as BuildableKind) || this.strip?.category === it.category;
       it.btn.setLook({ selected, locked });
-      it.btn.root.setAlpha(allowed && !kinds.some((k) => allowed.has(k)) ? 0.45 : 1);
       it.thumb.setTexture(locked ? TEX.categoryThumbLocked(it.category) : TEX.categoryThumb(it.category));
       it.lock.setVisible(locked);
       it.badge.setVisible(kinds.some((k) => this.fresh.has(k)));
@@ -131,9 +134,7 @@ export class BuildColumn {
     const locked = !s.unlocked.includes(kind);
     const cost = costOf(kind);
     const short = !locked && s.silver < cost;
-    const blocked = !!allowed && !allowed.has(kind);
     it.btn.setLook({ selected: tool === kind, locked, dim: short });
-    it.btn.root.setAlpha(blocked ? 0.45 : 1);
     const key = locked ? TEX.thumbLocked(kind) : TEX.thumb(kind);
     if (it.thumb.texture.key !== key) {
       const { displayWidth: dw, displayHeight: dh } = it.thumb;
@@ -164,6 +165,12 @@ export class BuildColumn {
     if (!PHONE) {
       const after = balanceAfter(s, kind);
       lines.push({ text: N.balanceAfter(after), color: after < 0 ? NOVA_CSS.bad : NOVA_CSS.good });
+    }
+    // A workplace that takes workers from the food buildings: the food it costs (fisher, gatherer
+    // and field say it on the map, where their spot is known).
+    if (d.jobs && !d.gather && !d.harvest) {
+      const food = foodAfter(s, kind).delta;
+      if (food < computeEconomy(s).foodDelta) lines.push({ text: N.foodAfter(food), color: food < 0 ? NOVA_CSS.bad : NOVA_CSS.warn });
     }
     this.balloon.show(lines, this.besideButton(kind));
   }
@@ -207,7 +214,7 @@ export class BuildColumn {
     const root = this.scene.add.container(x, y, [g]).setDepth(44);
     const items = kinds.map((k, i) => this.item(S.colPad + d / 2 + i * (d + S.gap), h / 2, k, null, root));
     this.strip = { root, rect: { x, y, w, h }, items, category };
-    if (this.state) for (const i of this.allItems()) this.paint(i, this.state, this.lastTool, this.allowed);
+    if (this.state) for (const i of this.allItems()) this.paint(i, this.state, this.lastTool);
   }
 
   /** Closes the category strip; false if none was open. */

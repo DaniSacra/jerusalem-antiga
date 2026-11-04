@@ -1,10 +1,10 @@
 {
-  "ghostLength": 8,
+  "minSpotFood": 1.2,
   "steps": [
-    { "id": "well", "tool": "well", "target": 1 },
-    { "id": "road", "tool": "road", "target": 4 },
+    { "id": "road", "tool": "road", "target": 1 },
     { "id": "gather", "tool": "fisher", "alt": "gatherer", "target": 1 },
     { "id": "field", "tool": "field", "target": 1 },
+    { "id": "well", "tool": "well", "target": 1 },
     { "id": "house", "tool": "house", "target": 1 },
     { "id": "family", "tool": null, "target": 1 }
   ],

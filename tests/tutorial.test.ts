@@ -3,6 +3,9 @@ import {
   BUILDINGS,
   createGame,
   createRng,
+  dimsOf,
+  foodSpot,
+  gatherFood,
   ghostRoad,
   indexOf,
   isFreeLand,
@@ -11,24 +14,25 @@ import {
   servedHouses,
   TUTORIAL_EXTRAS,
   TUTORIAL_STEPS,
+  tutorialHoldsClock,
   tutorialProgress,
   tutorialStepDone,
   stepWeek,
   type Cell,
-  type GameState,
   type TutorialStepId,
 } from '../src/core';
+import TUTORIAL from '../src/data/tutorial.json';
 import { constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 const step = (id: TutorialStepId) => [...TUTORIAL_STEPS, ...TUTORIAL_EXTRAS].find((s) => s.id === id)!;
 
 describe('tutorial steps', () => {
-  it('has the six survival steps, then the balance and market extras, each with its tool', () => {
+  it('has the six survival steps, food first, then the balance and market extras, each with its tool', () => {
     expect(TUTORIAL_STEPS.map((s) => [s.id, s.tool, s.target])).toEqual([
-      ['well', 'well', 1],
-      ['road', 'road', 4],
+      ['road', 'road', 1],
       ['gather', 'fisher', 1],
       ['field', 'field', 1],
+      ['well', 'well', 1],
       ['house', 'house', 1],
       ['family', null, 1],
     ]);
@@ -40,24 +44,37 @@ describe('tutorial steps', () => {
     ]);
   });
 
-  it('marks the connected roads and houses when a step starts', () => {
+  it('holds the clock on the build steps and lets it run while a family is on its way', () => {
+    for (const st of TUTORIAL_STEPS) expect(tutorialHoldsClock(st)).toBe(st.id !== 'family');
+    expect(tutorialHoldsClock(step('upkeep'))).toBe(false);
+    expect(tutorialHoldsClock(null)).toBe(false);
+  });
+
+  it('marks the connected roads and houses, and the suggested road, when a step starts', () => {
     const s = emptyGame();
     const roads = s.network.filter(Boolean).length;
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29);
     put(s, 'house', 1, 1); // not connected
-    expect(markTutorial(s)).toEqual({ roads, houses: 2 });
+    expect(markTutorial(s)).toEqual({ roads, houses: 2, ghost: ghostRoad(s) });
   });
 
-  it('road: done with 4 new road cells joined to the altar (loose ones do not count)', () => {
+  it('road: done once the suggested road is built, or as many new joined road cells elsewhere', () => {
     const s = emptyGame();
     const mark = markTutorial(s);
-    road(s, [[2, 2], [3, 2], [4, 2], [5, 2]]); // not joined
-    expect(tutorialProgress(s, step('road'), mark)).toBe(0);
-    road(s, [[20, 23], [19, 23], [18, 23]]);
+    const n = mark.ghost.length;
+    expect(n).toBeGreaterThan(1);
+    road(s, mark.ghost.slice(0, -1).map((c) => [c.x, c.y]));
     expect(tutorialStepDone(s, step('road'), mark)).toBe(false);
-    road(s, [[17, 23]]);
-    expect(tutorialStepDone(s, step('road'), mark)).toBe(true);
+    road(s, mark.ghost.slice(-1).map((c) => [c.x, c.y]));
+    expect(tutorialProgress(s, step('road'), mark)).toBe(1);
+
+    const other = emptyGame();
+    const m2 = markTutorial(other);
+    road(other, Array.from({ length: n }, (_, k) => [2 + k, 2] as [number, number])); // not joined
+    expect(tutorialStepDone(other, step('road'), m2)).toBe(false);
+    road(other, Array.from({ length: n }, (_, k) => [20 - k, 23] as [number, number])); // west of the ring, away from the river
+    expect(tutorialStepDone(other, step('road'), m2)).toBe(true);
   });
 
   it('house: done with one new connected house (a plot is enough), not with the caravan tents', () => {
@@ -120,73 +137,74 @@ describe('tutorial steps', () => {
   });
 });
 
-describe('ghost road', () => {
-  const n = 8;
-  const isTarget = (s: GameState, i: number) => s.ground[i] === 'river' || s.feature[i] === 'olive' || s.feature[i] === 'palm';
-  /** Chebyshev distance from a cell to the nearest river or tree cell. */
-  const reach = (s: GameState, c: Cell) => {
-    let best = Infinity;
-    for (let i = 0; i < s.ground.length; i++) {
-      if (isTarget(s, i)) best = Math.min(best, Math.max(Math.abs((i % s.cols) - c.x), Math.abs(Math.floor(i / s.cols) - c.y)));
-    }
-    return best;
-  };
-  /** The four candidate lines, as described in tutorial.ts: west, north, east and south of the ring. */
-  const lines = (): Cell[][] => [
-    Array.from({ length: n }, (_, k) => ({ x: 20 - k, y: 23 })),
-    Array.from({ length: n }, (_, k) => ({ x: 23, y: 20 - k })),
-    Array.from({ length: n }, (_, k) => ({ x: 27 + k, y: 23 })),
-    Array.from({ length: n }, (_, k) => ({ x: 25, y: 27 + k })),
-  ];
+describe('food spot and ghost road', () => {
+  /** The cell is orthogonally next to the rectangle (outside it). */
+  const touches = (rect: { x: number; y: number; w: number; h: number }, c: Cell) =>
+    (c.x >= rect.x && c.x < rect.x + rect.w && (c.y === rect.y - 1 || c.y === rect.y + rect.h)) ||
+    (c.y >= rect.y && c.y < rect.y + rect.h && (c.x === rect.x - 1 || c.x === rect.x + rect.w));
 
-  it('leaves the ring in a straight free line of ghostLength cells, toward the nearest river or tree, on 60 maps', () => {
-    for (let seed = 1; seed <= 60; seed++) {
+  it('on 200 maps points at a spot that brings >= minSpotFood a week (95%), and building it as shown connects it', () => {
+    let good = 0;
+    for (let seed = 1; seed <= 200; seed++) {
       const s = createGame(createRng(seed));
-      const g = ghostRoad(s);
-      expect(g).toHaveLength(n);
-      expect(g.every((c) => isFreeLand(s, c.x, c.y))).toBe(true);
-      // The first cell touches the ring, so building it joins the network.
-      const [a] = g;
+      const spot = foodSpot(s);
+      if (!spot) continue;
+      expect(spot.food).toBeGreaterThanOrEqual(TUTORIAL.minSpotFood);
+      expect(ghostRoad(s)).toEqual(spot.road);
+      expect(spot.road.every((c) => isFreeLand(s, c.x, c.y))).toBe(true);
+      road(s, spot.road.map((c) => [c.x, c.y]));
+      const b = put(s, spot.kind, spot.x, spot.y);
+      refreshCity(s);
+      expect(b.connected).toBe(true);
+      expect(gatherFood(s, b)).toBeCloseTo(spot.food);
+      good++;
+    }
+    expect(good).toBeGreaterThanOrEqual(190);
+  });
+
+  it('the road is a connected path from the network to the side of the building', () => {
+    const s = createGame(createRng(7));
+    const spot = foodSpot(s)!;
+    const { w, h } = dimsOf(spot.kind);
+    const rect = { x: spot.x, y: spot.y, w, h };
+    if (spot.road.length) {
+      const [a] = spot.road;
       expect([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => s.network[indexOf(s, a.x + dx, a.y + dy)])).toBe(true);
-      const straight = g.every((c) => c.x === a.x) || g.every((c) => c.y === a.y);
-      expect(straight).toBe(true);
-      // No other free line ends closer to the river or a tree.
-      const free = lines().filter((l) => l.every((c) => isFreeLand(s, c.x, c.y)));
-      expect(free).toContainEqual(g);
-      for (const l of free) expect(reach(s, g.at(-1)!)).toBeLessThanOrEqual(reach(s, l.at(-1)!));
+      for (let k = 1; k < spot.road.length; k++) expect(Math.abs(spot.road[k].x - spot.road[k - 1].x) + Math.abs(spot.road[k].y - spot.road[k - 1].y)).toBe(1);
+      expect(touches(rect, spot.road.at(-1)!)).toBe(true);
     }
   });
 
-  it('heads for the trees when they are closer than the river', () => {
-    const s = emptyGame();
-    expect(ghostRoad(s)[0]).toEqual({ x: 27, y: 23 }); // only the river: east
-    s.feature[indexOf(s, 20 - n, 23)] = 'olive'; // right past the end of the west line
-    const g = ghostRoad(s);
-    expect(g[0]).toEqual({ x: 20, y: 23 });
-    expect(g.at(-1)).toEqual({ x: 20 - n + 1, y: 23 });
+  it('prefers the spot that brings the most, then the shortest road', () => {
+    const s = emptyGame(); // only the river, east of the altar
+    const fish = foodSpot(s)!;
+    expect(fish.kind).toBe('fisher');
+    expect(fish.food).toBe(BUILDINGS.fisher.gather!.max);
+    // A grove right by the ring brings as much with a shorter road.
+    for (let y = 10; y < 22; y++) for (let x = 12; x < 20; x++) if (isFreeLand(s, x, y)) s.feature[indexOf(s, x, y)] = 'olive';
+    const grove = foodSpot(s)!;
+    expect(grove.kind).toBe('gatherer');
+    expect(grove.food).toBe(fish.food);
+    expect(grove.road.length).toBeLessThan(fish.road.length);
   });
 
-  it('tries another side when the best one is taken, and is empty when all four are blocked', () => {
+  it('is null when no spot brings enough food', () => {
     const s = emptyGame();
-    const seen = new Set<string>();
-    for (let k = 0; k < 4; k++) {
-      const g = ghostRoad(s);
-      expect(g).toHaveLength(n);
-      seen.add(`${g[0].x},${g[0].y}`);
-      s.feature[indexOf(s, g[3].x, g[3].y)] = 'rock'; // a rock in the middle of it
-    }
-    expect([...seen].sort()).toEqual(['20,23', '23,20', '25,27', '27,23']);
+    s.ground = s.ground.map(() => 'sand');
+    s.feature[indexOf(s, 10, 10)] = 'olive'; // one tree: 0.3 a week
+    expect(foodSpot(s)).toBeNull();
     expect(ghostRoad(s)).toEqual([]);
   });
 
-  it('a building on the line also sends it elsewhere', () => {
+  it('a building in the way sends the road around it', () => {
     const s = emptyGame();
     const first = ghostRoad(s);
-    put(s, 'house', first[2].x, first[2].y - 1);
+    const mid = first[Math.floor(first.length / 2)];
+    put(s, 'well', mid.x, mid.y);
     refreshCity(s);
     const next = ghostRoad(s);
-    expect(next).toHaveLength(n);
-    expect(next[0]).not.toEqual(first[0]);
+    expect(next.length).toBeGreaterThan(0);
+    expect(next.every((c) => isFreeLand(s, c.x, c.y))).toBe(true);
   });
 });
 

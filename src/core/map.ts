@@ -19,9 +19,32 @@ export function altarRing(): Cell[] {
   return cells;
 }
 
-/** Starting roads: the ring around the altar, and a straight road south from it to the map edge. */
+/** Column of the short road north of the ring that the caravan tents stand along. */
+const CAMP_X = altar.x + 1;
+const HOUSE = dimsOf('house');
+/** Rows of the caravan tents north of the ring: the first row touches it, the second is above. */
+const CAMP_ROWS = [altar.y - 1 - HOUSE.h, altar.y - 1 - 2 * HOUSE.h];
+
+/** The road stub north of the ring, between the two columns of caravan tents. */
+export const campRoad = (): Cell[] => Array.from({ length: 2 * HOUSE.h }, (_, k) => ({ x: CAMP_X, y: altar.y - 2 - k }));
+
+/**
+ * Tent spots for the caravan: a compact 2 x 2 block on both sides of the camp road, the row by
+ * the ring first.
+ */
+export const caravanSpots = (): Cell[] =>
+  CAMP_ROWS.flatMap((y) => [
+    { x: CAMP_X - HOUSE.w, y },
+    { x: CAMP_X + 1, y },
+  ]);
+
+/** A free 2 x 2 spot by the ring, east of the camp, where one well reaches every caravan tent. */
+export const campWellSpot = (): Cell => ({ x: CAMP_X + 1 + HOUSE.w, y: CAMP_ROWS[0] });
+
+/** Starting roads: the ring around the altar, the camp road and a straight road south to the map edge. */
 export const startRoad = (): Cell[] => [
   ...altarRing(),
+  ...campRoad(),
   ...Array.from({ length: rows - ROAD_Y0 - 1 }, (_, k) => ({ x: ROAD_X, y: ROAD_Y0 + 1 + k })),
 ];
 export const entranceCell = (): Cell => ({ x: ROAD_X, y: rows - 1 });
