@@ -3,6 +3,7 @@ import { isFreeLand, placeSpots, roadDistances } from './actions';
 import { BUILDINGS, dimsOf, RULES } from './data';
 import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { isGatherSource } from './harvest';
+import { seasonOf } from './seasons';
 import type { FamilyBlock } from './families';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
@@ -60,9 +61,17 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
   }
 }
 
-/** The tool that solves why no family comes, for the family step's arrow (null: the arrow stays). */
-export const reasonTool = (block: FamilyBlock | null): Placeable | null =>
-  (block && (TUTORIAL.reasonTools as Partial<Record<FamilyBlock, Placeable>>)[block]) || null;
+type ReasonTools = Partial<Record<FamilyBlock, Placeable>>;
+
+/**
+ * The tool that solves why no family comes, for the family step's arrow (null: the arrow stays).
+ * In winter a field gives no food, so `winterReasonTools` takes over where it names a tool.
+ */
+export const reasonTool = (block: FamilyBlock | null, week: number): Placeable | null =>
+  (block &&
+    ((seasonOf(week) === 'winter' && (TUTORIAL.winterReasonTools as ReasonTools)[block]) ||
+      (TUTORIAL.reasonTools as ReasonTools)[block])) ||
+  null;
 
 /** The clock stands still on a build step (the player reads and builds without hurry); it runs on a step that waits on the city. */
 export const tutorialHoldsClock = (step: TutorialStep | null) => !!step?.tool;

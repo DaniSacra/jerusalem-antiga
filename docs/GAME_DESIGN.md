@@ -667,7 +667,8 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
      Construa mais casas: cada uma recebe uma família". Se a porta das famílias estiver fechada e nenhuma
      família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo) e a
      seta aponta a ferramenta que resolve o motivo (`reasonTools` em `tutorial.json`: `storage` →
-     Celeiro, `food` → Campo, se liberada; os outros motivos não mudam a seta). O passo também
+     Celeiro, `food` → Campo, se liberada; no inverno o campo não rende, então `winterReasonTools`
+     manda `food` → Pescador; os outros motivos não mudam a seta). O passo também
      termina sozinho depois de `familyStepMaxWeeks` (8) semanas, com o mesmo toast final; o motivo
      continua em Avisos.
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,

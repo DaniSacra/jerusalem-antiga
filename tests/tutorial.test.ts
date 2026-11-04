@@ -28,7 +28,15 @@ import {
   type Cell,
   type TutorialStepId,
 } from '../src/core';
+import { seasonOf } from '../src/core/seasons';
+import type { Season } from '../src/core/types';
 import TUTORIAL from '../src/data/tutorial.json';
+
+const firstWeekOf = (season: Season) => {
+  let w = 1;
+  while (seasonOf(w) !== season) w++;
+  return w;
+};
 import { constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 const step = (id: TutorialStepId) => [...TUTORIAL_STEPS, ...TUTORIAL_EXTRAS].find((s) => s.id === id)!;
@@ -142,9 +150,19 @@ describe('tutorial steps', () => {
 
   it('the family step points at the tool that solves why no family comes', () => {
     expect(TUTORIAL.reasonTools).toEqual({ storage: 'granary', food: 'field' });
-    expect(reasonTool('storage')).toBe('granary');
-    expect(reasonTool('food')).toBe('field');
-    for (const b of ['famine', 'wait', 'noPlot', null] as const) expect(reasonTool(b)).toBeNull();
+    const spring = firstWeekOf('spring');
+    expect(reasonTool('storage', spring)).toBe('granary');
+    expect(reasonTool('food', spring)).toBe('field');
+    for (const b of ['famine', 'wait', 'noPlot', null] as const) expect(reasonTool(b, spring)).toBeNull();
+  });
+
+  it('in winter the family step points at the fisher for food (a field gives none), the rest stays', () => {
+    expect(TUTORIAL.winterReasonTools).toEqual({ food: 'fisher' });
+    const winter = firstWeekOf('winter');
+    expect(reasonTool('food', winter)).toBe('fisher');
+    expect(reasonTool('food', winter - 1)).toBe('field');
+    expect(reasonTool('storage', winter)).toBe('granary');
+    expect(reasonTool(null, winter)).toBeNull();
   });
 
   it('field, plaza and market: done by one connected building of the kind', () => {

@@ -670,9 +670,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return { x: at.x, y: at.y - top, dir: 'down' };
   }
 
-  /** Family step: the unlocked tool that solves why no family comes (granary, field), while none is on the way. */
+  /** Family step: the unlocked tool that solves why no family comes (granary, field; fisher in winter), while none is on the way. */
   private familyStepTool(): Placeable | null {
-    const tool = this.state.families.length ? null : reasonTool(this.city.block);
+    const tool = this.state.families.length ? null : reasonTool(this.city.block, this.state.week);
     return tool && this.state.unlocked.includes(tool) ? tool : null;
   }
 

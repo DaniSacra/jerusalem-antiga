@@ -79,7 +79,7 @@ Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecâ
 - Objetivo 1 exige moradores (família a caminho não basta)
 - Ao escolher o Templo: áreas 6x6 verdes (prontas) e amarelas (a ≤ `templeSpotRoadGap` 1 da rede);
   prévia amarela "Cabe aqui: falta ligar à rua" em toda construção quando só falta rua
-- Tutorial: seta do passo da família segue o motivo da porta (`storage` → celeiro, `food` → campo);
+- Tutorial: seta do passo da família segue o motivo da porta (`storage` → celeiro, `food` → campo; no inverno → pescador);
   o passo termina em `familyStepMaxWeeks` 8
 - Celular: Demolir em construção com perda de comida abre o balão em vez de demolir
 - Textos: Templo "+10 de Alegria em N casas"; "Uma família foi embora: casa sem rua"
