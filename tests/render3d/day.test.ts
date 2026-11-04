@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { dayAmplitude, dayKeyLight, dayPhase, dayTime, follow, nightness, shownTime, sunArc, sunDirection, windowShare } from '../../src/render3d/time/day';
+import { advanceDay, DAY_SECONDS, dayAmplitude, dayKeyLight, dayPhase, dayTime, follow, nightness, shownTime, sunArc, sunDirection, windowShare } from '../../src/render3d/time/day';
 
 const channels = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 const close = (a: number, b: number, tol: number) => channels(a).every((v, i) => Math.abs(v - channels(b)[i]) <= tol);
 
-describe('day cycle (one game week = one day)', () => {
+describe('day cycle', () => {
   it('maps the week fraction to the time of day, wrapping', () => {
     expect(dayTime(0)).toBe(0);
     expect(dayTime(0.25)).toBe(0.25);
@@ -100,3 +100,23 @@ function sunArcTime(share: number) {
   for (let t = 0; t < 1; t += 0.0005) if (sunArc(t) >= share) return t;
   return 0.3;
 }
+
+describe('the day clock (apart from the game week)', () => {
+  it('a full day lasts DAY_SECONDS of real time, from the config', () => {
+    expect(DAY_SECONDS).toBe(90);
+    let t = 0;
+    for (let k = 0; k < 90; k++) t = advanceDay(t, 1, true);
+    expect(Math.min(t, 1 - t)).toBeCloseTo(0, 9);
+    expect(advanceDay(0, 45, true)).toBeCloseTo(0.5);
+  });
+
+  it('stands still while paused and wraps past midnight', () => {
+    expect(advanceDay(0.3, 10, false)).toBeCloseTo(0.3);
+    expect(advanceDay(0.95, 9, true, 90)).toBeCloseTo(0.05);
+  });
+
+  it('a custom length (?day=) is honoured', () => {
+    expect(advanceDay(0, 30, true, 120)).toBeCloseTo(0.25);
+    expect(advanceDay(0.2, 30, true, 0)).toBeCloseTo(0.2); // no length: no movement
+  });
+});

@@ -13,7 +13,7 @@ import { Particles } from './particles';
 import { setColor, U } from './shaders';
 import { T3 } from './strings';
 import { mixColor } from './time/color';
-import { dayAmplitude, dayPhase, dayTime, follow, shownTime } from './time/day';
+import { advanceDay, dayAmplitude, dayPhase, dayTime, DAY_SECONDS, follow, shownTime } from './time/day';
 import { fieldHands, frameLight, streetShare } from './time/light';
 import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
 import { demoForce, SimDriver, SPEEDS, type Speed3D } from './time/sim';
@@ -30,6 +30,8 @@ const params = new URLSearchParams(location.search);
 const seed = Number(params.get('seed') ?? 3);
 const weeks = Number(params.get('weeks') ?? 156);
 const target = Number(params.get('b') ?? 0);
+/** Real seconds per day (`?day=`); the day no longer follows the game week. */
+const daySeconds = Number(params.get('day') ?? DAY_SECONDS);
 const shadows = params.get('shadows') !== 'off';
 type Level = 'high' | 'low' | 'min';
 const qualityParam = (params.get('quality') ?? 'auto') as 'auto' | 'high' | 'low';
@@ -115,7 +117,10 @@ async function start() {
   if (level !== 'high') setLevel(level);
 
   // ---------------------------------------------------------------- one frame
-  let amp = dayAmplitude(driver.secondsPerDay);
+  // The time of day runs on its own clock (see advanceDay); it starts in the morning.
+  let dayT: number = LOOK.day.start;
+  const secondsPerDay = () => (driver.rate > 0 ? daySeconds : Infinity);
+  let amp = dayAmplitude(secondsPerDay());
   let forced = '';
   let override: ViewOverride | null = null;
   const cloudOffset = new THREE.Vector2();
@@ -157,8 +162,10 @@ async function start() {
     const s3 = season3d(pos, look);
     const crop = cropLook(pos, look.drought);
     const w: WeatherNow = { ...weather.at(pos), ...override?.weather };
-    amp = follow(amp, dayAmplitude(driver.secondsPerDay), dt);
-    const t = dayTime(frac);
+    dayT = advanceDay(dayT, dt, !override && driver.rate > 0, daySeconds);
+    amp = follow(amp, dayAmplitude(secondsPerDay()), dt);
+    // A view override (screenshots) still picks the moment through the week fraction.
+    const t = override?.pos !== undefined ? dayTime(frac) : dayT;
     const L = frameLight(t, shownTime(t, amp), amp, s3, w, look.clouds);
     shown = { w, snow: s3.snow, drought: s3.drought };
 
@@ -277,7 +284,7 @@ async function start() {
       : now.w.rain > 0.15
         ? now.w.snowing ? T3.weather.snow : T3.weather.rain
         : now.drought > 0.3 ? T3.weather.drought : now.w.wind > 0.4 ? T3.weather.wind : now.snow > 0.3 ? T3.weather.snowCover : '';
-    hud.clock.textContent = [T.nova.calendar(cal.season, cal.year, cal.week, true), T3.phase[dayPhase(dayTime(pos))], sky].filter(Boolean).join(' · ');
+    hud.clock.textContent = [T.nova.calendar(cal.season, cal.year, cal.week, true), T3.phase[dayPhase(override?.pos !== undefined ? dayTime(pos) : dayT)], sky].filter(Boolean).join(' · ');
     if (driver.demo && cal.season !== bannerSeason) {
       bannerSeason = cal.season;
       flash(hud.banner, T.nova.seasonName[cal.season]);

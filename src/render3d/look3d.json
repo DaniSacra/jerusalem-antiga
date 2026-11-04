@@ -1,5 +1,7 @@
 {
   "day": {
+    "seconds": 90,
+    "start": 0.12,
     "sunrise": -0.03,
     "sunset": 0.62,
     "noon": 0.27,

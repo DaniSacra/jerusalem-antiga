@@ -20,6 +20,7 @@ Opções na URL de `poc.html`:
 |---|---|
 | `seed=3` | semente do mapa |
 | `weeks=156` | semanas jogadas pelo bot antes de abrir (60 ≈ 40 construções, 156 ≈ 50) |
+| `day=90` | segundos reais de um dia inteiro (padrão 90; o dia para na pausa) |
 | `b=150` | cidade de teste com esse número de construções (o bot não passa de ~90 neste mapa) |
 | `bot=eficiente` | bot do sim-tester que continua jogando enquanto a prova roda (`off`: ninguém joga) |
 | `quality=auto` | `auto` (padrão) desce de nível sozinha se ficar abaixo de 30 qps; `high`; `low` |
@@ -48,7 +49,8 @@ Opções na URL de `poc.html`:
 
 ## Passagem do tempo
 
-- **Dia**: uma semana do jogo é um dia completo (amanhecer, dia, entardecer, noite), com as chaves de
+- **Dia**: um relógio próprio, separado das semanas do jogo: um dia completo (amanhecer, dia,
+  entardecer, noite) dura `day.seconds` (90 s; `?day=<segundos>` na URL) e para na pausa, com as chaves de
   `look3d.json`. A 4x um dia dura 0,8 s: para não piscar, a variação do dia diminui com a
   velocidade (`dayAmplitude`), sempre suave.
 - **Estações**: o relógio de estações do 2D (`src/render/Seasons.ts`, `visual.json`) dá neve rara,

@@ -16,8 +16,18 @@ export interface DayKeyLight {
 
 const KEYS = D.keys.map((k) => ({ t: k.t, sun: hex(k.sun), sunI: k.sunI, top: hex(k.top), horizon: hex(k.horizon), hemi: hex(k.hemi), ground: hex(k.ground), hemiI: k.hemiI }));
 
-/** One game week is one full day: the time of day (0..1, 0 = dawn) is the fraction of the week. */
-export const dayTime = (weekFrac: number) => ((weekFrac % 1) + 1) % 1;
+/** Time of day (0..1, 0 = dawn) from any running value: only its fraction counts. */
+export const dayTime = (u: number) => ((u % 1) + 1) % 1;
+
+/** Real seconds a full day lasts by default (its own clock, apart from the game weeks). */
+export const DAY_SECONDS = D.seconds;
+
+/**
+ * The day runs on its own real-time clock: `dt` seconds later, at `daySeconds` per day, the time
+ * of day moves on, and it stands still while the game is paused.
+ */
+export const advanceDay = (t: number, dt: number, running: boolean, daySeconds = DAY_SECONDS) =>
+  running && daySeconds > 0 ? dayTime(t + dt / daySeconds) : dayTime(t);
 
 /** Key-framed light at time t (0..1), linear between keys. */
 export function dayKeyLight(t: number): DayKeyLight {

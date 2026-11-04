@@ -43,7 +43,7 @@ export class SimDriver {
     return this.state.week + this.acc / RULES.weekSeconds;
   }
 
-  /** Real seconds one day (one week) lasts at the current speed (Infinity when paused). */
+  /** Real seconds one game week lasts at the current speed (Infinity when paused). */
   get secondsPerDay(): number {
     return this.rate > 0 ? RULES.weekSeconds / this.rate : Infinity;
   }
