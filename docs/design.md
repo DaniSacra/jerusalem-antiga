@@ -73,7 +73,14 @@ obra**. Resumo:
   Coletora `perCell` 0,3 → 0,2 (se a Coletora > 16% da comida)
 - Também no P3: toasts que cobrem o balão da ferramenta no celular (ui-designer)
 
-## Agora: "P2 correções" (escopo 2026-11-04, no main antes do merge do P3; implementado, falta medir R0–R2)
+## Feito: "P2 correções" (2026-11-04, no main até 5499aa1)
+
+Decisão do usuário (2026-11-04): o fim fica como está no P2. A linha "Templo 312/800" fica no jogo,
+e o objetivo 9 continua com 500 moradores e prêmio 200. O sim-tester mediu (`sim-tester-p2-fim.md`):
+nenhum prêmio passa. Quem guarda prata para o Templo (`--profile savesTemple=true`) vence 98% das
+partidas em cerca de 21 min. Alavanca preferida para o P3: objetivo 9 com 700 moradores (quem guarda
+vence em ~27 min; o Comum, 46% em ~31 min). Decidir com o que o usuário sentir jogando.
+
 Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecânica nova.
 - Templo: `upkeep` 10 → 0; dica "Vence o jogo após o objetivo 9…"; toast ao erguer antes do 9
 - Objetivo 1 exige moradores (família a caminho não basta)
