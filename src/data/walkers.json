@@ -8,5 +8,7 @@
   { "type": "child",        "to": "any",                "speed": 1.7, "pauseChance": 0.1 },
   { "type": "donkeyMan",    "to": "mainRoad",           "speed": 0.8, "pauseChance": 0.2 },
   { "type": "shepherd",     "to": "edge",               "speed": 0.9, "pauseChance": 0.3 },
-  { "type": "priest",       "to": ["altar", "temple"],  "speed": 0.8, "pauseChance": 0.6 }
+  { "type": "priest",       "to": ["altar", "temple"],  "speed": 0.8, "pauseChance": 0.6 },
+  { "type": "woodcutter",   "from": "lumber", "to": ["house", "market"], "speed": 0.8, "pauseChance": 0.3 },
+  { "type": "mason",        "from": "quarry", "to": ["house", "temple"], "speed": 0.7, "pauseChance": 0.3 }
 ]

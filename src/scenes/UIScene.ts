@@ -87,6 +87,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** Tutorial arrow at the silver or the goal of the top bar. */
+  /** Top edge of the pill over the previewed building, or null when none shows. */
+  tagTop(): number | null {
+    return this.view.tagTop();
+  }
+
   anchor(name: 'silver' | 'goal'): TutorialTarget {
     return this.view.anchor(name);
   }

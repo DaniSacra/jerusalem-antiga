@@ -26,6 +26,8 @@ import {
   dimsOf,
   type Dims,
   type Rect,
+  type Stump,
+  RULES,
   byRiver,
   foodCapacity,
 } from '../core';
@@ -159,6 +161,8 @@ const roadKey = (s: GameState, x: number, y: number, wear = 0) => TEX.road(viewM
 
 export class MapView {
   private features = new Map<number, FeatureView>();
+  /** Cut trees by cell (refreshed with each sync): a stump shows a sprout in the second half of its regrowth. */
+  private stumps = new Map<number, Stump>();
   private roads = new Map<number, Phaser.GameObjects.Image>();
   /** Puddles on some road cells, shown after rain. */
   private puddles = new Map<number, Phaser.GameObjects.Image>();
@@ -335,6 +339,7 @@ export class MapView {
   sync(s: GameState, eco: Economy) {
     this.state = s;
     this.stock = granaryStock(s);
+    this.stumps = new Map(s.stumps.map((t) => [t.i, t]));
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         this.syncFeature(s, x, y);
@@ -371,10 +376,13 @@ export class MapView {
     this.paintSmoke();
   }
 
-  /** Texture of a tree or rock: almonds and figs follow the year. */
+  /** Texture of a tree, stump or rock: almonds and figs follow the year, stumps sprout halfway to growing back. */
   private featureKey(tree: TreeKind, x: number, y: number) {
     const v = cellHash(x, y) % VARIANTS;
-    return tree === 'almond' || tree === 'fig' ? TEX.tree(tree, v, this.trees[tree]) : TEX.feature(tree, v);
+    if (tree === 'almond' || tree === 'fig') return TEX.tree(tree, v, this.trees[tree]);
+    if (tree !== 'stump') return TEX.feature(tree, v);
+    const t = this.stumps.get(indexOf(this.state, x, y));
+    return TEX.stump(t?.kind ?? 'olive', !!t && this.state.week - t.week >= RULES.treeRegrowWeeks / 2, v);
   }
 
   private syncFeature(s: GameState, x: number, y: number) {
@@ -568,6 +576,22 @@ export class MapView {
         })
         .setDepth(DEPTH.fx);
     }
+    if (b.kind === 'quarry') {
+      // A little stone dust where the quarryman cuts the bench (one slow emitter per quarry).
+      const d = PARTS.quarryDust;
+      const at = local(d.x, d.y, d.z);
+      view.smoke = sc.add
+        .particles(c.x + at.x, c.y + at.y, TEX.soft, {
+          lifespan: 1400,
+          speedY: { min: -10, max: -4 },
+          speedX: { min: 4, max: 14 },
+          scale: { start: 0.25, end: 0.8 },
+          alpha: { start: 0.55, end: 0 },
+          tint: C.stoneDust,
+          frequency: MOMENTS.quarryDustMs,
+        })
+        .setDepth(DEPTH.fx);
+    }
     if (this.ready) this.raise(view, b, VISUAL.build.scaffoldMs);
     return view;
   }
@@ -617,6 +641,34 @@ export class MapView {
     tweens.killTweensOf(v.root);
     v.root.setY(groundY).setScale(1);
     tweens.add({ targets: v.root, y: groundY - 10, scaleX: 0.92, scaleY: 1.08, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  /**
+   * A tree cut on (x, y) falls: its drawing tips over away from the light, fades and raises a little
+   * dust (under 1 s). Only when the cell is in view; the next sync puts the stump there.
+   */
+  fell(x: number, y: number) {
+    const i = indexOf(this.state, x, y);
+    const f = this.features.get(i);
+    if (!f || f.tree === 'stump' || f.tree === 'rock') return;
+    this.features.delete(i);
+    const img = f.img;
+    if (!this.scene.cameras.main.worldView.contains(img.x, img.y)) {
+      img.destroy();
+      return;
+    }
+    const side = cellHash(x, y) % 2 ? 1 : -1;
+    const ms = MOMENTS.treeFallMs;
+    this.scene.tweens.add({
+      targets: img,
+      angle: side * 84,
+      duration: ms * 0.7,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.dust.explode(5, img.x + side * 22, img.y - 4);
+        this.scene.tweens.add({ targets: img, alpha: 0, duration: ms * 0.3, onComplete: () => img.destroy() });
+      },
+    });
   }
 
   /** Height of a building's drawing in px (effects above it). */

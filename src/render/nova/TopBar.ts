@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, moodOf, lastsToHarvest, type CityReadout, type GameState, type Season } from '../../core';
+import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, housesWaiting, moodOf, lastsToHarvest, type CityReadout, type GameState, type Material, type Season } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
-import { fmtInt, signed, T } from '../strings';
+import { fmt, fmtInt, signed, T } from '../strings';
 import { TEX } from '../textures';
 import { SPEEDS, type Speed } from '../tools';
 import { onTap as tapOnly } from '../ui';
@@ -12,11 +12,13 @@ import { PHONE, S } from './metrics';
 import { darkPanel, icon, ntext, picture, RoundButton } from './widgets';
 
 const DROUGHT_HUD = VISUAL.seasons.drought.hud;
+/** Most shortening steps of the stat pills (see `pills`). */
+const MAX_FIT = 3;
 /** The stock shows "38/40" from this share of the store limit up (food about to spoil). */
 const STOCK_SHOWN = 0.75;
 
-/** One piece of a pill: a text (with its size and color) or a progress bar. */
-type Part = { text: string; color?: string; size?: number } | { bar: number; w: number };
+/** One piece of a pill: a text (with its size and color), a progress bar or an icon (texture key). */
+type Part = { text: string; color?: string; size?: number } | { bar: number; w: number } | { icon: string };
 
 /** Informative pill (rounded, dark): an optional icon, then texts and bars in a row. Tapping it may open a panel. */
 class Pill {
@@ -24,6 +26,8 @@ class Pill {
   private bg: Phaser.GameObjects.Graphics;
   private icon: Phaser.GameObjects.Image | Phaser.GameObjects.Text | null;
   private texts: Phaser.GameObjects.Text[] = [];
+  /** Icons placed among the texts (the materials pill), by part index. */
+  private pics = new Map<number, Phaser.GameObjects.Image | Phaser.GameObjects.Text>();
   private bars: Phaser.GameObjects.Graphics;
   private key = '';
   private blinks = new Map<number, Phaser.Tweens.Tween>();
@@ -60,7 +64,8 @@ class Pill {
       this.texts.push(t);
       this.root.add(t);
     }
-    const pad = this.h * 0.38;
+    // Tighter on the phone, so the season pill keeps to the first row beside the materials pill.
+    const pad = this.h * (PHONE ? 0.3 : 0.38);
     const gap = px(5);
     let x = pad;
     if (this.icon) {
@@ -68,8 +73,23 @@ class Pill {
       x += this.h * 0.62 + gap;
     }
     this.bars.clear();
+    for (const pic of this.pics.values()) pic.setVisible(false);
     parts.forEach((p, k) => {
       const t = this.texts[k];
+      if ('icon' in p) {
+        t.setVisible(false);
+        const size = this.h * 0.62;
+        let pic = this.pics.get(k);
+        if (pic instanceof Phaser.GameObjects.Image && pic.texture.key !== p.icon) pic.setTexture(p.icon).setScale(size / Math.max(pic.width, pic.height));
+        if (!pic) {
+          pic = picture(s, p.icon, size);
+          this.pics.set(k, pic);
+          this.root.add(pic);
+        }
+        pic.setVisible(true).setPosition(x + size / 2, this.h / 2);
+        x += size + px(2);
+        return;
+      }
       if ('bar' in p) {
         t.setVisible(false);
         const bh = px(6);
@@ -111,6 +131,15 @@ class Pill {
     if (this.zone?.input) this.zone.input.enabled = on;
   }
 
+  /** A gold glow around the pill that fades three times (something new in it: the stone). */
+  flash() {
+    const g = this.scene.add.graphics();
+    const o = px(4);
+    g.fillStyle(NOVA.goldLight, 0.6).fillRoundedRect(-o, -o, this.w + 2 * o, this.h + 2 * o, this.h / 2 + o);
+    this.root.addAt(g, 0);
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 650, repeat: 2, onComplete: () => g.destroy() });
+  }
+
   /** Makes a part pulse (famine, debt). */
   blink(k: number, on: boolean) {
     const tween = this.blinks.get(k);
@@ -146,6 +175,10 @@ export class TopBar {
   private silver: Pill;
   private food: Pill;
   private people: Pill;
+  /** Wood and stone: one pill on the phone (icons and numbers), one per material on the PC. */
+  private mats: Pill[];
+  /** The stone shows (quarry unlocked); null before the first refresh. */
+  private stoneOn: boolean | null = null;
   private joy: Pill | null;
   private goal: Pill;
   private season: Pill;
@@ -180,6 +213,7 @@ export class TopBar {
 
     this.silver = new Pill(scene, TEX.icon('silver'), S.pillH, h.onStats);
     this.food = new Pill(scene, TEX.icon('food'), S.pillH, h.onStats);
+    this.mats = PHONE ? [new Pill(scene, null, S.pillH, h.onStats)] : (['wood', 'stone'] as const).map((m) => new Pill(scene, TEX.icon(m), S.pillH, h.onStats));
     this.people = new Pill(scene, TEX.icon('people'), S.pillH, h.onStats);
     this.joy = PHONE ? null : new Pill(scene, TEX.mood('neutral'), S.pillH, h.onStats);
     this.goal = new Pill(scene, null, S.goalH, h.onGoals);
@@ -211,7 +245,7 @@ export class TopBar {
     }
   }
 
-  refresh(s: GameState, { eco, forecast: out }: CityReadout, speed: Speed) {
+  refresh(s: GameState, city: CityReadout, speed: Speed) {
     this.speed = speed;
     const L = S.level;
     const cx = S.margin + L / 2;
@@ -227,8 +261,59 @@ export class TopBar {
       ring.strokePath();
     }
 
+    // The stat pills, shorter step by step until they fit left of the speed buttons (PC labels go first).
+    for (let fit = 0; fit <= MAX_FIT; fit++) {
+      this.pills(s, city, fit);
+      if (this.pillsRight() <= this.speedRect.x - S.gap) break;
+    }
+    const stoneOn = this.stoneShown(s);
+    // The stone comes in with a glow (not when a saved or test city already has it).
+    if (this.stoneOn === false && stoneOn) this.mats[PHONE ? 0 : 1].flash();
+    this.stoneOn = stoneOn;
+
     const N = T.nova;
-    const label = (t: string): Part[] => (PHONE ? [] : [{ text: t, color: NOVA_CSS.muted }]);
+    const { season, year, week } = calendar(s.week);
+    const sKey = `${season}|${year}|${week}|${s.drought}`;
+    if (sKey !== this.lastSeason) {
+      this.lastSeason = sKey;
+      // When the fields freeze (or thaw) next: the year turns around it.
+      const turn = nextFieldTurn(s.week);
+      const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
+      this.season.set([
+        ...(PHONE ? [{ text: N.calendarPhone(season, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
+        ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
+      ]);
+    }
+    this.iconOf = { season, dry: s.drought };
+    this.seasonIcon();
+
+    // Speed: the active one in gold (PC); the single phone button shows what runs now.
+    for (const [v, btn] of this.speeds) btn.setLook({ style: v === speed ? 'gold' : 'dark' });
+    if (this.speedLabel && this.speedPause) {
+      this.speedLabel.setText(`${speed}x`).setVisible(speed !== 0);
+      this.speedPause.setVisible(speed === 0);
+    }
+
+    this.layout(s);
+  }
+
+  /** The stone shows once the quarry is unlocked (or the city has some). */
+  private stoneShown = (s: GameState) => s.unlocked.includes('quarry') || s.stone > 0;
+
+  /** Right edge of the stat pills in a row (before `layout` places them). */
+  private pillsRight() {
+    let x = S.margin + S.level + S.gap;
+    for (const p of [this.silver, this.food, ...this.mats, this.people, this.joy]) if (p?.root.visible) x += p.w + S.gap;
+    return x - S.gap;
+  }
+
+  /**
+   * Silver, food, materials, residents and (PC) happiness. `fit` shortens them when the row is too
+   * long: 1 drops the material names, 2 every name, 3 the materials' "+N/sem" (the phone has none).
+   */
+  private pills(s: GameState, { eco, forecast: out }: CityReadout, fit: number) {
+    const N = T.nova;
+    const label = (t: string): Part[] => (PHONE || fit >= 2 ? [] : [{ text: t, color: NOVA_CSS.muted }]);
     const delta = (d: number): Part => ({ text: signed(d) + (PHONE ? '' : N.perWeek), color: d < 0 ? NOVA_CSS.bad : NOVA_CSS.good, size: S.text });
     const debt = s.silver < 0;
     const silverColor = debt ? NOVA_CSS.bad : eco.silverDelta < 0 ? NOVA_CSS.warn : NOVA_CSS.text;
@@ -256,6 +341,7 @@ export class TopBar {
       ...forecast,
     ]);
     this.food.blink(fv + 2, s.famine); // the "FOME" part
+    this.materials(s, { wood: eco.wood, stone: eco.stone }, fit);
     this.people.set([...label(N.residents), { text: fmtInt(eco.residents), size: S.num }]);
     if (this.joy) {
       const on = happinessOn(s);
@@ -264,37 +350,34 @@ export class TopBar {
       this.joy.setIcon(TEX.mood(mood));
       this.joy.set([...label(N.happiness), { text: String(eco.happiness), size: S.num, color: mood === 'sad' ? NOVA_CSS.bad : mood === 'happy' ? NOVA_CSS.good : NOVA_CSS.text }]);
     }
+  }
 
-    const { season, year, week } = calendar(s.week);
-    const sKey = `${season}|${year}|${week}|${s.drought}`;
-    if (sKey !== this.lastSeason) {
-      this.lastSeason = sKey;
-      // When the fields freeze (or thaw) next: the year turns around it.
-      const turn = nextFieldTurn(s.week);
-      const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
-      this.season.set([
-        ...(PHONE ? [{ text: N.calendarPhone(season, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
-        ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
-      ]);
-    }
-    this.iconOf = { season, dry: s.drought };
-    this.seasonIcon();
-
-    // Speed: the active one in gold (PC); the single phone button shows what runs now.
-    for (const [v, btn] of this.speeds) btn.setLook({ style: v === speed ? 'gold' : 'dark' });
-    if (this.speedLabel && this.speedPause) {
-      this.speedLabel.setText(`${speed}x`).setVisible(speed !== 0);
-      this.speedPause.setVisible(speed === 0);
-    }
-
-    this.layout(s);
+  /**
+   * Wood (and stone once the quarry is unlocked): red with ⚠ while a house waits for it. Phone: icons
+   * and numbers in one pill; PC: a pill each with its name and what comes in a week.
+   */
+  private materials(s: GameState, made: Record<Material, number>, fit: number) {
+    const N = T.nova;
+    const waiting = housesWaiting(s);
+    const num = (m: Material): Part => ({ text: (waiting[m] ? '⚠ ' : '') + fmtInt(s[m]), color: waiting[m] ? NOVA_CSS.bad : NOVA_CSS.text, size: S.num });
+    const shown: Material[] = this.stoneShown(s) ? ['wood', 'stone'] : ['wood'];
+    if (PHONE) this.mats[0].set(shown.flatMap((m) => [{ icon: TEX.icon(m) }, num(m)]));
+    else
+      shown.forEach((m, k) =>
+        this.mats[k].set([
+          ...(fit >= 1 ? [] : [{ text: N.material[m], color: NOVA_CSS.muted }]),
+          num(m),
+          ...(fit >= 3 ? [] : [{ text: `+${fmt(made[m])}${N.perWeek}`, color: made[m] > 0 ? NOVA_CSS.good : NOVA_CSS.muted, size: S.text }]),
+        ]),
+      );
+    if (!PHONE) this.mats[1].show(shown.length > 1);
   }
 
   /** Pills left to right; the season pill moves under the speed if it would touch them; the goal fits what is left. */
   private layout(s: GameState) {
     let x = S.margin + S.level + S.gap;
     const y = S.margin;
-    for (const p of [this.silver, this.food, this.people, this.joy]) {
+    for (const p of [this.silver, this.food, ...this.mats, this.people, this.joy]) {
       if (!p || !p.root.visible) continue;
       p.root.setPosition(x, y);
       x += p.w + S.gap;
@@ -357,7 +440,7 @@ export class TopBar {
   }
 
   /** Center and size of a part, for the visual tests (see `setNovaSpot`). */
-  spot(name: 'level' | 'gear' | 'silver' | 'food' | 'goal' | 'season' | `speed-${Speed}`) {
+  spot(name: 'level' | 'gear' | 'silver' | 'food' | 'materials' | 'stone' | 'goal' | 'season' | `speed-${Speed}`) {
     const c = (r: Rect | null, d: number) => (r ? { x: r.x + r.w / 2, y: r.y + r.h / 2, d } : null);
     if (name === 'level') return c(this.levelRect, S.level);
     if (name === 'gear') return { x: this.gear.root.x, y: this.gear.root.y, d: S.btn };
@@ -366,7 +449,7 @@ export class TopBar {
       const b = this.speedOne ?? this.speeds.find(([x]) => x === v)?.[1];
       return b ? { x: b.root.x, y: b.root.y, d: S.btn } : null;
     }
-    const pill = { silver: this.silver, food: this.food, goal: this.goal, season: this.season }[name as 'silver'];
+    const pill = { silver: this.silver, food: this.food, materials: this.mats[0], stone: this.mats[this.mats.length - 1], goal: this.goal, season: this.season }[name as 'silver'];
     return c(pill.rect, pill.h);
   }
 
@@ -382,7 +465,7 @@ export class TopBar {
   }
 
   rects(): (Rect | null)[] {
-    return [this.levelRect, this.silver.rect, this.food.rect, this.people.rect, this.joy?.rect ?? null, this.goal.rect, this.season.rect, this.speedRect];
+    return [this.levelRect, this.silver.rect, this.food.rect, ...this.mats.map((p) => p.rect), this.people.rect, this.joy?.rect ?? null, this.goal.rect, this.season.rect, this.speedRect];
   }
 
   contains(x: number, y: number) {

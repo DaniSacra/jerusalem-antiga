@@ -62,7 +62,7 @@ interface Body extends Look {
 }
 
 /** Canvas size of a resident type: most are 26 x 36, the donkey, the sheep and the artisan's goods need room. */
-export const RESIDENT_SIZE: Partial<Record<WalkerType, [number, number]>> = { donkeyMan: [50, 36], shepherd: [38, 36], artisan: [40, 40] };
+export const RESIDENT_SIZE: Partial<Record<WalkerType, [number, number]>> = { donkeyMan: [50, 36], shepherd: [38, 36], artisan: [40, 40], woodcutter: [40, 36], mason: [48, 36] };
 const DEFAULT_SIZE: [number, number] = [26, 36];
 
 export const residentSize = (t: WalkerType) => RESIDENT_SIZE[t] ?? DEFAULT_SIZE;
@@ -460,6 +460,62 @@ function sheep(g: G, x: number, F: number, frame: number, face: number) {
   g.fillEllipse(x + 5.6, F - 10.4, 2.6, 1.4);
 }
 
+/** A long log carried on the shoulder, the pale cut end in front. */
+function shoulderLog(g: G, back: Pt) {
+  const a = { x: back.x - 12, y: back.y - 1 };
+  const b = { x: back.x + 17, y: back.y - 6 };
+  const n = { x: 0.9, y: 5 };
+  g.fillStyle(shade(C.log, 0.75));
+  g.fillPoints([a, b, { x: b.x + n.x, y: b.y + n.y }, { x: a.x + n.x, y: a.y + n.y }], true);
+  g.fillStyle(C.log);
+  g.fillPoints([a, b, { x: b.x + n.x * 0.5, y: b.y + n.y * 0.5 }, { x: a.x + n.x * 0.5, y: a.y + n.y * 0.5 }], true);
+  g.lineStyle(1, shade(C.log, 1.3), 0.8);
+  g.lineBetween(a.x + 4, a.y + 0.8, b.x - 6, b.y + 0.8);
+  g.fillStyle(shade(C.log, 0.6));
+  g.fillEllipse(a.x + 0.4, a.y + 2.5, 3, 5.4);
+  g.fillStyle(C.logEnd);
+  g.fillEllipse(b.x + 0.5, b.y + 2.5, 3.6, 5.8);
+  g.fillStyle(C.logRing);
+  g.fillCircle(b.x + 0.5, b.y + 2.5, 0.9);
+}
+
+/** A two-wheeled handcart pushed ahead from the hand, a cut limestone block on it (the wheel turns with the step). */
+function stoneCart(g: G, hand: Pt, F: number, frame: number) {
+  const x0 = hand.x + 4;
+  const x1 = x0 + 17;
+  const bed = F - 9;
+  const wx = x0 + 9;
+  const wy = F - 4.5;
+  g.lineStyle(1.8, C.woodDark);
+  g.lineBetween(hand.x, hand.y, x0 + 1, bed);
+  g.fillStyle(C.shadow, 0.25);
+  g.fillEllipse(wx + 1, F, 20, 3.5);
+  // The block, then the bed and the wheel in front.
+  g.fillStyle(shade(C.block, 0.7));
+  g.fillRect(x0 + 2, bed - 9, 13, 9);
+  g.fillStyle(shade(C.block, 0.9));
+  g.fillRect(x0 + 2, bed - 9, 9, 9);
+  g.fillStyle(C.block);
+  g.fillPoints([{ x: x0 + 2, y: bed - 9 }, { x: x0 + 6, y: bed - 12 }, { x: x0 + 17, y: bed - 12 }, { x: x0 + 15, y: bed - 9 }], true);
+  g.lineStyle(1, C.blockEdge, 0.9);
+  g.strokeRect(x0 + 2, bed - 9, 13, 9);
+  g.fillStyle(C.wood);
+  g.fillRect(x0, bed, x1 - x0, 2.6);
+  g.fillStyle(C.woodDark);
+  g.fillRect(x0, bed + 2.6, x1 - x0, 1);
+  g.fillStyle(C.woodDark);
+  g.fillCircle(wx, wy, 4.6);
+  g.fillStyle(C.wood);
+  g.fillCircle(wx, wy, 3.4);
+  g.lineStyle(1.2, C.woodDark);
+  for (let k = 0; k < 2; k++) {
+    const a = (frame * Math.PI) / 4 + (k * Math.PI) / 2;
+    g.lineBetween(wx - Math.cos(a) * 3.4, wy - Math.sin(a) * 3.4, wx + Math.cos(a) * 3.4, wy + Math.sin(a) * 3.4);
+  }
+  g.fillStyle(C.woodDark);
+  g.fillCircle(wx, wy, 1.1);
+}
+
 /** Three looks per type: skin tones and clothes vary, what they carry stays the same. */
 const LOOKS: Record<WalkerType, Look[]> = {
   waterCarrier: [
@@ -507,6 +563,16 @@ const LOOKS: Record<WalkerType, Look[]> = {
     { skin: SKIN[2], robe: CLOTH.brown, head: CLOTH.wool, sash: CLOTH.red, beard: HAIR },
     { skin: SKIN[1], robe: CLOTH.dark, head: CLOTH.linen, sash: CLOTH.ochre, beard: HAIR },
     { skin: SKIN[0], robe: CLOTH.wool, head: CLOTH.brown, sash: CLOTH.blue },
+  ],
+  woodcutter: [
+    { skin: SKIN[1], robe: CLOTH.rust, head: CLOTH.wool, sash: CLOTH.dark, beard: HAIR },
+    { skin: SKIN[2], robe: CLOTH.wool, head: CLOTH.brown, sash: CLOTH.red, beard: HAIR },
+    { skin: SKIN[0], robe: CLOTH.brown, head: CLOTH.linen, sash: CLOTH.ochre, beard: BEARD_BROWN },
+  ],
+  mason: [
+    { skin: SKIN[0], robe: CLOTH.linen, head: CLOTH.indigo, sash: CLOTH.brown, beard: BEARD_BROWN },
+    { skin: SKIN[2], robe: CLOTH.ochre, head: CLOTH.white, sash: CLOTH.dark, beard: HAIR },
+    { skin: SKIN[1], robe: CLOTH.blue, head: CLOTH.wool, sash: CLOTH.rust, beard: HAIR },
   ],
   // Priests: all-white linen, a wide blue sash and a tall white turban; only skin and beard vary.
   priest: [
@@ -590,6 +656,18 @@ export function drawResident(g: G, type: WalkerType, look: number, frame: number
       shadowAt(g, cx - 6, F, 10);
       const r = person(g, cx - 6, F, { ...L, cover: 'headcloth', arm: 'staff' }, frame);
       staff(g, r.hand, F, F - 28, true);
+      break;
+    }
+    case 'woodcutter': {
+      shadowAt(g, cx, F, 11);
+      const r = person(g, cx - 2, F, { ...L, cover: 'headcloth', arm: 'back', short: true, lean: 1.6 }, frame);
+      shoulderLog(g, { x: r.back.x + 2.6, y: r.back.y - 1.6 });
+      break;
+    }
+    case 'mason': {
+      shadowAt(g, cx - 12, F, 10);
+      const r = person(g, cx - 12, F, { ...L, cover: 'headcloth', arm: 'low', short: true, lean: 2.2 }, frame);
+      stoneCart(g, r.hand, F, frame);
       break;
     }
     case 'priest': {

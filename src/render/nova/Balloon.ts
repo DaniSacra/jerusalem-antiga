@@ -13,6 +13,11 @@ export interface Line {
   box?: boolean;
   /** Extra space above the line. */
   gap?: number;
+  /**
+   * Pieces of a short line in their own colors (the cost "25 prata · 10 madeira" with what is
+   * missing in red); `text` is then the whole line (it is what the tests read). Never wraps.
+   */
+  parts?: { text: string; color?: string }[];
 }
 
 /** Where a balloon of size w x h goes, and where its arrow points (along its side, from its corner). */
@@ -84,6 +89,20 @@ export class TextBalloon {
       y += l.gap ?? 0;
       const size = l.size ?? S.text;
       const inset = l.box ? px(8) : 0;
+      if (l.parts) {
+        let x = pad + inset;
+        let th = 0;
+        for (const p of l.parts) {
+          const t = ntext(this.scene, x, y + inset, p.text, size, p.color ?? l.color ?? NOVA_CSS.text, l.bold ?? true);
+          this.body.add(t);
+          x += t.width;
+          th = Math.max(th, t.height);
+        }
+        w = Math.max(w, x - pad + inset);
+        if (l.box) boxes.push([y, th + 2 * inset]);
+        y += th + 2 * inset + px(3);
+        continue;
+      }
       const t = ntext(this.scene, pad + inset, y + inset, l.text, size, l.color ?? NOVA_CSS.text, l.bold ?? true)
         .setWordWrapWidth(wrap - 2 * inset)
         .setLineSpacing(lineH(size) - size * 1.15);

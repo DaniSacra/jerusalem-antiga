@@ -447,7 +447,8 @@ Só aparência: nenhuma regra de economia depende disso.
 - **Moradores andando** (`walkers.json`): aguadeira (mulher com jarro) → praça e mercado, agricultor → campo, cesteira →
   mercado, carregador campo → mercado e volta, artesão → oficina, idoso (lento) → altar,
   criança (rápida) → qualquer lugar, homem com jumento → ruas principais, pastor com ovelha →
-  borda da cidade, sacerdote de branco → altar ou templo. Cada tipo tem velocidade própria e
+  borda da cidade, sacerdote de branco → altar ou templo, lenhador com tora no ombro Lenhador →
+  casa e mercado e volta, canteiro com pedra no carrinho Pedreira → casa e templo e volta. Cada tipo tem velocidade própria e
   chance de parar 1–2 s ao chegar. Um tipo só aparece quando a construção dele existe e está
   ligada; sem destino do tipo, vai a uma construção qualquer. O artesão carrega um objeto do
   ofício da oficina para onde vai (jarro, martelo, tábua, rolo de tecido, pano tingido ou couro).
@@ -473,7 +474,8 @@ código continuam `goal` e `happiness`; o passo passou a ser `week`.
 ### Interface Nova
 
 - **Abertura:** ao começar, um toast maior (ou balão central que some sozinho em 5 s) com a frase
-  da caravana: "A caravana chegou com N famílias e comida para N semanas".
+  da caravana: "A caravana chegou com N famílias, comida para N semanas e 20 de madeira" (a madeira
+  lida de `startMaterials`).
 
 Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte desenhada em código.
 
@@ -495,6 +497,16 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     a comida está estragando. Cores de alerta: prata laranja com saldo negativo e
     vermelha piscando em dívida. Tocar numa pílula abre as
     Estatísticas;
+  - pílula **Materiais** entre Comida e Moradores (P3): no celular uma pílula só com o ícone da tora
+    e o número da madeira e, depois de liberar a Pedreira, o ícone da pedra e o número (sem
+    "+N/sem"); no PC uma pílula por material, "Madeira 20 +1,5/sem" (a Pedra só depois de liberar a
+    Pedreira). O número fica **vermelho com "⚠"** enquanto alguma casa espera aquele material. A
+    pedra entra com um brilho dourado (3 piscadas) ao ser liberada. Tocar abre as Estatísticas.
+    Se a fileira não couber à esquerda da velocidade, as pílulas encurtam por etapas (`MAX_FIT` em
+    `TopBar.ts`): primeiro somem os rótulos dos materiais, depois todos os rótulos, depois o "+N/sem"
+    dos materiais. No celular 844 x 390 a pílula da estação desce para a segunda linha (à direita) e
+    o texto do objetivo é cortado com "…" se faltar espaço; Prata, Comida, Materiais e Moradores
+    nunca somem;
   - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 10", texto, barra e "3/5".
     Tocar abre a lista de Objetivos.
 - **Topo direito:** pílula "Outono · Ano 1 · Semana 5 · inverno em 9 sem" (semana 1–13; ícone da
@@ -513,7 +525,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - **Estatísticas** (gráfico): prata (impostos, manutenção por tipo, saldo),
     comida (colheita, pesca, coleta, consumo, saldo, estoque/capacidade, previsão), trabalho
     (trabalhadores, vagas, sem trabalho, eficiência), casas por nível, alegria (felizes, contentes,
-    tristes e motivos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
+    tristes e motivos), **materiais** (madeira e pedra: estoque e "+N/sem", em vermelho com
+    "Casas esperando madeira/pedra ⚠ N" quando há casa esperando, e o número de tocos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
 - **Inferior esquerdo** (botões redondos com nome embaixo; no PC com a tecla, ex. "Mover · 1"):
   - **Mover** (mão): arrastar move o mapa; tocar numa construção abre o balão dela;
@@ -523,12 +536,13 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Coluna direita de construções**: são 12 (Casa, Praça, Parque, Campo, Pescador, Coletora,
   Celeiro, Lenhador, Pedreira, Mercado, Oficina, Templo; `COLUMN_ORDER` em `tools.ts`), mais que `toolColumnMax` (8), então a coluna mostra as **4
   categorias** e tocar numa abre a faixa dela (veja Categorias). Botão redondo com a miniatura da arte do jogo; celular 46 px só o desenho; PC 86 px com
-  desenho, nome e "preço · tecla N". Escolhida: borda dourada com brilho. Sem prata: acinzentada e
-  preço em vermelho. Bloqueada: cinza, borda tracejada e cadeado (PC: "objetivo N"); tocar mostra
+  desenho, nome e "preço · tecla N". Escolhida: borda dourada com brilho. Sem prata **ou sem o
+  material** que ela custa: acinzentada e preço em vermelho. Bloqueada: cinza, borda tracejada e cadeado (PC: "objetivo N"); tocar mostra
   "Libera no objetivo N". Ao liberar ganha um ponto dourado de "novo" no canto de cima (fora do desenho) até ser tocada (não é salvo). Tocar de novo
   no Mercado gira a prévia. **Não há botão "Construir":** escolher a construção já é a ferramenta.
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
-  "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
+  o custo "25 prata · 10 madeira" (cada parte que falta em vermelho com o que a cidade tem:
+  "10 madeira (tem 4)"), a manutenção por semana numa linha própria e uma frase do efeito; no PC também vagas, alcance e "Saldo
   depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
   eficiência que a cidade teria; antes do Objetivo 4, sem manutenção). Num local de trabalho que
   não dá comida (mercado, oficina, templo…), quando as vagas dele tiram trabalhadores dos que dão
@@ -540,12 +554,20 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     rua"; um serviço ainda bloqueado diz "✗ Mercado (libera no objetivo 3)"), quadro "Ao evoluir"
     com os ganhos (moradores, imposto com até duas casas decimais, como a linha do imposto atual, e
     quanto a casa passa a comer por semana **com o inverno**, `foodPerResident`), alegria com os
-    motivos;
-    terreno vazio diz se há família a caminho;
+    motivos; se a evolução pede material, "Ao evoluir: pede 10 de pedra" (e 5 de madeira) logo
+    abaixo do quadro. **Casa pronta esperando material** (`houseInfo().waiting`): no lugar das
+    exigências (todas cumpridas) e do "Casa de pedra em N sem" (o core mostra 1 enquanto espera),
+    a linha vermelha "Pronta para virar Casa de pedra: falta 7 de pedra" e a ação principal
+    "Onde pôr uma pedreira" (ou "um lenhador"), que destaca os lugares livres ligados à rua onde ela
+    renderia pelo menos 75% do melhor lugar (sem nenhum: "Nenhum lugar com rochas/árvores junto à
+    rua: leve uma rua até…");
+    terreno vazio diz se há família a caminho; toco: "Toco · vira árvore de novo em N sem. Dá para
+    construir em cima";
   - outras construções: o que faz, quantas casas atende (serviços), vagas, produção, manutenção
     por semana e conexão (desconectada: "não funciona, mas paga manutenção"); campo: "colhe na
     primavera do ano N" e, num ano seco, se está junto ao rio; pescador e coletora: "rende N
-    comida/sem"; celeiro: "guarda 150"; celeiro (ou rua que liga um) com comida que estragaria ao
+    comida/sem"; lenhador e pedreira: "Rende N madeira/sem" (ou pedra) e o lenhador também "Corta 1
+    árvore a cada N sem" (`weeksPerCut`); celeiro: "guarda 150"; celeiro (ou rua que liga um) com comida que estragaria ao
     demolir: "✗ Perde N de comida" (`foodLostIfRemoved`), e o mesmo sobe em vermelho ao demolir;
   - ruas, árvores e terreno: uma linha só;
   - botões redondos: **ação principal** dourada quando há algo a fazer (casa sem o próximo serviço:
@@ -603,6 +625,12 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     uma rua arrastada que termina sobre "Pular tutorial" ou sobre a pausa não aperta nada;
   - o nome de uma construção ou categoria na coluna do PC diminui a fonte até caber no botão
     ("Especiais");
+  - construir sem a madeira ou a pedra: toast "Falta madeira: construa um lenhador" ou "Falta
+    pedra: construa uma pedreira" (`missingMaterial`; uma vez por arrasto, como a prata);
+  - a primeira casa esperando um material dispara o aviso `material` ("1 casa esperando pedra:
+    construa uma pedreira"), que vira toast ao aparecer e fica nos Avisos; liberar a Pedreira dá
+    "Objetivo cumprido! … · Nova construção: Pedreira" e "Pedreira liberada: tira pedra das rochas
+    para casas de pedra e o Templo";
   - "Local inválido" diz o motivo: "Tem uma árvore aqui: corte com Demolir", "Tem uma rocha aqui",
     "Não dá para construir no rio", "Já tem uma construção ou rua aqui", "Fora do mapa" (Demolir:
     "Nada para demolir aqui", "Rochas não podem ser removidas");
@@ -610,7 +638,12 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - com Pescador, Coletora ou Campo, uma pílula sobre a prévia diz, em duas linhas, "Rende N
     comida/sem" (com a eficiência que a cidade terá com as vagas dela) e "Comida depois: ±X/sem"
     (o saldo de comida da cidade com ela; a pílula fica vermelha se negativo); campo no inverno:
-    "Congelado no inverno: volta em N sem". O balão da construção escolhida diz a regra (por
+    "Congelado no inverno: volta em N sem". Lenhador e Pedreira: "Rende N madeira/sem" (ou pedra),
+    no Lenhador "Corta 1 árvore a cada N sem" e, quando o raio pega árvores de uma Coletora,
+    "Divide o bosque com a Coletora" (`sharedTrees`); a Coletora diz "Divide o bosque com o
+    Lenhador". "Comida depois" só aparece no Lenhador e na Pedreira quando as vagas deles baixam a
+    comida. Fora da rua ligada, a prévia de qualquer um deles diz "Sem rua ao lado: não rende nada"
+    em vermelho (no lugar de "Rende 0"); O balão da construção escolhida diz a regra (por
     célula, alcance e teto) ou "Guarda 150 de comida";
   - no inspetor de pescador, coletora e campo trabalhando com menos de 100% de trabalhadores:
     "Faltam trabalhadores: rende 67%" em laranja;
@@ -703,10 +736,15 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   7. Mini passo do Lenhador, logo depois do 6 (o último de `steps` em `tutorial.json`; o relógio
      para, como nos passos de construir): "Casas pedem madeira: construa um lenhador perto das
      árvores". O lugar é `lumberSpot`, a mesma busca de `foodSpot` (maior rendimento, depois rua
-     mais curta) para o Lenhador. Conclui com 1 lenhador ligado. (A seta no lugar e a rua marcada
-     até ele ainda são trabalho da interface.)
+     mais curta) para o Lenhador. Conclui com 1 lenhador ligado. A câmera vai até o lugar. Se o
+     lugar precisa de rua, a rua dele aparece marcada (como no passo 1), o balão diz "Casas pedem
+     madeira: puxe a rua marcada e ponha um lenhador no fim" e a seta aponta Rua e depois a
+     rua marcada; com a rua pronta, a seta aponta o Lenhador e depois o lugar. A prévia diz "Rende
+     N madeira/sem" e "Corta 1 árvore a cada N sem". "Muito bem! Construa mais casas…" vem depois
+     dele.
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,
-  praça, casa) com a ponta **acima da construção**, para não cobrir a prévia. No celular, a seta de
+  praça, casa, lenhador) com a ponta **acima da construção** e da pílula da prévia ("Rende N…"),
+  para não cobrir a prévia nem o texto dela. No celular, a seta de
   uma construção única (pescador, coletora, praça) aponta onde o dedo vai: a mira fica 90 px acima do
   dedo, então tocar na ponta da seta constrói no lugar marcado.
 - Uma rua arrastada que passa por cima de um botão ou painel para ali; ao soltar, o toast "A rua
@@ -927,6 +965,23 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   terços (mais sacos e 4 jarros, grão na boca de um silo), cheio (sacos em duas camadas, 6 jarros,
   um monte de grão com pá, sacos no telhado e grão nos dois silos). Miniaturas: o celeiro cheio,
   a rede com o barco, os cestos de frutos.
+- Lenhador 2 x 2: cabana de toras com as pontas cruzadas nos cantos e telhado de tábuas, pilha
+  grande de toras com as pontas cortadas claras para a frente, um tronco caído esperando ser
+  partido, feixes de lenha na parede, cepo com o machado cravado, lascas no chão. Pedreira 2 x 2:
+  rocha cinza natural (camadas, fendas e pedras no alto) cortada em degraus de calcário claro em
+  fiadas, um bloco meio cortado no degrau do meio, guindaste pequeno de madeira (mastro com
+  escoras, braço e corda) erguendo um bloco, blocos cortados empilhados, o canteiro com a picareta
+  e lascas no chão de pó de pedra; um pouco de poeira sobe onde ele corta (um emissor lento por
+  Pedreira, `visual.json` > `moments.quarryDustMs`). Os dois têm neve como os outros. Miniaturas:
+  a cabana com a pilha de toras e o cepo; a rocha em degraus com o guindaste e os blocos.
+- Toco (`TEX.stump`): de oliveira (baixo e grosso, com raízes) ou de palmeira (fino e fibroso), com
+  o corte claro e os anéis. Na segunda metade das `treeRegrowWeeks` (lendo `stumps[].week`) mostra
+  o broto: rebentos de folhas verde-prata em volta do toco da oliveira, uma palmeirinha nova ao pé
+  da palmeira. O mapa troca o desenho só no refresh semanal (sem custo por quadro). No corte
+  (evento `treeCut`) a árvore tomba para um lado, some e levanta um pouco de poeira (menos de 1 s,
+  `moments.treeFallMs`), só se estiver na câmera.
+- Ícones de material (`TEX.icon('wood')` e `TEX.icon('stone')`, cores em `palette.ts`): duas toras
+  com as pontas claras; um bloco de calcário cortado.
 - Altar 4 x 4: pátio de pedras com mureta rústica e o altar de pedras brutas não lavradas, com
   rampa (sem degraus), chifres nos cantos e fogo no alto.
 - Templo 6 x 6, a construção mais bonita: plataforma de calcário com escadaria, muro com portão e
@@ -937,7 +992,7 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   sobre a areia no zoom mínimo, sulcos de carroça e pedras gastas nas bordas; o anel em volta do
   altar usa o mesmo desenho e se lê como rua, não como borda do pátio.
 - Luz de fim de tarde vinda do oeste; sombras suaves sempre para o leste.
-- Moradores de 10 tipos com roupas da época (bege, marrom, azul, vermelho, branco) e 3 tons de
+- Moradores de 12 tipos com roupas da época (bege, marrom, azul, vermelho, branco) e 3 tons de
   pele, desenhados de lado com 2 quadros de passo, cada um com algo exagerado para ser lido no zoom
   mínimo: mulher com jarro na cabeça, lavrador com foice e feixe, mulher com cesto de frutas,
   carregador com saco nas costas, artesão de avental que leva o produto do ofício da oficina para
@@ -945,7 +1000,9 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   costas; um potinho quando vai a outro lugar), ancião curvado de manto marrom escuro, barba branca
   e cajado, criança
   correndo, homem puxando um jumento com cestos, pastor com cajado e ovelha, sacerdote todo de
-  branco com faixa azul larga e turbante branco alto, um pouco mais alto que os outros
+  branco com faixa azul larga e turbante branco alto, um pouco mais alto que os outros, lenhador
+  com uma tora comprida no ombro (ponta cortada clara na frente), canteiro empurrando um carrinho de
+  duas rodas com um bloco de calcário (a roda gira com o passo)
   (`src/render/residents.ts`). Ancião e sacerdote contrastam (escuro x branco) mesmo no zoom mínimo.
 - Desenho ordenado por profundidade (x + y do centro da área), incluindo moradores e as construções grandes.
 - A camada de desenho é isolada: texturas com nome e pontos de ancoragem (`ORIGIN`, `HEIGHT`),

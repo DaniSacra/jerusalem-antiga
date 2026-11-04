@@ -93,9 +93,10 @@ const SHOTS: Record<BuildableKind, Shot> = {
   fisher: { key: TEX.building('fisher'), cx: 6, cy: -10, size: 100 },
   // Baskets heaped with olives, figs and dates in front of the hut.
   gatherer: { key: TEX.building('gatherer'), cx: 6, cy: -6, size: 92 },
-  // Placeholders until the lumber and quarry art.
-  lumber: { key: TEX.building('lumber'), cx: 6, cy: -6, size: 92 },
-  quarry: { key: TEX.building('quarry'), cx: 6, cy: -10, size: 100 },
+  // The log cabin with the pile of pale log ends and the axe in the chopping block.
+  lumber: { key: TEX.building('lumber'), cx: -2, cy: -8, size: 96 },
+  // The grey rock cut in pale steps, the wooden crane and the stacked blocks.
+  quarry: { key: TEX.building('quarry'), cx: 4, cy: -16, size: 108 },
   // The sanctuary, white and gold, framed by the court walls.
   temple: { key: TEX.building('temple'), cx: 0, cy: -40, size: 320 },
 };

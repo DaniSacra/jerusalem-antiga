@@ -59,7 +59,7 @@ export function place(img: Phaser.GameObjects.Image, gx: number, gy: number, dx:
   if (b.x !== a.x) img.setFlipX(b.x < a.x);
 }
 
-/** Residents of 10 types walking to the places of their trade, and families heading home. Roads only. */
+/** Residents of 12 types walking to the places of their trade, and families heading home. Roads only. */
 export class Walkers {
   private list: Walker[] = [];
   private families = new Map<number, Phaser.GameObjects.Image>();

@@ -94,6 +94,15 @@ export const C = {
   oliveGreen: 0x8a9a3e,
   figFruit: 0x6e3a5c,
   dateFruit: 0xc2702e,
+  /** Materials: log bark, its cut end and rings (lumber, wood icon); cut limestone blocks and their edges (quarry, stone icon). */
+  log: 0x7a5236,
+  logEnd: 0xe2bc82,
+  logRing: 0xb08a58,
+  block: 0xeee4cf,
+  blockEdge: 0x8a7d68,
+  /** Quarry floor of stone dust and chips, and the dust rising where the stone is cut. */
+  quarryFloor: 0xcbbd9c,
+  stoneDust: 0xe8e0d0,
   /** Effects: milestone gold and glow; spoiling food (a sickly green puff) and its flies. */
   milestone: 0xffd86a,
   milestoneGlow: 0xfff3c4,

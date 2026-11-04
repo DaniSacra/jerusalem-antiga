@@ -14,7 +14,8 @@ import { mkdir, rm } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-const OUT = 'screenshots';
+/** Screenshot folder (`VISUAL_OUT` lets two runs at once keep apart; it is emptied at the start). */
+const OUT = process.env.VISUAL_OUT ?? 'screenshots';
 const PORT = Number(process.env.VISUAL_PORT ?? 5199);
 /** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
 const SEED = 5;
@@ -214,6 +215,34 @@ async function buildTown(page) {
     const cam = window.game.cameras.main;
     cam.setZoom(1.1);
     cam.centerOn(-64, 780);
+  });
+}
+
+/**
+ * Lumber west of the town in a small grove (with fresh stumps and stumps sprouting) and a quarry
+ * outside the east wall among rocks; both connected. Call after buildTown.
+ */
+async function addWoodStone(page) {
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.unlocked.push('lumber', 'quarry');
+    const at = (x, y) => y * s.cols + x;
+    const put = (k, x, y) => {
+      const r = core.place(s, k, x, y);
+      if (!r.ok) throw new Error(`wood-stone: cannot place ${k} at ${x},${y}: ${r.reason}`);
+    };
+    put('lumber', 13, 22);
+    for (const [x, y, f] of [[15, 21, 'olive'], [16, 22, 'palm'], [15, 23, 'olive'], [17, 23, 'olive'], [16, 24, 'palm'], [17, 21, 'olive']]) s.feature[at(x, y)] = f;
+    // Stumps: just cut (week now) and growing back (cut more than half the regrowth ago).
+    const half = Math.ceil(core.RULES.treeRegrowWeeks / 2);
+    for (const [x, y, kind, ago] of [[16, 23, 'olive', 0], [17, 22, 'palm', 0], [15, 24, 'olive', half + 4], [17, 24, 'palm', half + 4]]) {
+      s.feature[at(x, y)] = 'stump';
+      s.stumps.push({ i: at(x, y), kind, week: s.week - ago });
+    }
+    put('quarry', 37, 19);
+    for (const [x, y] of [[39, 19], [39, 20], [37, 21], [38, 21], [39, 21], [40, 20], [38, 17]]) if (s.ground[at(x, y)] !== 'river') s.feature[at(x, y)] = 'rock';
+    core.refreshCity(s);
+    window.game.refresh();
   });
 }
 
@@ -438,7 +467,7 @@ async function assertStepInView(page, step) {
     const touch = navigator.maxTouchPoints > 0;
     const pts = [[p.x, p.y], ...(touch && at.w * at.h <= 9 ? [[p.x, p.y + 90]] : [])];
     const toastTop = g.ui.view.toasts.top ?? Infinity;
-    return { p: [Math.round(p.x), Math.round(p.y)], bad: pts.filter(([x, y]) => g.ui.isOverUi(x, y) || y >= toastTop || y < 0 || x < 0 || x > 1280) };
+    return { p: [Math.round(p.x), Math.round(p.y)], fc: g.ui.view.freeCenter(), pan: g.pan, tut: g.ui.view.tutorial.top, top: g.ui.view.top.bottom, bad: pts.filter(([x, y]) => g.ui.isOverUi(x, y) || y >= toastTop || y < 0 || x < 0 || x > 1280) };
   });
   assert(r && r.bad.length === 0, `the ${step} place is on the free map after the camera glides (${JSON.stringify(r)})`);
 }
@@ -670,7 +699,7 @@ async function playTutorial(page, suffix) {
   assert(spot && spot.food >= 1.2, `the road leads to a spot that brings food (${JSON.stringify(spot)})`);
   assert((await pressBuild(page, spot.kind)) === spot.kind, `the column picks the ${spot.kind}`);
   await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text.startsWith('Rende'), null, { timeout: 3000 }).catch(() => {});
   const yields = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
   assert(yields && yields.startsWith('Rende'), `the preview says what it yields (${yields})`);
   await shotStep('step-2-preview');
@@ -728,8 +757,40 @@ async function playTutorial(page, suffix) {
   await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 30000 });
   await page.waitForTimeout(700);
   await shotStep('step-6');
+
+  // 7. Lumber: the camera brings the lumber spot into view; its preview says the wood and the cuts.
+  await page.waitForFunction(() => window.game.guide?.step?.id === 'lumber', null, { timeout: 60000 });
+  await page.evaluate(() => window.game.setSpeed(0));
+  await assertStepInView(page, 'lumber');
+  await shotStep('lumber');
+  const lumber = await page.evaluate(() => window.game.lumberHint);
+  assert(lumber && lumber.food > 0, `the lumber step points at a spot with trees (${JSON.stringify(lumber)})`);
+  if (lumber.road.length) {
+    // Past the grove's edge: the bubble asks for the marked road first and the arrow points at Rua.
+    const say = await page.evaluate(() => window.game.ui.view.tutorial.label.text);
+    assert(say.includes('rua marcada'), `the lumber bubble asks for the marked road (${say})`);
+    const target = await page.evaluate(() => window.game.tutorialTarget());
+    const rua = await uiPoint(page, 'tool-road');
+    assert(target && Math.abs(target.x - rua[0]) < 60, `the arrow points at Rua first (${JSON.stringify(target)} vs ${rua}; ${say})`);
+    await page.evaluate((road) => {
+      for (const c of road) window.core.place(window.state, 'road', c.x, c.y);
+      window.game.refresh();
+    }, lumber.road);
+  }
+  assert((await pressBuild(page, 'lumber')) === 'lumber', 'the column picks the lumber');
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [lumber.x, lumber.y]);
+  await page.waitForFunction(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text.includes('Corta'), null, { timeout: 3000 }).catch(() => {});
+  const wood = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(wood && wood.startsWith('Rende') && wood.includes('madeira') && wood.includes('Corta 1 árvore'), `the lumber preview says the wood and the cuts (${wood})`);
+  await shotStep('lumber-preview');
+  await page.evaluate((l) => {
+    const s = window.state;
+    window.core.place(s, 'lumber', l.x, l.y);
+    window.game.setHover(null);
+    window.game.refresh();
+  }, lumber);
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
-  assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after step 6');
+  assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after the lumber step');
   const end = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
   assert(end.some((m) => m.includes('Construa mais casas')), `the last tutorial toast asks for more houses (${end})`);
 
@@ -889,6 +950,215 @@ async function harvestCountdown(page, suffix) {
   await shot(page, `harvest-countdown-winter${suffix}`);
 }
 
+/** Every visible text of the interface (to find a line in a panel). */
+const uiTexts = (page) =>
+  page.evaluate(() => {
+    const out = [];
+    const walk = (o) => {
+      if (!o.visible) return;
+      if (o.type === 'Text' && o.text.trim()) out.push(o.text);
+      if (o.list) o.list.forEach(walk);
+    };
+    window.game.ui.children.list.forEach(walk);
+    return out;
+  });
+
+/** Texts of a top bar pill ('materials', 'stone', 'food'...). */
+const pillText = (page, name) =>
+  page.evaluate((n) => {
+    const top = window.game.ui.view.top;
+    const p = n === 'materials' ? top.mats[0] : n === 'stone' ? top.mats.at(-1) : top[n];
+    return p.root.visible ? p.texts.filter((t) => t.visible).map((t) => t.text).join(' ') : null;
+  }, name);
+
+/** No two parts of the top bar overlap. */
+async function assertTopFits(page, when) {
+  const overlaps = await page.evaluate(() => {
+    const r = window.game.ui.view.top.rects().filter(Boolean);
+    const out = [];
+    for (let i = 0; i < r.length; i++)
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i];
+        const b = r[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.push([i, j]);
+      }
+    const right = Math.max(...r.map((x) => x.x + x.w));
+    return { out, right, column: window.game.ui.view.column.rect.x };
+  });
+  assert(overlaps.out.length === 0 && overlaps.right <= overlaps.column, `no top bar parts overlap ${when} (${JSON.stringify(overlaps)})`);
+}
+
+/**
+ * Pacote 3 materials: the Materiais pill (wood only, then the stone with its unlock toast), a house
+ * waiting for stone (red ⚠ in the pill, "Pronta para virar…: falta N de pedra", "Onde pôr uma
+ * pedreira"), the Materiais section of the statistics, the quarry balloon short of wood and its toast.
+ */
+async function materialsScenario(page, suffix) {
+  await startGame(page);
+  const phone = !suffix.includes('pc');
+  await page.evaluate(() => window.game.setSpeed(0));
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+  const start = await pillText(page, 'materials');
+  assert(start && start.includes('20'), `the caravan brings 20 wood to the pill (${start})`);
+  if (!phone) assert((await pillText(page, 'stone')) === null, 'no stone pill before the quarry');
+  assert(start && !start.includes('Pedra'), `no stone before the quarry (${start})`);
+  await assertTopFits(page, 'with the wood');
+  await shot(page, `materials-top${suffix}`);
+
+  // Goal 2 unlocks the quarry: the toast says it and the stone joins the pill with a glow.
+  await page.evaluate(() => {
+    window.state.unlocked.push('quarry');
+    window.game.handleEvents([{ type: 'goal', reward: 40, unlock: 'quarry' }]);
+    window.game.refresh();
+  });
+  await page.waitForTimeout(250);
+  const toasts = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+  assert(toasts.some((m) => m.includes('Nova construção: Pedreira')), `the goal toast names the quarry (${toasts})`);
+  const stone = await pillText(page, phone ? 'materials' : 'stone');
+  assert(stone !== null && (phone ? stone.split(' ').length >= 2 : stone.includes('/sem')), `the stone shows after the quarry (${stone})`);
+  await assertTopFits(page, 'with the stone');
+  await shot(page, `materials-top-stone${suffix}`);
+
+  // A house ready for the stone house without stone: it waits, the pill turns red with ⚠.
+  const house = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    Object.assign(s, { silver: 1e4, wood: 1e4 });
+    s.unlocked.push('market');
+    const at = core.campPlazaSpot();
+    core.place(s, 'plaza', at.x, at.y);
+    core.refreshCity(s);
+    const h = s.buildings.find((b) => b.kind === 'house' && b.level >= 1 && core.needMet(s, b, 'plaza'));
+    h.level = 2;
+    const m = core.spotsServing(s, 'market', h)[0];
+    const r = core.place(s, 'market', m.x, m.y, m.rotated);
+    if (!r.ok) throw new Error(`market: ${r.reason}`);
+    core.refreshCity(s);
+    s.stone = 3;
+    h.waiting = 'stone';
+    h.upStreak = core.RULES.weeksToUpgrade;
+    game.refresh();
+    return { x: h.x, y: h.y, w: h.w, h: h.h };
+  });
+  await page.waitForTimeout(200);
+  const red = await pillText(page, phone ? 'materials' : 'stone');
+  assert(red && red.includes('⚠ 3'), `the stone is red with ⚠ while a house waits (${red})`);
+  const alertToast = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+  assert(alertToast.some((m) => m.startsWith('1 casa esperando pedra')), `the first house waiting says so in a toast (${alertToast})`);
+  await centerOnBuilding(page, house);
+  await page.evaluate(([x, y]) => {
+    window.game.selected = { x, y };
+    window.game.refresh();
+  }, [house.x, house.y]);
+  await page.waitForTimeout(200);
+  const lines = await inspectorLines(page);
+  assert(lines.some((l) => l === 'Pronta para virar Casa de pedra: falta 7 de pedra'), `the house says what it waits for (${lines})`);
+  const label = await page.evaluate(() => window.game.ui.view.inspector.card.action?.label);
+  assert(label === 'Onde pôr uma pedreira', `the main action finds a quarry spot (${label})`);
+  await shot(page, `house-waiting-stone${suffix}`);
+  await page.evaluate(() => window.game.ui.view.inspector.host.act(window.game.ui.view.inspector.card.action));
+  await page.waitForTimeout(250);
+  assert(await page.evaluate(() => window.game.tool === 'quarry'), '"Onde pôr uma pedreira" picks the quarry');
+  // The spots by the rocks light up, or (none next to a road) the toast says to take a road there.
+  const where = await page.evaluate(() => ({ lit: window.game.map.solve.visible, toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((x) => x.msg) }));
+  assert(where.lit || where.toasts.some((m) => m.startsWith('Nenhum lugar com rochas')), `the quarry spots light up, or the toast says why (${JSON.stringify(where)})`);
+  await shot(page, `house-waiting-stone-spots${suffix}`);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.game.selectTool('view'));
+  // Not waiting yet (still counting): the balloon says what climbing will ask.
+  const asks = await page.evaluate(([x, y]) => {
+    const { state: s, game } = window;
+    const h = s.grid[y * s.cols + x];
+    h.waiting = undefined;
+    h.upStreak = 2;
+    game.selected = { x, y };
+    game.refresh();
+    const lines = game.ui.view.inspector.card.lines.map((l) => l.text);
+    h.waiting = 'stone';
+    h.upStreak = window.core.RULES.weeksToUpgrade;
+    game.selected = null;
+    game.refresh();
+    return lines;
+  }, [house.x, house.y]);
+  assert(asks.includes('Ao evoluir: pede 10 de pedra'), `a counting house says what climbing asks (${asks})`);
+
+  // Estatísticas: the Materiais section.
+  await page.evaluate(() => window.game.ui.view.panels.toggle('stats'));
+  await page.waitForTimeout(200);
+  const texts = await uiTexts(page);
+  assert(texts.includes('Materiais') && texts.some((t) => t.startsWith('Casas esperando pedra')), `the statistics have the Materiais section (${texts.filter((t) => /Materiais|esperando|Madeira|Pedra/.test(t))})`);
+  assert((await minUiText(page)) >= 11.9, 'no text under 12 real px in the statistics');
+  await shot(page, `materials-stats${suffix}`);
+  await page.keyboard.press('Escape');
+
+  // The quarry without wood: grey button, the cost in red with what the city has, and the toast.
+  await page.evaluate(() => {
+    window.state.wood = 4;
+    window.game.refresh();
+  });
+  assert((await pressBuild(page, 'quarry')) === 'quarry', 'the column picks the quarry');
+  const cost = await page.evaluate(() => JSON.parse(window.game.ui.view.column.balloon.key || '[]').map((l) => l.text));
+  assert(cost.includes('40 prata · 10 madeira (tem 4)'), `the balloon says the wood lacking (${cost})`);
+  await shot(page, `quarry-balloon-lacking${suffix}`);
+  const spot = await page.evaluate(() => window.core.placeSpots(window.state, 'quarry')[0]);
+  await page.evaluate((c) => window.game.apply(c, true), spot);
+  await page.waitForTimeout(200);
+  const lack = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+  assert(lack.includes('Falta madeira: construa um lenhador'), `building without wood says what to do (${lack})`);
+  await shot(page, `toast-lacking-wood${suffix}`);
+}
+
+/** The lumber preview beside a gatherer: "Divide o bosque com a Coletora" (and the gatherer's, with the lumber). */
+async function lumberShared(page, suffix) {
+  await startGame(page);
+  const at = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.setSpeed(0);
+    Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 });
+    // The lumber's best spot and its road, then a gatherer on the same grove.
+    const l = core.lumberSpot(s);
+    for (const c of l.road) core.place(s, 'road', c.x, c.y);
+    const trees = (x, y) => core.foodAfter(s, 'gatherer', { x, y, rotated: false }).yields;
+    const g = core.placeSpots(s, 'gatherer').filter((c) => Math.abs(c.x - l.x) + Math.abs(c.y - l.y) <= 6 && (c.x + 1 < l.x || c.x > l.x + 1 || c.y + 1 < l.y || c.y > l.y + 1)).sort((a, b) => trees(b.x, b.y) - trees(a.x, a.y))[0];
+    if (!g) throw new Error('no gatherer spot by the grove');
+    const r = core.place(s, 'gatherer', g.x, g.y);
+    if (!r.ok) throw new Error(`gatherer: ${r.reason}`);
+    game.refresh();
+    return { x: l.x, y: l.y, w: 2, h: 2, shared: core.sharedTrees(s, l.x, l.y, 'lumber') };
+  });
+  assert(at.shared > 0, `the lumber spot shares trees with the gatherer (${JSON.stringify(at)})`);
+  await centerOnBuilding(page, at, 1.3);
+  await pick(page, 'lumber');
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [at.x, at.y]);
+  await page.waitForFunction(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text.includes('Divide'), null, { timeout: 3000 }).catch(() => {});
+  const tag = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(tag && tag.includes('Divide o bosque com a Coletora') && tag.includes('madeira'), `the lumber preview says it shares the grove (${tag})`);
+  await shot(page, `lumber-preview-shared${suffix}`);
+
+  // A tent ready for the mud house without wood: "Onde pôr um lenhador" lights the spots by the grove.
+  const tent = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.setHover(null);
+    game.selectTool('view');
+    s.wood = 0;
+    const p = core.campPlazaSpot();
+    core.place(s, 'plaza', p.x, p.y);
+    core.refreshCity(s);
+    const h = s.buildings.find((b) => b.kind === 'house' && b.level === 1 && core.needMet(s, b, 'plaza'));
+    h.waiting = 'wood';
+    h.upStreak = core.RULES.weeksToUpgrade;
+    game.selected = { x: h.x, y: h.y };
+    game.refresh();
+    return { x: h.x, y: h.y, label: game.ui.view.inspector.card.action?.label };
+  });
+  assert(tent.label === 'Onde pôr um lenhador', `the waiting tent offers a lumber spot (${tent.label})`);
+  await page.evaluate(() => window.game.ui.view.inspector.host.act(window.game.ui.view.inspector.card.action));
+  await page.waitForTimeout(200);
+  const lit = await page.evaluate(() => window.game.tool === 'lumber' && window.game.map.solve.visible);
+  assert(lit, 'the lumber spots by the grove light up');
+  await centerOnBuilding(page, at, 1);
+  await shot(page, `lumber-spots${suffix}`);
+}
+
 // ---------- scenarios ----------
 
 const scenarios = {
@@ -938,6 +1208,11 @@ const scenarios = {
     },
   },
   /** Countdown to the winter and the spring on the season pill; FOME on the food pill. */
+  materials: { context: PHONE, run: (page) => materialsScenario(page, '') },
+  'materials-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => materialsScenario(page, '-wide') },
+  'materials-pc': { context: PC, run: (page) => materialsScenario(page, '-pc') },
+  'lumber-shared': { context: PHONE, run: (page) => lumberShared(page, '') },
+  'lumber-shared-pc': { context: PC, run: (page) => lumberShared(page, '-pc') },
   'harvest-countdown': { context: PHONE, run: (page) => harvestCountdown(page, '') },
   'harvest-countdown-pc': { context: PC, run: (page) => harvestCountdown(page, '-pc') },
   /** A toast that comes while a panel is open waits until the panel closes. */
@@ -1159,6 +1434,7 @@ const scenarios = {
   async 'town-art'(page) {
     await startGame(page);
     await buildTown(page);
+    await addWoodStone(page);
     await page.waitForTimeout(1500);
     await shot(page, 'town-art');
     const t = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'temple'));
@@ -1308,6 +1584,81 @@ const scenarios = {
     await shot(page, 'field-work-turned');
   },
 
+  /**
+   * Lumber and quarry up close (zoom max) and far (zoom min), stumps and sprouts of olive and palm,
+   * a tree falling on a cut, the woodcutter and the mason, and the lot under snow.
+   */
+  async 'wood-stone'(page) {
+    await startGame(page);
+    await buildTown(page);
+    await addWoodStone(page);
+    await page.evaluate(() => window.game.setSpeed(0));
+    const look = (x, y, zoom) =>
+      page.evaluate(
+        ([x, y, zoom]) => {
+          const cam = window.game.cameras.main;
+          const p = window.iso.gridToWorld(x, y);
+          cam.setZoom(zoom);
+          cam.centerOn(p.x, p.y);
+        },
+        [x, y, zoom],
+      );
+    const built = await page.evaluate(() => window.state.buildings.filter((b) => ['lumber', 'quarry'].includes(b.kind) && b.connected).length);
+    assert(built === 2, `lumber and quarry connected (${built})`);
+    const keys = await page.evaluate(() => [...window.game.map.features.values()].filter((f) => f.tree === 'stump').map((f) => f.key));
+    assert(keys.some((k) => k.includes('olive-cut')) && keys.some((k) => k.includes('palm-sprout')), `stumps cut and sprouting (${keys})`);
+    await look(15.5, 23, 2);
+    await page.waitForTimeout(400);
+    await shot(page, 'wood-stone-lumber');
+    await look(38.5, 20, 2);
+    await page.waitForTimeout(400);
+    await shot(page, 'wood-stone-quarry');
+    // The new walkers, lined up on the road by the lumber (their textures, all looks).
+    await look(13.5, 21.5, 2);
+    await page.evaluate(() => {
+      const sc = window.game;
+      const p = window.iso.gridToWorld(12.5, 20.5);
+      window.__lineup = ['woodcutter', 'mason'].flatMap((t, row) =>
+        [0, 1, 2].map((look, k) => sc.add.image(p.x - 50 + k * 50, p.y + row * 40, `walker-${t}-${look}-${k % 2}`).setOrigin(0.5, 1).setDepth(1e6)),
+      );
+    });
+    await page.waitForTimeout(200);
+    await shot(page, 'wood-stone-walkers');
+    assert(await page.evaluate(() => window.__lineup.every((i) => i.texture.key !== '__MISSING')), 'woodcutter and mason textures exist');
+    await page.evaluate(() => window.__lineup.forEach((i) => i.destroy()));
+    // A cut: the olive falls (under a second), then the cell shows a stump.
+    await look(17.5, 23.5, 2);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const { state: s } = window;
+      const i = 23 * s.cols + 17;
+      window.__falling = window.game.map.features.get(i).img;
+      s.feature[i] = 'stump';
+      s.stumps.push({ i, kind: 'olive', week: s.week });
+      window.game.handleEvents([{ type: 'treeCut', x: 17, y: 23, kind: 'olive' }]);
+      window.game.refresh();
+    });
+    await page.waitForFunction(() => Math.abs(window.__falling.angle) > 30, null, { timeout: 5000 });
+    await page.evaluate(() => window.game.tweens.pauseAll());
+    await shot(page, 'wood-stone-fall');
+    await page.evaluate(() => window.game.tweens.resumeAll());
+    await page.waitForFunction(() => !window.__falling.active, null, { timeout: 5000 });
+    const after = await page.evaluate(() => window.game.map.features.get(23 * window.state.cols + 17)?.key ?? null);
+    assert(after?.startsWith('stump-olive-cut'), `the cut olive is a stump (${after})`);
+    // Far away: both still read at the minimum zoom.
+    await look(26, 21, 0.5);
+    await page.waitForTimeout(300);
+    await shot(page, 'wood-stone-zoom-min');
+    // Under snow.
+    await setLook(page, 13 + 6, { snow: true });
+    await look(15.5, 22.5, 1.4);
+    await page.waitForTimeout(300);
+    await shot(page, 'wood-stone-snow-lumber');
+    await look(38.5, 20, 1.6);
+    await page.waitForTimeout(300);
+    await shot(page, 'wood-stone-snow-quarry');
+  },
+
   async 'camera-wheel'(page) {
     await startGame(page);
     await page.mouse.move(640, 330);
@@ -1440,8 +1791,12 @@ const scenarios = {
       const game = await page.evaluate(() => [window.game.scale.width, window.game.scale.height]);
       assert(game[0] === 1280 && game[1] === 720, `PC game size is 1280 x 720 (got ${game})`);
 
-      await tool(page, 5); // Trabalho: Mercado first
-      assert(await page.evaluate(() => window.game.tool === 'market'), 'key 5 picks the market');
+      await tool(page, 5); // Trabalho: the Lenhador first, then the next unlocked one (the Pedreira is locked)
+      assert(await page.evaluate(() => window.game.tool === 'lumber'), 'key 5 picks the lumber');
+      await page.waitForTimeout(150);
+      await tool(page, 5);
+      await page.waitForTimeout(150);
+      assert(await page.evaluate(() => window.game.tool === 'market'), 'key 5 again picks the market');
       const [mx, my] = await cellToPage(page, 29, 30);
       await page.mouse.move(mx - 30, my);
       await page.mouse.move(mx, my);
@@ -1636,7 +1991,7 @@ const scenarios = {
     await startGame(page);
     await page.evaluate(() => {
       const s = window.state;
-      s.silver = 900;
+      Object.assign(s, { silver: 900, wood: 150, stone: 300 }); // the temple also costs wood and stone
       s.goalIndex = window.core.GOALS.length - 1; // last goal: build the temple
       s.unlocked.push('temple');
       s.feature = s.feature.map(() => null);

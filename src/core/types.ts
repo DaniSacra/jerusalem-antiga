@@ -57,7 +57,9 @@ export type WalkerType =
   | 'child'
   | 'donkeyMan'
   | 'shepherd'
-  | 'priest';
+  | 'priest'
+  | 'woodcutter'
+  | 'mason';
 
 /**
  * A kind of resident walker. `to` lists the building kinds it heads for (any of them), or a

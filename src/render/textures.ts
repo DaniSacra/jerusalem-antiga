@@ -8,7 +8,7 @@
  */
 import Phaser from 'phaser';
 import VISUAL from '../data/visual.json';
-import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type BuildableKind, type BuildingCategory, type Mood, type Season, type WalkerType } from '../core';
+import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type TreeFeature, type Ground, type BalloonKind, type BuildableKind, type BuildingCategory, type Mood, type Season, type WalkerType } from '../core';
 import * as F from './fauna';
 import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
@@ -40,6 +40,8 @@ export const TEX = {
   /** Wooden scaffold over a w x h footprint (as seen on screen) while a building goes up. */
   scaffold: (w: number, h: number) => `scaffold-${w}x${h}`,
   feature: (f: Feature, v: number) => `${f}-${v}`,
+  /** Stump of a cut olive or palm; `sprout` once it is growing back (second half of the regrowth). */
+  stump: (kind: TreeFeature, sprout: boolean, v: number) => `stump-${kind}-${sprout ? 'sprout' : 'cut'}-${v}`,
   /**
    * Houses have one texture per level and variant, fields one per crop, workshops one per craft and
    * the granary one per stock level (its "variant", 0 empty to GRANARY_STOCKS - 1 full, chosen by the map),
@@ -78,7 +80,7 @@ export const TEX = {
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
   /** `drought`: a strong sun over cracked earth (shown next to the season icon in a drought). */
-  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'people' | 'work' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options' | 'drought' | Season) => `icon-${name}`,
+  icon: (name: 'view' | 'clear' | 'road' | 'silver' | 'food' | 'wood' | 'stone' | 'people' | 'work' | 'goal' | 'sun' | 'dusk' | 'moon' | 'options' | 'drought' | Season) => `icon-${name}`,
   /** Weather particles: rain streak, splash ring and petal (snow and dust use `soft`). */
   rain: 'rain',
   splash: 'splash',
@@ -127,6 +129,8 @@ export const PARTS = {
     smithy: { smoke: { x: 1.04, y: -1.12, z: 48 }, glow: { x: 0.74, y: -0.86, z: 14 } },
   } as Partial<Record<Craft, { smoke: Spot; glow: Spot }>>,
   altarFire: { x: 0, y: -0.2, z: 24, scale: 2.2 },
+  /** Where the quarryman cuts the bench (a little stone dust rises there). */
+  quarryDust: { x: -0.32, y: 0.02, z: 10 },
   /** Campfires drawn in front of some tents, by tent variant (lit brighter at night). */
   tentFire: { 2: { x: -0.2, y: 0.62, z: 2, scale: 0.7 }, 4: { x: 0.42, y: 0.52, z: 2, scale: 1 } } as Record<number, Spot & { scale: number }>,
 };
@@ -2374,6 +2378,253 @@ function gatherer(p: Pen) {
   p.line(C.woodDark, 1.6, [0.82, -0.1, 0], [0.4, -0.75, 34]);
 }
 
+// ---------- wood and stone (2 x 2) ----------
+
+/** A felled trunk lying along x on the ground: a round bark body, the cut end (with rings) facing east. */
+function trunk(p: Pen, x0: number, x1: number, y: number, r: number) {
+  const d = r * 2 * SQRT2 * HH * 1.6;
+  p.shadow(x0, y - r, x1, y + r, d, 0.2);
+  const a = p.p(x0, y, d / 2);
+  const b = p.p(x1, y, d / 2);
+  const g = p.g;
+  g.lineStyle(d, shade(C.log, 0.8));
+  g.lineBetween(a.x, a.y, b.x, b.y);
+  g.fillStyle(shade(C.log, 0.8));
+  g.fillCircle(a.x, a.y, d / 2);
+  g.lineStyle(d * 0.45, C.log);
+  g.lineBetween(a.x, a.y - d * 0.18, b.x, b.y - d * 0.18);
+  g.lineStyle(1.2, shade(C.log, 1.3), 0.8);
+  g.lineBetween(a.x + 3, a.y - d * 0.3, b.x - 4, b.y - d * 0.3);
+  // Bark furrows, then the cut end.
+  g.lineStyle(1, shade(C.log, 0.6), 0.7);
+  for (let t = 0.15; t < 0.9; t += 0.18) {
+    const x = a.x + (b.x - a.x) * t;
+    const yy = a.y + (b.y - a.y) * t;
+    g.lineBetween(x, yy - d * 0.4, x + 3, yy + d * 0.3);
+  }
+  g.fillStyle(shade(C.log, 0.6));
+  g.fillEllipse(b.x, b.y, d * 0.62, d * 1.02);
+  g.fillStyle(C.logEnd);
+  g.fillEllipse(b.x, b.y, d * 0.52, d * 0.9);
+  g.lineStyle(1, C.logRing, 0.9);
+  g.strokeEllipse(b.x, b.y, d * 0.26, d * 0.45);
+}
+
+/** A chopping block (a short round of trunk) with an axe struck into its top. */
+function choppingBlock(p: Pen, x: number, y: number) {
+  p.shadow(x - 0.14, y - 0.14, x + 0.14, y + 0.14, 10, 0.22);
+  cylinder(p, x, y, 0.14, 0, 9, C.log);
+  p.disc(C.logEnd, x, y, 9, 0.12);
+  p.disc(C.logRing, x, y, 9.2, 0.06, 0.6);
+  // The axe: a handle leaning back to the east, the iron head buried in the block.
+  p.line(C.woodDark, 2.4, [x - 0.02, y, 10], [x + 0.22, y - 0.12, 26]);
+  p.poly(0x5a5650, [[x - 0.07, y + 0.02, 9], [x + 0.05, y - 0.04, 9], [x + 0.05, y - 0.04, 14], [x - 0.05, y + 0.01, 15]]);
+  p.line(0xc8c2b6, 1, [x - 0.07, y + 0.02, 9.5], [x + 0.05, y - 0.04, 9.5]);
+}
+
+/**
+ * Lumber (2 x 2): a cabin of logs with a plank roof, a big pile of logs with their pale cut ends
+ * to the front, a felled trunk waiting to be cut up, a chopping block with the axe struck in it,
+ * split firewood and chips on the trodden ground.
+ */
+function lumber(p: Pen) {
+  const s = 0.9;
+  p.rect(shade(C.sand[0], 0.86), -s, -s, s, s, 0, 0.85);
+  p.disc(shade(C.earthLit, 1.2), 0.3, 0.35, 0, 0.5, 0.35);
+  // The cabin: walls of stacked logs, their ends crossing at the corners, under a plank roof.
+  const [x0, y0, x1, y1, h] = [-0.86, -0.86, 0.1, -0.22, 22];
+  p.shadow(x0, y0, x1, y1, h + 4);
+  p.box(x0, y0, x1, y1, 0, h, shade(C.wood, 1.05), C.wood, shade(C.wood, 0.66));
+  for (let z = 3.5; z < h; z += 3.5) {
+    p.line(p.south(C.woodDark, 0.9, 0.7), 1, [x0, y1, z], [x1, y1, z], 0.8);
+    p.line(p.east(C.woodDark, 0.9, 0.7), 1, [x1, y0, z], [x1, y1, z], 0.8);
+    const c = p.p(x1, y1, z - 1.75);
+    p.g.fillStyle(C.log);
+    p.g.fillCircle(c.x, c.y, 2);
+    p.g.fillStyle(C.logEnd);
+    p.g.fillCircle(c.x - 0.3, c.y, 1.2);
+  }
+  doorS(p, y1, -0.52, -0.28, 15);
+  winE(p, x1, -0.6, 13, 0.1, 4);
+  p.box(x0 - 0.07, y0 - 0.07, x1 + 0.08, y1 + 0.1, h, h + 3, shade(C.woodDark, 1.12), shade(C.woodDark, 1.0), shade(C.woodDark, 0.8));
+  for (let x = x0; x < x1 + 0.06; x += 0.11) p.line(shade(C.woodDark, 0.8), 1, [x, y0 - 0.07, h + 3], [x, y1 + 0.1, h + 3], 0.7);
+  // Bundles of split firewood stacked against the cabin wall.
+  logs(p, 0.32, -0.62, 0);
+  logs(p, 0.32, -0.42, 0, 2);
+  // A long trunk waiting on the east side, the big log pile in front of the cabin.
+  trunk(p, 0.22, 0.86, -0.12, 0.12);
+  logPile(p, -0.72, 0.02, 0.72, 0.12);
+  // Chopping block, split pieces and chips around it.
+  const r = createRng(91);
+  for (let k = 0; k < 18; k++) p.ball(shade(C.logEnd, 0.95 + r() * 0.2), 0.12 + r() * 0.7, 0.12 + r() * 0.7, 0, 1 + r() * 0.8, 0.9);
+  for (const [x, y] of [[0.68, 0.38], [0.74, 0.52], [0.25, 0.72]] as const) p.box(x - 0.06, y - 0.03, x + 0.06, y + 0.03, 0, 3, C.logEnd, shade(C.logEnd, 0.9), shade(C.log, 0.9));
+  choppingBlock(p, 0.45, 0.45);
+}
+
+/** A cut limestone block (clean faces, a slightly darker edge). */
+function block(p: Pen, x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, tone = 1) {
+  const c = shade(C.block, tone);
+  p.box(x0, y0, x1, y1, z0, z1, c, shade(c, 0.9), shade(c, 0.68));
+  p.line(C.blockEdge, 1, [x0, y1, z1], [x1, y1, z1], 0.7);
+  p.line(C.blockEdge, 1, [x1, y0, z1], [x1, y1, z1], 0.7);
+  p.line(C.blockEdge, 1, [x1, y1, z0], [x1, y1, z1], 0.7);
+}
+
+/** The natural grey rock the quarry bites into: layered faces with cracks and boulders on top. */
+function outcrop(p: Pen, x0: number, y0: number, x1: number, y1: number, h: number, seed: number) {
+  const r = createRng(seed);
+  p.shadow(x0, y0, x1, y1, h + 6, 0.24);
+  p.box(x0, y0, x1, y1, 0, h, C.rock, p.south(C.rock, 0.95, 0.7), p.east(C.rock, 0.95, 0.7));
+  // Wavy bedding lines and a few cracks on both faces.
+  for (const z of [h * 0.3, h * 0.62]) {
+    for (const face of ['south', 'east'] as const) {
+      const [a0, a1] = face === 'south' ? [x0, x1] : [y0, y1];
+      const col = face === 'south' ? p.south(C.rockDark, 1, 0.8) : p.east(C.rockDark, 1, 0.8);
+      let prev: P3 | null = null;
+      for (let a = a0; a <= a1 + 0.001; a += (a1 - a0) / 5) {
+        const zz = z + (r() - 0.5) * 4;
+        const pt: P3 = face === 'south' ? [a, y1, zz] : [x1, a, zz];
+        if (prev) p.line(col, 1, prev, pt, 0.7);
+        prev = pt;
+      }
+    }
+  }
+  for (let k = 0; k < 4; k++) {
+    const a = x0 + 0.1 + r() * (x1 - x0 - 0.2);
+    const z = r() * h * 0.5;
+    p.line(p.south(C.rockDark, 0.9, 0.7), 1, [a, y1, z], [a + 0.04, y1, z + 6 + r() * 6], 0.7);
+  }
+  // Boulders on top.
+  for (let k = 0; k < 5; k++) {
+    const c = p.p(x0 + 0.15 + r() * (x1 - x0 - 0.3), y0 + 0.1 + r() * (y1 - y0 - 0.2), h);
+    const rr = 3.5 + r() * 2.5;
+    p.g.fillStyle(C.rockDark);
+    p.g.fillEllipse(c.x, c.y - rr * 0.3, rr * 2.2, rr * 1.4);
+    p.g.fillStyle(snowing ? SNOW.base : C.rock);
+    p.g.fillEllipse(c.x - rr * 0.12, c.y - rr * 0.55, rr * 1.9, rr * 1.1);
+    p.g.fillStyle(snowing ? SNOW.base : C.rockLight);
+    p.g.fillEllipse(c.x - rr * 0.4, c.y - rr * 0.75, rr * 0.9, rr * 0.45);
+  }
+}
+
+/** A step of the quarry bench: cut limestone faces in courses, rough grey rock on top. */
+function benchStep(p: Pen, x0: number, y0: number, x1: number, y1: number, h: number, seed: number) {
+  p.shadow(x0, y0, x1, y1, h, 0.2);
+  p.box(x0, y0, x1, y1, 0, h, shade(C.block, 0.96), shade(C.block, 0.86), shade(C.block, 0.64));
+  masonry(p, x0, y0, x1, y1, 0, h, C.block, 0.8);
+  const r = createRng(seed);
+  for (let k = 0; k < 8; k++) p.ball(k % 2 ? C.stoneDust : C.rockLight, x0 + 0.06 + r() * (x1 - x0 - 0.12), y0 + 0.05 + r() * (y1 - y0 - 0.1), h, 0.8 + r() * 0.8);
+}
+
+/**
+ * Quarry (2 x 2): a bench of pale limestone cut in steps out of the grey rock, a small wooden crane
+ * lifting a block on a rope, cut blocks stacked for the builders, the quarryman with his pick and
+ * stone chips on the dusty floor (a little dust rises at PARTS.quarryDust).
+ */
+function quarry(p: Pen) {
+  const s = 0.9;
+  p.rect(C.quarryFloor, -s, -s, s, s, 0, 0.9);
+  const r = createRng(97);
+  for (let k = 0; k < 26; k++) p.ball(k % 3 ? C.stoneDust : C.rockLight, -s + 0.08 + r() * 1.64, -s + 0.08 + r() * 1.64, 0, 0.8 + r() * 0.9, 0.9);
+  // The bench, back to front: the high grey rock left natural, then the pale steps cut out of it.
+  outcrop(p, -0.88, -0.88, 0.2, -0.5, 32, 11);
+  benchStep(p, -0.88, -0.5, -0.08, -0.14, 20, 12);
+  // A block half cut out of the middle step: a dark channel around it.
+  p.rect(0x8a7f6c, -0.62, -0.44, -0.28, -0.2, 20.2);
+  block(p, -0.58, -0.4, -0.32, -0.24, 20, 24, 1.03);
+  benchStep(p, -0.88, -0.14, -0.5, 0.22, 9, 13);
+  // The crane: a mast with guy poles, a boom swung over the floor, a block hanging from it.
+  const [mx, my, mz] = [0.56, -0.6, 50];
+  for (const [fx, fy] of [[0.36, -0.82], [0.82, -0.78]] as const) p.line(shade(C.woodDark, 1.1), 1.6, [fx, fy, 0], [mx, my, mz - 6]);
+  p.shadow(mx - 0.05, my - 0.05, mx + 0.05, my + 0.05, mz, 0.18);
+  p.line(C.woodDark, 2.8, [mx, my, 0], [mx, my, mz]);
+  cylinder(p, mx + 0.02, my + 0.12, 0.07, 6, 12, C.wood);
+  const tip: P3 = [0.12, -0.02, 46];
+  p.line(C.wood, 2.4, [mx, my, 12], tip);
+  p.line(C.rope, 1, [mx, my, mz], tip);
+  p.line(C.rope, 1, tip, [0.12, -0.02, 18]);
+  p.shadow(0.02, -0.1, 0.22, 0.06, 6, 0.16);
+  block(p, 0.02, -0.1, 0.22, 0.06, 12, 19);
+  // Cut blocks stacked for the builders.
+  const stack: [number, number, number, number, number][] = [
+    [0.24, 0.34, 0.5, 0.56, 0], [0.54, 0.34, 0.82, 0.56, 0], [0.24, 0.6, 0.5, 0.84, 0], [0.54, 0.6, 0.82, 0.84, 0],
+    [0.3, 0.4, 0.56, 0.62, 8], [0.56, 0.62, 0.8, 0.84, 8],
+  ];
+  p.shadow(0.24, 0.34, 0.82, 0.84, 16, 0.2);
+  stack.forEach(([a, b, c, d, z], k) => block(p, a, b, c, d, z, z + 8, 0.96 + (k % 3) * 0.03));
+  // The quarryman at the foot of the bench with his pick.
+  const q = PARTS.quarryDust;
+  person(p, q.x + 0.12, q.y + 0.36, 0, 1);
+  p.line(C.woodDark, 2, [q.x + 0.2, q.y + 0.36, 12], [q.x + 0.02, q.y + 0.1, 16]);
+  p.line(0x5a5650, 2.2, [q.x - 0.04, q.y + 0.14, 12], [q.x + 0.06, q.y + 0.04, 19]);
+}
+
+/**
+ * A cut tree: an olive's thick gnarled stump or a palm's slim fibrous one, the cut showing pale
+ * rings. Growing back (`sprout`), an olive puts out green shoots from the stump and a palm a young
+ * offshoot at its foot.
+ */
+function stump(p: Pen, kind: TreeFeature, sprout: boolean, v: number) {
+  const m = v % 2 ? -1 : 1;
+  const olive = kind === 'olive';
+  const r = olive ? 0.11 : 0.07;
+  const h = olive ? 8 : 11;
+  p.disc(C.shadow, 0.08, -0.02, 0, r * 1.6, 0.2);
+  const b = p.p(0, 0);
+  // Roots spreading on the ground (olives), then the stump and its cut top.
+  if (olive)
+    for (const [dx, dy] of [[-7, 1], [6, 2], [1, 3]] as const) {
+      p.g.fillStyle(shade(C.trunk, 0.85));
+      p.g.fillTriangle(b.x + dx * m, b.y + dy, b.x - 3, b.y - 3, b.x + 3, b.y - 3);
+    }
+  cylinder(p, 0, 0, r, 0, h, olive ? C.trunk : C.palmTrunk);
+  if (!olive) for (let z = 3; z < h; z += 3) p.line(shade(C.palmTrunk, 0.75), 1, [-r, r * 0.3, z], [r * 0.3, r, z - 1], 0.8);
+  const top = p.p(0, 0, h);
+  const w = r * 2 * SQRT2 * HW;
+  p.g.fillStyle(C.logEnd);
+  p.g.fillEllipse(top.x, top.y, w * 0.92, w * 0.46);
+  p.g.lineStyle(1, C.logRing, 0.9);
+  p.g.strokeEllipse(top.x, top.y, w * 0.5, w * 0.25);
+  if (snowing) {
+    p.g.fillStyle(SNOW.base, 0.95);
+    p.g.fillEllipse(top.x, top.y - 1, w * 0.95, w * 0.5);
+  }
+  if (!sprout) return;
+  if (olive) {
+    // Suckers rising around the stump, each with a few silver-green leaves.
+    for (const [dx, tall, lean] of [[-5, 16, -4], [4, 20, 3], [0, 13, 1], [7, 11, 6]] as const) {
+      const x = b.x + dx * m;
+      const tx = x + lean * m;
+      const ty = b.y - tall;
+      p.g.lineStyle(1.2, 0x6a5a3a);
+      p.g.lineBetween(x, b.y - 3, tx, ty);
+      for (let k = 0; k < 4; k++) {
+        const t = 0.45 + k * 0.17;
+        const lx = x + (tx - x) * t;
+        const ly = b.y - 3 + (ty - b.y + 3) * t;
+        p.g.fillStyle(k % 2 ? C.oliveLight : C.olive);
+        p.g.fillEllipse(lx + (k % 2 ? 2 : -2), ly, 4, 2.2);
+      }
+    }
+    if (snowing) p.g.fillStyle(SNOW.base, 0.9).fillEllipse(b.x + 4 * m, b.y - 20, 4, 2);
+    return;
+  }
+  // A young date palm offshoot at the foot of the old trunk.
+  const o = p.p(0.2 * m, 0.12);
+  for (const pass of [0, 1]) {
+    for (let k = 0; k < 7; k++) {
+      const ang = Math.PI + (k / 6) * Math.PI;
+      const dx = Math.cos(ang) * 14;
+      const dy = Math.sin(ang) * 15;
+      const back = k % 2 === 0;
+      if ((pass === 0) !== back) continue;
+      p.g.fillStyle(back ? C.palmDark : C.palm);
+      p.g.fillTriangle(o.x - 1.2, o.y - 2, o.x + 1.2, o.y - 2, o.x + dx, o.y + dy - 2);
+    }
+  }
+  if (snowing) p.g.fillStyle(SNOW.base, 0.9).fillEllipse(o.x, o.y - 8, 8, 3);
+}
+
 /** Market (2 x 4, or 4 x 2 when rotated): two rows of stalls with striped awnings along an aisle. */
 function market(p: Pen, rotated: boolean) {
   // u runs along the long side, v across it.
@@ -3388,6 +3639,43 @@ function icons(scene: Phaser.Scene) {
     g.lineStyle(2, shade(0xd8a35a, 0.7), 1);
     [12, 20, 28].forEach((x) => g.lineBetween(x - 2, 16, x + 2, 25));
   });
+  // Materials: a log with its pale cut end, and a cut limestone block.
+  icon('wood', (g) => {
+    for (const [y, k] of [[25, 0.85], [15, 1]] as const) {
+      const x0 = y === 25 ? 12 : 8;
+      g.fillStyle(shade(C.log, k * 0.75));
+      g.fillRect(x0, y - 7, 25, 14);
+      g.fillStyle(shade(C.log, k));
+      g.fillRect(x0, y - 7, 25, 8);
+      g.fillStyle(shade(C.log, k * 1.25));
+      g.fillRect(x0 + 4, y - 5, 17, 2);
+      g.fillStyle(shade(C.log, 0.6));
+      g.fillEllipse(x0 + 25, y, 6, 14);
+      g.fillStyle(shade(C.log, 0.55));
+      g.fillEllipse(x0, y, 10, 15);
+      g.fillStyle(C.logEnd);
+      g.fillEllipse(x0, y, 8, 12.5);
+      g.lineStyle(1.2, C.logRing, 1);
+      g.strokeEllipse(x0, y, 4, 6.5);
+    }
+  });
+  icon('stone', (g) => {
+    const top = [{ x: 20, y: 5 }, { x: 36, y: 13 }, { x: 20, y: 21 }, { x: 4, y: 13 }];
+    g.fillStyle(shade(C.block, 0.86));
+    g.fillPoints([top[3], top[2], { x: 20, y: 36 }, { x: 4, y: 28 }], true);
+    g.fillStyle(shade(C.block, 0.62));
+    g.fillPoints([top[2], top[1], { x: 36, y: 28 }, { x: 20, y: 36 }], true);
+    g.fillStyle(C.block);
+    g.fillPoints(top, true);
+    g.lineStyle(1.5, C.blockEdge, 1);
+    g.strokePoints([top[0], top[1], { x: 36, y: 28 }, { x: 20, y: 36 }, { x: 4, y: 28 }, top[3]], true);
+    g.lineBetween(4, 13, 20, 21);
+    g.lineBetween(20, 21, 36, 13);
+    g.lineBetween(20, 21, 20, 36);
+    // Chisel marks on the lit face.
+    g.lineStyle(1, shade(C.block, 0.6), 0.5);
+    for (const x of [8, 12, 16]) g.lineBetween(x, 17 + (x - 4) / 2, x, 22 + (x - 4) / 2);
+  });
   icon('people', (g) => {
     figure(g, 26, 36, C.clothes[1], C.skin[0], false, 1.6);
     figure(g, 14, 36, C.clothes[0], C.skin[1], true, 1.6);
@@ -3473,7 +3761,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
-    make(scene, TEX.feature('stump', v), SMALL, (p) => rock(p, v), 20); // placeholder until the stump art
+    for (const kind of ['olive', 'palm'] as const) for (const sprout of [false, true]) make(scene, TEX.stump(kind, sprout, v), SMALL, (p) => stump(p, kind, sprout, v), 22);
     for (const state of ['bare', 'bloom', 'leaf'] as const) make(scene, TEX.tree('almond', v, state), SMALL, (p) => almond(p, v, state), 36);
     for (const state of ['bare', 'leaf', 'yellow'] as const) make(scene, TEX.tree('fig', v, state), SMALL, (p) => fig(p, v, state), 34);
   }
@@ -3492,9 +3780,8 @@ export function generateTextures(scene: Phaser.Scene): void {
     ['plaza', plaza, 48, 44],
     ['fisher', fisher, 40, 32],
     ['gatherer', gatherer, 44, 34],
-    // Placeholders until the sprite-artist draws the lumber and the quarry.
-    ['lumber', gatherer, 44, 34],
-    ['quarry', fisher, 40, 32],
+    ['lumber', lumber, 44, 34],
+    ['quarry', quarry, 56, 44],
     ['park', park, 60, 40],
     ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],

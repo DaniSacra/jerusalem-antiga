@@ -1,8 +1,14 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GatherSource, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GatherSource, type Material, type Materials, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
 const PRODUCT: Record<Product, string> = { food: 'comida', wood: 'madeira', stone: 'pedra' };
+
+/** The building that makes each material, with its article ("um lenhador", "uma pedreira"). */
+const MAKER: Record<Material, string> = { wood: 'um lenhador', stone: 'uma pedreira' };
+
+/** "10 de pedra e 5 de madeira": a materials cost in words (empty when none). */
+const materialsText = (m: Materials) => (['stone', 'wood'] as const).filter((k) => m[k]).map((k) => `${m[k]} de ${PRODUCT[k]}`).join(' e ');
 
 /** Upkeep begins (toast, or the tutorial step for who did not skip it). */
 const UPKEEP_START = 'Começou a manutenção: tudo, menos casas e ruas, custa prata por semana';
@@ -33,7 +39,9 @@ export const T = {
   } satisfies Record<Season, string>,
   allGoals: 'Todos os objetivos cumpridos!',
   /** Opening sentence (big toast at the start of a game). */
-  caravan: (families: number, foodWeeks: number) => `A caravana chegou com ${families} ${families === 1 ? 'família' : 'famílias'} e comida para ${weeks(foodWeeks)}`,
+  caravan: (families: number, foodWeeks: number) =>
+    `A caravana chegou com ${families} ${families === 1 ? 'família' : 'famílias'}, comida para ${weeks(foodWeeks)}` +
+    (RULES.startMaterials.wood ? ` e ${RULES.startMaterials.wood} de madeira` : ''),
   /** One sentence when a milestone is reached (toast). */
   milestone: {
     firstFamily: 'Chegou a primeira família nova!',
@@ -82,12 +90,15 @@ export const T = {
     protected: 'O altar e o templo não podem ser demolidos',
     locked: 'Ainda bloqueado',
   } satisfies Record<FailReason, string>,
+  /** Building without the wood or stone it costs (toast). */
+  lacking: (m: Material) => `Falta ${PRODUCT[m]}: construa ${MAKER[m]}`,
   goalDone: (reward: number, unlock?: Placeable) =>
     `Objetivo cumprido! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   /** Extra message when a goal unlocks a building, explaining what it is for. */
   unlocked: {
     workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${WORKSHOP_BONUS}`,
     park: 'Parque liberado: casas de pedra perto dele viram casas grandes',
+    quarry: 'Pedreira liberada: tira pedra das rochas para casas de pedra e o Templo',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
@@ -97,7 +108,7 @@ export const T = {
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
     if (a.kind === 'material')
-      return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${a.material === 'wood' ? 'um lenhador' : 'uma pedreira'}`;
+      return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${MAKER[a.material]}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
     if (a.kind === 'spoiling')
       return a.locked
@@ -134,7 +145,9 @@ export const T = {
       upkeep: UPKEEP_START,
       market: 'Construa um mercado perto das casas de barro: elas viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
-    pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
+    /** The lumber step when its spot needs the marked road first. */
+    lumberRoad: 'Casas pedem madeira: puxe a rua marcada e ponha um lenhador no fim',
+        pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
     skip: 'Pular tutorial',
     ok: 'Entendi',
     again: 'Rever o tutorial',
@@ -177,6 +190,8 @@ export const T = {
     food: 'Comida',
     residents: 'Moradores',
     happiness: 'Alegria',
+    /** Materials pill (PC: one pill per material, with its name). */
+    material: { wood: 'Madeira', stone: 'Pedra' } satisfies Record<Material, string>,
     perWeek: '/sem',
     /** The season the food runs out in at this pace (PC food pill). */
     foodEnds: { spring: 'acaba na primavera', summer: 'acaba no verão', autumn: 'acaba no outono', winter: 'acaba no inverno' } satisfies Record<Season, string>,
@@ -216,9 +231,13 @@ export const T = {
     lockedGoal: (n: number, year?: number) => `objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     unlocksAt: (n: number, year?: number) => `Libera no objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     category: { home: 'Moradia', supply: 'Comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
-    /** Balloon of the chosen building: price and upkeep per week. */
-    price: (cost: number, upkeep: number, charged: boolean) =>
-      upkeep ? `${cost} prata · ${upkeep} por semana${charged ? '' : ` depois do Objetivo ${RULES.upkeepStartsAfterGoal}`}` : `${cost} prata`,
+    /** Pieces of the cost line ("25 prata · 10 madeira"), each red when the city lacks it. */
+    silverCost: (n: number) => `${n} prata`,
+    materialCost: (n: number, m: Material) => `${n} ${PRODUCT[m]}`,
+    /** After a cost piece the city lacks: how much it has. */
+    have: (n: number) => ` (tem ${Math.floor(n)})`,
+    /** Upkeep per week, on its own line under the cost. */
+    upkeep: (upkeep: number, charged: boolean) => T.nova.inspect.upkeep(upkeep, charged),
     jobs: (n: number) => `${n} ${n === 1 ? 'vaga' : 'vagas'}`,
     reach: (n: number) => `alcance ${n}`,
     balanceAfter: (n: number) => `Saldo depois: ${signed(n)}/sem`,
@@ -246,6 +265,14 @@ export const T = {
     cutTree: `Cortar árvore · ${RULES.treeClearCost} prata`,
     /** Over the preview of a fisher or gatherer, and in its balloon. */
     yields: (n: number, product: Product = 'food') => `Rende ${fmt(n)} ${PRODUCT[product]}/sem`,
+    /** Preview of a fisher, gatherer, lumber or quarry not touching a road linked to the altar. */
+    offRoad: 'Sem rua ao lado: não rende nada',
+    /** Lumber preview: how often it cuts a tree at the wood it brings. */
+    cutsEvery: (weeks: number) => `Corta 1 árvore a cada ${weeks} sem`,
+    /** Lumber or gatherer preview when its radius takes trees the other one uses. */
+    sharesGrove: (kind: 'lumber' | 'gatherer') => (kind === 'lumber' ? 'Divide o bosque com a Coletora' : 'Divide o bosque com o Lenhador'),
+    /** "Onde pôr um lenhador" found no spot with trees (or rocks) next to a road. */
+    noGatherSpot: (m: Material) => (m === 'wood' ? 'Nenhum lugar com árvores junto à rua: leve uma rua até o bosque' : 'Nenhum lugar com rochas junto à rua: leve uma rua até as rochas'),
     /** Fisher and gatherer rule in the chosen building balloon. */
     gatherRule: (source: GatherSource, perCell: number, radius: number, max: number, product: Product = 'food') =>
       `${fmt(perCell)} ${PRODUCT[product]} por ${source === 'river' ? 'trecho de rio' : source === 'rock' ? 'rocha' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
@@ -281,6 +308,11 @@ export const T = {
       stock: 'Estoque',
       forecast: 'Previsão',
       toHarvest: 'dura até a colheita',
+      materials: 'Materiais',
+      /** Stock and what comes in a week ("20 · +1,5/sem"). */
+      materialRow: (stock: number, perWeek: string) => `${stock} · ${perWeek}`,
+      waiting: (m: Material) => `Casas esperando ${PRODUCT[m]}`,
+      stumps: 'Tocos (árvores cortadas)',
       problems: 'Problemas',
       none: 'Nenhum',
       milestones: 'Marcos',
@@ -320,6 +352,11 @@ export const T = {
       famine: 'fome: não evolui',
       /** Weeks until a house climbs to the next level. */
       nextIn: (name: string, weeks: number) => `${name} em ${weeks} sem`,
+      /** Ready to climb, but the city lacks this much of a material (the count stays at 13/13). */
+      waiting: (name: string, n: number, m: Material) => `Pronta para virar ${name}: falta ${n} de ${PRODUCT[m]}`,
+      /** What climbing costs, besides the gains. */
+      asks: (m: Materials) => `Ao evoluir: pede ${materialsText(m)}`,
+      stump: (weeks: number) => `Toco · vira árvore de novo em ${weeks} sem. Dá para construir em cima`,
       /** The field bonus a connected workshop is giving the city now. */
       fieldBonus: (pct: number) => `Campos da cidade: +${pct}% de comida`,
       plotNoRoad: 'Sem rua: nenhuma família chega. Ligue à rua',
@@ -342,7 +379,7 @@ export const T = {
       road: (linked: boolean, entrance: boolean) => `${entrance ? 'Rua · entrada da cidade' : 'Rua'} · ${linked ? 'ligada ao altar ✓' : 'não ligada ao altar ✗'}`,
       tree: (name: string) => `${name} · Demolir corta por ${RULES.treeClearCost} prata`,
       rock: (name: string) => `${name} · não dá para construir aqui`,
-      where: { plaza: 'Onde pôr uma praça', market: 'Onde pôr um mercado', park: 'Onde pôr um parque', road: 'Ligar à rua' },
+      where: { plaza: 'Onde pôr uma praça', market: 'Onde pôr um mercado', park: 'Onde pôr um parque', lumber: 'Onde pôr um lenhador', quarry: 'Onde pôr uma pedreira', road: 'Ligar à rua' },
       noSpot: 'Nenhum lugar livre por perto: abra uma rua ao lado',
       demolish: 'Demolir',
       confirm: 'Certeza?',

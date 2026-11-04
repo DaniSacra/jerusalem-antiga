@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, MATERIALS, materialsOf, missingMaterial, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -10,6 +10,17 @@ import { H, PHONE, S, W } from './metrics';
 import { darkPanel, icon, ntext, RoundButton } from './widgets';
 
 const LOCKED_MS = 2500;
+
+/** The cost line of a building: "25 prata · 10 madeira", each piece the city lacks in red with what it has. */
+function costLine(s: GameState, kind: BuildableKind): Line {
+  const N = T.nova;
+  const piece = (text: string, need: number, has: number) => (has < need ? { text: text + N.have(has), color: NOVA_CSS.bad } : { text, color: NOVA_CSS.gold });
+  const cost = costOf(kind);
+  const parts = [piece(N.silverCost(cost), cost, s.silver)];
+  const m = materialsOf(kind);
+  for (const k of MATERIALS) if (m[k]) parts.push({ text: ' · ', color: NOVA_CSS.gold }, piece(N.materialCost(m[k]!, k), m[k]!, s[k]));
+  return { text: parts.map((p) => p.text).join(''), parts };
+}
 
 interface Item {
   kind: BuildableKind | null;
@@ -133,7 +144,8 @@ export class BuildColumn {
     const kind = it.kind!;
     const locked = !s.unlocked.includes(kind);
     const cost = costOf(kind);
-    const short = !locked && s.silver < cost;
+    // Grey when the silver or a material is short (the balloon says which, in red).
+    const short = !locked && (s.silver < cost || !!missingMaterial(s, kind));
     it.btn.setLook({ selected: tool === kind, locked, dim: short });
     const key = locked ? TEX.thumbLocked(kind) : TEX.thumb(kind);
     if (it.thumb.texture.key !== key) {
@@ -153,10 +165,11 @@ export class BuildColumn {
   private showToolBalloon(s: GameState, kind: BuildableKind) {
     const d = BUILDINGS[kind];
     const N = T.nova;
-    const head = [N.price(d.cost, d.upkeep ?? 0, upkeepCharged(s)), ...(!PHONE && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
+    const upkeep = [...(d.upkeep ? [N.upkeep(d.upkeep, upkeepCharged(s))] : []), ...(!PHONE && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
     const lines: Line[] = [
       { text: d.name, size: S.num },
-      { text: head, color: NOVA_CSS.gold },
+      costLine(s, kind),
+      ...(upkeep ? [{ text: upkeep, color: NOVA_CSS.gold }] : []),
       { text: N.effect[kind], bold: false },
     ];
     if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max, d.gather.product), color: NOVA_CSS.muted, bold: false });

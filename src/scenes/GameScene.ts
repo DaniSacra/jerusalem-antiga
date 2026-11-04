@@ -14,7 +14,12 @@ import {
   foodLostIfRemoved,
   type CityReadout,
   foodSpot,
+  gatherYield,
   houseHint,
+  lumberSpot,
+  missingMaterial,
+  placeSpots,
+  productOf,
   type FoodSpot,
   inBounds,
   isTree,
@@ -32,6 +37,7 @@ import {
   type Economy,
   type GameEvent,
   type GameState,
+  type Material,
   type Rng,
 } from '../core';
 import { Ambient } from '../render/Ambient';
@@ -61,6 +67,28 @@ const TOUCH_BUILD_DELAY = 150;
 /** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
 const TOUCH_LIFT = 90;
 const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
+/** "Onde pôr um lenhador": spots bringing at least this share of the best one are shown. */
+const GOOD_GATHER = 0.75;
+
+/** The material a lumber or quarry makes (null for any other kind). */
+const materialOf = (kind: BuildableKind): Material | null => {
+  const p = productOf(kind);
+  return p === 'wood' || p === 'stone' ? p : null;
+};
+
+/**
+ * Free spots next to the network where a lumber or quarry brings the most (at least GOOD_GATHER of
+ * the best, never 0): the "Onde pôr um lenhador / uma pedreira" of a house waiting for material.
+ */
+function gatherSpots(s: GameState, kind: BuildableKind): Cell[] {
+  const { w, h } = dimsOf(kind);
+  const spots = placeSpots(s, kind).map((c) => ({
+    ...c,
+    n: gatherYield(s, { id: -1, kind, ...c, w, h, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: s.week }),
+  }));
+  const best = Math.max(0, ...spots.map((c) => c.n));
+  return best > 0 ? spots.filter((c) => c.n >= best * GOOD_GATHER) : [];
+}
 
 /** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
 function orthoSteps(a: Cell, b: Cell): Cell[] {
@@ -140,6 +168,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private spot: FoodSpot | null = null;
   /** A free house spot for the tutorial arrow (houses step). */
   private houseHint: Cell | null = null;
+  /** The lumber step's spot and the road to it, found once when the step starts. */
+  private lumberHint: FoodSpot | null = null;
   /** The free field spot nearest the altar (field step), found once when the step starts. */
   private fieldHint: Cell | null = null;
   /** The camera follows the first family for a moment (family step). */
@@ -182,6 +212,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.ghost = this.spot?.road ?? [];
     this.houseHint = null;
     this.fieldHint = null;
+    this.lumberHint = null;
     this.follow = null;
     this.followed = false;
     this.pan = null;
@@ -349,6 +380,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
             this.fx.ring(c.x, c.y, C.grain, 2.4);
           }
           break;
+        case 'treeCut':
+          this.map.fell(e.x, e.y);
+          break;
         case 'upkeepStart':
           if (!this.guide?.upkeepStarted()) this.ui?.toast(T.upkeepStart, 'info');
           break;
@@ -387,7 +421,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool !== kind) this.selectTool(kind);
     if (this.tool !== kind || kind === 'road') return;
     this.spots = { kind, target };
-    if (!this.drawSpots()) this.ui?.hint(T.nova.inspect.noSpot, true);
+    const m = materialOf(kind);
+    if (!this.drawSpots()) this.ui?.hint(m ? T.nova.noGatherSpot(m) : T.nova.inspect.noSpot, true);
   }
 
   /** Draws the highlighted places (again after the map is rebuilt); false if there are none. */
@@ -397,7 +432,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.map.clearSpots();
       return false;
     }
-    const rects = spotsServing(this.state, sp.kind, sp.target).map((c) => ({ x: c.x, y: c.y, ...dimsOf(sp.kind, c.rotated) }));
+    const spots: (Cell & { rotated?: boolean })[] = materialOf(sp.kind) ? gatherSpots(this.state, sp.kind) : spotsServing(this.state, sp.kind, sp.target);
+    const rects = spots.map((c) => ({ x: c.x, y: c.y, ...dimsOf(sp.kind, c.rotated) }));
     this.map.showSpots(rects);
     return rects.length > 0;
   }
@@ -510,7 +546,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private drawOverlay() {
     const id = this.guide?.step?.id;
-    const guide: OverlayGuide | null = id === 'road' || id === 'house' ? { ghost: id === 'road' ? this.ghost : [], houseSpots: id === 'house' } : null;
+    // The marked road: to the food on the road step, to the lumber spot on its step (when it needs one).
+    const ghost = id === 'road' ? this.ghost : id === 'lumber' ? (this.lumberHint?.road ?? []) : [];
+    const guide: OverlayGuide | null = id === 'road' || id === 'house' || ghost.length ? { ghost, houseSpots: id === 'house' } : null;
     this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated, guide);
     // The building the demolish tool would remove turns red.
     const s = this.state;
@@ -544,13 +582,21 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const block = step.id === 'family' ? this.city.block : null;
     const stuck = block !== null && block !== 'wait' && this.state.families.length === 0;
     if (step.id === 'house') this.houseHint = houseHint(this.state);
-    this.ui?.setTutorial(stuck ? T.familyBlockText(block!, this.state) : T.tutorial.step[step.id], step.id === 'upkeep');
+    if (step.id !== this.pannedFor && step.id === 'lumber') this.lumberHint = lumberSpot(this.state);
+    const sentence = stuck ? T.familyBlockText(block!, this.state) : this.lumberRoadLeft() ? T.tutorial.lumberRoad : T.tutorial.step[step.id];
+    this.ui?.setTutorial(sentence, step.id === 'upkeep');
     if (step.id !== this.pannedFor) {
       this.pannedFor = step.id;
       if (step.id === 'field') this.fieldHint = fieldHint(this.state);
       const at = this.stepSpot(step.id);
       this.pan = at && footCenter(at.x, at.y, at.w, at.h);
     }
+  }
+
+  /** On the lumber step, part of the marked road to its spot is still to build. */
+  private lumberRoadLeft(): boolean {
+    const road = this.guide?.step?.id === 'lumber' ? (this.lumberHint?.road ?? []) : [];
+    return road.some((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
   }
 
   /** The place a tutorial step is about (the road, the food spot, the field, plaza or house spot), if any. */
@@ -566,6 +612,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (id === 'field' && this.fieldHint) return { ...this.fieldHint, ...dimsOf('field') };
     if (id === 'plaza') return { ...campPlazaSpot(), ...dimsOf('plaza') };
     if (id === 'house' && this.houseHint) return { ...this.houseHint, ...dimsOf('house') };
+    if (id === 'lumber' && this.lumberHint) return { ...this.lumberHint, ...dimsOf('lumber') };
     return null;
   }
 
@@ -604,14 +651,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private tutorialTarget(): TutorialTarget | null {
     const step = this.guide!.step!;
     if (step.id === 'upkeep') return this.ui?.anchor('silver') ?? null;
-    if (step.tool && this.tool !== step.tool && this.tool !== step.alt) {
-      const b = this.ui?.buttonOf(step.tool);
+    // A marked road to follow: the road step's, or the one to a lumber spot past the grove's edge (Rua first).
+    const road = step.id === 'road' ? this.ghost : this.lumberRoadLeft() ? this.lumberHint!.road : null;
+    const tool = road ? 'road' : step.tool;
+    if (tool && this.tool !== tool && this.tool !== step.alt) {
+      const b = this.ui?.buttonOf(tool);
       if (!b) return null;
       if (b.side === 'bottom') return { x: b.x, y: b.y - b.w / 2 - 4, dir: 'down' };
       return b.side === 'right' ? { x: b.x - b.w / 2 + 4, y: b.y, dir: 'right' } : { x: b.x + b.w / 2 - 4, y: b.y, dir: 'left' };
     }
-    if (step.id === 'road') {
-      const cell = this.ghost.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
+    if (road) {
+      const cell = road.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
       if (!cell) return null;
       const p = footCenter(cell.x, cell.y);
       const at = this.toScreen(p.x, p.y);
@@ -627,7 +677,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     // top of the building, so the arrow never covers its preview.
     if (this.input.activePointer.wasTouch && !DRAG_TOOLS.has(this.tool)) return { x: at.x, y: at.y + TOUCH_LIFT, dir: 'down' };
     const top = (HEIGHT[TEX.building(this.tool)] ?? 20) * this.cameras.main.zoom;
-    return { x: at.x, y: at.y - top, dir: 'down' };
+    // Above the preview pill ("Rende N…") when it shows, so the arrow never covers its text.
+    return { x: at.x, y: Math.min(at.y - top, (this.ui?.tagTop() ?? Infinity) - 2), dir: 'down' };
   }
 
   private toScreen(wx: number, wy: number) {
@@ -864,10 +915,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
       return;
     }
     const g = this.gesture;
-    if (r.reason === 'silver') {
+    // Short of silver or a material: said once per drag (the drag may run out half way).
+    if (r.reason === 'silver' || r.reason === 'materials') {
       if (g?.toastedSilver) return;
       if (g) g.toastedSilver = true;
-      this.ui?.toast(T.fail.silver, 'bad');
+      const m = isPlaceTool(this.tool) ? missingMaterial(s, this.tool) : null;
+      this.ui?.toast(r.reason === 'materials' && m ? T.lacking(m) : T.fail[r.reason], 'bad');
     } else if (first) {
       this.ui?.toast(r.reason === 'invalid' ? this.whyInvalid(o) : T.fail[r.reason], 'bad');
     }
@@ -890,7 +943,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
         if (s.grid[i] || s.roads[i]) reasons.push(B.taken);
         else if (s.ground[i] === 'river') reasons.push(B.river);
         else if (s.feature[i] === 'rock') reasons.push(B.rock);
-        else if (s.feature[i]) reasons.push(B.tree);
+        else if (isTree(s.feature[i])) reasons.push(B.tree);
       }
     return reasons[0] ?? T.fail.invalid;
   }

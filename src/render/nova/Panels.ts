@@ -10,6 +10,7 @@ import {
   happinessOn,
   HOUSE_LEVELS,
   housesByLevel,
+  housesWaiting,
   RULES,
   seasonOf,
   lastsToHarvest,
@@ -339,6 +340,15 @@ export class Panels {
       row(st.stock, N.stock(Math.floor(s.food), cap), s.spoiled > 0 ? NOVA_CSS.warn : NOVA_CSS.text),
       row(st.forecast, when, lasts ? NOVA_CSS.good : NOVA_CSS.bad),
     );
+    // Materials: stock and what comes in a week, the houses waiting for each, the stumps left by the lumbers.
+    const waiting = housesWaiting(s);
+    const mats: Section = [title(st.materials)];
+    for (const m of ['wood', 'stone'] as const) {
+      if (m === 'stone' && !s.unlocked.includes('quarry') && s.stone <= 0) continue;
+      mats.push(row(N.material[m], st.materialRow(Math.floor(s[m]), `+${fmt(e[m])}${per}`), waiting[m] ? NOVA_CSS.bad : NOVA_CSS.text));
+      if (waiting[m]) mats.push(row(st.waiting(m), `⚠ ${waiting[m]}`, NOVA_CSS.bad));
+    }
+    if (s.stumps.length) mats.push(row(st.stumps, fmtInt(s.stumps.length)));
     const idle = Math.max(0, e.workers - e.jobs);
     const eff = Math.round(e.efficiency * 100);
     const work: Section = [
@@ -350,7 +360,7 @@ export class Panels {
     ];
     const byLevel = housesByLevel(s);
     const houses: Section = [title(st.houses), ...HOUSE_LEVELS.map((l, i) => row(l.name, fmtInt(byLevel[i])))];
-    const out2: Section[] = [silver, upkeep, food, work, houses];
+    const out2: Section[] = [silver, upkeep, food, mats, work, houses];
     if (happinessOn(s))
       out2.push([
         title(st.happiness),

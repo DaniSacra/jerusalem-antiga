@@ -143,7 +143,9 @@
     "granaryStock": [0.08, 0.45, 0.8],
     "milestoneSeconds": 4,
     "milestoneCrowd": 6,
-    "spoilSeconds": 3
+    "spoilSeconds": 3,
+    "treeFallMs": 900,
+    "quarryDustMs": 700
   },
   "tutorial": {
     "followSeconds": 2,

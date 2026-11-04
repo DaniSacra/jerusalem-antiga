@@ -17,6 +17,8 @@ import {
   fieldBonus,
   foodLostIfRemoved,
   needLocked,
+  RULES,
+  weeksPerCut,
   type CityReadout,
   type BuildableKind,
   type Building,
@@ -72,6 +74,11 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
       return { lines: [...lines, ...lossLine(s, c)], foot: one, building: null, action: null, demolish: true };
     }
     const f = s.feature[i];
+    if (f === 'stump') {
+      const cut = s.stumps.find((t) => t.i === i);
+      const left = cut ? Math.max(1, RULES.treeRegrowWeeks - (s.week - cut.week)) : RULES.treeRegrowWeeks;
+      return { lines: [{ text: N.stump(left) }], foot: one, building: null, action: null, demolish: false };
+    }
     if (f === 'rock') return { lines: [{ text: N.rock(T.feature.rock) }], foot: one, building: null, action: null, demolish: false };
     if (f) return { lines: [{ text: N.tree(T.feature[treeKind(f, c.x, c.y)]) }], foot: one, building: null, action: null, demolish: false };
     return null;
@@ -109,16 +116,24 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
         const goal = needLocked(s, kind) ? unlockingGoal(kind as BuildableKind) : null;
         return goal ? N.lockedNeed(T.need[kind], goal) : T.need[kind];
       };
-      needs.forEach((n, k) => lines.push({ ...ok(n.ok, label(n.kind, n.ok)), gap: k ? 0 : px(4) }));
+      // Ready but short of wood or stone: "Pronta…" says every need is met, so their ✓ list goes (a shorter balloon).
+      const wait = h.waiting;
+      if (!wait) needs.forEach((n, k) => lines.push({ ...ok(n.ok, label(n.kind, n.ok)), gap: k ? 0 : px(4) }));
       const left = weeksToNextLevel(s, b);
+      // What is missing, in place of the count (it stays at 13/13).
       if (s.famine) lines.push({ text: N.famine, color: NOVA_CSS.bad });
+      else if (wait) lines.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), color: NOVA_CSS.bad, gap: px(4) });
       else if (left !== null) lines.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
       const gain = upgradeGain(h.level, s.week);
       if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.residents, gain.tax, gain.food)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
-      // Main action: the first missing need the player can build now.
+      // What climbing asks (waiting, the red line above already says what is missing).
+      if (gain && !wait && Object.keys(gain.materials).length) lines.push({ text: N.asks(gain.materials), color: NOVA_CSS.gold, bold: false });
+      // Main action: the first missing need the player can build now; waiting, where to put the lumber or quarry.
       const miss = h.next.needs.find((n) => !n.ok);
+      const maker = wait === 'wood' ? 'lumber' : wait === 'stone' ? 'quarry' : null;
       if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
       else if (miss && s.unlocked.includes(miss.kind)) action = { label: N.where[miss.kind], kind: miss.kind, target: b };
+      else if (!miss && maker && s.unlocked.includes(maker)) action = { label: N.where[maker], kind: maker, target: b };
     } else if (!b.connected) lines.push(ok(false, N.noRoad));
     return { lines, foot, building: b, action, demolish: true };
   }
@@ -165,6 +180,8 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
   if (def.gather && b.connected) {
     const n = gatherYield(s, b) * eco.efficiency;
     out.push(n > 0 ? { text: N.yields(n, def.gather.product), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
+    const every = def.cutEvery ? weeksPerCut(n) : null;
+    if (every) out.push({ text: N.cutsEvery(every), color: NOVA_CSS.muted, bold: false });
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });
