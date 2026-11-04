@@ -14,10 +14,10 @@ import { mkdir, readFile, rm } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-const OUT = 'screenshots';
+const OUT = process.env.VISUAL_OUT ?? 'screenshots';
 /** Tutorial numbers (familyStepMaxWeeks, reasonTools). */
 const TUTORIAL = JSON.parse(await readFile('src/data/tutorial.json', 'utf8'));
-const PORT = 5199;
+const PORT = Number(process.env.VISUAL_PORT ?? 5199);
 /** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
 const SEED = 5;
 const URL = `http://localhost:${PORT}/?seed=${SEED}`;

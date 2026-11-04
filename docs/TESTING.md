@@ -7,6 +7,7 @@ Dois níveis de teste: **unitários** (regras do jogo, rápidos, obrigatórios) 
 npm test                        # testes unitários (Vitest), ~1 s
 npm run test:visual             # testes visuais (Playwright), ~1 min
 npm run test:visual -- touch    # só os cenários cujo nome contém "touch"
+VISUAL_PORT=5299 VISUAL_OUT=/tmp/shots npm run test:visual   # outra porta e outra pasta (dois agentes ao mesmo tempo)
 npx tsc --noEmit                # typecheck
 npm run build && npm run test:pwa  # o build é um app instalável e abre sem internet
 ```
