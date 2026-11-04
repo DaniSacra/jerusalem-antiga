@@ -32,8 +32,9 @@ export const housesWithoutWater = (s: GameState) =>
 
 /**
  * New families only come to a city where every house with a family has water and the food lasts
- * until the next harvest (counting every house at its target level, the families on the way and
- * the new one), at most one every `familyIntervalWeeks`, and only to a connected empty plot.
+ * until the next harvest with a reserve of `familyFoodReserveWeeks` weeks of eating (counting
+ * every house at its planned level, the families on the way and the new one), at most one every
+ * `familyIntervalWeeks`, and only to a connected empty plot.
  * An empty city (no residents, nobody on the way) skips the water and food checks, so it can
  * always start again. The checks go in this order, so the reason shown is the most important one.
  * `storage` means the food would last but the store cannot hold it.
@@ -43,9 +44,9 @@ export function familyBlock(s: GameState, eco: Economy = computeEconomy(s)): Fam
   const empty = eco.residents === 0 && s.families.length === 0;
   if (!empty) {
     if (housesWithoutWater(s).length > 0) return 'water';
-    const extraTents = s.families.length + 1;
-    if (!foodLastsToHarvest(s, eco, { extraTents })) {
-      return foodLastsToHarvest(s, eco, { extraTents, unlimited: true }) ? 'storage' : 'food';
+    const opts = { extraTents: s.families.length + 1, reserveWeeks: RULES.familyFoodReserveWeeks };
+    if (!foodLastsToHarvest(s, eco, opts)) {
+      return foodLastsToHarvest(s, eco, { ...opts, unlimited: true }) ? 'storage' : 'food';
     }
   }
   if (s.week - s.lastFamilyWeek < RULES.familyIntervalWeeks) return 'wait';

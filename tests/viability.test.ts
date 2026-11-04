@@ -7,7 +7,9 @@ import {
   familyBlock,
   foodCapacity,
   foodLastsToHarvest,
+  foodPerResident,
   foodSpot,
+  GOALS,
   HOUSE_LEVELS,
   needMet,
   place,
@@ -78,17 +80,19 @@ function playWeek(s: GameState) {
 interface Run {
   firstFamine: number | null;
   goalsYear1: number;
+  /** Week each goal was done in the first year. */
+  goalWeeks: number[];
   lowestSilver: number;
 }
 
 function play(seed: number): Run {
   const rng = createRng(seed);
   const s = createGame(rng);
-  const out: Run = { firstFamine: null, goalsYear1: 0, lowestSilver: s.silver };
+  const out: Run = { firstFamine: null, goalsYear1: 0, goalWeeks: [], lowestSilver: s.silver };
   while (s.week < WEEKS_PER_YEAR && !s.lost) {
     playWeek(s);
     out.lowestSilver = Math.min(out.lowestSilver, s.silver);
-    stepWeek(s, rng);
+    for (const e of stepWeek(s, rng)) if (e.type === 'goal') out.goalWeeks.push(s.week);
     if (s.famine && out.firstFamine === null) out.firstFamine = s.week;
     out.lowestSilver = Math.min(out.lowestSilver, s.silver);
   }
@@ -105,8 +109,13 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
     expect(runs.filter((r) => r.firstFamine !== null && r.firstFamine < 26)).toEqual([]);
   });
 
-  it('goals 1 to 3 are done within the first year', () => {
-    expect(runs.filter((r) => r.goalsYear1 < 3)).toEqual([]);
+  it('goal 1 (food until the spring, which unlocks the granary) is done in the first autumn', () => {
+    expect(GOALS[0].type).toBe('foodUntilSpring');
+    expect(runs.filter((r) => !(r.goalWeeks[0] < RULES.weeksPerSeason))).toEqual([]);
+  });
+
+  it('goals 1 and 2 are done within the first year', () => {
+    expect(runs.filter((r) => r.goalsYear1 < 2)).toEqual([]);
   });
 
   it('the silver never goes negative', () => {
@@ -125,14 +134,20 @@ describe('invariants of the start', () => {
     }
   });
 
-  it('one field and the base store feed the caravan until the next spring', () => {
-    const tentsMax = RULES.caravan.families[1];
-    const eaten = tentsMax * HOUSE_LEVELS[1].residents * HOUSE_LEVELS[1].food;
-    // A field built in the first autumn works its weeks until the winter, then the store covers the winter.
-    const autumn = RULES.weeksPerSeason;
-    const fieldWeek = (BUILDINGS.field.harvest ?? 0) / (3 * RULES.weeksPerSeason);
-    expect(fieldWeek).toBeGreaterThan(eaten); // the field alone outgrows the caravan's eating
-    expect(Math.min(RULES.baseFoodStorage, (fieldWeek - eaten) * autumn)).toBeGreaterThanOrEqual(eaten * RULES.weeksPerSeason);
-    expect(foodCapacity(createGame(createRng(1)))).toBe(RULES.baseFoodStorage);
+  it('one field, the best food spot and the base store feed the caravan through the winter', () => {
+    const W = RULES.weeksPerSeason;
+    const fieldWeek = (BUILDINGS.field.harvest ?? 0) / (3 * W);
+    for (const seed of SEEDS) {
+      const s = createGame(createRng(seed));
+      const tents = s.start.families;
+      const spot = foodSpot(s)!;
+      const eats = (week: number) => tents * HOUSE_LEVELS[1].residents * foodPerResident(1, week);
+      // A field built in the first autumn and the fisher or gatherer fill the store before the winter...
+      expect(fieldWeek + spot.food, `seed ${seed}`).toBeGreaterThan(eats(0));
+      const stored = Math.min(RULES.baseFoodStorage, s.food + (fieldWeek + spot.food - eats(0)) * W);
+      // ...and the store and the spot's winter food cover the winter, when the tents eat more.
+      expect(stored + spot.food * W, `seed ${seed}`).toBeGreaterThanOrEqual(eats(W) * W);
+      expect(foodCapacity(s)).toBe(RULES.baseFoodStorage);
+    }
   });
 });

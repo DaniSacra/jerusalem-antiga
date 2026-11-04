@@ -684,7 +684,15 @@ async function previewFoodAfter(page, suffix) {
     window.game.setHover(null);
   });
   await page.evaluate((s) => {
-    window.core.place(window.state, s.kind, s.x, s.y); // 1 job, then the market's 3: more jobs than workers
+    const st = window.state;
+    window.core.place(st, s.kind, s.x, s.y);
+    // Workshops until the jobs reach the workers: the market's 3 jobs then take workers from the food.
+    st.unlocked.push('workshop');
+    const eco = () => window.core.computeEconomy(st);
+    while (eco().jobs < eco().workers) {
+      const at = window.core.placeSpots(st, 'workshop')[0];
+      if (!at || !window.core.place(st, 'workshop', at.x, at.y).ok) break;
+    }
     window.game.refresh();
   }, spot);
   await pick(page, 'market');

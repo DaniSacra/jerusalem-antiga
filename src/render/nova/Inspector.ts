@@ -11,13 +11,17 @@ import {
   housesServed,
   indexOf,
   upgradeGain,
+  unlockingGoal,
   upkeepCharged,
+  weeksToNextLevel,
+  fieldBonus,
   type CityReadout,
   type BuildableKind,
   type Building,
   type Cell,
   type Economy,
   type GameState,
+  type NeedKind,
 } from '../../core';
 import { HW } from '../iso';
 import { px, type Rect } from '../layout';
@@ -96,8 +100,16 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
     if (h.next) {
       // What it has (green) and what it lacks (red), always with ✓ / ✗.
       const needs = [...h.next.needs].sort((a, z) => Number(z.ok) - Number(a.ok));
-      needs.forEach((n, k) => lines.push({ ...ok(n.ok, n.kind === 'road' && !n.ok ? N.noRoad : T.need[n.kind]), gap: k ? 0 : px(4) }));
+      // A missing service still locked says which goal unlocks it.
+      const label = (kind: NeedKind, has: boolean) => {
+        if (kind === 'road' && !has) return N.noRoad;
+        const goal = (kind === 'well' || kind === 'market') && !s.unlocked.includes(kind) ? unlockingGoal(kind) : null;
+        return goal ? `${T.need[kind]} (${T.nova.lockedGoal(goal)})` : T.need[kind];
+      };
+      needs.forEach((n, k) => lines.push({ ...ok(n.ok, label(n.kind, n.ok)), gap: k ? 0 : px(4) }));
+      const left = weeksToNextLevel(s, b);
       if (s.famine) lines.push({ text: N.famine, color: NOVA_CSS.bad });
+      else if (left !== null) lines.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
       const gain = upgradeGain(h.level);
       if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.residents, gain.tax, gain.food)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
       // Main action: the first missing need the player can build now.
@@ -124,7 +136,7 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
     const served = housesServed(s, b);
     if (served !== null) lines.push({ text: N.serves(served) });
     if (def.jobs) lines.push({ text: T.nova.jobs(def.jobs) + (eco.efficiency < 1 && eco.efficiency > 0 ? ` · ${N.efficiency(Math.round(eco.efficiency * 100))}` : '') });
-    if (def.silver) lines.push({ text: N.makes(def.silver * eco.efficiency) });
+    if (def.fieldBonus) lines.push({ text: N.fieldBonus(Math.round(fieldBonus(s) * 100)), color: NOVA_CSS.good });
     if (def.jobs && eco.efficiency === 0) lines.push({ text: N.noWorkers, color: NOVA_CSS.bad });
   }
   lines.push(...foodLines(s, b, eco));

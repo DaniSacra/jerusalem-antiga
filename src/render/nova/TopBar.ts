@@ -245,7 +245,7 @@ export class TopBar {
       ? [{ text: N.famine, color: NOVA_CSS.bad }]
       : !lasts
         ? [{ text: PHONE ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
-        : full && eco.foodDelta > 0
+        : s.spoiled > 0
           ? [{ text: dot + N.full, color: NOVA_CSS.warn }]
           : PHONE ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }];
     const fv = label(N.food).length;
@@ -324,7 +324,7 @@ export class TopBar {
       this.goal.set(
         [
           { text: head, color: NOVA_CSS.gold, size: S.small },
-          { text: goal.text },
+          { text: N.goalText(goal) },
           ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
           { text: N.progress(p, target, goal.type === 'foodUntilSpring' && target > 1), color: NOVA_CSS.gold },
         ],

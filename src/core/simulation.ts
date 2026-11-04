@@ -20,17 +20,21 @@ function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rn
   events.push(dir > 0 ? { type: 'houseUp', x, y, level: b.level, delta } : { type: 'houseDown', x, y, level: b.level, delta, famine });
 }
 
-/** Plots (level 0) are filled by arriving families, not here. */
+/**
+ * A house climbs one level after `weeksToUpgrade` weeks in a row with the next level's needs met
+ * and drops one after `weeksToDowngrade` weeks missing its own. Famine pauses the climb and may
+ * drop the house or send the tent's family away. Plots (level 0) are filled by arriving families.
+ */
 function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   if (b.level === 0) return;
   if (!hasNeeds(s, b, HOUSE_LEVELS[b.level].needs)) {
     b.upStreak = 0;
-    if (++b.downStreak >= RULES.weeksToChange) changeLevel(s, b, -1, false, rng, events);
+    if (++b.downStreak >= RULES.weeksToDowngrade) changeLevel(s, b, -1, false, rng, events);
     return;
   }
   b.downStreak = 0;
   if (s.famine) {
-    b.upStreak = 0;
+    // Famine pauses the climb (the weeks already counted stay); losing a need resets it.
     const winter = seasonOf(s.week) === 'winter';
     if (b.level > 1) {
       if (rng() < RULES.famineDropChance) {
@@ -47,7 +51,7 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   }
   const next = HOUSE_LEVELS[b.level + 1];
   if (next && hasNeeds(s, b, next.needs)) {
-    if (++b.upStreak >= RULES.weeksToChange) changeLevel(s, b, 1, false, rng, events);
+    if (++b.upStreak >= RULES.weeksToUpgrade) changeLevel(s, b, 1, false, rng, events);
   } else {
     b.upStreak = 0;
   }
@@ -130,6 +134,8 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   s.famine = s.food <= 0 && eco.foodDelta < 0;
   if (s.food < 0) s.food = 0;
   if (s.famine) s.famineThisYear = true;
+  // A winter with famine is not "won" (the first-winter milestone), even if no house fell.
+  if (s.famine && seasonOf(s.week) === 'winter') s.winterLoss = true;
   if (s.famine && !wasFamine) events.push({ type: 'famineStart' });
   if (!s.famine && wasFamine) events.push({ type: 'famineEnd' });
   store(s, events);

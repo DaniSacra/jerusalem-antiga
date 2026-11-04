@@ -41,9 +41,9 @@ for (const name of bots) {
   const n = rs.length;
   if (args.includes('--brief')) {
     const won = rs.filter((r) => r.won);
-    const goals = rs.map((r) => r.goalWeeks.filter((x) => x !== null).length);
     const g = (i: number) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)));
-    console.log(`${name.padEnd(9)} Y1 ${rs.filter((r) => r.year1).length}/${n} empt ${rs.filter((r) => r.emptied).length} debt ${rs.filter((r) => r.lost).length} won ${won.length} dY1 ${rs.filter((r) => r.debtY1).length} dY2 ${rs.filter((r) => r.debtY2).length} wait>52 ${rs.filter((r) => r.goalWait > 52).length} winwk ${f(med(won.map((r) => r.weeks)))} | res52 ${f(med(rs.map((r) => r.residents52)))} res104 ${f(med(rs.map((r) => r.residents104)))} peak ${f(med(rs.map((r) => r.peak)))} | famY1 ${f(med(rs.map((r) => r.famineY1)))} left ${f(med(rs.map((r) => r.left)))} | goals med ${f(med(goals))} | g4 ${g(3)} g5 ${g(4)} g6 ${g(5)} g9 ${g(8)} g10 ${g(9)}`);
+    const pc = (k: number) => `${f((100 * k) / n)}%`;
+    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -63,8 +63,19 @@ for (const name of bots) {
   console.log(`silver below 0: Y1 ${rs.filter((r) => r.debtY1).length}/${n}  Y2 ${rs.filter((r) => r.debtY2).length}/${n}  ever ${rs.filter((r) => r.debtEver).length}/${n} | longest wait on one goal med ${f(med(rs.map((r) => r.goalWait)))} max ${f(Math.max(...rs.map((r) => r.goalWait)))}  runs > 52 wk ${rs.filter((r) => r.goalWait > 52).length} (goals ${[...new Set(rs.filter((r) => r.goalWait > 52).map((r) => r.goalWaitIndex + 1))].sort((x, y) => x - y).join(',') || '-'})`);
   for (const fam of [...new Set(rs.map((r) => r.families0))].sort()) {
     const c = rs.filter((r) => r.families0 === fam);
-    console.log(`caravan ${fam} families: ${c.length} runs | Y1 ${c.filter((r) => r.year1).length}/${c.length}  famine Y1 med ${f(med(c.map((r) => r.famineY1)))}  debt Y1 ${c.filter((r) => r.debtY1).length}  lost ${c.filter((r) => r.lost).length}  won ${c.filter((r) => r.won).length}  win wk med ${f(med(c.filter((r) => r.won).map((r) => r.weeks)))}  res52 med ${f(med(c.map((r) => r.residents52)))}`);
+    console.log(`caravan ${fam} families: ${c.length} runs | Y1 ${c.filter((r) => r.year1).length}/${c.length}  famine Y1 med ${f(med(c.map((r) => r.famineY1)))}  debt Y1 ${c.filter((r) => r.debtY1).length}  lost ${c.filter((r) => r.lost).length}  won ${c.filter((r) => r.won).length}  win wk med ${f(med(c.filter((r) => r.won).map((r) => r.weeks)))}  res52 med ${f(med(c.map((r) => r.residents52)))}  houses52 med ${f(med(c.map((r) => r.houses52)))}`);
   }
+  console.log(`houses w52 med ${f(med(rs.map((r) => r.houses52)))} (min ${Math.min(...rs.map((r) => r.houses52))} max ${Math.max(...rs.map((r) => r.houses52))}) | famine in a winter ${rs.filter((r) => r.famineWinters > 0).length}/${n}  winters med ${f(med(rs.map((r) => r.famineWinters)))}`);
+  console.log(`crisis ${rs.filter((r) => r.crises > 0).length}/${n} (first wk med ${f(med(rs.map((r) => r.firstCrisisWeek ?? NaN)))})  recovered ${rs.filter((r) => r.recoveries > 0).length}/${n} | lost before wk 150 ${rs.filter((r) => r.lost && r.weeks < 150).length}  loss wk med ${f(med(rs.filter((r) => r.lost).map((r) => r.weeks)))}`);
+  console.log(`workshops max at once: med ${f(med(rs.map((r) => r.maxWorkshops)))} max ${Math.max(...rs.map((r) => r.maxWorkshops))}  runs > 4 ${rs.filter((r) => r.maxWorkshops > 4).length} | silver > 300 before temple, longest run med ${f(med(rs.map((r) => r.silverIdle)))} max ${Math.max(...rs.map((r) => r.silverIdle))}  runs > 26 wk ${rs.filter((r) => r.silverIdle > 26).length}`);
+  const years = Math.max(...rs.map((r) => r.residentsByYear.length));
+  console.log(`residents at year end (med): ${Array.from({ length: years }, (_, y) => `Y${y + 1} ${f(med(rs.map((r) => r.residentsByYear[y] ?? NaN)))}`).join('  ')}`);
+  for (let y = 0; y < Math.min(years, 12); y++) {
+    const o: Record<string, number> = {};
+    for (const r of rs) for (const [k, v] of Object.entries(r.blocksByYear[y] ?? {})) o[k] = (o[k] ?? 0) + v;
+    console.log(`  family block Y${y + 1}: ${pct(o)}`);
+  }
+  if (won.length) console.log(`houses per level at victory (med tent/mud/stone/big): ${[0, 1, 2, 3].map((l) => f(med(won.map((r) => r.levelsAtEnd[l])))).join('/')}`);
   console.log(`drought years med ${f(med(rs.map((r) => r.droughtYears)))}  famine weeks in dry years med ${f(med(rs.map((r) => r.famineAfterDrought)))}`);
   console.log('goal                                  done  week med (min-max)  min@1x');
   GOALS.forEach((g, i) => {

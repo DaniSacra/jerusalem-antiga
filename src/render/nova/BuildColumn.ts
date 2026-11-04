@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, buildMenu, computeEconomy, costOf, foodAfter, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -143,7 +143,8 @@ export class BuildColumn {
     it.lock.setVisible(locked);
     it.badge.setVisible(this.fresh.has(kind) && !locked);
     if (it.price) {
-      it.price.setText(locked ? T.nova.lockedGoal(unlockingGoal(kind) ?? 0) : T.nova.costKey(cost, keyOf(kind)));
+      const goal = unlockingGoal(kind) ?? 0;
+      it.price.setText(locked ? T.nova.lockedGoal(goal, GOALS[goal - 1]?.fromYear) : T.nova.costKey(cost, keyOf(kind)));
       it.price.setColor(short ? NOVA_CSS.inkBad : NOVA_CSS.ink);
     }
   }
@@ -189,7 +190,8 @@ export class BuildColumn {
   private showLocked(it: Item) {
     const kind = it.kind!;
     this.lockedOn = kind;
-    this.balloon.show([{ text: T.nova.unlocksAt(unlockingGoal(kind) ?? 0) }], this.besideButton(kind));
+    const n = unlockingGoal(kind) ?? 0;
+    this.balloon.show([{ text: T.nova.unlocksAt(n, GOALS[n - 1]?.fromYear) }], this.besideButton(kind));
     this.lockedTimer?.remove();
     this.lockedTimer = this.scene.time.delayedCall(LOCKED_MS, () => {
       this.lockedOn = null;

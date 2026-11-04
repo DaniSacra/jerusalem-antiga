@@ -1,7 +1,7 @@
 import { computeEconomy, costliestUpkeep, unemploymentAlert, type Economy } from './economy';
-import { RULES } from './data';
+import { BUILDINGS, RULES } from './data';
 import { foodLastsToHarvest } from './forecast';
-import { foodCapacity } from './harvest';
+import { fieldBonus, foodCapacity } from './harvest';
 import { seasonOf } from './seasons';
 import type { BuildingKind, GameState } from './types';
 
@@ -18,7 +18,8 @@ export type Alert =
   /** The coming (or current) spring is dry. */
   | { kind: 'drought' }
   | { kind: 'deficit'; balance: number; costliest: BuildingKind; upkeep: number }
-  | { kind: 'unemployed'; count: number };
+  /** `workshopsFull`: the workshops' field bonus is at its cap (another one only adds jobs). */
+  | { kind: 'unemployed'; count: number; workshopsFull: boolean };
 
 /** Last weeks of autumn that warn about the winter. */
 const lateAutumn = (week: number) => seasonOf(week) === 'autumn' && week % RULES.weeksPerSeason >= RULES.weeksPerSeason - RULES.winterWarningWeeks;
@@ -34,6 +35,6 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   const top = costliestUpkeep(eco);
   if (eco.silverDelta < 0 && top) out.push({ kind: 'deficit', balance: eco.silverDelta, costliest: top.kind, upkeep: top.amount });
   const idle = unemploymentAlert(s, eco);
-  if (idle > 0) out.push({ kind: 'unemployed', count: idle });
+  if (idle > 0) out.push({ kind: 'unemployed', count: idle, workshopsFull: fieldBonus(s) >= (BUILDINGS.workshop.fieldBonusMax ?? 0) });
   return out;
 }

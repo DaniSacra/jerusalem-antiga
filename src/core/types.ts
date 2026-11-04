@@ -101,7 +101,11 @@ export interface BuildingDef {
   gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number };
   /** Food this building lets the city keep (granary). */
   storage?: number;
+  /** Silver made per week at full efficiency (no building makes silver for now; kept for later). */
   silver?: number;
+  /** Workshop: each connected one adds this share to the fields' food, up to `fieldBonusMax` in all. */
+  fieldBonus?: number;
+  fieldBonusMax?: number;
   protected?: boolean;
 }
 
@@ -120,10 +124,9 @@ export interface GoalDef {
   /**
    * residents: at least `target` residents; houses: houses of at least `level`; build: connected
    * buildings of `kind`; foodUntilSpring: weeks the food lasts, up to the first spring (see
-   * goalTarget); water: houses (plots too) with a well, out of max(target, all houses);
-   * harvest: food harvested since the start.
+   * goalTarget); water: houses (plots too) with a well, out of max(target, all houses).
    */
-  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'water' | 'harvest';
+  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'water';
   target: number;
   /** Minimum house level, for type "houses". */
   level?: number;
@@ -132,6 +135,8 @@ export interface GoalDef {
   reward: number;
   unlock?: Placeable;
   victory?: boolean;
+  /** The goal can only be reached from this year on (1 = the first year). */
+  fromYear?: number;
   text: string;
 }
 
@@ -151,6 +156,10 @@ export interface Rules {
   baseFoodStorage: number;
   /** New families set out at most once every this many weeks. */
   familyIntervalWeeks: number;
+  /** A new family comes only if the forecast food never drops below this many weeks of eating. */
+  familyFoodReserveWeeks: number;
+  /** In winter every resident eats `foodFactor` times more; tent dwellers `tentFoodFactor` instead. */
+  winter: { foodFactor: number; tentFoodFactor: number };
   /** Chance per week, in winter during famine, that a tent is abandoned (instead of famineLeaveChance). */
   winterFamineLeaveChance: number;
   /** Last weeks of autumn that show the winter warning. */
@@ -166,7 +175,10 @@ export interface Rules {
   unemploymentAlert: number;
   familyChance: number;
   familyCellsPerWeek: number;
-  weeksToChange: number;
+  /** Weeks in a row with the next level's needs met before a house climbs one level. */
+  weeksToUpgrade: number;
+  /** Weeks in a row missing its own needs before a house drops one level. */
+  weeksToDowngrade: number;
   famineDropChance: number;
   treeClearCost: number;
   /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */

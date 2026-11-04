@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, stepWeek } from '../src/core';
+import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, RULES, stepWeek } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('house looks', () => {
@@ -68,7 +68,7 @@ describe('house looks', () => {
     put(s, 'well', ROADSIDE, 32);
     b.variant = 0;
     b.mirrored = true;
-    for (let k = 0; k < 3; k++) stepWeek(s, constRng(0.99));
+    for (let k = 0; k < RULES.weeksToUpgrade; k++) stepWeek(s, constRng(0.99));
     expect(b).toMatchObject({ level: 2, variant: 5, mirrored: false });
 
     const t = emptyGame();

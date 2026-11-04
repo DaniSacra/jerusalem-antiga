@@ -90,7 +90,9 @@ describe('happiness effects', () => {
     put(s, 'house', ROADSIDE, 34); // empty plot: ignored
     put(s, 'house', ROADSIDE, 27, 1); // sacred
     put(s, 'house', ROADSIDE, 40, 1); // nothing
-    put(s, 'workshop', EAST, 30);
+    put(s, 'workshop', EAST, 30); // jobs for every worker of the two tents: nobody idle
+    put(s, 'workshop', EAST, 33);
+    expect(idleShare(s)).toBe(0);
     expect(computeEconomy(s).happiness).toBe(H.base + H.sacred / 2);
   });
 

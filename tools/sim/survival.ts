@@ -19,6 +19,7 @@ import {
   foodCapacity,
   foodForecast,
   gatherFood,
+  fieldBonus,
   fieldHarvest,
   goalProgress,
   goalTarget,
@@ -71,7 +72,7 @@ export interface Profile {
 
 export const PROFILES: Record<string, Profile> = {
   eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 2, housesPerAction: 2, granaryEarly: true, planWells: true, noise: 0.2, roadReach: 30 },
-  /** Expert that only sows the one field the harvest goal asks for; feeds the city with fishers and gatherers. */
+  /** Expert that sows no fields; feeds the city with fishers and gatherers. */
   pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 2, housesPerAction: 2, granaryEarly: false, planWells: true, noise: 0.2, roadReach: 30 },
   comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 3, housesPerAction: 3, granaryEarly: false, planWells: false, noise: 1.5, roadReach: 14 },
   distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 4, housesPerAction: 4, granaryEarly: false, planWells: false, noise: 4, roadReach: 10 },
@@ -165,8 +166,8 @@ export class SurvivalBot {
     this.bump('blockStorage', block === 'storage');
     this.bump('spoil', s.spoiled > 0);
     this.bump('deficit', eco.silverDelta < 0);
-    // A staff-aware bot knows the frozen fields' workers come back in spring.
-    this.bump('idle', (this.p.staffAware ? eco.workers - yearJobs(s) : unemployed(s, eco)) >= RULES.unemploymentAlert);
+    // The core counts the jobs of the whole year (frozen fields included), like the on-screen alert.
+    this.bump('idle', unemployed(s, eco) >= RULES.unemploymentAlert);
     this.bump('debt', s.silver < 0);
     if (this.rng() < this.p.idleChance) return;
     for (let k = 0; k < this.p.actions; k++) {
@@ -197,16 +198,17 @@ export class SurvivalBot {
       } else {
         const goalFood = goal?.type === 'foodUntilSpring' && goalProgress(s, goal) < goalTarget(s, goal);
         if ((goalFood || this.seen('blockFood')) && this.food(s, false)) return true;
-        if (goal?.type === 'harvest' && !s.buildings.some((b) => b.kind === 'field') && this.place(s, 'field')) return true;
       }
-    } else if (goal?.type === 'harvest' && !s.buildings.some((b) => b.kind === 'field') && this.place(s, 'field')) return true;
+    }
 
     // 2. Granary.
     const granaries = s.buildings.filter((b) => b.kind === 'granary').length;
     if (s.unlocked.includes('granary')) {
       const want = goal?.type === 'build' && goal.kind === 'granary' && granaries === 0;
       // "The store only keeps N" (block `storage`) asks for a granary, like spoiled food.
-      const spoil = this.seen('spoil') || (!this.p.foodOnlyInFamine && this.seen('blockStorage'));
+      // Nobody keeps more than half a year of food: spoiling past that is accepted.
+      const roomy = foodCapacity(s) >= computeEconomy(s).foodEaten * 26 + RULES.baseFoodStorage;
+      const spoil = !roomy && (this.seen('spoil') || (!this.p.foodOnlyInFamine && this.seen('blockStorage')));
       const plan = this.p.planner && this.plannerWantsGranary(s);
       if ((want || spoil || plan || (this.p.granaryEarly && granaries === 0)) && this.place(s, 'granary')) return true;
     }
@@ -223,9 +225,9 @@ export class SurvivalBot {
       return clearCell(s, dryFamily[0].x, dryFamily[0].y).ok;
     }
 
-    // 4. Workshops / markets for the goals and jobs.
-    if (goal?.type === 'build' && goal.kind === 'workshop' && goalProgress(s, goal) < goal.target && this.place(s, 'workshop')) return true;
-    if (s.unlocked.includes('workshop') && this.seen('idle') && this.place(s, 'workshop')) return true;
+    // 4. Workshops for jobs (only while their field bonus is below the cap the player reads) and markets.
+    const bonusLeft = fieldBonus(s) < (BUILDINGS.workshop.fieldBonusMax ?? 0);
+    if (s.unlocked.includes('workshop') && bonusLeft && this.seen('idle') && this.place(s, 'workshop')) return true;
     if (s.unlocked.includes('market')) {
       const noMarket = s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level >= 2 && !needMet(s, b, 'market'));
       if (noMarket.length >= (this.p.planner ? 2 : 3) && this.service(s, 'market', noMarket)) return true;
@@ -327,12 +329,13 @@ export class SurvivalBot {
     const st = settle(s);
     const eco = computeEconomy(st);
     const steady = st.buildings.reduce((a, b) => a + gatherFood(st, b), 0) * eco.efficiency;
-    const gap = (eco.foodEaten * 1.15 - steady) * 52;
+    // A year of eating: three seasons as now, the winter at the winter factor.
+    const yearEaten = eco.foodEaten * (3 + RULES.winter.foodFactor) * RULES.weeksPerSeason;
+    const gap = yearEaten * 1.15 - steady * 52;
     const sown = s.buildings.filter((b) => b.kind === 'field' && b.connected).length;
-    const goal = currentGoal(s);
-    const want = this.p.foodMix[2] === 0 ? (goal?.type === 'harvest' && sown === 0 ? 1 : 0) : Math.max(goal?.type === 'harvest' ? 1 : 0, Math.ceil(gap / ((BUILDINGS.field.harvest ?? 1) * Math.max(0.5, eco.efficiency))));
+    const want = this.p.foodMix[2] === 0 ? 0 : Math.ceil(gap / ((BUILDINGS.field.harvest ?? 1) * Math.max(0.5, eco.efficiency)));
     if (sown >= want) return false;
-    if (this.p.staffAware && yearJobs(s) + BUILDINGS.field.jobs > eco.workers + 1 && sown >= 1) return false;
+    if (this.p.staffAware && eco.yearJobs + BUILDINGS.field.jobs > eco.workers + 1 && sown >= 1) return false;
     return this.place(s, 'field');
   }
 
@@ -340,13 +343,13 @@ export class SurvivalBot {
     // Fields give food every week out of winter (see harvest.ts); the store must hold the winter's food.
     if (!s.buildings.some((b) => b.kind === 'field' && b.connected)) return false;
     const eco = computeEconomy(settle(s));
-    return foodCapacity(s) < eco.foodEaten * RULES.weeksPerSeason * 1.2 + 10;
+    return foodCapacity(s) < eco.foodEaten * RULES.winter.foodFactor * RULES.weeksPerSeason * 1.2 + 10;
   }
 
   /** Planner: in autumn adds fields when next year's food is short; adds steady food when needed. */
   private plannerGrowth(s: GameState): boolean {
     const eco = computeEconomy(s);
-    if (this.p.staffAware && yearJobs(s) >= eco.workers) return false;
+    if (this.p.staffAware && eco.yearJobs >= eco.workers) return false;
     const st = settle(s);
     const out = foodForecast(st, computeEconomy(st), 60);
     if (!out) return false;
@@ -397,7 +400,7 @@ export class SurvivalBot {
     if (!emergency && kind !== 'temple' && !this.affords(s, kind)) return false;
     if (this.p.staffAware && BUILDINGS[kind].jobs > 0 && kind !== 'fisher' && kind !== 'gatherer' && kind !== 'field' && kind !== 'granary' && kind !== 'temple') {
       const eco = computeEconomy(s);
-      if (yearJobs(s) + BUILDINGS[kind].jobs > eco.workers + 1) return false;
+      if (eco.yearJobs + BUILDINGS[kind].jobs > eco.workers + 1) return false;
     }
     const spot = this.spotFor(s, kind);
     if (!spot) return false;
@@ -534,15 +537,12 @@ export class SurvivalBot {
   }
 }
 
-/** Jobs of every connected workplace, frozen fields included (they need their workers back in spring). */
-const yearJobs = (s: GameState) => s.buildings.reduce((a, b) => a + (b.connected ? BUILDINGS[b.kind].jobs : 0), 0);
-
-/** A copy where every house with a family is at the level its needs allow (what it will become). */
+/** A copy where every house with a family is one level up when its needs allow (what it becomes this season). */
 function settle(s: GameState): GameState {
   const c = structuredClone(s);
   for (const h of c.buildings) {
     if (h.kind !== 'house' || h.level === 0 || !h.connected) continue;
-    while (h.level + 1 < HOUSE_LEVELS.length && HOUSE_LEVELS[h.level + 1].needs.every((n) => needMet(c, h, n))) h.level++;
+    if (h.level + 1 < HOUSE_LEVELS.length && HOUSE_LEVELS[h.level + 1].needs.every((n) => needMet(c, h, n))) h.level++;
   }
   return c;
 }
@@ -588,6 +588,25 @@ export interface Result {
   goalWaitIndex: number;
   built: Record<string, number>;
   peak: number;
+  /** Houses with a family, connected, at week 52. */
+  houses52: number;
+  /** Winters (by year, 0-based) with at least one famine week. */
+  famineWinters: number;
+  /** Crises (residents >= 25% below the peak so far, or 4+ weeks of famine in a row) and recoveries (back to that peak). */
+  crises: number;
+  recoveries: number;
+  /** Week the first crisis started, or null. */
+  firstCrisisWeek: number | null;
+  /** Most workshops standing at the same time. */
+  maxWorkshops: number;
+  /** Longest run of weeks with more than 300 silver before the temple is unlocked. */
+  silverIdle: number;
+  /** Residents at the end of each year (weeks 52, 104, ...). */
+  residentsByYear: number[];
+  /** Family block counts per year (0-based). */
+  blocksByYear: Record<string, number>[];
+  /** Houses with a family per level (1..4) at the end. */
+  levelsAtEnd: number[];
 }
 
 const riverDistance = (s: GameState) => {
@@ -606,7 +625,11 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     year1: false, residents52: 0, residents104: 0, lowestResidentsY1: Infinity, famineY1: 0, famineWeeks: 0, longestFamine: 0, left: 0, leftWinter1: 0, emptied: false,
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
     food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
+    houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], levelsAtEnd: [],
   };
+  const famineYears = new Set<number>();
+  let crisisPeak: number | null = null;
+  let richRun = 0;
   let run = 0;
   let dryYear = false;
   let goalSince = 0;
@@ -616,9 +639,13 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     const block = familyBlock(s, eco) ?? 'open';
     res.blocks[block] = (res.blocks[block] ?? 0) + 1;
     if (s.week < 52) res.blocksY1[block] = (res.blocksY1[block] ?? 0) + 1;
+    const by = (res.blocksByYear[Math.floor(s.week / 52)] ??= {});
+    by[block] = (by[block] ?? 0) + 1;
+    res.maxWorkshops = Math.max(res.maxWorkshops, s.buildings.filter((b) => b.kind === 'workshop').length);
+    const bonus = fieldBonus(s);
     for (const b of s.buildings) {
       if (!b.connected) continue;
-      if (b.kind === 'field') res.food.field += fieldHarvest(s, b, s.week) * eco.efficiency;
+      if (b.kind === 'field') res.food.field += fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * eco.efficiency;
       if (b.kind === 'fisher') res.food.fisher += gatherFood(s, b) * eco.efficiency;
       if (b.kind === 'gatherer') res.food.gatherer += gatherFood(s, b) * eco.efficiency;
     }
@@ -638,10 +665,28 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     res.left += lefts;
     if (s.week <= 26) res.leftWinter1 += lefts;
     const resid = computeEconomy(s).residents;
+    // Crisis: well below the peak so far, or a long famine; recovered once back at that peak.
+    if (crisisPeak === null && res.peak >= 10 && (resid <= 0.75 * res.peak || (s.famine && run + 1 >= 4))) {
+      crisisPeak = res.peak;
+      res.crises++;
+      res.firstCrisisWeek ??= s.week;
+    } else if (crisisPeak !== null && resid >= crisisPeak) {
+      crisisPeak = null;
+      res.recoveries++;
+    }
     res.peak = Math.max(res.peak, resid);
+    richRun = s.silver > 300 && !s.unlocked.includes('temple') ? richRun + 1 : 0;
+    res.silverIdle = Math.max(res.silverIdle, richRun);
+    if (s.famine && seasonOf(s.week) === 'winter') famineYears.add(Math.floor(s.week / 52));
+    res.famineWinters = famineYears.size;
+    if (s.week % 52 === 0) res.residentsByYear.push(resid);
     if (s.week <= 52) res.lowestResidentsY1 = Math.min(res.lowestResidentsY1, resid);
     if (resid === 0 && s.families.length === 0) res.emptied = true;
-    if (s.week === 52) { res.residents52 = resid; res.year1 = !s.lost && resid > 0; }
+    if (s.week === 52) {
+      res.residents52 = resid;
+      res.year1 = !s.lost && resid > 0;
+      res.houses52 = s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level > 0).length;
+    }
     if (s.week === 104) res.residents104 = resid;
     if (res.firstHarvestWeek === null && s.harvested > 0) res.firstHarvestWeek = s.week;
     if (s.famine) {
@@ -654,5 +699,6 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.won) { res.won = true; res.weeks = s.week; if (s.week < 52) res.year1 = true; break; }
     if (s.lost) { res.lost = true; res.debtLoss = true; res.weeks = s.week; break; }
   }
+  res.levelsAtEnd = [1, 2, 3, 4].map((l) => s.buildings.filter((b) => b.kind === 'house' && b.level === l).length);
   return res;
 }

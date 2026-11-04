@@ -2,27 +2,94 @@
 
 Mantido pelo game-director. As regras e os números completos ficam em `docs/GAME_DESIGN.md`.
 
-## Pilares (vigentes desde 2026-11-03, virada para sobrevivência)
-Novos, pedidos pelo usuário (vêm primeiro):
-1. Sobrevivência com recuperação: a tensão vem de comida, água, abrigo e
-   pessoas; a prata é o meio de construir. Perder gente dói, mas sempre dá
-   para se recuperar.
-2. Ritmo contemplativo: tempo em semanas, crescimento lento, mas cada
-   crescimento é conquistado e cada ação tem peso.
-3. Ciclo do ano: preparar (outono e primavera), resistir (verão seco e
-   inverno frio), recuperar, crescer.
+## Rumo (2026-11-04): sobrevivência e contemplação
+Plano do usuário: `docs/revisoes/2026-11-04/plano-sobrevivencia.md`. Plano do diretor, com o
+roteiro e o Pacote 1 "Ritmo": `docs/revisoes/2026-11-04/plano.md`.
+- Partida de ~30 min (~10 anos de jogo, 1 ano = 2,5–3 min a 1x); cerca de 30% dos jogadores vencem
+- Vitória: o Templo, liberado a partir do Ano 8 e com 500 moradores
+- Casas difíceis: crescer por qualidade (evoluir) antes de quantidade (casas novas)
+- Ciclo: preparar (primavera, verão, outono) → resistir (inverno) → recuperar → crescer
+- Fases: Ano 1 só o inverno; Ano 2 casamentos; Ano 3 seca; Ano 4 doenças; Ano 5+ eventos (cada
+  fase entra quando a mecânica dela existir)
+
+## Pilares (vigentes desde 2026-11-04, plano do usuário)
+1. Sobrevivência com recuperação: a tensão vem de comida, lenha, abrigo e pessoas; a prata é o
+   meio de construir. Crises encolhem a cidade, mas sempre há caminho de volta. Perder exige a
+   cidade quase vazia.
+2. Ritmo contemplativo: tempo em semanas, crescimento lento, cada crescimento conquistado.
+3. Contemplação da cidade: tempo para se apegar e gostar de olhar; a pressa vem só das crises,
+   nunca do relógio.
+4. Pessoas com história: nome, idade, profissão; nascem, casam, envelhecem e morrem.
+5. Evoluir em vez de multiplicar: poucas construções, cada uma com tipos e níveis.
+6. Dificuldade em camadas: cada fase acrescenta um problema.
 
 Mantidos:
-4. Simples: uma pessoa entende o jogo em menos de 1 minuto.
-5. Cidade viva: gente andando pelas ruas, casas evoluindo, coisas se mexendo.
-6. A diversão é posicionar bem: o bairro inteiro sobe de nível quando o lugar
-   é bom (agora também: rio, bosque e poço bem escolhidos salvam o inverno).
-7. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a
-   mecânica.
-8. Uma mecânica nova por vez, sempre liberada por meta. Exceção registrada:
-   o Pacote 1 da sobrevivência entra como bloco (decisão do usuário).
+7. Simples: uma pessoa entende o jogo em menos de 1 minuto.
+8. Cidade viva: gente nas ruas, casas evoluindo, coisas se mexendo.
+9. A diversão é posicionar bem: o bairro inteiro sobe quando o lugar é bom.
+10. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a mecânica.
+11. Uma mecânica nova por vez. Exceção proposta: o P1 "Ritmo" como bloco (várias regras pequenas a
+    serviço do ritmo; nenhuma é sistema novo). Falta a aprovação do usuário.
 
-## Em andamento: Pacote 1 "Ritmo em semanas + estações com colheita e celeiro"
+## Estado atual (2026-11-04)
+Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje
+por cima das seções abaixo:
+- Feitos e no main: Pacote 1 da sobrevivência (95dd36c), rebalanceamento do usuário (a01a506) e
+  Pacote 1 "Um Ano 1 justo" da revisão 2026-11-03 (d390712, 11a95cd)
+- Campo: dá comida toda semana, menos no inverno (congela). `harvest` 468 por ano = 12/sem com 2
+  vagas. Sai "semeia no outono, colhe na primavera"
+- Pescador e Coletora: `perCell` 0,75 e 0,3, teto 4,5/sem
+- Custos do pacote M: casa 15, campo 20, poço 25, pescador e coletora 20, celeiro 40, mercado 60,
+  oficina 50, jardim 35, templo 800. `workerShare` 0,5; manutenção depois do objetivo 3;
+  caravana com comida para 14–22 semanas; estoque base 50
+- Porta das famílias honesta (nível alvo, famílias a caminho, motivo `storage`); água conta só
+  casas com família; cidade vazia nunca trava; caravana compacta com lugar de poço
+- Tutorial: rua até a comida → pescador ou coletora → campo → poço → casa → família; relógio parado
+  nos passos de construir; ferramentas nunca travam
+- Pílula da estação com "inverno em N sem / primavera em N sem"
+- Medido (sim-tester, 100 seeds): Ano 1 em 100% para Comum e Eficiente, fome mediana 0, Eficiente
+  vence 98%; tutorial perde 0 de 16. Mas a partida dura ~2,5 min, as metas 1–4 caem em 9 semanas,
+  o campo dá 89% da comida e 19–42% estraga
+
+## Implementado: Pacote 1 "Ritmo" (2026-11-04, aguarda o teste do usuário)
+Especificação completa em `docs/revisoes/2026-11-04/plano.md`, seção 2. Resumo (atual → novo):
+- Casas: moradores 3/6/10/16 → 4/6/10/20; imposto 1/2/3,5/6 → 1/1,5/2,5/3; comida por morador
+  0,2/0,15/0,2/0,22 → 0,2 em todos. Casa senhorial (30) só registrada, para o P10
+- Sobe um nível por estação: `weeksToUpgrade` 13 (novo); cair continua em 3 (`weeksToChange` vira
+  `weeksToDowngrade`); a fome pausa a subida em vez de zerar. Balão "Casa de barro em N sem"
+- Famílias: `familyChance` 0,6 → 0,35; `familyIntervalWeeks` 2 → 6; porta com reserva de 4 semanas
+  de comida até a primavera (`familyFoodReserveWeeks`, novo); previsão conta cada casa no máximo
+  1 nível acima. Casa nova 15 → 30
+- Oficina sem prata (5 → 0): +10% de comida dos campos por oficina ligada, teto +30%. Campo sem
+  prata (1 → 0): a prata vem só de impostos e prêmios
+- Desemprego com as vagas do ano (campo congelado conta), também na alegria
+- Inverno: cada morador come ×1,25; tenda ×1,5. Seca a partir do Ano 3 (`safeYears` 1 → 2)
+- Manutenção depois do objetivo 2 (era 3); celeiro `upkeep` 2 → 1; altar `radius` 3 → 4
+- 10 objetivos em ~10 anos; celeiro liberado no objetivo 1; templo pelo objetivo 9 "500 moradores"
+  a partir do Ano 8 (`fromYear`, novo); templo continua 800
+- `weekSeconds` 2,5 → 3,2 por último, depois de os critérios em semanas passarem
+- Critérios (sim-tester, 100 seeds, 700 semanas, base 11a95cd): Ano 1 do Comum com 6–10 casas;
+  fome em ao menos um inverno em 40–60% das partidas do Comum; Distraído com crise e recuperação,
+  sem derrota antes de 8 min; ≤ 4 oficinas; prata nunca > 300 por 26 semanas antes do templo;
+  vitória do Comum em 25–35 min; nenhuma abertura melhor em tudo
+- **Calibração aplicada na implementação** (pela ordem de alavancas da seção 2.4; a decisão final é
+  do usuário):
+  - `upkeepStartsAfterGoal` 2 → **3** e imposto da tenda 1 → **1,25** (alavanca 3: com 2, o Comum
+    perdia por dívida em ~40% das partidas)
+  - imposto da casa grande 3 → **2,5** (alavanca 3: prata parada)
+  - `tentFoodFactor` 1,5 → **1,75** e `familyFoodReserveWeeks` 4 → **2** (alavanca 2: com a reserva
+    de 4 a porta protegia demais e a fome no inverno do Comum ficava em 15–25%)
+  - resultado (100 seeds): Comum com 9 casas no fim do Ano 1, 40% de vitórias na semana 572
+    (~30 min), fome em algum inverno em 39%; prata parada > 26 semanas em 28/100 (critério F falha:
+    cortar mais imposto derrubava as vitórias)
+
+## Superado: Pacote 2 "Anos que contam" (escopo 2026-11-04)
+Escopo em `docs/revisoes/2026-11-03/plano-pacote2.md`; não foi implementado. O que foi aproveitado
+(celeiro 1, altar 4, desemprego do inverno, textos) ou descartado está na seção 0 de
+`docs/revisoes/2026-11-04/plano.md`.
+
+## Feito: Pacote 1 "Ritmo em semanas + estações com colheita e celeiro"
+Histórico; a regra do campo e os números mudaram depois (ver "Estado atual").
 Aprovado pelo usuário em 2026-11-03; o game-director fechou os pontos abertos
 no mesmo dia e o pacote segue sem nova aprovação. Regras e números completos
 em `docs/GAME_DESIGN.md`. Sem sim-tester, playtester e fun-critic nesta
@@ -537,6 +604,55 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04 — Novo rumo (usuário): sobrevivência e contemplação, ~30 min, ~30% de vitórias,
+  templo com 500 moradores a partir do Ano 8. Pilares novos acima. Motivo: o jogo durava 2,6 min,
+  90–100% venciam e a prata sobrava (revisão de 11a95cd).
+- 2026-11-04 — Pacote 2 "Anos que contam" superado pelo P1 "Ritmo". Absorvidos: celeiro `upkeep` 1,
+  altar `radius` 4, desemprego do inverno, textos. Descartados: meta "Colha 100", intervalo 3.
+  Campo 312 vira alavanca. Câmera do tutorial e toasts vão para o P2 (o passo do poço some).
+- 2026-11-04 — Roteiro: a seca no Ano 3 entra no P1 (um número só); a recuperação (dívida gradual,
+  derrota só com a cidade quase vazia) vem antes das obras com tempo. Motivo: P3 e P4 deixam as
+  crises mais fortes, e a derrota seca de hoje esconderia o equilíbrio; os 30% se calibram no P6,
+  com materiais e obras prontos.
+- 2026-11-04 — A fome pausa a subida das casas (não zera). Motivo: com 13 semanas por nível, zerar
+  por uma semana ruim seria punição sem explicação.
+- 2026-11-04 — Oficina: +10% nos campos, teto 3 oficinas (+30%), exige ligação, os trabalhadores
+  contam pela eficiência. Motivo: acaba a fábrica de prata (17–22 oficinas por partida) sem criar
+  sistema novo; os tipos de verdade vêm no P10.
+- 2026-11-04 — Prata só de impostos e prêmios (oficina e campo sem prata), imposto ~0,25 por morador
+  e 0,15 na casa grande, casa nova 30. Motivo: o usuário prefere reduzir a entrada; com 500
+  moradores o imposto antigo daria ~170 por semana.
+- 2026-11-04 — Templo: o objetivo dos 500 moradores só conta a partir do Ano 8; não se confere de
+  novo a população na hora de construir (KISS).
+- 2026-11-04 — Objetivos "Água para todas as casas", "Primeira colheita" e "Construa 2 oficinas"
+  saem. Motivo: a porta ensina a água (e a água sai no P2); a colheita é marco; a oficina é bônus.
+- 2026-11-04 — Pacote 2 "Anos que contam" sem mecânica nova (superado no mesmo dia, ver acima). Motivo: o Ano 1 ficou justo, e o
+  problema passou a ser o jogo curto (~2,5 min) com comida sobrando (pilares 2, 3 e 6).
+- 2026-11-04 — Celeiro `upkeep` 2 → 1 e altar `radius` 3 → 4 entram. Motivo: medidos; o primeiro
+  tira a dívida rasa do inverno (Comum 6 → 3%), o segundo é a única trava real (meta 10). O raio 4
+  ainda não cobre a cidade, então casa grande continua sendo escolha de lugar.
+- 2026-11-04 — Meta 9 150 → 130 fora. Motivo: encurta um jogo que já é curto; a meta é lenta, não
+  travada.
+- 2026-11-04 — A regra do campo do usuário (comida fora do inverno, a01a506) fica; só o número
+  baixa (468 → 312, a medir). Motivo: o campo dava 89% da comida e 19–42% estragava; com 8/sem ele
+  rende por trabalhador perto do pescador e o rio e o bosque voltam a contar.
+- 2026-11-04 — A duração vem do relógio da porta (`familyIntervalWeeks` 2 → 3), não de metas
+  gigantes nem de semana mais lenta. Motivo: a porta dita o crescimento; o alvo do Ano 1 já era 6–10
+  casas, e hoje chegam ~25 famílias por ano.
+- 2026-11-04 — Meta 3 vira "Colha 100 de comida". Motivo: com o campo dando comida na hora, 12
+  durava 1 semana e caía dentro do tutorial.
+- 2026-11-04 — Campo congelado não gera desemprego. Motivo: o aviso falso mandava construir 19–21
+  oficinas que tiravam gente dos campos na primavera. Correção de regra, não mecânica nova.
+- 2026-11-04 — Pacote 2 antigo (seção 5 do `plano.md`) muda: "comida primeiro" vai para DEPOIS (a
+  dívida do Comum no Ano 2 caiu de 13/20 para 0/100); seca anunciada no outono e trava "casa só
+  sobe com comida" saem (obsoletas); gerador justo, tela de derrota com causa e arte da
+  sobrevivência vão para o P3 "Madeira".
+- 2026-11-04 — Arte e prévia do "campo plantado tarde" (resto do 1.9) fora. Motivo: com a regra
+  nova todo campo dá comida na semana seguinte; a contagem na pílula da estação substitui.
+- 2026-11-04 — Seeds presas > 52 semanas: o aceite vale para Eficiente (0) e Comum (≤ 5); o
+  Distraído só é relatado. Motivo: ficar preso é a consequência esperada de não cuidar da cidade.
+- 2026-11-04 — Duração: alvo do P2 é o Comum vencer em 4–6,7 min de simulação; os 8 min e os
+  15–25 min vêm da Madeira (P3) em diante.
 - 2026-11-03 — Virada para sobrevivência (usuário): pilares novos 1–3 vêm
   antes dos antigos; Pacote 1 "Ritmo em semanas + estações com colheita e
   celeiro" aprovado como bloco. Motivo: o usuário quer tensão de comida, água
@@ -800,18 +916,27 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   Motivo: dá um motivo para enfeitar a cidade e liga emprego e comida ao
   humor (pilares 2 e 3). Falta medir com o sim-tester (duração e Distraído).
 
-## Próximos candidatos
-Depois do Pacote 1 da sobrevivência (e de medir com sim-tester, playtester e
-fun-critic), em ordem, um por vez:
-1. Madeira: coleta no bosque denso e uso em construções
-2. Eventos leves (festa, caravana)
-3. Pedidos dos moradores
-4. Pasto, só se for diferente do campo
-5. História de Esdras e Neemias (ARA), só depois do playtest aprovar
-6. Painel de estatísticas, parte 3: principais problemas com dicas
+## Próximos candidatos (roteiro de 2026-11-04)
+Um pacote por vez, cada um medido antes do próximo (detalhes em
+`docs/revisoes/2026-11-04/plano.md`, seção 1):
+1. Ritmo (com a seca no Ano 3)
+2. Água sai e mapa (+ câmera do tutorial e fila de toasts do antigo P2)
+3. Madeira e pedra
+4. Lenha e inverno (neve, reserva do celeiro)
+5. Recuperação (dívida gradual, derrota com a cidade quase vazia)
+6. Obras com tempo + templo calibrado para ~30%
+7. Moradores
+8. Casamentos e moradia
+9. Governo (imposto em %, porção do povo)
+10. Evoluções (campo grande, oficina com tipos, casa senhorial)
+11. Pasto e roupas
+12. Doenças
+13. Eventos da época
+14. Incêndio
+Depois: história de Esdras e Neemias (ARA), só com o playtest aprovado. Pedidos dos moradores e
+"comida primeiro" ficam em espera até o roteiro pedir.
 
-A lista abaixo é a de antes da virada; os itens já absorvidos (seca,
-celeiro, gráficos) saem dela, o resto será reavaliado depois do playtest.
+As listas abaixo são de antes do rumo novo; ficam só como histórico.
 
 Em ordem, um pacote por vez (detalhes em `docs/revisoes/2026-11-02/plano.md`).
 - P2 "Ver antes de construir" (sem mecânica nova): conexão visível, áreas de

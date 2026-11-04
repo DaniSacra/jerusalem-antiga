@@ -5,7 +5,7 @@ import type { Building, GameState } from './types';
 
 /**
  * Fields give food in spring, summer and autumn, from the week they are built; in winter they
- * freeze: no food, no silver and no workers.
+ * freeze: no food and no workers.
  */
 export const harvestsIn = (week: number) => seasonOf(week) !== 'winter';
 
@@ -13,23 +13,31 @@ export const harvestsIn = (week: number) => seasonOf(week) !== 'winter';
 const FIELD_WEEKS = WEEKS_PER_YEAR - RULES.weeksPerSeason;
 
 /**
- * A building is at work this week: always, except a field in winter, which needs no workers (and
- * makes no silver) while frozen. Its workers are free for the fisher and the gatherer.
+ * A building is at work this week: always, except a field in winter, which needs no workers
+ * while frozen. Its workers are free for the fisher and the gatherer.
  */
 export const isWorking = (b: Building, week: number) => !BUILDINGS[b.kind].harvest || harvestsIn(week);
 
 /** A field touching the river is watered: a dry year does not hurt it. */
 export const byRiver = (s: GameState, b: Building) => borderCells(s, b).some((c) => s.ground[indexOf(s, c.x, c.y)] === 'river');
 
+/** Extra share of food the fields give: `fieldBonus` per connected workshop, at most `fieldBonusMax`. */
+export function fieldBonus(s: GameState): number {
+  const { fieldBonus: each = 0, fieldBonusMax: max = 0 } = BUILDINGS.workshop;
+  const n = s.buildings.filter((b) => b.kind === 'workshop' && b.connected).length;
+  return Math.min(n * each, max);
+}
+
 /**
  * Food a connected field gives in this week before the worker efficiency: its yearly harvest
- * spread over the weeks out of winter, cut in a dry year unless it touches the river.
+ * spread over the weeks out of winter, cut in a dry year unless it touches the river, raised by
+ * the workshops' `bonus` (see `fieldBonus`).
  */
-export function fieldHarvest(s: GameState, b: Building, week: number, drought = s.drought, river?: boolean): number {
+export function fieldHarvest(s: GameState, b: Building, week: number, drought = s.drought, river?: boolean, bonus = fieldBonus(s)): number {
   const yearly = BUILDINGS[b.kind].harvest;
   if (!yearly || !b.connected || !harvestsIn(week)) return 0;
   const share = drought && !(river ?? byRiver(s, b)) ? RULES.drought.harvestFactor : 1;
-  return (yearly / FIELD_WEEKS) * share;
+  return (yearly / FIELD_WEEKS) * share * (1 + bonus);
 }
 
 /** Food the city can keep: a base amount plus every connected granary. */

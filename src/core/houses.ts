@@ -1,4 +1,4 @@
-import { BUILDINGS, HOUSE_LEVELS } from './data';
+import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
 import { computeEconomy, idleShare, type Economy } from './economy';
 import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
@@ -50,6 +50,16 @@ export function targetLevel(s: GameState, b: Building): number {
   while (level > 1 && !hasNeeds(s, b, HOUSE_LEVELS[level].needs)) level--;
   while (level < HOUSE_LEVELS.length - 1 && hasNeeds(s, b, HOUSE_LEVELS[level + 1].needs)) level++;
   return level;
+}
+
+/**
+ * Weeks until a house with a family climbs to the next level if nothing changes (paused by a
+ * famine), or null when it is at the top or misses one of the next level's needs.
+ */
+export function weeksToNextLevel(s: GameState, b: Building): number | null {
+  const next = HOUSE_LEVELS[b.level + 1];
+  if (b.kind !== 'house' || b.level === 0 || !next || !hasNeeds(s, b, HOUSE_LEVELS[b.level].needs) || !hasNeeds(s, b, next.needs)) return null;
+  return Math.max(1, RULES.weeksToUpgrade - b.upStreak);
 }
 
 /** A need is shown only once its building can be built (the altar always exists). */

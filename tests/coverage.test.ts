@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellsInRadius, indexOf } from '../src/core';
+import { BUILDINGS, cellsInRadius, indexOf } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('coverage', () => {
@@ -21,12 +21,13 @@ describe('coverage', () => {
     expect(s.coverage.market.some(Boolean)).toBe(false);
   });
 
-  it('covers radius 3 around the 4x4 altar as sacred', () => {
+  it('covers the altar radius around the 4x4 altar (22..25) as sacred', () => {
     const s = emptyGame();
-    expect(s.coverage.sacred[indexOf(s, 19, 19)]).toBe(true);
-    expect(s.coverage.sacred[indexOf(s, 28, 28)]).toBe(true);
-    expect(s.coverage.sacred[indexOf(s, 18, 24)]).toBe(false);
-    expect(s.coverage.sacred[indexOf(s, 24, 29)]).toBe(false);
+    const r = BUILDINGS.altar.radius!;
+    expect(s.coverage.sacred[indexOf(s, 22 - r, 22 - r)]).toBe(true);
+    expect(s.coverage.sacred[indexOf(s, 25 + r, 25 + r)]).toBe(true);
+    expect(s.coverage.sacred[indexOf(s, 22 - r - 1, 24)]).toBe(false);
+    expect(s.coverage.sacred[indexOf(s, 24, 25 + r + 1)]).toBe(false);
   });
 
   it('measures the temple radius 12 from any of its 6x6 cells', () => {

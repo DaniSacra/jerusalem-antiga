@@ -1,5 +1,8 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
+
+/** What a workshop does for the fields ("+10% de comida aos campos, até +30%"). */
+const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100)}% de comida aos campos, até +${Math.round((BUILDINGS.workshop.fieldBonusMax ?? 0) * 100)}%`;
 
 export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
@@ -19,7 +22,7 @@ export const T = {
   seasonStart: {
     spring: 'Chegou a primavera: os campos voltam a dar comida',
     summer: 'Chegou o verão: dias quentes e secos',
-    autumn: 'Chegou o outono: hora de plantar os campos',
+    autumn: 'Chegou o outono: guarde comida para o inverno',
     winter: 'Inverno: só pescador e coletora dão comida',
   } satisfies Record<Season, string>,
   allGoals: 'Todos os objetivos cumpridos!',
@@ -47,7 +50,7 @@ export const T = {
   familyBlock: {
     famine: 'Nenhuma família vem: falta comida. Pesque ou colete',
     water: 'Nenhuma família vem: casa longe do poço. Construa outro poço',
-    food: 'Nenhuma família vem: a comida não dura até a primavera. Pesque ou colete',
+    food: 'Nenhuma família vem: falta sobra de comida para mais uma família. Pesque ou colete',
     storage: 'Nenhuma família vem: o estoque está cheio',
     wait: 'Uma nova família pode chegar em breve',
     noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
@@ -78,7 +81,7 @@ export const T = {
     `Objetivo cumprido! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   /** Extra message when a goal unlocks a building, explaining what it is for. */
   unlocked: {
-    workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${BUILDINGS.workshop.silver} prata por semana`,
+    workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${WORKSHOP_BONUS}`,
     garden: 'Jardim liberado: casas felizes pagam mais imposto e atraem famílias',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
@@ -93,9 +96,9 @@ export const T = {
       return a.locked
         ? `Estoque cheio (${a.capacity}): o excesso estraga. O celeiro libera no objetivo ${unlockingGoal('granary')}`
         : 'Comida estragando: construa um celeiro';
-    if (a.kind === 'winterComing') return 'O inverno está chegando: com fome, famílias vão embora. Guarde comida';
+    if (a.kind === 'winterComing') return 'O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
-    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa uma oficina ou um campo`;
+    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa ${a.workshopsFull ? 'um campo' : 'um campo ou uma oficina'}`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
   debtEnd: 'A cidade saiu da dívida!',
@@ -167,11 +170,11 @@ export const T = {
     residents: 'Moradores',
     happiness: 'Alegria',
     perWeek: '/sem',
-    /** Where the food runs out at this pace (PC food pill). */
-    foodUntil: { spring: 'até a primavera', summer: 'até o verão', autumn: 'até o outono', winter: 'até o inverno' } satisfies Record<Season, string>,
+    /** The season the food runs out in at this pace (PC food pill). */
+    foodEnds: { spring: 'acaba na primavera', summer: 'acaba no verão', autumn: 'acaba no outono', winter: 'acaba no inverno' } satisfies Record<Season, string>,
     /** When the food runs out: the season, or the weeks left if it is still this season. */
     foodForecast(out: { weeks: number; season: Season }, now: Season): string {
-      return out.season === now && out.weeks < RULES.weeksPerSeason ? `acaba em ${out.weeks} sem` : this.foodUntil[out.season];
+      return out.season === now && out.weeks < RULES.weeksPerSeason ? `acaba em ${out.weeks} sem` : this.foodEnds[out.season];
     },
     /** The food lasts until the next harvest. */
     foodToHarvest: 'até a primavera',
@@ -199,8 +202,8 @@ export const T = {
     withKey: (name: string, key: string) => `${name} · ${key}`,
     /** Price and key inside a PC column button. */
     costKey: (cost: number, key: string) => `${cost} · tecla ${key}`,
-    lockedGoal: (n: number) => `objetivo ${n}`,
-    unlocksAt: (n: number) => `Libera no objetivo ${n}`,
+    lockedGoal: (n: number, year?: number) => `objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
+    unlocksAt: (n: number, year?: number) => `Libera no objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     category: { home: 'Moradia', supply: 'Água e comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
     /** Balloon of the chosen building: price and upkeep per week. */
     price: (cost: number, upkeep: number, charged: boolean) =>
@@ -218,7 +221,7 @@ export const T = {
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
-      workshop: 'Dá trabalho e prata.',
+      workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       garden: 'Alegra as casas por perto: mais imposto e mais famílias.',
       temple: 'Vence o jogo. Precisa encostar numa rua ligada ao altar.',
     } satisfies Record<BuildableKind, string>,
@@ -245,6 +248,8 @@ export const T = {
       victory: 'vitória',
       unlocks: (kind: Placeable) => `libera ${toolName(kind)}`,
     },
+    /** A goal's text, with the year it opens ("a partir do Ano 8"). */
+    goalText: (g: GoalDef) => (g.fromYear ? `${g.text} a partir do Ano ${g.fromYear}` : g.text),
     noAlerts: 'Nenhum aviso. A cidade vai bem.',
     /** Stats tabs. */
     tabs: { now: 'Agora', history: 'Histórico' },
@@ -293,6 +298,10 @@ export const T = {
       gain: (residents: number, tax: number, food: number) => `+${residents} moradores · +${fmt(tax)} de imposto · come +${fmt(food)}/sem`,
       noRoad: 'sem rua',
       famine: 'fome: não evolui',
+      /** Weeks until a house climbs to the next level. */
+      nextIn: (name: string, weeks: number) => `${name} em ${weeks} sem`,
+      /** The field bonus a connected workshop is giving the city now. */
+      fieldBonus: (pct: number) => `Campos da cidade: +${pct}% de comida`,
       plotNoRoad: 'Sem rua: nenhuma família chega. Ligue à rua',
       plotComing: 'Uma família está a caminho',
       plotWaiting: 'Esperando uma família',
@@ -303,7 +312,6 @@ export const T = {
       noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada' },
       happiness: (value: number, mood: Mood, why: string) => `Alegria ${value}, ${T.mood[mood]}${why ? ` (${why})` : ''}`,
       serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
-      makes: (silver: number) => `Produz ${fmt(silver)} prata por semana`,
       upkeep: (n: number, charged: boolean) => `${n} por semana${charged ? '' : ` depois do Objetivo ${RULES.upkeepStartsAfterGoal}`}`,
       connected: 'ligado à rua',
       disconnected: 'sem rua: não funciona, mas paga manutenção',

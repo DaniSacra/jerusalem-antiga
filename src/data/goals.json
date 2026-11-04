@@ -1,13 +1,12 @@
 [
-  { "type": "foodUntilSpring", "target": 1, "reward": 20, "text": "Comida até a primavera" },
-  { "type": "water",     "target": 4,   "reward": 30,  "text": "Água para todas as casas" },
-  { "type": "harvest",   "target": 12,  "reward": 30,  "unlock": "granary",  "text": "Primeira colheita" },
-  { "type": "build",     "target": 1,   "kind": "granary", "reward": 40, "text": "Construa o celeiro" },
-  { "type": "houses",    "target": 6,   "level": 2, "reward": 40,  "unlock": "market",   "text": "Tenha 6 casas de barro" },
-  { "type": "residents", "target": 50,  "reward": 50,  "unlock": "workshop", "text": "Chegue a 50 moradores" },
-  { "type": "build",     "target": 2,   "kind": "workshop", "reward": 50, "unlock": "garden", "text": "O povo precisa de trabalho: construa 2 oficinas" },
-  { "type": "houses",    "target": 6,   "level": 3, "reward": 80,  "text": "Tenha 6 casas de pedra" },
-  { "type": "residents", "target": 150, "reward": 120, "text": "Chegue a 150 moradores" },
-  { "type": "houses",    "target": 4,   "level": 4, "reward": 150, "unlock": "temple", "text": "Tenha 4 casas grandes" },
+  { "type": "foodUntilSpring", "target": 1, "reward": 30, "unlock": "granary", "text": "Comida até a primavera" },
+  { "type": "houses",    "target": 3,   "level": 2, "reward": 40,  "text": "Tenha 3 casas de barro" },
+  { "type": "residents", "target": 60,  "reward": 50,  "unlock": "market",   "text": "Chegue a 60 moradores" },
+  { "type": "houses",    "target": 3,   "level": 3, "reward": 60,  "unlock": "workshop", "text": "Tenha 3 casas de pedra" },
+  { "type": "residents", "target": 150, "reward": 80,  "unlock": "garden",   "text": "Chegue a 150 moradores" },
+  { "type": "houses",    "target": 2,   "level": 4, "reward": 100, "text": "Tenha 2 casas grandes" },
+  { "type": "residents", "target": 250, "reward": 120, "text": "Chegue a 250 moradores" },
+  { "type": "houses",    "target": 6,   "level": 4, "reward": 150, "text": "Tenha 6 casas grandes" },
+  { "type": "residents", "target": 500, "fromYear": 8, "reward": 200, "unlock": "temple", "text": "Chegue a 500 moradores" },
   { "type": "build",     "target": 1,   "kind": "temple", "reward": 0, "victory": true, "text": "Construa o Templo" }
 ]

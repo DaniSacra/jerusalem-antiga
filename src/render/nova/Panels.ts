@@ -282,7 +282,7 @@ export class Panels {
         lines.push({
           parts: [
             { text: mark, color: done ? NOVA_CSS.good : cur ? NOVA_CSS.gold : NOVA_CSS.muted },
-            { text: `${i + 1}. ${g.text}`, color: done ? NOVA_CSS.muted : NOVA_CSS.text, bold: cur },
+            { text: `${i + 1}. ${N.goalText(g)}`, color: done ? NOVA_CSS.muted : NOVA_CSS.text, bold: cur },
             ...progress,
             ...(extra ? [{ text: extra, color: NOVA_CSS.muted, size: S.small, bold: false }] : []),
           ],
@@ -325,7 +325,7 @@ export class Panels {
     // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
     const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherFood(s, b) : 0), 0) * e.efficiency;
     const lasts = lastsToHarvest(s, out);
-    const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodUntil[out!.season]}`;
+    const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodEnds[out!.season]}`;
     const cap = foodCapacity(s);
     const food: Section = [title(st.food)];
     if (e.harvest > 0) food.push(row(BUILDINGS.field.name, `+${fmt(e.harvest)}${per}`, NOVA_CSS.good));

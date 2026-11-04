@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alerts, BUILDINGS, checkClear, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
+import { alerts, BUILDINGS, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const never = constRng(0.99);
@@ -88,17 +88,32 @@ describe('alerts', () => {
     ]);
     s.unlocked.push('workshop', 'temple');
     put(s, 'temple', EAST, 34); // upkeep 10, 2 jobs
-    for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents: tax 10, 15 workers
+    for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents, 15 workers
+    const tax = 5 * HOUSE_LEVELS[2].tax;
     // (30 residents and no food buildings: the food warning shows too, tested in survival.test.ts)
     expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
-      { kind: 'deficit', balance: 10 - 10 - U, costliest: 'temple', upkeep: 10 }, // taxes - temple - market
-      { kind: 'unemployed', count: 10 },
+      { kind: 'deficit', balance: tax - 10 - U, costliest: 'temple', upkeep: 10 }, // taxes - temple - market
+      { kind: 'unemployed', count: 10, workshopsFull: false },
     ]);
     s.silver = 0;
     s.debtWeeks = 0;
     s.buildings = s.buildings.filter((b) => b.kind !== 'temple');
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12 }]); // balance 10 - U > 0, 15 workers for 3 jobs
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12, workshopsFull: false }]); // balance tax - U > 0, 15 workers for 3 jobs
+  });
+
+  it('the unemployment alert says when the workshops already give their whole field bonus', () => {
+    const s = draining(0);
+    s.unlocked.push('workshop');
+    for (let k = 0; k < 6; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 4); // many workers
+    const ws = BUILDINGS.workshop;
+    const full = Math.ceil(ws.fieldBonusMax! / ws.fieldBonus!);
+    for (let k = 0; k < full; k++) {
+      const a = alerts(s).find((x) => x.kind === 'unemployed');
+      expect(a).toMatchObject({ workshopsFull: false });
+      put(s, 'workshop', EAST, 31 + 3 * k); // below the market
+    }
+    expect(alerts(s).find((x) => x.kind === 'unemployed')).toMatchObject({ workshopsFull: true });
   });
 
   it('in debt and famine at once, the debt alert says so (demolish to afford a field)', () => {

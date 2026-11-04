@@ -4,10 +4,10 @@ import { serviceOf } from './coverage';
 import { computeEconomy, round2, type Economy } from './economy';
 import { familyBlock, type FamilyBlock } from './families';
 import { foodForecast, type FoodForecast } from './forecast';
-import { currentGoal, goalProgress, goalTarget } from './goals';
+import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
 import { fieldHarvest, gatherFood } from './harvest';
-import { seasonOf, WEEKS_PER_YEAR } from './seasons';
+import { seasonOf } from './seasons';
 import type { BuildableKind, Building, Cell, GameState, Season } from './types';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
@@ -29,12 +29,16 @@ export function readCity(s: GameState): CityReadout {
 /** City level shown on the HUD: goals done + 1. */
 export const cityLevel = (s: GameState) => s.goalIndex + 1;
 
+/** Most a goal waiting for its `fromYear` can show: never full, since it cannot be done yet. */
+const WAITING_MAX = 0.95;
+
 /** Progress (0..1) of the current goal; 1 when every goal is done. */
 export function goalFraction(s: GameState): number {
   const goal = currentGoal(s);
   if (!goal) return 1;
   const target = goalTarget(s, goal);
-  return target <= 0 ? 1 : Math.min(1, goalProgress(s, goal) / target);
+  const f = target <= 0 ? 1 : Math.min(1, goalProgress(s, goal) / target);
+  return goalOpen(s, goal) ? f : Math.min(WAITING_MAX, f);
 }
 
 /** Number of goals in the game. */
@@ -42,7 +46,7 @@ export const goalCount = () => GOALS.length;
 
 /** Season, year (from 1) and week of the season (from 1) of a week tick. */
 export function calendar(week: number): { season: Season; year: number; week: number } {
-  return { season: seasonOf(week), year: Math.floor(week / WEEKS_PER_YEAR) + 1, week: (week % RULES.weeksPerSeason) + 1 };
+  return { season: seasonOf(week), year: yearOf(week), week: (week % RULES.weeksPerSeason) + 1 };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, BUILDINGS, clearCell, computeEconomy, gatherCells, gatherFood, indexOf, RULES, seasonOf, stepWeek, type Building, type GameState } from '../src/core';
+import { balloonNeed, BUILDINGS, clearCell, computeEconomy, foodPerResident, HOUSE_LEVELS, gatherCells, gatherFood, indexOf, RULES, seasonOf, stepWeek, type Building, type GameState } from '../src/core';
 import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
@@ -77,19 +77,20 @@ describe('fisher', () => {
     const b = put(s, 'fisher', besideRiver(s, 30), 30);
     const caught = gatherFood(s, b);
     expect(computeEconomy(s)).toMatchObject({ workers: 0, efficiency: 0, foodMade: 0 }); // nobody to fish
-    put(s, 'house', ROADSIDE, 27, 1); // 1 worker for 1 job
+    put(s, 'house', ROADSIDE, 27, 1); // a tent: enough workers for the 1 job
+    const eats = (week: number) => HOUSE_LEVELS[1].residents * foodPerResident(1, week);
     for (const week of [0, W, 2 * W, 3 * W]) {
       s.week = week;
       const e = computeEconomy(s);
       expect(e.efficiency).toBe(1);
       expect(e.harvest).toBe(0);
       expect(e.foodMade).toBeCloseTo(caught);
-      expect(e.foodDelta).toBeCloseTo(caught - 0.6);
+      expect(e.foodDelta).toBeCloseTo(caught - eats(week));
     }
     s.week = 2;
     const before = s.food;
     stepWeek(s, constRng(0.99));
-    expect(s.food).toBeCloseTo(before + caught - 0.6);
+    expect(s.food).toBeCloseTo(before + caught - eats(2));
     expect(seasonOf(2)).toBe('autumn');
   });
 });

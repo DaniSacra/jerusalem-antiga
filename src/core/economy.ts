@@ -1,12 +1,16 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
-import { fieldHarvest, gatherFood, isWorking } from './harvest';
+import { fieldBonus, fieldHarvest, gatherFood, isWorking } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
+import { seasonOf } from './seasons';
 import type { BuildingKind, GameState } from './types';
 
 export interface Economy {
   residents: number;
   workers: number;
+  /** Jobs of the connected workplaces at work this week (frozen fields have none). */
   jobs: number;
+  /** Jobs of every connected workplace, frozen fields included: the jobs of the whole year. */
+  yearJobs: number;
   /** 0..1 */
   efficiency: number;
   foodDelta: number;
@@ -28,6 +32,13 @@ export interface Economy {
   moods: Record<Mood, number>;
 }
 
+/** Food one resident of a house level eats in a week: more in winter, and most in a tent. */
+export function foodPerResident(level: number, week: number): number {
+  const food = HOUSE_LEVELS[level].food;
+  if (seasonOf(week) !== 'winter') return food;
+  return food * (level === 1 ? RULES.winter.tentFoodFactor : RULES.winter.foodFactor);
+}
+
 /** Upkeep is only charged after the first goals, so a new city cannot sink before it has people. */
 export const upkeepCharged = (s: GameState) => s.goalIndex >= RULES.upkeepStartsAfterGoal;
 
@@ -46,29 +57,33 @@ export function computeEconomy(s: GameState): Economy {
   let families = 0;
   const moods: Record<Mood, number> = { happy: 0, neutral: 0, sad: 0 };
   let jobs = 0;
+  let yearJobs = 0;
   let foodProd = 0;
   let harvest = 0;
   const silverProd: Partial<Record<BuildingKind, number>> = {};
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const charged = upkeepCharged(s);
+  const bonus = fieldBonus(s);
   for (const b of s.buildings) {
     if (b.kind === 'house') {
-      const lvl = HOUSE_LEVELS[b.level];
-      residents += lvl.residents;
-      eaten += lvl.residents * lvl.food;
+      const n = HOUSE_LEVELS[b.level].residents;
+      residents += n;
+      eaten += n * foodPerResident(b.level, s.week);
       continue;
     }
     const def = BUILDINGS[b.kind];
     if (def.upkeep && charged) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
-    if (!b.connected || !isWorking(b, s.week)) continue;
+    if (!b.connected) continue;
+    yearJobs += def.jobs;
+    if (!isWorking(b, s.week)) continue;
     jobs += def.jobs;
-    const h = fieldHarvest(s, b, s.week);
+    const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus);
     harvest += h;
     foodProd += gatherFood(s, b) + h;
     if (def.silver) silverProd[b.kind] = (silverProd[b.kind] ?? 0) + def.silver;
   }
   const workers = Math.floor(residents * RULES.workerShare);
-  const idle = idleShare(s, { workers, jobs });
+  const idle = idleShare(s, { workers, yearJobs });
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level === 0) continue;
     const h = houseHappiness(s, b, idle).value;
@@ -85,6 +100,7 @@ export function computeEconomy(s: GameState): Economy {
     residents,
     workers,
     jobs,
+    yearJobs,
     efficiency,
     foodDelta: round2(foodProd * efficiency - eaten),
     harvest: round2(harvest * efficiency),
@@ -108,15 +124,17 @@ export function costliestUpkeep(eco: Economy): { kind: BuildingKind; amount: num
   return best;
 }
 
-/** Share (0..1) of the workers without a job, as used by house happiness. */
-export function idleShare(s: GameState, e: Pick<Economy, 'workers' | 'jobs'> = computeEconomy(s)): number {
-  return e.workers > 0 ? Math.max(0, e.workers - e.jobs) / e.workers : 0;
+/**
+ * Share (0..1) of the workers without a job, as used by house happiness. It counts the jobs of
+ * the whole year: in winter the farmer rests, he is not out of work.
+ */
+export function idleShare(s: GameState, e: Pick<Economy, 'workers' | 'yearJobs'> = computeEconomy(s)): number {
+  return e.workers > 0 ? Math.max(0, e.workers - e.yearJobs) / e.workers : 0;
 }
 
-/** Workers left without a job (0 when there are enough jobs). */
+/** Workers left without a job of the year (0 when there are enough; frozen fields count). */
 export function unemployed(s: GameState, e: Economy = computeEconomy(s)): number {
-  const { workers, jobs } = e;
-  return Math.max(0, workers - jobs);
+  return Math.max(0, e.workers - e.yearJobs);
 }
 
 /** People without work to warn about, or 0 while the workshop is locked or below the alert threshold. */

@@ -3,23 +3,30 @@ import {
   balanceAfter,
   BUILDINGS,
   calendar,
+  fieldBonus,
+  foodPerResident,
+  HOUSE_LEVELS,
   checkPlace,
   cityLevel,
   computeEconomy,
+  familyBlock,
   foodAfter,
+  foodForecast,
   goalCount,
   goalFraction,
   GOALS,
+  WEEKS_PER_YEAR,
   housesByLevel,
   housesServed,
   needMet,
   place,
+  readCity,
   RULES,
   seasonOf,
   spotsServing,
   upgradeGain,
 } from '../src/core';
-import { besideRiver, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { besideRiver, EAST, emptyGame, meetGoal, put, ROADSIDE, westOf } from './helpers';
 
 describe('city level and goal progress', () => {
   it('level is goals done + 1', () => {
@@ -28,31 +35,70 @@ describe('city level and goal progress', () => {
   });
 
   it('progress is the share of the current goal, capped at 1', () => {
-    const s = emptyGame({ goalIndex: 1 }); // water for every house, at least 4
-    put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 1);
+    const i = GOALS.findIndex((g) => g.type === 'houses');
+    const goal = GOALS[i];
+    const s = emptyGame({ goalIndex: i });
+    put(s, 'house', ROADSIDE, 27, goal.level! - 1); // one level short: does not count
     expect(goalFraction(s)).toBe(0);
-    put(s, 'well', EAST, 27);
-    expect(goalFraction(s)).toBeCloseTo(2 / 4);
-    put(s, 'well', EAST, 33);
-    for (let y = 31; y <= 35; y += 2) put(s, 'house', ROADSIDE, y, 1);
-    expect(goalFraction(s)).toBe(1); // 5 of 5
-    expect(goalFraction(emptyGame({ goalIndex: 2, harvested: 40 }))).toBe(1); // 40 of 12
+    put(s, 'house', ROADSIDE, 29, goal.level!);
+    expect(goalFraction(s)).toBeCloseTo(1 / goal.target);
+    for (let k = 0; k < goal.target + 1; k++) put(s, 'house', ROADSIDE, 31 + 2 * k, goal.level!);
+    expect(goalFraction(s)).toBe(1); // more than the target: capped
+  });
+
+  it('a goal met before its fromYear never shows a full bar; from that year on it does', () => {
+    const i = GOALS.findIndex((g) => g.fromYear);
+    const goal = GOALS[i];
+    const target = goal.target;
+    goal.target = HOUSE_LEVELS[HOUSE_LEVELS.length - 1].residents * 2; // fits the test map; restored below
+    try {
+      const s = emptyGame({ goalIndex: i, week: 0 });
+      meetGoal(s, goal);
+      expect(goalFraction(s)).toBeGreaterThan(0.9);
+      expect(goalFraction(s)).toBeLessThan(1);
+      s.week = (goal.fromYear! - 1) * WEEKS_PER_YEAR;
+      expect(goalFraction(s)).toBe(1);
+    } finally {
+      goal.target = target;
+    }
   });
 
   it('progress of the food goal follows the shrinking target, and is 1 once the spring came', () => {
+    const W = RULES.weeksPerSeason;
     const s = emptyGame({ goalIndex: 0, food: 6 });
-    put(s, 'house', ROADSIDE, 27, 1); // lasts 9 weeks, the spring is 26 away
-    expect(goalFraction(s)).toBeCloseTo(9 / 26);
-    s.week = 13;
-    expect(goalFraction(s)).toBeCloseTo(9 / 13);
-    s.week = 26;
+    put(s, 'house', ROADSIDE, 27, 1);
+    /** Whole weeks 6 food lasts one tent from `week` (the winter weeks eat more). */
+    const lasts = (week: number) => {
+      let food = 6;
+      let k = 0;
+      while ((food = Math.round((food - HOUSE_LEVELS[1].residents * foodPerResident(1, week + k)) * 100) / 100) > 0) k++;
+      return k;
+    };
+    expect(lasts(0)).toBeLessThan(2 * W);
+    expect(goalFraction(s)).toBeCloseTo(lasts(0) / (2 * W));
+    s.week = W;
+    expect(lasts(W)).toBeLessThan(lasts(0)); // winter eating
+    expect(goalFraction(s)).toBeCloseTo(lasts(W) / W);
+    s.week = 2 * W;
     expect(goalFraction(s)).toBe(1);
   });
 
   it('progress is 1 once every goal is done', () => {
     expect(goalCount()).toBe(GOALS.length);
     expect(goalFraction(emptyGame({ goalIndex: GOALS.length }))).toBe(1);
+  });
+});
+
+describe('city readout', () => {
+  it('bundles the economy, the food forecast and the family gate of the same state', () => {
+    const s = emptyGame({ food: 6 });
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 29);
+    const r = readCity(s);
+    expect(r.eco).toEqual(computeEconomy(s));
+    expect(r.forecast).toEqual(foodForecast(s));
+    expect(r.forecast).not.toBeNull();
+    expect(r.block).toBe(familyBlock(s));
   });
 });
 
@@ -83,11 +129,12 @@ describe('balance after building', () => {
     expect(balanceAfter(s, 'well')).toBe(computeEconomy(s).silverDelta);
   });
 
-  it('adds the production a new workplace makes with the workers there are', () => {
+  it('a workshop only costs its upkeep: it makes no silver', () => {
     const s = emptyGame();
-    for (let y = 27; y <= 45; y += 2) put(s, 'house', ROADSIDE, y, 4); // 160 residents, 64 workers
+    for (let y = 27; y <= 45; y += 2) put(s, 'house', ROADSIDE, y, 4); // plenty of workers
     const now = computeEconomy(s).silverDelta;
-    expect(balanceAfter(s, 'workshop')).toBeCloseTo(now + 5 - 2);
+    expect(balanceAfter(s, 'workshop')).toBeCloseTo(now - BUILDINGS.workshop.upkeep!);
+    expect(balanceAfter(s, 'field')).toBeCloseTo(now - BUILDINGS.field.upkeep!);
   });
 
   it('does not change the city', () => {
@@ -99,7 +146,7 @@ describe('balance after building', () => {
 });
 
 describe('food after building', () => {
-  /** One tent (3 residents: 1 worker) and a fisher by the river that the worker keeps busy. */
+  /** One tent and a fisher by the river that its workers keep busy. */
   const town = () => {
     const s = emptyGame({ week: 0 }); // autumn: fields give food
     put(s, 'house', ROADSIDE, 27, 1);
@@ -107,12 +154,16 @@ describe('food after building', () => {
     return s;
   };
 
-  it('a workplace that takes the only worker lowers the food: every food building brings less', () => {
+  const workers = Math.floor(HOUSE_LEVELS[1].residents * RULES.workerShare);
+
+  it('a workplace that takes the workers lowers the food: every food building brings less', () => {
     const s = town();
     const now = computeEconomy(s);
     expect(now.efficiency).toBe(1);
     const after = foodAfter(s, 'market');
-    expect(after.efficiency).toBeCloseTo(1 / 4); // 1 worker for 1 + 3 jobs
+    const jobs = BUILDINGS.fisher.jobs + BUILDINGS.market.jobs;
+    expect(workers).toBeLessThan(jobs);
+    expect(after.efficiency).toBeCloseTo(workers / jobs);
     expect(after.delta).toBeLessThan(now.foodDelta);
     expect(after.yields).toBe(0);
   });
@@ -121,10 +172,31 @@ describe('food after building', () => {
     const s = town();
     const at = { x: westOf('field'), y: 30, rotated: false };
     const after = foodAfter(s, 'field', at);
-    expect(after.efficiency).toBeCloseTo(1 / 3); // 1 worker for 1 + 2 jobs
-    expect(after.yields).toBeCloseTo((BUILDINGS.field.harvest! / 39) / 3, 1);
-    // The fisher brings a third too: the city gains less than the field's full harvest.
+    const eff = workers / (BUILDINGS.fisher.jobs + BUILDINGS.field.jobs);
+    expect(eff).toBeLessThan(1);
+    expect(after.efficiency).toBeCloseTo(eff);
+    expect(after.yields).toBeCloseTo((BUILDINGS.field.harvest! / 39) * eff, 1);
+    // The fisher brings less too: the city gains less than the field's full harvest.
     expect(after.delta - computeEconomy(s).foodDelta).toBeLessThan(BUILDINGS.field.harvest! / 39);
+  });
+
+  it('a workshop raises the food of the fields (in delta, not in its own yield)', () => {
+    const s = emptyGame({ week: 0 });
+    put(s, 'house', ROADSIDE, 31, 4); // workers for everything below
+    put(s, 'house', ROADSIDE, 33, 4);
+    put(s, 'field', westOf('field'), 28);
+    const now = computeEconomy(s);
+    const after = foodAfter(s, 'workshop');
+    expect(after.efficiency).toBe(1);
+    expect(after.yields).toBe(0);
+    expect(after.delta).toBeCloseTo(now.foodDelta + now.harvest * BUILDINGS.workshop.fieldBonus!);
+    // Off the roads it adds nothing.
+    expect(foodAfter(s, 'workshop', { x: 2, y: 2, rotated: false }).delta).toBeCloseTo(now.foodDelta);
+    // Once the bonus is at its cap, one more workshop adds nothing to the food.
+    for (const y of [27, 30, 33]) put(s, 'workshop', EAST, y);
+    expect(fieldBonus(s)).toBeCloseTo(BUILDINGS.workshop.fieldBonusMax!);
+    expect(foodAfter(s, 'workshop').efficiency).toBe(1);
+    expect(foodAfter(s, 'workshop').delta).toBeCloseTo(computeEconomy(s).foodDelta);
   });
 
   it('a spot off the roads works for nothing: no food, no jobs', () => {
@@ -161,13 +233,20 @@ describe('houses served', () => {
 });
 
 describe('house upgrade gain', () => {
-  it('gives the residents and tax gained on the next level', () => {
-    expect(upgradeGain(1)).toEqual({ residents: 3, tax: 1, food: 0.3 }); // tent 0.6 → mud-brick 0.9 a week
-    expect(upgradeGain(3)).toEqual({ residents: 6, tax: 2.5, food: 1.52 }); // stone 2 → big 3.52
+  it('gives the residents, tax and food (out of winter) gained on the next level', () => {
+    for (let level = 0; level < HOUSE_LEVELS.length - 1; level++) {
+      const cur = HOUSE_LEVELS[level];
+      const next = HOUSE_LEVELS[level + 1];
+      expect(upgradeGain(level)).toEqual({
+        residents: next.residents - cur.residents,
+        tax: next.tax - cur.tax,
+        food: expect.closeTo(next.residents * next.food - cur.residents * cur.food),
+      });
+    }
   });
 
   it('is null at the top level', () => {
-    expect(upgradeGain(4)).toBeNull();
+    expect(upgradeGain(HOUSE_LEVELS.length - 1)).toBeNull();
   });
 });
 
@@ -217,11 +296,11 @@ describe('houses by level', () => {
 describe('food made and eaten', () => {
   it('splits the food balance into production and consumption', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 2); // 6 residents eating 0.15 each
+    put(s, 'house', ROADSIDE, 27, 2);
     put(s, 'field', EAST, 27);
     s.week = 2 * RULES.weeksPerSeason; // first spring: the field built in autumn harvests
     const e = computeEconomy(s);
-    expect(e.foodEaten).toBeCloseTo(0.9);
+    expect(e.foodEaten).toBeCloseTo(HOUSE_LEVELS[2].residents * HOUSE_LEVELS[2].food);
     expect(e.foodMade).toBeCloseTo(e.foodDelta + e.foodEaten);
     expect(e.foodMade).toBeGreaterThan(0);
   });
