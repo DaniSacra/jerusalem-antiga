@@ -253,6 +253,13 @@ Os jogadores seguem o que a tela mostra: o desemprego conta as vagas do ano todo
 aviso), a oficina só é construída por desemprego enquanto o bônus dos campos não chegou ao teto, e
 nenhum jogador guarda mais que meio ano de comida (acima disso aceita o estrago).
 
+## Vigia de agentes (`tools/watchdog.sh`)
+
+`tools/watchdog.sh [limite=1200] [intervalo=60]` roda enquanto houver agentes trabalhando. A cada
+intervalo, encerra na hora toda espera em `pgrep -f`/`pkill -f`, que se encontra e nunca termina. Também
+avisa (sem encerrar) quando um teste visual, uma simulação ou um navegador headless passa do limite em
+segundos. Para esperar um processo, use o PID (`wait $pid`, `kill -0 $pid`), nunca `pgrep -f`.
+
 ## App instalável (`scripts/pwa-check.mjs`)
 
 `npm run test:pwa` serve o `dist/` com `vite preview` e confere no Chromium: o Chrome considera o
