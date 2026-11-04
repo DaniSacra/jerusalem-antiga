@@ -219,9 +219,10 @@ export interface Rules {
     /** River width, and the distance (cells, Chebyshev) from the altar's border to its nearest cell. */
     river: { minWidth: number; maxWidth: number; distance: [number, number] };
     /** At least `min` groves of `trees`+ trees in a square of `radius` around a center `distance` cells from the altar's border. */
-    denseGrove: { min: number; trees: number; radius: number; distance: [number, number] };
+    /** `trees` (or `rocks`) is the least a group has; `extra` more are drawn in that range. */
+    denseGrove: { min: number; trees: number; extra: [number, number]; radius: number; distance: [number, number] };
     /** At least `min` outcrops of `rocks`+ rocks (taken from `rocks`) in a square of `radius` around a center `distance` cells from the altar's border. */
-    rockOutcrop: { min: number; rocks: number; radius: number; distance: [number, number] };
+    rockOutcrop: { min: number; rocks: number; extra: [number, number]; radius: number; distance: [number, number] };
   };
 }
 

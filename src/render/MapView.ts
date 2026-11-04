@@ -3,6 +3,7 @@ import {
   type Economy,
   isWorking,
   balloonNeed,
+  needLocked,
   BUILDINGS,
   checkClear,
   checkPlace,
@@ -16,7 +17,6 @@ import {
   plazaHouseSpots,
   servedHouses,
   type Building,
-  type BuildableKind,
   type BuildingKind,
   type Cell,
   type GameState,
@@ -80,10 +80,6 @@ interface Balloon {
   baseY: number;
   phase: number;
 }
-
-/** A balloon for a service the city cannot build yet. */
-const isLocked = (s: GameState, need: BalloonKind) => (SERVICE_NEEDS as readonly string[]).includes(need) && !s.unlocked.includes(need as BuildableKind);
-const SERVICE_NEEDS = ['plaza', 'market', 'park'] as const;
 
 const local = (x: number, y: number, z = 0) => ({ x: (x - y) * HW, y: (x + y) * HH - z });
 
@@ -599,13 +595,13 @@ export class MapView {
         cur.icon.setTexture(TEX.need(need));
         cur.need = need;
       }
-      cur.lock.setVisible(isLocked(s, need));
+      cur.lock.setVisible(needLocked(s, need));
       return;
     }
     const sc = this.scene;
     const bg = sc.add.image(0, 0, TEX.balloon).setOrigin(0.5, 1);
     const icon = sc.add.image(0, -16, TEX.need(need)).setScale(0.8);
-    const lock = sc.add.image(8, -9, TEX.uiIcon('lock')).setDisplaySize(12, 12).setVisible(isLocked(s, need));
+    const lock = sc.add.image(8, -9, TEX.uiIcon('lock')).setDisplaySize(12, 12).setVisible(needLocked(s, need));
     const root = sc.add.container(c.x + 6, baseY, [bg, icon, lock]).setDepth(DEPTH.fx + 1);
     this.balloons.set(b.id, { need, root, icon, lock, baseY, phase: cellHash(b.x, b.y) % 100 });
   }
@@ -729,7 +725,7 @@ export class MapView {
   private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
     const seen = new Set<number>();
     const { w, h } = dimsOf(kind);
-    // The tutorial's house spots are the ones with water (a family there keeps the gate open).
+    // The tutorial's house spots are the ones a plaza reaches (a tent there becomes a mud house).
     const spots = kind === 'house' ? plazaHouseSpots(s) : placeSpots(s, kind);
     for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));

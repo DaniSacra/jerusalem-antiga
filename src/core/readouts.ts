@@ -1,7 +1,7 @@
 import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
 import { clearCell, placeSpots } from './actions';
 import { serviceOf } from './coverage';
-import { computeEconomy, round2, type Economy } from './economy';
+import { computeEconomy, foodPerResident, round2, type Economy } from './economy';
 import { familyBlock, type FamilyBlock } from './families';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
@@ -92,12 +92,15 @@ export function housesServed(s: GameState, b: Building): number | null {
   return s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
 }
 
-/** What a house gains on its next level (residents and base tax), or null at the top level. */
-export function upgradeGain(level: number): { residents: number; tax: number; food: number } | null {
+/**
+ * What a house gains on its next level (residents and base tax) and what it eats more a week at
+ * this week's rate (winter included), or null at the top level.
+ */
+export function upgradeGain(level: number, week: number): { residents: number; tax: number; food: number } | null {
   const cur = HOUSE_LEVELS[level];
   const next = HOUSE_LEVELS[level + 1];
-  const eats = (l: typeof cur) => l.residents * l.food;
-  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(next) - eats(cur)) } : null;
+  const eats = (l: number) => HOUSE_LEVELS[l].residents * foodPerResident(l, week);
+  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(level + 1) - eats(level)) } : null;
 }
 
 export interface Spot extends Cell {
@@ -136,9 +139,11 @@ export function housesByLevel(s: GameState): number[] {
 export function foodLostIfRemoved(s: GameState, x: number, y: number): number {
   const i = indexOf(s, x, y);
   const b = s.grid[i];
-  if (!b && !s.roads[i]) return 0;
-  const copy: GameState = { ...s, silver: Math.max(s.silver, 0), roads: [...s.roads], grid: [...s.grid], buildings: s.buildings.map((o) => ({ ...o })) };
-  copy.grid = copy.grid.map((o) => (o ? copy.buildings[s.buildings.indexOf(o)] : o));
+  if ((!b && !s.roads[i]) || s.food <= RULES.baseFoodStorage) return 0;
+  if (!s.buildings.some((o) => o.connected && BUILDINGS[o.kind].storage)) return 0;
+  // A copy whose buildings are new objects (refreshing it must not touch `connected` in `s`).
+  const twin = new Map(s.buildings.map((o) => [o, { ...o }]));
+  const copy: GameState = { ...s, roads: [...s.roads], grid: s.grid.map((o) => (o ? twin.get(o)! : o)), buildings: [...twin.values()] };
   if (!clearCell(copy, x, y).ok) return 0;
   return round2(Math.max(0, s.food - foodCapacity(copy)));
 }

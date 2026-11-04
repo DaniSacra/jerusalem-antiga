@@ -1,4 +1,6 @@
 export const C = {
+  /** Warm brown wood (awning stripes, the plaza's planter rim). */
+  woodWarm: 0x8a5d3b,
   bg: 0x6b5236,
   sand: [0xe2c38d, 0xe0c08a, 0xe4c590, 0xdfbf88],
   grass: [0xbbae67, 0xb8ab64, 0xbeb16a, 0xb6a962],

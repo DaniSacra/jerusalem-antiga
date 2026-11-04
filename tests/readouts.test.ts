@@ -235,20 +235,25 @@ describe('houses served', () => {
 });
 
 describe('house upgrade gain', () => {
-  it('gives the residents, tax and food (out of winter) gained on the next level', () => {
+  it('gives the residents, tax and food gained on the next level, at the week\'s rate (winter factors)', () => {
+    const winter = RULES.weeksPerSeason; // first winter week
+    expect(seasonOf(winter)).toBe('winter');
     for (let level = 0; level < HOUSE_LEVELS.length - 1; level++) {
       const cur = HOUSE_LEVELS[level];
       const next = HOUSE_LEVELS[level + 1];
-      expect(upgradeGain(level)).toEqual({
-        residents: next.residents - cur.residents,
-        tax: next.tax - cur.tax,
-        food: expect.closeTo(next.residents * next.food - cur.residents * cur.food),
-      });
+      for (const week of [0, winter]) {
+        expect(upgradeGain(level, week)).toEqual({
+          residents: next.residents - cur.residents,
+          tax: next.tax - cur.tax,
+          food: expect.closeTo(next.residents * foodPerResident(level + 1, week) - cur.residents * foodPerResident(level, week)),
+        });
+      }
+      expect(upgradeGain(level, winter)!.food).not.toBe(upgradeGain(level, 0)!.food); // the winter factors apply
     }
   });
 
   it('is null at the top level', () => {
-    expect(upgradeGain(HOUSE_LEVELS.length - 1)).toBeNull();
+    expect(upgradeGain(HOUSE_LEVELS.length - 1, 0)).toBeNull();
   });
 });
 

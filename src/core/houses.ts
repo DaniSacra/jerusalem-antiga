@@ -62,7 +62,6 @@ export function weeksToNextLevel(s: GameState, b: Building): number | null {
   return Math.max(1, RULES.weeksToUpgrade - b.upStreak);
 }
 
-/** A need is shown only once its building can be built (the altar always exists). */
 /**
  * First problem of a building, shown as a balloon: no road first; then workplaces with no
  * workers at all; then a fisher or gatherer with no river or trees in reach; then, for houses of levels 1-3, the first missing need of the next level (the
@@ -81,3 +80,9 @@ export function balloonNeed(s: GameState, b: Building, e: Economy = computeEcono
 /** Houses connected to the road network with at least the given level. */
 export const countHousesAtLeast = (s: GameState, level: number) =>
   s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level >= level).length;
+
+/** A service need whose building the city cannot build yet (the balloon shows it with a lock). */
+export const needLocked = (s: GameState, need: BalloonKind): boolean =>
+  need !== 'road' && (SERVICE_NEEDS as readonly BalloonKind[]).includes(need) && !s.unlocked.includes(need as Exclude<NeedKind, 'road'>);
+
+const SERVICE_NEEDS: readonly Exclude<NeedKind, 'road'>[] = ['plaza', 'market', 'park'];

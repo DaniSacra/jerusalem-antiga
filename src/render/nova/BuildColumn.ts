@@ -69,7 +69,7 @@ export class BuildColumn {
     const label = kind ? BUILDINGS[kind].name : T.nova.category[category!];
     const name = PHONE ? null : ntext(s, 0, d * 0.13, label, S.small, NOVA_CSS.ink).setOrigin(0.5);
     // A long name shrinks until it fits inside the round button, never under 12 px; a category
-    // name (no price under it) that still does not fit goes on two lines ("Água e / comida").
+    // name (no price under it) that still does not fit goes on two lines.
     if (name) {
       for (let size = S.small - px(0.5); name.width > d * 0.84 && size >= px(12); size -= px(0.5)) name.setFontSize(size);
       if (name.width > d * 0.84 && !kind) name.setWordWrapWidth(d * 0.84).setAlign('center').setLineSpacing(-px(3)).setY(d * 0.2);

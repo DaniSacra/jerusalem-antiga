@@ -16,8 +16,7 @@ import {
   weeksToNextLevel,
   fieldBonus,
   foodLostIfRemoved,
-  foodPerResident,
-  HOUSE_LEVELS,
+  needLocked,
   type CityReadout,
   type BuildableKind,
   type Building,
@@ -107,15 +106,15 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
       // A missing service still locked says which goal unlocks it.
       const label = (kind: NeedKind, has: boolean) => {
         if (kind === 'road' && !has) return N.noRoad;
-        const goal = kind !== 'road' && !s.unlocked.includes(kind) ? unlockingGoal(kind) : null;
+        const goal = needLocked(s, kind) ? unlockingGoal(kind as BuildableKind) : null;
         return goal ? N.lockedNeed(T.need[kind], goal) : T.need[kind];
       };
       needs.forEach((n, k) => lines.push({ ...ok(n.ok, label(n.kind, n.ok)), gap: k ? 0 : px(4) }));
       const left = weeksToNextLevel(s, b);
       if (s.famine) lines.push({ text: N.famine, color: NOVA_CSS.bad });
       else if (left !== null) lines.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
-      const gain = upgradeGain(h.level);
-      if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.residents, gain.tax, eatsMore(h.level, s.week))}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
+      const gain = upgradeGain(h.level, s.week);
+      if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.residents, gain.tax, gain.food)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
       // Main action: the first missing need the player can build now.
       const miss = h.next.needs.find((n) => !n.ok);
       if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
@@ -147,16 +146,10 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
   return { lines, foot, building: b, action, demolish: !def.protected };
 }
 
-/** What a house eats more a week on its next level, at this week's rate (winter included). */
-function eatsMore(level: number, week: number): number {
-  const eats = (l: number) => HOUSE_LEVELS[l].residents * foodPerResident(l, week);
-  return Math.round((eats(level + 1) - eats(level)) * 100) / 100;
-}
-
 /** "Perde N de comida" when demolishing this would spoil food (a granary, or the road to one). */
 function lossLine(s: GameState, c: Cell): Line[] {
   const n = foodLostIfRemoved(s, c.x, c.y);
-  return n > 0 ? [{ text: '✗ ' + T.nova.foodLost(n), color: NOVA_CSS.bad }] : [];
+  return n > 0 ? [ok(false, T.nova.foodLost(n))] : [];
 }
 
 /** Field, fisher, gatherer and granary: when it harvests, what it yields, what it keeps. */
@@ -171,7 +164,7 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
   }
   if (def.gather && b.connected) {
     const n = gatherFood(s, b) * eco.efficiency;
-    out.push(n > 0 ? { text: N.yields(n), color: NOVA_CSS.good } : { text: '✗ ' + N.inspect.noSource[def.gather.source], color: NOVA_CSS.bad });
+    out.push(n > 0 ? { text: N.yields(n), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });

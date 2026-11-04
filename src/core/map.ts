@@ -147,8 +147,8 @@ export function generateTerrain(rng: Rng): Terrain {
   // Guaranteed groups: dense groves of trees and a rock outcrop, each a square fully on free land
   // west of the river (the city's side), with a one-cell clearing around it.
   const groups: Group[] = [
-    ...Array.from({ length: denseGrove.min }, (): Group => ({ trees: true, n: denseGrove.trees + between(rng, [2, 8]), radius: denseGrove.radius, distance: denseGrove.distance })),
-    ...Array.from({ length: rockOutcrop.min }, (): Group => ({ trees: false, n: rockOutcrop.rocks + between(rng, [0, 4]), radius: rockOutcrop.radius, distance: rockOutcrop.distance })),
+    ...Array.from({ length: denseGrove.min }, (): Group => ({ trees: true, n: denseGrove.trees + between(rng, denseGrove.extra), radius: denseGrove.radius, distance: denseGrove.distance })),
+    ...Array.from({ length: rockOutcrop.min }, (): Group => ({ trees: false, n: rockOutcrop.rocks + between(rng, rockOutcrop.extra), radius: rockOutcrop.radius, distance: rockOutcrop.distance })),
   ];
   const clearAround = (x: number, y: number, r: number) => {
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (inMap(x + dx, y + dy) && feature[(y + dy) * cols + x + dx]) return false;

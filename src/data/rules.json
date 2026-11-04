@@ -52,7 +52,7 @@
     "palms": [50, 80],
     "grassShare": 0.45,
     "river": { "minWidth": 3, "maxWidth": 4, "distance": [8, 18] },
-    "denseGrove": { "min": 2, "trees": 24, "radius": 3, "distance": [10, 20] },
-    "rockOutcrop": { "min": 1, "rocks": 12, "radius": 2, "distance": [10, 18] }
+    "denseGrove": { "min": 2, "trees": 24, "extra": [2, 8], "radius": 3, "distance": [10, 20] },
+    "rockOutcrop": { "min": 1, "rocks": 12, "extra": [0, 4], "radius": 2, "distance": [10, 18] }
   }
 }

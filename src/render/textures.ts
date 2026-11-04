@@ -1307,7 +1307,7 @@ function tentAwning(p: Pen) {
   jar(p, 0.2, 0.3, 0, 3);
   const aw: P3[] = [[x0, yf, 12], [x1, yf, 12], [x1, ya, 11], [x0, ya, 11]];
   const n = 8;
-  for (let k = 0; k < n; k++) p.poly(k % 2 ? C.cream : 0x8a5d3b, subQuad(aw, k / n, (k + 1) / n, 0, 1), 0.95);
+  for (let k = 0; k < n; k++) p.poly(k % 2 ? C.cream : C.woodWarm, subQuad(aw, k / n, (k + 1) / n, 0, 1), 0.95);
   p.line(shade(C.cream, 0.7), 1, [x0, ya, 11], [x1, ya, 11]);
   for (const x of [x0 + 0.03, x1 - 0.03]) {
     p.line(C.wood, 2, [x, ya, 0], [x, ya, 12]);
@@ -2049,8 +2049,8 @@ function plaza(p: Pen) {
   // A plain linen awning on four poles at the back right, a mat and a jar under it.
   const [ax0, ay0, ax1, ay1, az] = [0.12, -0.8, 0.8, -0.12, kerb];
   p.rect(C.shadow, ax0 + 0.08, ay0 + 0.04, ax1 + 0.2, ay1, az, 0.16);
-  p.rect(0x8a5d3b, ax0 + 0.12, ay0 + 0.14, ax1 - 0.14, ay1 - 0.12, az);
-  p.rect(shade(0x8a5d3b, 1.2), ax0 + 0.18, ay0 + 0.2, ax1 - 0.2, ay0 + 0.26, az, 0.8);
+  p.rect(C.woodWarm, ax0 + 0.12, ay0 + 0.14, ax1 - 0.14, ay1 - 0.12, az);
+  p.rect(shade(C.woodWarm, 1.2), ax0 + 0.18, ay0 + 0.2, ax1 - 0.2, ay0 + 0.26, az, 0.8);
   jar(p, ax1 - 0.22, ay0 + 0.22, az, 3);
   const posts: [number, number][] = [[ax0, ay0], [ax1, ay0], [ax0, ay1], [ax1, ay1]];
   posts.forEach(([x, y]) => p.line(C.woodDark, 1.6, [x, y, az], [x, y, az + 20]));
@@ -3184,6 +3184,14 @@ function needIcon(g: G, k: BalloonKind) {
     g.fillPoints([{ x: 0, y: 14 }, { x: 4, y: 16 }, { x: 7, y: 13.5 }, { x: 3, y: 11.5 }], true);
     g.fillPoints([{ x: 9, y: 8.5 }, { x: 13, y: 10.5 }, { x: 16, y: 8 }, { x: 12, y: 6 }], true);
     noSign(g, 8, 11, 6.5);
+  } else if (k === 'noSource') {
+    // A fish over a wavy line, crossed out (no river or trees in reach).
+    g.fillStyle(C.water);
+    g.fillRect(1, 16, 14, 2);
+    g.fillStyle(shade(C.water, 0.6));
+    g.fillEllipse(7, 10, 9, 5);
+    g.fillTriangle(11, 10, 15, 7, 15, 13);
+    noSign(g, 8, 11, 7);
   } else if (k === 'workers') {
     // A worker crossed out.
     g.fillStyle(C.skin[0]);
@@ -3550,7 +3558,8 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.strokeCircle(32, 32, 27);
   });
   raw(TEX.balloon, 28, 28, balloon);
-  (['road', 'plaza', 'market', 'park', 'workers', 'sad'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  const balloonKinds = { road: 0, plaza: 0, market: 0, park: 0, workers: 0, sad: 0, noSource: 0 } satisfies Record<BalloonKind, 0>;
+  (Object.keys(balloonKinds) as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
   for (const { type } of WALKERS) {
     const [w, h] = residentSize(type);
     const crafts: (Craft | null)[] = [null, ...(type === 'artisan' ? BUILDINGS.workshop.crafts! : [])];

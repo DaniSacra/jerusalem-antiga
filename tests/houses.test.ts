@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, clearCell, HOUSE_LEVELS, indexOf, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
+import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
 import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
@@ -333,9 +333,18 @@ describe('house info and balloons', () => {
     expect(unlockingGoal('park')).toBe(5);
   });
 
-  // Plan P2 2.6: the balloon shows a locked need ("✗ Parque (libera no objetivo 5)"). Today
-  // `needVisible` in houses.ts still hides it (balloonNeed returns null or 'sad'). Unskip once it
-  // changes.
+  it('needLocked: only a service need whose building is still locked', () => {
+    const s = emptyGame({ unlocked: ['road', 'house', 'plaza'] });
+    expect(needLocked(s, 'market')).toBe(true);
+    expect(needLocked(s, 'park')).toBe(true);
+    expect(needLocked(s, 'plaza')).toBe(false);
+    for (const k of ['road', 'workers', 'sad', 'noSource'] as const) expect(needLocked(s, k)).toBe(false);
+    s.unlocked.push('market', 'park');
+    expect(needLocked(s, 'market')).toBe(false);
+    expect(needLocked(s, 'park')).toBe(false);
+  });
+
+  // Plan P2 2.6: the balloon shows a locked need, with a lock (see needLocked).
   it('the balloon shows the first missing need even while it is locked (plan P2 2.6)', () => {
     const s = emptyGame({ unlocked: ['road', 'house', 'plaza'] });
     put(s, 'workshop', EAST, 40); // jobs, so the house is not sad

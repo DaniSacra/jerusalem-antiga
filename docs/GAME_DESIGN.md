@@ -156,7 +156,7 @@ Cada morador come 0,2 por semana em todos os níveis (mais no inverno, veja Simu
 (`weeksToUpgrade`) com as exigências do próximo nível. Cair continua rápido: **3 semanas**
 (`weeksToDowngrade`) sem uma exigência do nível atual. O balão da casa mostra a contagem
 ("Casa de barro em N sem", `weeksToNextLevel`). Uma exigência que ainda está bloqueada também
-aparece, com o objetivo que a libera ("✗ Mercado (objetivo 3)", "✗ Parque (objetivo 5)"), e o balão
+aparece, com o objetivo que a libera ("✗ Mercado (libera no objetivo 3)", "✗ Parque (libera no objetivo 5)"), e o balão
 sobre a casa mostra o ícone dela com um cadeado.
 
 ## Felicidade
