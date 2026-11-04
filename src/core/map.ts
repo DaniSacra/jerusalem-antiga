@@ -2,7 +2,7 @@ import { dimsOf, RULES } from './data';
 import { between } from './rng';
 import type { Cell, Feature, Ground, Rng } from './types';
 
-const { cols, rows, altar, clearRadius, rocks, olives, palms, grassShare, river, denseGrove } = RULES.map;
+const { cols, rows, altar, clearRadius, rocks, olives, palms, grassShare, river, denseGrove, rockOutcrop } = RULES.map;
 
 const ALTAR = dimsOf('altar');
 /** Column of the starting road: below the middle of the altar's south side. */
@@ -38,8 +38,8 @@ export const caravanSpots = (): Cell[] =>
     { x: CAMP_X + 1, y },
   ]);
 
-/** A free 2 x 2 spot by the ring, east of the camp, where one well reaches every caravan tent. */
-export const campWellSpot = (): Cell => ({ x: CAMP_X + 1 + HOUSE.w, y: CAMP_ROWS[0] });
+/** A free 2 x 2 spot by the ring, east of the camp, where one plaza reaches every caravan tent. */
+export const campPlazaSpot = (): Cell => ({ x: CAMP_X + 1 + HOUSE.w, y: CAMP_ROWS[0] });
 
 /** Starting roads: the ring around the altar, the camp road and a straight road south to the map edge. */
 export const startRoad = (): Cell[] => [
@@ -104,12 +104,20 @@ const CLUMPS: Record<Feature, { size: [number, number]; spread: number }> = {
   olive: { size: [7, 14], spread: 2.4 },
   palm: { size: [6, 12], spread: 2.2 },
 };
+/** A guaranteed group: `n` trees (olives and palms) or rocks packed in a square of `radius` around a center `distance` cells from the altar's border. */
+interface Group {
+  trees: boolean;
+  n: number;
+  radius: number;
+  distance: [number, number];
+}
+
 /** New clumps start at least this far (Chebyshev) from any feature, leaving clearings between them. */
 const CLUMP_GAP = 4;
 
 /**
  * Terrain for a new map, all drawn from `rng` in a fixed order: the ground noise, the river (its
- * distance from the altar and its bends), the counts of rocks and trees, the dense grove(s), then
+ * distance from the altar and its bends), the counts of rocks and trees, the guaranteed groups (dense groves, rock outcrop), then
  * clumps of rocks, olives and palms with clearings between them.
  */
 export function generateTerrain(rng: Rng): Terrain {
@@ -136,26 +144,33 @@ export function generateTerrain(rng: Rng): Terrain {
     left[f]--;
   };
 
-  // Dense grove(s): a 7 x 7 square fully on free land west of the river (the city's side).
-  const r = denseGrove.radius;
-  for (let g = 0; g < denseGrove.min; g++) {
+  // Guaranteed groups: dense groves of trees and a rock outcrop, each a square fully on free land
+  // west of the river (the city's side), with a one-cell clearing around it.
+  const groups: Group[] = [
+    ...Array.from({ length: denseGrove.min }, (): Group => ({ trees: true, n: denseGrove.trees + between(rng, [2, 8]), radius: denseGrove.radius, distance: denseGrove.distance })),
+    ...Array.from({ length: rockOutcrop.min }, (): Group => ({ trees: false, n: rockOutcrop.rocks + between(rng, [0, 4]), radius: rockOutcrop.radius, distance: rockOutcrop.distance })),
+  ];
+  const clearAround = (x: number, y: number, r: number) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (inMap(x + dx, y + dy) && feature[(y + dy) * cols + x + dx]) return false;
+    return true;
+  };
+  for (const { trees, n, radius: r, distance: [dMin, dMax] } of groups) {
     const centers: Cell[] = [];
     for (let y = r; y < rows - r; y++) {
       for (let x = r; x < cols - r; x++) {
         const d = altarDistance(x, y);
-        if (d < denseGrove.distance[0] || d > denseGrove.distance[1]) continue;
+        if (d < dMin || d > dMax || !clearAround(x, y, r + 1)) continue;
         let ok = true;
         for (let dy = -r; dy <= r && ok; dy++) for (let dx = -r; dx <= r && ok; dx++) ok = open(x + dx, y + dy) && x + dx < bank.x0[y + dy];
         if (ok) centers.push({ x, y });
       }
     }
-    if (!centers.length) break;
+    if (!centers.length) continue;
     const c = centers[Math.floor(rng() * centers.length)];
     const cells: { x: number; y: number; k: number }[] = [];
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) cells.push({ x: c.x + dx, y: c.y + dy, k: Math.hypot(dx, dy) + rng() * 1.5 });
     cells.sort((a, b) => a.k - b.k);
-    const n = denseGrove.trees + between(rng, [2, 8]);
-    for (const cell of cells.slice(0, n)) put(cell.x, cell.y, rng() < left.olive / (left.olive + left.palm) ? 'olive' : 'palm');
+    for (const cell of cells.slice(0, n)) put(cell.x, cell.y, !trees ? 'rock' : rng() < left.olive / (left.olive + left.palm) ? 'olive' : 'palm');
   }
 
   // Clumps: each starts on open land away from other features (or anywhere open once none is).

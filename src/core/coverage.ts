@@ -4,10 +4,10 @@ import { SERVICE_KINDS, type BuildingKind, type Coverage, type GameState, type S
 
 /** Building kinds that provide each service. */
 export const SERVICE_SOURCES: Record<ServiceKind, BuildingKind[]> = {
-  well: ['well'],
+  plaza: ['plaza'],
   market: ['market'],
   sacred: ['altar', 'temple'],
-  garden: ['garden'],
+  park: ['park'],
 };
 
 export const serviceOf = (kind: BuildingKind): ServiceKind | null =>

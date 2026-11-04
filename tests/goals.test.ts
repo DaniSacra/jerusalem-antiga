@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   checkGoal,
   computeEconomy,
+  createGame,
+  createRng,
   currentGoal,
   foodPerResident,
   goalOpen,
@@ -17,7 +19,6 @@ import {
   yearOf,
   type GameEvent,
   type GameState,
-  type GoalDef,
 } from '../src/core';
 import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
@@ -45,7 +46,7 @@ describe('goals', () => {
       ['houses', 3, 2, 40, null, null],
       ['residents', 60, null, 50, 'market', null],
       ['houses', 3, 3, 60, 'workshop', null],
-      ['residents', 150, null, 80, 'garden', null],
+      ['residents', 150, null, 80, 'park', null],
       ['houses', 2, 4, 100, null, null],
       ['residents', 250, null, 120, null, null],
       ['houses', 6, 4, 150, 'temple', null],
@@ -58,19 +59,35 @@ describe('goals', () => {
 
   it('the goals file uses no harvest or water goal any more', () => {
     expect(GOALS.some((g) => (g.type as string) === 'harvest')).toBe(false);
-    expect(GOALS.some((g) => g.type === 'water')).toBe(false);
+    expect(GOALS.some((g) => (g.type as string) === 'water')).toBe(false);
   });
 
   it('knows which goal unlocks each placeable', () => {
     expect(unlockingGoal('granary')).toBe(1);
     expect(unlockingGoal('market')).toBe(3);
     expect(unlockingGoal('workshop')).toBe(4);
-    expect(unlockingGoal('garden')).toBe(5);
+    expect(unlockingGoal('park')).toBe(5);
     expect(unlockingGoal('temple')).toBe(8); // built before the 500 residents; the victory still asks for them
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
     });
+  });
+
+  it('the plaza is unlocked from the start; goal 5 (150 residents) unlocks the park', () => {
+    expect(RULES.startUnlocked).toContain('plaza');
+    expect(RULES.startUnlocked).not.toContain('park');
+    const fresh = createGame(createRng(1));
+    expect(fresh.unlocked).toContain('plaza');
+    expect(fresh.unlocked).not.toContain('park');
+    const goal = GOALS[4];
+    expect(goal).toMatchObject({ type: 'residents', target: 150, unlock: 'park' });
+    const s = emptyGame({ goalIndex: 4, silver: 0, unlocked: [...RULES.startUnlocked] });
+    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
+    const events: GameEvent[] = [];
+    checkGoal(s, events);
+    expect(events[0]).toEqual({ type: 'goal', index: 4, reward: goal.reward, unlock: 'park' });
+    expect(s.unlocked).toContain('park');
   });
 
   it('goal 1: food that lasts until the first spring, rewards and unlocks the granary', () => {
@@ -223,24 +240,5 @@ describe('goals that wait for their year (fromYear)', () => {
   it('goals without fromYear are open from the first week', () => {
     const s = emptyGame({ week: 0 });
     for (const g of GOALS) if (!g.fromYear) expect(goalOpen(s, g)).toBe(true);
-  });
-});
-
-describe('water goal (kept in the code until the water package)', () => {
-  const water: GoalDef = { type: 'water', target: 4, reward: 30, text: '' };
-
-  it('counts houses with a family and water, out of every such house (at least the target)', () => {
-    const s = emptyGame();
-    put(s, 'well', EAST, 27);
-    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 1);
-    put(s, 'house', ROADSIDE, 33); // a plot does not count
-    expect(goalProgress(s, water)).toBe(3);
-    expect(goalTarget(s, water)).toBe(4);
-    put(s, 'house', ROADSIDE, 41, 1); // far from the well
-    put(s, 'house', ROADSIDE, 43, 1);
-    expect(goalTarget(s, water)).toBe(5);
-    expect(goalProgress(s, water)).toBe(3);
-    put(s, 'well', EAST, 41);
-    expect(goalProgress(s, water)).toBe(5);
   });
 });

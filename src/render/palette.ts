@@ -40,6 +40,8 @@ export const C = {
   wheat: 0xeacb5e,
   wheatStem: 0xb88f35,
   fabric: 0xe5c99a,
+  /** Dyed ochre linen of the plaza shade cloth. */
+  shadeCloth: 0xd49a52,
   tentCloth: 0x4e3d30,
   limeWash: 0xf4ecdb,
   rope: 0xeadfc4,
@@ -53,7 +55,7 @@ export const C = {
   clothes: [0xc0503c, 0x5a7fb5, 0xe2b544, 0x7fa65a, 0x9a6ab0, 0xe9ddc8],
   skin: [0xd9a77c, 0xc28a5e, 0xe8bf96],
   mood: { happy: 0x8cc152, neutral: 0xf2c94c, sad: 0xe0704c },
-  need: { road: 0xc0392b, well: 0x4a9bd8, market: 0xc0503c, sacred: 0xe8742c, garden: 0x5aa83c },
+  need: { road: 0xc0392b, plaza: 0xb89a6a, market: 0xc0503c, sacred: 0xe8742c, park: 0x5aa83c },
   /** Interface: light stone plaques and rails with gold trim. */
   ui: {
     stone: 0xf1e8d4,

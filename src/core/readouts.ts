@@ -1,12 +1,12 @@
 import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
-import { placeSpots } from './actions';
+import { clearCell, placeSpots } from './actions';
 import { serviceOf } from './coverage';
 import { computeEconomy, round2, type Economy } from './economy';
 import { familyBlock, type FamilyBlock } from './families';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
-import { fieldHarvest, gatherFood } from './harvest';
+import { fieldHarvest, foodCapacity, gatherFood } from './harvest';
 import { seasonOf } from './seasons';
 import type { BuildableKind, Building, Cell, GameState, Season } from './types';
 
@@ -127,4 +127,18 @@ export function housesByLevel(s: GameState): number[] {
   const out = HOUSE_LEVELS.map(() => 0);
   for (const b of s.buildings) if (b.kind === 'house') out[b.level]++;
   return out;
+}
+
+/**
+ * Food that would spoil at once if the building or road at (x, y) were removed: a granary, or a
+ * road whose cut disconnects one, lowers what the city can keep (0 when nothing is lost).
+ */
+export function foodLostIfRemoved(s: GameState, x: number, y: number): number {
+  const i = indexOf(s, x, y);
+  const b = s.grid[i];
+  if (!b && !s.roads[i]) return 0;
+  const copy: GameState = { ...s, silver: Math.max(s.silver, 0), roads: [...s.roads], grid: [...s.grid], buildings: s.buildings.map((o) => ({ ...o })) };
+  copy.grid = copy.grid.map((o) => (o ? copy.buildings[s.buildings.indexOf(o)] : o));
+  if (!clearCell(copy, x, y).ok) return 0;
+  return round2(Math.max(0, s.food - foodCapacity(copy)));
 }

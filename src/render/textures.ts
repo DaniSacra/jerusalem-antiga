@@ -716,7 +716,7 @@ function jar(p: Pen, x: number, y: number, z: number, r = 3, color = C.terracott
   p.ball(shade(color, 1.3), x - 0.02, y - 0.02, z + r * 1.3, r * 0.3);
 }
 
-/** Vertical cylinder (well head, kiln base), lit on the left like the south faces. */
+/** Vertical cylinder (silo drum, kiln base), lit on the left like the south faces. */
 function cylinder(p: Pen, x: number, y: number, r: number, z0: number, z1: number, color: number) {
   const top = p.p(x, y, z1);
   const bot = p.p(x, y, z0);
@@ -2015,99 +2015,95 @@ function flax(g: G) {
   });
 }
 
-/** Well (2 x 2): a paved stone platform, a round well head with a pulley frame and a trough. */
-function well(p: Pen) {
-  const s = 0.78;
-  const plat = 4;
-  p.shadow(-s, -s, s, s, 10, 0.18);
-  p.box(-s, -s, s, s, 0, plat, C.stone, shade(C.stone, 0.88), shade(C.stone, 0.64));
-  for (let k = -s + 0.26; k < s; k += 0.26) {
-    p.line(shade(C.stone, 0.82), 1, [k, -s, plat], [k, s, plat], 0.7);
-    p.line(shade(C.stone, 0.82), 1, [-s, k, plat], [s, k, plat], 0.7);
-  }
-  // A small date palm leaning over the back corner.
-  const pc = p.p(-0.6, -0.6, plat);
-  p.g.lineStyle(4, C.palmTrunk);
-  p.g.lineBetween(pc.x, pc.y, pc.x - 2, pc.y - 30);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2;
-    p.g.fillStyle(k % 2 ? C.palm : C.palmDark);
-    p.g.fillTriangle(pc.x - 2, pc.y - 30, pc.x - 2 + Math.cos(a) * 18, pc.y - 26 + Math.sin(a) * 7, pc.x - 2 + Math.cos(a + 0.3) * 12, pc.y - 30 + Math.sin(a + 0.3) * 5);
-  }
-  // Well head with water inside.
-  const wx = 0;
-  const wy = -0.1;
-  const r = 0.36;
-  cylinder(p, wx, wy, r, plat, plat + 13, C.stone);
-  for (const z of [plat + 4.5, plat + 9]) {
-    const c = p.p(wx, wy, z);
-    p.g.lineStyle(1, shade(C.stone, 0.62), 0.6);
-    p.g.beginPath();
-    p.g.arc(c.x, c.y, r * SQRT2 * HW, 0.15, Math.PI - 0.15);
-    p.g.strokePath();
-  }
-  p.disc(C.waterDeep, wx, wy, plat + 13, r * 0.72);
-  p.disc(C.water, wx - 0.03, wy - 0.03, plat + 13, r * 0.5, 0.8);
-  p.disc(C.waterLight, wx - 0.1, wy - 0.06, plat + 13, 0.06, 0.8);
-  // Pulley frame across the well, drawn along the screen horizontal.
-  const ends: [number, number][] = [[wx - 0.42, wy + 0.42], [wx + 0.42, wy - 0.42]];
-  p.box(ends[1][0] - 0.035, ends[1][1] - 0.035, ends[1][0] + 0.035, ends[1][1] + 0.035, plat, plat + 38, C.wood);
-  p.line(C.woodDark, 3, [ends[0][0], ends[0][1], plat + 37], [ends[1][0], ends[1][1], plat + 37]);
-  const pul = p.p(wx, wy, plat + 34);
-  p.g.fillStyle(C.woodDark);
-  p.g.fillCircle(pul.x, pul.y, 4);
-  p.g.fillStyle(C.wood);
-  p.g.fillCircle(pul.x, pul.y, 2);
-  p.line(C.rope, 1, [wx, wy, plat + 33], [wx, wy, plat + 20]);
-  p.box(wx - 0.05, wy - 0.05, wx + 0.05, wy + 0.05, plat + 15, plat + 21, C.wood);
-  p.box(ends[0][0] - 0.035, ends[0][1] - 0.035, ends[0][0] + 0.035, ends[0][1] + 0.035, plat, plat + 38, C.wood);
-  // Stone trough with water, jars and a woman carrying a jar.
-  p.box(0.2, 0.36, 0.7, 0.58, plat, plat + 8, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.6));
-  p.rect(C.waterDeep, 0.25, 0.4, 0.65, 0.54, plat + 8);
-  p.rect(C.waterLight, 0.3, 0.44, 0.45, 0.48, plat + 8, 0.6);
-  jar(p, -0.6, 0.38, plat, 3.6);
-  jar(p, -0.45, 0.55, plat, 3);
-  person(p, -0.15, 0.55, plat, 4);
-  const head = p.p(-0.15, 0.55, plat + 19);
-  p.g.fillStyle(C.terracotta);
-  p.g.fillEllipse(head.x, head.y - 2, 7, 6);
-}
-
 /** A pen whose origin is moved to the local point (x, y), to reuse tree drawings inside a building. */
 const moved = (p: Pen, x: number, y: number) => {
   const c = p.p(x, y);
   return new Pen(p.g, c.x, c.y, p.mirror);
 };
 
-/** Garden (2 x 2): a lawn in a low stone border, paths to a small pool, flower beds, trees and a bench. */
-function garden(p: Pen) {
+/** Plaza (2 x 2): a square paved with light limestone slabs, a shade tree, a cloth awning and a stone bench. */
+function plaza(p: Pen) {
+  const s = 0.86;
+  const kerb = 2;
+  p.shadow(-s, -s, s, s, 6, 0.14);
+  p.box(-s, -s, s, s, 0, kerb, C.limestone, shade(C.limestone, 0.86), shade(C.limestone, 0.62));
+  // Slabs in staggered rows, each a slightly different tone, with mortar joints.
+  const r = createRng(77);
+  const n = 5;
+  const step = (2 * s) / n;
+  p.rect(shade(C.limestone, 0.76), -s, -s, s, s, kerb);
+  for (let j = 0; j < n; j++) {
+    const off = j % 2 ? step / 2 : 0;
+    for (let i = -1; i < n; i++) {
+      const x0 = Math.max(-s, -s + i * step + off);
+      const x1 = Math.min(s, -s + (i + 1) * step + off);
+      if (x1 - x0 < 0.02) continue;
+      const y0 = -s + j * step;
+      p.rect(shade(C.limestone, 0.88 + r() * 0.14), x0 + 0.02, y0 + 0.02, x1 - 0.02, y0 + step - 0.02, kerb);
+    }
+  }
+  // A shade tree in a square stone planter at the back corner.
+  p.box(-0.78, -0.78, -0.3, -0.3, kerb, kerb + 4, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.62));
+  p.rect(C.earthDark, -0.72, -0.72, -0.36, -0.36, kerb + 4);
+  olive(moved(p, -0.54, -0.54), 1);
+  // A plain linen awning on four poles at the back right, a mat and a jar under it.
+  const [ax0, ay0, ax1, ay1, az] = [0.12, -0.8, 0.8, -0.12, kerb];
+  p.rect(C.shadow, ax0 + 0.08, ay0 + 0.04, ax1 + 0.2, ay1, az, 0.16);
+  p.rect(0x8a5d3b, ax0 + 0.12, ay0 + 0.14, ax1 - 0.14, ay1 - 0.12, az);
+  p.rect(shade(0x8a5d3b, 1.2), ax0 + 0.18, ay0 + 0.2, ax1 - 0.2, ay0 + 0.26, az, 0.8);
+  jar(p, ax1 - 0.22, ay0 + 0.22, az, 3);
+  const posts: [number, number][] = [[ax0, ay0], [ax1, ay0], [ax0, ay1], [ax1, ay1]];
+  posts.forEach(([x, y]) => p.line(C.woodDark, 1.6, [x, y, az], [x, y, az + 20]));
+  // Dyed ochre linen, sagging a little between the posts, with a scalloped hem at the front.
+  const cloth = C.shadeCloth;
+  p.poly(shade(cloth, 0.92), [[ax0, ay0, az + 22], [ax1, ay0, az + 22], [ax1, ay1, az + 18], [ax0, ay1, az + 18]]);
+  p.poly(cloth, [[ax0 + 0.06, ay0 + 0.06, az + 21], [ax1 - 0.06, ay0 + 0.06, az + 21], [ax1 - 0.06, ay1 - 0.06, az + 18.5], [ax0 + 0.06, ay1 - 0.06, az + 18.5]]);
+  p.line(shade(cloth, 1.15), 2, [ax0 + 0.1, ay0 + 0.3, az + 21], [ax1 - 0.1, ay0 + 0.3, az + 21], 0.7);
+  const hem = 6;
+  for (let k = 0; k < hem; k++) {
+    const xa = ax0 + ((ax1 - ax0) * k) / hem;
+    const xb = ax0 + ((ax1 - ax0) * (k + 1)) / hem;
+    p.poly(shade(cloth, 0.72), [[xa, ay1, az + 18], [xb, ay1, az + 18], [(xa + xb) / 2, ay1, az + 14.5]]);
+  }
+  // A long stone bench on the left edge and two neighbours talking in the open middle.
+  p.shadow(-0.74, 0.0, -0.56, 0.72, 5, 0.18);
+  p.box(-0.74, 0.0, -0.56, 0.72, kerb, kerb + 5, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.62));
+  person(p, 0.05, 0.25, kerb, 2);
+  person(p, 0.3, 0.42, kerb, 5);
+  jar(p, 0.62, 0.6, kerb, 3.4);
+}
+
+/** Park (2 x 2): a lawn in a low stone border with paths, flower beds, shade trees and benches. */
+function park(p: Pen) {
   const s = 0.86;
   const kerb = 2.5;
   p.box(-s, -s, s, s, 0, kerb, C.stone, shade(C.stone, 0.88), shade(C.stone, 0.64));
   p.rect(C.lawn, -s + 0.08, -s + 0.08, s - 0.08, s - 0.08, kerb);
   p.rect(shade(C.lawn, 1.1), -s + 0.08, -s + 0.08, -0.05, -0.05, kerb, 0.6);
-  // Cross-shaped paths from the pool to the middle of each side.
+  // Cross-shaped paths from a round flower bed to the middle of each side.
   p.rect(C.sand[0], -0.12, -s + 0.08, 0.12, s - 0.08, kerb);
   p.rect(C.sand[0], -s + 0.08, -0.12, s - 0.08, 0.12, kerb);
-  // Flower beds in the four lawn corners.
+  // Pools of shade under the trees, cast toward the east.
+  for (const [x, y] of [[-0.5, -0.5], [-0.5, 0.5], [0.5, -0.5]] as const) p.disc(shade(C.lawn, 0.72), ...p.away(x, y, 0.12), kerb, 0.34, 0.7);
   const flowers = [C.red, C.gold, 0x9a6ab0, C.cream];
-  ([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]] as const).forEach(([x, y], k) => {
-    p.disc(shade(C.lawn, 0.8), x, y, kerb, 0.2);
+  const bed = (x: number, y: number, r: number, k: number) => {
+    p.disc(shade(C.lawn, 0.8), x, y, kerb, r);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + k;
-      p.ball(flowers[(i + k) % flowers.length], x + Math.cos(a) * 0.12, y + Math.sin(a) * 0.12, kerb + 2, 1.8);
+      p.ball(flowers[(i + k) % flowers.length], x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, kerb + 2, 1.8);
     }
-  });
-  // Small round pool in the middle.
-  cylinder(p, 0, 0, 0.24, kerb, kerb + 4, C.stone);
-  p.disc(C.waterDeep, 0, 0, kerb + 4, 0.19);
-  p.disc(C.water, -0.02, -0.02, kerb + 4, 0.13, 0.85);
-  p.disc(C.waterLight, -0.07, -0.05, kerb + 4, 0.04, 0.8);
-  // Trees at the back, a bench in front.
-  olive(moved(p, -0.55, 0.45), 1);
-  palm(moved(p, 0.5, -0.55), 2);
-  p.box(0.3, 0.42, 0.7, 0.52, kerb, kerb + 4, C.wood);
-  p.box(0.3, 0.52, 0.7, 0.56, kerb, kerb + 8, C.woodDark);
+  };
+  // Back and side trees, then the middle bed in a stone ring, a front bed and two benches.
+  olive(moved(p, -0.5, -0.5), 0);
+  palm(moved(p, 0.52, -0.52), 2);
+  olive(moved(p, -0.5, 0.5), 1);
+  cylinder(p, 0, 0, 0.24, kerb, kerb + 3, C.stone);
+  bed(0, 0, 0.19, 1);
+  bed(0.52, 0.52, 0.2, 2);
+  p.box(0.22, 0.24, 0.6, 0.32, kerb, kerb + 4, C.wood);
+  p.box(0.22, 0.32, 0.6, 0.36, kerb, kerb + 8, C.woodDark);
+  p.box(0.24, -0.6, 0.32, -0.22, kerb, kerb + 4, C.wood);
+  p.box(0.32, -0.6, 0.36, -0.22, kerb, kerb + 8, C.woodDark);
 }
 
 // ---------- food stores and gatherers ----------
@@ -3195,12 +3191,45 @@ function needIcon(g: G, k: BalloonKind) {
     g.fillStyle(C.clothes[1]);
     g.fillRoundedRect(4.5, 9, 7, 9, 2.5);
     noSign(g, 8, 11, 7);
-  } else if (k === 'well') {
-    g.fillStyle(C.need.well);
-    g.fillCircle(8, 11, 5);
-    g.fillTriangle(3.3, 9.5, 12.7, 9.5, 8, 2);
-    g.fillStyle(0xffffff, 0.8);
-    g.fillCircle(6.3, 11, 1.4);
+  } else if (k === 'plaza') {
+    // A paved square seen at an angle.
+    const d = [{ x: 8, y: 10 }, { x: 15.5, y: 14 }, { x: 8, y: 18 }, { x: 0.5, y: 14 }];
+    g.fillStyle(shade(C.need.plaza, 0.6));
+    g.fillPoints([d[3], d[2], d[1], { x: 15.5, y: 16 }, { x: 8, y: 20 }, { x: 0.5, y: 16 }], true);
+    g.fillStyle(shade(C.limestone, 0.92));
+    g.fillPoints(d, true);
+    g.lineStyle(1.2, shade(C.need.plaza, 0.8), 1);
+    g.lineBetween(4.25, 12, 11.75, 16);
+    g.lineBetween(11.75, 12, 4.25, 16);
+    // A stone bench at the front left and a slanted ochre shade cloth on posts at the right.
+    g.lineStyle(2.4, shade(C.stone, 0.62), 1);
+    g.lineBetween(2.5, 15.2, 6.5, 17.2);
+    g.lineStyle(1.6, C.stone, 1);
+    g.lineBetween(2.5, 14.2, 6.5, 16.2);
+    g.lineStyle(1.4, C.woodDark, 1);
+    g.lineBetween(7, 6.5, 7, 13.5);
+    g.lineBetween(14, 10, 14, 15.5);
+    const cloth = C.shadeCloth;
+    g.fillStyle(cloth);
+    g.fillPoints([{ x: 9.5, y: 2.5 }, { x: 15.8, y: 5.8 }, { x: 14, y: 10 }, { x: 7, y: 6.5 }], true);
+    g.fillStyle(shade(cloth, 0.66));
+    g.fillPoints([{ x: 7, y: 6.5 }, { x: 14, y: 10 }, { x: 14, y: 11.6 }, { x: 7, y: 8.1 }], true);
+  } else if (k === 'park') {
+    // Two round trees over a patch of lawn.
+    g.fillStyle(shade(C.need.park, 0.75));
+    g.fillEllipse(8, 17, 16, 6);
+    g.fillStyle(C.trunk);
+    g.fillRect(4, 10, 2, 7);
+    g.fillRect(10.5, 8, 2, 8);
+    g.fillStyle(shade(C.need.park, 0.75));
+    g.fillCircle(5, 9, 4.5);
+    g.fillCircle(11.5, 6.5, 5);
+    g.fillStyle(C.need.park);
+    g.fillCircle(4.4, 8.4, 3.6);
+    g.fillCircle(10.9, 5.9, 4);
+    g.fillStyle(shade(C.need.park, 1.3));
+    g.fillCircle(3.6, 7.4, 1.3);
+    g.fillCircle(10, 4.8, 1.5);
   } else if (k === 'market') {
     g.fillStyle(C.cream);
     g.fillRoundedRect(1, 3, 14, 12, 2);
@@ -3451,10 +3480,10 @@ export function generateTextures(scene: Phaser.Scene): void {
   }
   for (let k = 0; k < GRANARY_STOCKS; k++) make(scene, TEX.building('granary', 0, false, k), footCanvas(3, 3, 60), (p) => granary(p, k), 50);
   const buildings: [BuildingKind, (p: Pen) => void, number, number][] = [
-    ['well', well, 48, 44],
+    ['plaza', plaza, 48, 44],
     ['fisher', fisher, 40, 32],
     ['gatherer', gatherer, 44, 34],
-    ['garden', garden, 60, 40],
+    ['park', park, 60, 40],
     ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],
     ['temple', temple, 136, 128],
@@ -3521,7 +3550,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.strokeCircle(32, 32, 27);
   });
   raw(TEX.balloon, 28, 28, balloon);
-  (['road', 'well', 'market', 'sacred', 'workers', 'sad'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  (['road', 'plaza', 'market', 'park', 'workers', 'sad'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
   for (const { type } of WALKERS) {
     const [w, h] = residentSize(type);
     const crafts: (Craft | null)[] = [null, ...(type === 'artisan' ? BUILDINGS.workshop.crafts! : [])];

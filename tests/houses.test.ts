@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, clearCell, HOUSE_LEVELS, houseHappiness, houseInfo, idleShare, RULES, stepWeek, weeksToNextLevel, type GameState } from '../src/core';
+import { balloonNeed, clearCell, HOUSE_LEVELS, indexOf, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
 import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
@@ -17,11 +17,11 @@ const run = (s: GameState, weeks: number, rng = never, hungry = false) => {
 };
 
 describe('house evolution', () => {
-  it('levels up after weeksToUpgrade weeks meeting the next needs (road + well)', () => {
+  it('levels up after weeksToUpgrade weeks meeting the next needs (road + plaza)', () => {
     expect(UP).toBeGreaterThan(DOWN); // climbing is slow, dropping is fast
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     run(s, UP - 1);
     expect(b.level).toBe(1);
     expect(b.upStreak).toBe(UP - 1);
@@ -32,14 +32,14 @@ describe('house evolution', () => {
   it('is served when any cell of its footprint is covered', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 36, 1); // rows 36..37
-    put(s, 'well', ROADSIDE, 27); // radius 4 covers rows 23..32 only
+    put(s, 'plaza', ROADSIDE, 27); // radius 4 covers rows 23..32 only
     run(s, UP);
     expect(b.level).toBe(1);
     clearCell(s, ROADSIDE, 27);
-    put(s, 'well', ROADSIDE, 28); // now covers rows 24..33: still short of row 36
+    put(s, 'plaza', ROADSIDE, 28); // now covers rows 24..33: still short of row 36
     run(s, UP);
     expect(b.level).toBe(1);
-    put(s, 'well', ROADSIDE, 31); // covers rows 27..36: only the house's top row
+    put(s, 'plaza', ROADSIDE, 31); // covers rows 27..36: only the house's top row
     run(s, UP);
     expect(b.level).toBe(2);
   });
@@ -55,7 +55,7 @@ describe('house evolution', () => {
   it('drops a level when the road is cut', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 40, 2);
-    put(s, 'well', ROADSIDE, 38);
+    put(s, 'plaza', ROADSIDE, 38);
     clearCell(s, 24, 30);
     run(s, DOWN - 1);
     expect(b.level).toBe(2);
@@ -66,11 +66,11 @@ describe('house evolution', () => {
   it('a need back before weeksToDowngrade weeks keeps the level and restarts the drop count', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 2);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     clearCell(s, ROADSIDE, 32);
     run(s, DOWN - 1);
     expect(b).toMatchObject({ level: 2, downStreak: DOWN - 1 });
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     run(s, 1);
     expect(b).toMatchObject({ level: 2, downStreak: 0 });
     clearCell(s, ROADSIDE, 32);
@@ -80,30 +80,73 @@ describe('house evolution', () => {
     expect(b.level).toBe(1);
   });
 
-  it('becomes a big house within the radius of the altar', () => {
+  it('a big house needs a park: the altar radius is not enough', () => {
+    expect(HOUSE_LEVELS.map((l) => l.needs)).toEqual([[], ['road'], ['road', 'plaza'], ['road', 'plaza', 'market'], ['road', 'plaza', 'market', 'park']]);
     const s = emptyGame();
-    const b = put(s, 'house', ROADSIDE, 27, 3);
-    put(s, 'well', ROADSIDE, 29);
+    const b = put(s, 'house', ROADSIDE, 27, 3); // by the altar
+    put(s, 'plaza', ROADSIDE, 29);
     put(s, 'market', westOf('market'), 31);
+    put(s, 'workshop', 1, 40); // not sad for want of jobs (disconnected: no jobs, no effect)
+    expect(s.coverage.sacred[indexOf(s, ROADSIDE, 27)]).toBe(true);
+    run(s, UP + 1);
+    expect(b.level).toBe(3);
+    expect(weeksToNextLevel(s, b)).toBeNull();
+    put(s, 'park', EAST, 27);
+    expect(weeksToNextLevel(s, b)).toBe(UP);
     run(s, UP);
     expect(b.level).toBe(4);
   });
 
-  it('becomes a big house within the radius of the temple, not outside both', () => {
+  it('the temple radius does not make a big house either; a park far from both does', () => {
     const s = emptyGame();
     const far = put(s, 'house', ROADSIDE, 40, 3); // 15 rows from the altar
-    put(s, 'well', ROADSIDE, 38);
+    put(s, 'plaza', ROADSIDE, 38);
     put(s, 'market', westOf('market'), 34);
+    put(s, 'temple', EAST, 36);
+    expect(s.coverage.sacred[indexOf(s, ROADSIDE, 40)]).toBe(true);
     run(s, UP + 1);
     expect(far.level).toBe(3);
-    put(s, 'temple', EAST, 36);
+    put(s, 'park', EAST, 42);
     run(s, UP);
     expect(far.level).toBe(4);
   });
 
+  it('a big house that loses its park drops to a stone house', () => {
+    const s = emptyGame();
+    const b = put(s, 'house', ROADSIDE, 27, 4);
+    put(s, 'plaza', ROADSIDE, 29);
+    put(s, 'market', westOf('market'), 31);
+    put(s, 'park', EAST, 27);
+    run(s, DOWN);
+    expect(b.level).toBe(4);
+    clearCell(s, EAST, 27);
+    run(s, DOWN);
+    expect(b.level).toBe(3);
+  });
+
+  it('a mud-brick house needs only a plaza; a stone house a plaza and a market', () => {
+    const s = emptyGame();
+    const mud = put(s, 'house', ROADSIDE, 30, 1);
+    s.coverage.market.fill(true);
+    s.coverage.park.fill(true);
+    s.coverage.sacred.fill(true);
+    run(s, UP + 1);
+    expect(mud.level).toBe(1); // market, park and altar without a plaza: still a tent
+    const t = emptyGame();
+    const tent = put(t, 'house', ROADSIDE, 30, 1);
+    put(t, 'plaza', ROADSIDE, 32);
+    run(t, UP);
+    expect(tent.level).toBe(2); // the plaza alone is enough
+    run(t, UP + 1);
+    expect(tent.level).toBe(2); // no market: stays mud-brick
+    put(t, 'market', westOf('market'), 34);
+    run(t, UP);
+    expect(tent.level).toBe(3);
+  });
+
   it('during famine houses do not evolve and those above tents may drop', () => {
     const s = emptyGame({ famine: true, food: 0 });
-    put(s, 'well', ROADSIDE, 30);
+    put(s, 'plaza', ROADSIDE, 30);
     const tent = put(s, 'house', ROADSIDE, 32, 1);
     const mud = put(s, 'house', ROADSIDE, 34, 2);
     run(s, UP + 2, constRng(0.5), true); // 0.5: above every famine chance
@@ -116,7 +159,7 @@ describe('house evolution', () => {
   it('famine pauses the climb: the weeks already counted stay', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     const before = 5;
     run(s, before);
     expect(b.upStreak).toBe(before);
@@ -133,13 +176,13 @@ describe('house evolution', () => {
   it('losing a need of the next level resets the climb', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     run(s, UP - 1);
     expect(b.upStreak).toBe(UP - 1);
     clearCell(s, ROADSIDE, 32);
     run(s, 1);
     expect(b).toMatchObject({ level: 1, upStreak: 0 });
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     run(s, UP - 1);
     expect(b.level).toBe(1); // a whole new count
     run(s, 1);
@@ -149,10 +192,10 @@ describe('house evolution', () => {
   it('losing a need of its own level resets the climb too', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 2);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     s.coverage.market.fill(true);
     b.upStreak = UP - 1;
-    clearCell(s, ROADSIDE, 32); // no well: misses its own need
+    clearCell(s, ROADSIDE, 32); // no plaza: misses its own need
     run(s, 1);
     expect(b).toMatchObject({ level: 2, upStreak: 0, downStreak: 1 });
   });
@@ -181,8 +224,8 @@ describe('weeks to the next level', () => {
   it('counts down from weeksToUpgrade while the next needs are met', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    expect(weeksToNextLevel(s, b)).toBeNull(); // no well
-    put(s, 'well', ROADSIDE, 32);
+    expect(weeksToNextLevel(s, b)).toBeNull(); // no plaza
+    put(s, 'plaza', ROADSIDE, 32);
     expect(weeksToNextLevel(s, b)).toBe(UP);
     for (let k = 1; k < UP; k++) {
       run(s, 1);
@@ -197,7 +240,7 @@ describe('weeks to the next level', () => {
   it('stands still during a famine', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     run(s, 3);
     s.food = 0;
     run(s, 2, never, true);
@@ -212,7 +255,7 @@ describe('weeks to the next level', () => {
     const field = put(s, 'field', EAST, 27);
     const stone = put(s, 'house', ROADSIDE, 31, 3);
     const cut = put(s, 'house', 1, 1, 2); // no road: misses its own need, and the next level's
-    for (const need of ['well', 'market', 'sacred'] as const) s.coverage[need].fill(true); // every service everywhere
+    for (const need of ['plaza', 'market', 'park'] as const) s.coverage[need].fill(true); // every service everywhere
     expect(weeksToNextLevel(s, top)).toBeNull();
     expect(weeksToNextLevel(s, plot)).toBeNull();
     expect(weeksToNextLevel(s, field)).toBeNull();
@@ -224,7 +267,7 @@ describe('weeks to the next level', () => {
   it('never shows less than 1 week', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     b.upStreak = UP + 5; // whatever the count, the house climbs on its next week
     expect(weeksToNextLevel(s, b)).toBe(1);
   });
@@ -234,7 +277,7 @@ describe('house info and balloons', () => {
   it('lists next-level needs including the road', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 2);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     expect(houseInfo(s, b)).toEqual({
       level: 2,
       name: HOUSE_LEVELS[2].name,
@@ -245,7 +288,7 @@ describe('house info and balloons', () => {
         name: HOUSE_LEVELS[3].name,
         needs: [
           { kind: 'road', ok: true },
-          { kind: 'well', ok: true },
+          { kind: 'plaza', ok: true },
           { kind: 'market', ok: false },
         ],
       },
@@ -253,36 +296,67 @@ describe('house info and balloons', () => {
   });
 
   it('shows "no road" first for any building, then the first missing need if unlocked', () => {
-    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'well'] });
+    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'plaza'] });
     expect(balloonNeed(s, put(s, 'field', 1, 1))).toBe('road');
     expect(balloonNeed(s, put(s, 'house', 5, 5, 0))).toBe('road');
     put(s, 'workshop', EAST, 40); // jobs, so the house is not sad
     const b = put(s, 'house', ROADSIDE, 40, 1);
-    expect(balloonNeed(s, b)).toBe('well');
-    put(s, 'well', ROADSIDE, 42);
+    expect(balloonNeed(s, b)).toBe('plaza');
+    put(s, 'plaza', ROADSIDE, 42);
     b.level = 2;
-    expect(balloonNeed(s, b)).toBeNull(); // market still locked
     s.unlocked.push('market');
     expect(balloonNeed(s, b)).toBe('market');
     put(s, 'market', westOf('market'), 36);
     b.level = 3;
-    expect(balloonNeed(s, b)).toBe('sacred');
+    s.unlocked.push('park');
+    expect(balloonNeed(s, b)).toBe('park'); // the altar is near, but only a park makes a big house
+    put(s, 'park', EAST, 43);
+    expect(balloonNeed(s, b)).toBeNull();
     b.level = 4;
     expect(balloonNeed(s, b)).toBeNull();
     b.level = 0;
     expect(balloonNeed(s, b)).toBeNull();
   });
 
+  it('house info lists a locked need too, and the goal that unlocks it', () => {
+    const s = emptyGame({ unlocked: ['road', 'house', 'plaza'] });
+    put(s, 'plaza', ROADSIDE, 32);
+    const stone = put(s, 'house', ROADSIDE, 30, 3);
+    expect(houseInfo(s, stone)!.next!.needs).toEqual([
+      { kind: 'road', ok: true },
+      { kind: 'plaza', ok: true },
+      { kind: 'market', ok: false },
+      { kind: 'park', ok: false },
+    ]);
+    expect(s.unlocked).not.toContain('park');
+    expect(unlockingGoal('market')).toBe(3);
+    expect(unlockingGoal('park')).toBe(5);
+  });
+
+  // Plan P2 2.6: the balloon shows a locked need ("✗ Parque (libera no objetivo 5)"). Today
+  // `needVisible` in houses.ts still hides it (balloonNeed returns null or 'sad'). Unskip once it
+  // changes.
+  it('the balloon shows the first missing need even while it is locked (plan P2 2.6)', () => {
+    const s = emptyGame({ unlocked: ['road', 'house', 'plaza'] });
+    put(s, 'workshop', EAST, 40); // jobs, so the house is not sad
+    const b = put(s, 'house', ROADSIDE, 40, 2);
+    put(s, 'plaza', ROADSIDE, 42);
+    expect(balloonNeed(s, b)).toBe('market');
+    put(s, 'market', westOf('market'), 36);
+    b.level = 3;
+    expect(balloonNeed(s, b)).toBe('park');
+  });
+
   it('shows "no workers" on workplaces only while nobody can work', () => {
     const s = emptyGame();
     const field = put(s, 'field', westOf('field'), 30);
-    const well = put(s, 'well', ROADSIDE, 33);
+    const plaza = put(s, 'plaza', ROADSIDE, 33);
     const plot = put(s, 'house', ROADSIDE, 35);
     s.week = RULES.weeksPerSeason; // winter: a frozen field needs nobody
     expect(balloonNeed(s, field)).toBeNull();
     atHarvest(s);
     expect(balloonNeed(s, field)).toBe('workers');
-    expect(balloonNeed(s, well)).toBeNull(); // no jobs
+    expect(balloonNeed(s, plaza)).toBeNull(); // no jobs
     expect(balloonNeed(s, plot)).toBeNull();
     expect(balloonNeed(s, put(s, 'workshop', 1, 1))).toBe('road'); // no road comes first
     plot.level = 1; // a tent brings workers

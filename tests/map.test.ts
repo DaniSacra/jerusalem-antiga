@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { altarDistance, altarRing, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, type Terrain } from '../src/core';
+import { altarDistance, altarRing, between, campPlazaSpot, campRoad, caravanSpots, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, type Feature, type Terrain } from '../src/core';
 
-const { cols, rows, clearRadius, river, denseGrove } = RULES.map;
+const { cols, rows, clearRadius, river, denseGrove, rockOutcrop } = RULES.map;
 const SEEDS = Array.from({ length: 100 }, (_, k) => k + 1);
+const SEEDS_200 = Array.from({ length: 200 }, (_, k) => k + 1);
 const terrainOf = (seed: number) => generateTerrain(createRng(seed));
 const xy = (i: number) => ({ x: i % cols, y: Math.floor(i / cols) });
 
@@ -10,27 +11,38 @@ const xy = (i: number) => ({ x: i % cols, y: Math.floor(i / cols) });
 const riverDistance = ({ ground }: Terrain) =>
   Math.min(...ground.flatMap((g, i) => (g === 'river' ? [altarDistance(xy(i).x, xy(i).y)] : [])));
 
-/** Trees in the square of `denseGrove.radius` around (cx, cy). */
-function treesAround({ feature }: Terrain, cx: number, cy: number) {
-  const r = denseGrove.radius;
-  let n = 0;
-  for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) if (feature[indexOf({ cols }, x, y)] === 'olive' || feature[indexOf({ cols }, x, y)] === 'palm') n++;
-  return n;
-}
+const isTree = (f: Feature | null) => f === 'olive' || f === 'palm';
+const isRock = (f: Feature | null) => f === 'rock';
 
-/** Centers of dense groves: enough trees in the square, the center at the configured distance. */
-function denseGroves(t: Terrain) {
-  const r = denseGrove.radius;
-  const [min, max] = denseGrove.distance;
+/**
+ * Separate guaranteed groups found on the map: squares of `radius` holding `min`+ matching features,
+ * with the center `distance` cells from the altar's border, entirely west of the river and off
+ * the reserved land. Picked greedily so the squares do not overlap.
+ */
+function groups(t: Terrain, match: (f: Feature | null) => boolean, { radius: r, distance: [dMin, dMax] }: { radius: number; distance: [number, number] }, min: number) {
+  const at = (x: number, y: number) => indexOf({ cols }, x, y);
+  const bank = Array.from({ length: rows }, (_, y) => t.ground.slice(y * cols, (y + 1) * cols).indexOf('river'));
+  const westOfRiver = (x: number, y: number) => bank[y] < 0 || x < bank[y];
   const out: { x: number; y: number }[] = [];
   for (let y = r; y < rows - r; y++) {
     for (let x = r; x < cols - r; x++) {
       const d = altarDistance(x, y);
-      if (d >= min && d <= max && treesAround(t, x, y) >= denseGrove.trees) out.push({ x, y });
+      if (d < dMin || d > dMax || out.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) <= 2 * r)) continue;
+      let n = 0;
+      let clean = true;
+      for (let yy = y - r; yy <= y + r; yy++) {
+        for (let xx = x - r; xx <= x + r; xx++) {
+          if (match(t.feature[at(xx, yy)])) n++;
+          if (isReserved(xx, yy) || !westOfRiver(xx, yy)) clean = false;
+        }
+      }
+      if (clean && n >= min) out.push({ x, y });
     }
   }
   return out;
 }
+const denseGroves = (t: Terrain) => groups(t, isTree, denseGrove, denseGrove.trees);
+const outcrops = (t: Terrain) => groups(t, isRock, rockOutcrop, rockOutcrop.rocks);
 
 const inRange = (n: number, [min, max]: [number, number]) => n >= min && n <= max;
 
@@ -41,13 +53,18 @@ describe('map generation', () => {
     expect(terrainOf(7)).not.toEqual(terrainOf(8));
   });
 
-  it.each(SEEDS)('draws rock, olive and palm counts within their ranges (seed %i)', (seed) => {
+  it.each(SEEDS)('places exactly the drawn rock, olive and palm counts, within their ranges (seed %i)', (seed) => {
     const { ground, feature } = terrainOf(seed);
     expect(ground).toHaveLength(cols * rows);
     expect(ground.includes('sand') && ground.includes('grass')).toBe(true);
-    expect(inRange(feature.filter((f) => f === 'rock').length, RULES.map.rocks)).toBe(true);
-    expect(inRange(feature.filter((f) => f === 'olive').length, RULES.map.olives)).toBe(true);
-    expect(inRange(feature.filter((f) => f === 'palm').length, RULES.map.palms)).toBe(true);
+    // The totals are drawn right after the 6 shape phases and the river distance, and all get placed.
+    const rng = createRng(seed);
+    for (let k = 0; k < 7; k++) rng();
+    const [rocks, olives, palms] = [between(rng, RULES.map.rocks), between(rng, RULES.map.olives), between(rng, RULES.map.palms)];
+    expect(feature.filter((f) => f === 'rock').length).toBe(rocks);
+    expect(feature.filter((f) => f === 'olive').length).toBe(olives);
+    expect(feature.filter((f) => f === 'palm').length).toBe(palms);
+    expect(inRange(rocks, RULES.map.rocks) && inRange(olives, RULES.map.olives) && inRange(palms, RULES.map.palms)).toBe(true);
   });
 
   it('the counts and the river distance really vary between seeds', () => {
@@ -83,20 +100,15 @@ describe('map generation', () => {
     expect(Math.max(...west) - Math.min(...west)).toBeGreaterThanOrEqual(3);
   });
 
-  it.each(SEEDS)('has a dense grove of 18+ trees in a 7 x 7 square, 11 to 20 cells from the altar, off the reserved land and the river (seed %i)', (seed) => {
+  it.each(SEEDS_200)('has 2 dense groves (24+ trees in 7 x 7) and a rock outcrop (12+ rocks in 5 x 5) west of the river, off the reserved land (seed %i)', (seed) => {
     const t = terrainOf(seed);
-    const groves = denseGroves(t);
-    expect(groves.length).toBeGreaterThanOrEqual(denseGrove.min);
-    const r = denseGrove.radius;
-    const clean = groves.some(({ x, y }) => {
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (isReserved(x + dx, y + dy) || t.ground[indexOf({ cols }, x + dx, y + dy)] === 'river') return false;
-      return true;
-    });
-    expect(clean).toBe(true);
+    expect([denseGrove.min, denseGrove.trees, denseGrove.distance, rockOutcrop.min, rockOutcrop.rocks, rockOutcrop.distance]).toEqual([2, 24, [10, 20], 1, 12, [10, 18]]);
+    expect(denseGroves(t).length).toBeGreaterThanOrEqual(denseGrove.min);
+    expect(outcrops(t).length).toBeGreaterThanOrEqual(rockOutcrop.min);
   });
 
   it('places trees in groves with clearings, not spread evenly', () => {
-    // Most trees have another tree within one cell; an even spread of ~120 trees over the map would not.
+    // Most trees have another tree within one cell; an even spread of ~160 trees over the map would not.
     for (const seed of [1, 2, 3, 42, 999]) {
       const { feature } = terrainOf(seed);
       const trees = feature.flatMap((f, i) => (f === 'olive' || f === 'palm' ? [xy(i)] : []));
@@ -106,8 +118,14 @@ describe('map generation', () => {
     }
   });
 
-  it.each(SEEDS)('keeps rocks and trees off the reserved land and the river (seed %i)', (seed) => {
+  it.each(SEEDS_200)('keeps rocks and trees off the reserved land, the starting roads, the caravan camp and the river (seed %i)', (seed) => {
     const { ground, feature } = terrainOf(seed);
+    const house = dimsOf('house');
+    const camp = [...caravanSpots(), campPlazaSpot()].flatMap((c) => [0, 1].flatMap((dy) => [0, 1].map((dx) => ({ x: c.x + dx * (house.w - 1), y: c.y + dy * (house.h - 1) }))));
+    for (const c of [...startRoad(), ...campRoad(), ...camp]) {
+      expect(isReserved(c.x, c.y)).toBe(true);
+      expect(feature[indexOf({ cols }, c.x, c.y)]).toBeNull();
+    }
     feature.forEach((f, i) => {
       if (!f) return;
       const { x, y } = xy(i);
@@ -126,7 +144,7 @@ describe('map generation', () => {
     expect(isReserved(27, 40)).toBe(false);
   });
 
-  it.each(SEEDS)('starts with free roads, the caravan inside the clear radius and the temple fitting near the altar (seed %i)', (seed) => {
+  it.each(SEEDS_200)('starts with free roads, the caravan inside the clear radius and the temple fitting near the altar (seed %i)', (seed) => {
     const s = createGame(createRng(seed));
     for (const c of startRoad()) {
       const i = indexOf(s, c.x, c.y);

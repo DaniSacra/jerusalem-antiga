@@ -1,7 +1,6 @@
 import { HOUSE_LEVELS, RULES } from './data';
 import { computeEconomy, type Economy } from './economy';
 import { foodLastsToHarvest } from './forecast';
-import { needMet } from './houses';
 import { familyFactor } from './happiness';
 import { indexOf } from './grid';
 import { rollLook } from './looks';
@@ -24,18 +23,14 @@ function pathTo(s: GameState, from: Cell | null, house: Building): Cell[] | null
 const awaitsFamily = (s: GameState, b: Building) => s.families.some((f) => f.houseId === b.id);
 
 /** Why no new family can set out now, or null when one can. */
-export type FamilyBlock = 'famine' | 'water' | 'food' | 'storage' | 'wait' | 'noPlot';
-
-/** Houses with a family that lack water (empty plots do not count). */
-export const housesWithoutWater = (s: GameState) =>
-  s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && b.connected && !needMet(s, b, 'well'));
+export type FamilyBlock = 'famine' | 'food' | 'storage' | 'wait' | 'noPlot';
 
 /**
- * New families only come to a city where every house with a family has water and the food lasts
+ * New families only come to a city where the food lasts
  * until the next harvest with a reserve of `familyFoodReserveWeeks` weeks of eating (counting
  * every house at its planned level, the families on the way and the new one), at most one every
  * `familyIntervalWeeks`, and only to a connected empty plot.
- * An empty city (no residents, nobody on the way) skips the water and food checks, so it can
+ * An empty city (no residents, nobody on the way) skips the food check, so it can
  * always start again. The checks go in this order, so the reason shown is the most important one.
  * `storage` means the food would last but the store cannot hold it.
  */
@@ -43,7 +38,6 @@ export function familyBlock(s: GameState, eco: Economy = computeEconomy(s)): Fam
   if (s.famine) return 'famine';
   const empty = eco.residents === 0 && s.families.length === 0;
   if (!empty) {
-    if (housesWithoutWater(s).length > 0) return 'water';
     const opts = { extraTents: s.families.length + 1, reserveWeeks: RULES.familyFoodReserveWeeks };
     if (!foodLastsToHarvest(s, eco, opts)) {
       return foodLastsToHarvest(s, eco, { ...opts, unlimited: true }) ? 'storage' : 'food';

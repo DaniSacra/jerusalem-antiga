@@ -19,11 +19,9 @@ export interface Economy {
   /** Food made this week (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
   foodMade: number;
   foodEaten: number;
-  /** Weekly silver balance: taxes + production - upkeep. */
+  /** Weekly silver balance: taxes - upkeep. */
   silverDelta: number;
   taxes: number;
-  /** Silver made per workplace kind this week (after efficiency). */
-  production: Partial<Record<BuildingKind, number>>;
   /** Upkeep per building kind (only kinds that cost something). */
   upkeep: Partial<Record<BuildingKind, number>>;
   /** Average happiness of the houses with a family (50 with none). */
@@ -60,7 +58,6 @@ export function computeEconomy(s: GameState): Economy {
   let yearJobs = 0;
   let foodProd = 0;
   let harvest = 0;
-  const silverProd: Partial<Record<BuildingKind, number>> = {};
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const charged = upkeepCharged(s);
   const bonus = fieldBonus(s);
@@ -80,7 +77,6 @@ export function computeEconomy(s: GameState): Economy {
     const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus);
     harvest += h;
     foodProd += gatherFood(s, b) + h;
-    if (def.silver) silverProd[b.kind] = (silverProd[b.kind] ?? 0) + def.silver;
   }
   const workers = Math.floor(residents * RULES.workerShare);
   const idle = idleShare(s, { workers, yearJobs });
@@ -93,8 +89,6 @@ export function computeEconomy(s: GameState): Economy {
     moods[moodOf(h)]++;
   }
   const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
-  const production: Partial<Record<BuildingKind, number>> = {};
-  for (const [k, v] of Object.entries(silverProd) as [BuildingKind, number][]) production[k] = round2(v * efficiency);
   const sum = (r: Partial<Record<BuildingKind, number>>) => Object.values(r).reduce((a, v) => a + v, 0);
   return {
     residents,
@@ -106,9 +100,8 @@ export function computeEconomy(s: GameState): Economy {
     harvest: round2(harvest * efficiency),
     foodMade: round2(foodProd * efficiency),
     foodEaten: round2(eaten),
-    silverDelta: round2(taxes + sum(production) - sum(upkeep)),
+    silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),
-    production,
     upkeep,
     happiness: families ? Math.round(joy / families) : 50,
     moods,

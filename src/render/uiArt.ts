@@ -48,7 +48,7 @@ function stamp(ctx: Ctx, scene: Phaser.Scene, key: string, x: number, y: number,
 
 /**
  * How a thumbnail frames a map texture: the square of side `size` centered at (cx, cy), in pixels of
- * the texture from its ground anchor. Some crop in to make the telling part bigger (the well head,
+ * the texture from its ground anchor. Some crop in to make the telling part bigger (the field rows,
  * the market awnings); `extra` adds what the small size needs (the field's crops, a bigger bucket).
  */
 interface Shot {
@@ -62,28 +62,6 @@ interface Shot {
 /** The field's crop tufts, drawn a little bigger than on the map so the rows of wheat read. */
 function fieldCrops(ctx: Ctx, scene: Phaser.Scene) {
   for (const w of PARTS.wheat) stamp(ctx, scene, TEX.crop(0), (w.x - w.y) * HW, (w.x + w.y) * HH - w.z + 2, 1.3);
-}
-
-/** A larger bucket hanging from the well's pulley. */
-function wellBucket(ctx: Ctx) {
-  const x = 3;
-  ctx.strokeStyle = css(C.rope);
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x, -38);
-  ctx.lineTo(x, -27);
-  ctx.stroke();
-  ctx.fillStyle = css(C.wood);
-  ctx.beginPath();
-  ctx.moveTo(x - 6, -27);
-  ctx.lineTo(x + 6, -27);
-  ctx.lineTo(x + 4.5, -18);
-  ctx.lineTo(x - 4.5, -18);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = css(C.woodDark);
-  ctx.fillRect(x - 5.6, -24.5, 11.2, 2);
-  ctx.fillRect(x + 1.5, -27, 3, 9);
 }
 
 /** Smoke rising from the pottery kiln chimney. */
@@ -103,12 +81,12 @@ const SHOTS: Record<BuildableKind, Shot> = {
   // The stone house with a mud-brick upper floor, its outside stair and jars on the roof.
   house: { key: TEX.building('house', 3), cx: 0, cy: -20, size: 118 },
   field: { key: TEX.building('field', 0), cx: 0, cy: -10, size: 128, extra: fieldCrops },
-  well: { key: TEX.building('well'), cx: 0, cy: -16, size: 92, extra: wellBucket },
+  plaza: { key: TEX.building('plaza'), cx: 0, cy: -16, size: 92 },
   // The middle of the two rows of stalls, the striped awnings filling the circle.
   market: { key: TEX.building('market'), cx: 0, cy: -18, size: 120 },
   // The potter: domed kiln with smoke, workroom and rows of jars.
   workshop: { key: TEX.building('workshop', 0, false, 0), cx: 4, cy: -30, size: 176, extra: kilnSmoke },
-  garden: { key: TEX.building('garden'), cx: 0, cy: -20, size: 128 },
+  park: { key: TEX.building('park'), cx: 0, cy: -20, size: 128 },
   // The full granary: domed silos, the stone storehouse and sacks piled in the yard.
   granary: { key: TEX.building('granary', 0, false, GRANARY_STOCKS - 1), cx: 8, cy: -16, size: 150 },
   // The net drying on its poles and the boat pulled up in front.
@@ -119,14 +97,8 @@ const SHOTS: Record<BuildableKind, Shot> = {
   temple: { key: TEX.building('temple'), cx: 0, cy: -40, size: 320 },
 };
 
-/** Water and food: the well with a few wheat tufts in front. */
-const supplyShot: Shot = {
-  ...SHOTS.well,
-  extra: (ctx, scene) => {
-    wellBucket(ctx);
-    for (const [x, y] of [[-34, 18], [-24, 24], [-40, 26], [-30, 31]]) stamp(ctx, scene, TEX.crop(0), x, y, 1.1);
-  },
-};
+/** Food: the field with its crops. */
+const supplyShot: Shot = SHOTS.field;
 
 const CATEGORY_SHOTS: Record<BuildingCategory, Shot> = {
   home: SHOTS.house,

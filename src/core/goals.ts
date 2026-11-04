@@ -2,7 +2,7 @@ import { GOALS, RULES } from './data';
 import { computeEconomy } from './economy';
 import { foodForecast } from './forecast';
 import { weeksToHarvest } from './harvest';
-import { countHousesAtLeast, needMet } from './houses';
+import { countHousesAtLeast } from './houses';
 import { WEEKS_PER_YEAR } from './seasons';
 import type { GameEvent, GameState, GoalDef, Placeable } from './types';
 
@@ -11,7 +11,6 @@ export const currentGoal = (s: GameState): GoalDef | undefined => GOALS[s.goalIn
 export function goalProgress(s: GameState, goal: GoalDef): number {
   if (goal.type === 'residents') return computeEconomy(s).residents;
   if (goal.type === 'foodUntilSpring') return foodWeeksUntilSpring(s);
-  if (goal.type === 'water') return familyHouses(s).filter((b) => needMet(s, b, 'well')).length;
   if (goal.type === 'houses') return countHousesAtLeast(s, goal.level ?? 0);
   return s.buildings.filter((b) => b.kind === goal.kind && b.connected).length;
 }
@@ -62,16 +61,11 @@ function foodWeeksUntilSpring(s: GameState): number {
   return out ? out.weeks : left;
 }
 
-/** Houses with a family that count for the water goal. */
-const familyHouses = (s: GameState) => s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level > 0);
-
 /**
  * The target shown and checked for a goal: most goals use `target`; "food until spring" is the
- * weeks left until the first spring (1 from then on), and "water" is every connected house with
- * a family, at least `target`.
+ * weeks left until the first spring (1 from then on).
  */
 export function goalTarget(s: GameState, goal: GoalDef): number {
   if (goal.type === 'foodUntilSpring') return Math.max(1, weeksToFirstSpring(s));
-  if (goal.type === 'water') return Math.max(goal.target, familyHouses(s).length);
   return goal.target;
 }

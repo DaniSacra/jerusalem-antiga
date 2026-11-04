@@ -278,7 +278,8 @@ export class Panels {
         const mark = done ? N.goals.done : cur ? N.goals.current : N.goals.next;
         // Phone: the reward and the unlock only on the current goal (the list must fit the short screen).
         const extra = PHONE && !cur ? '' : [g.victory ? N.goals.victory : N.goals.reward(g.reward), ...(g.unlock ? [N.goals.unlocks(g.unlock)] : [])].join(' · ');
-        const progress = cur ? [{ text: N.progress(goalProgress(s, g), goalTarget(s, g), g.type === 'foodUntilSpring' && goalTarget(s, g) > 1), color: NOVA_CSS.gold }] : [];
+        const shown = cur ? N.goalProgress(g, goalProgress(s, g), goalTarget(s, g)) : null;
+        const progress = shown ? [{ text: shown, color: NOVA_CSS.gold }] : [];
         lines.push({
           parts: [
             { text: mark, color: done ? NOVA_CSS.good : cur ? NOVA_CSS.gold : NOVA_CSS.muted },
@@ -314,7 +315,6 @@ export class Panels {
     const per = N.perWeek;
     const kinds = Object.keys(BUILDINGS) as BuildingKind[];
     const silver: Section = [title(st.silver), row(st.taxes, `+${fmt(e.taxes)}${per}`, NOVA_CSS.good)];
-    for (const k of kinds) if (e.production[k] !== undefined) silver.push(row(BUILDINGS[k].name, `+${fmt(e.production[k]!)}${per}`, NOVA_CSS.good));
     const costs = kinds.filter((k) => e.upkeep[k] !== undefined);
     // The upkeep and the balance are a section of their own, so a short screen can move them to the next column.
     const upkeep: Section = [];

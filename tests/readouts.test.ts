@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  foodLostIfRemoved,
   balanceAfter,
   BUILDINGS,
   calendar,
@@ -25,8 +26,9 @@ import {
   seasonOf,
   spotsServing,
   upgradeGain,
+  indexOf,
 } from '../src/core';
-import { besideRiver, EAST, emptyGame, meetGoal, put, ROADSIDE, westOf } from './helpers';
+import { besideRiver, EAST, emptyGame, meetGoal, put, ROAD_X, ROADSIDE, westOf } from './helpers';
 
 describe('city level and goal progress', () => {
   it('level is goals done + 1', () => {
@@ -120,13 +122,13 @@ describe('balance after building', () => {
   it('takes out the upkeep of the new building', () => {
     const s = emptyGame();
     const now = computeEconomy(s).silverDelta;
-    expect(balanceAfter(s, 'well')).toBeCloseTo(now - 3);
+    expect(balanceAfter(s, 'plaza')).toBeCloseTo(now - BUILDINGS.plaza.upkeep!);
     expect(balanceAfter(s, 'temple')).toBeCloseTo(now - 10);
   });
 
   it('counts no upkeep before upkeep is charged', () => {
     const s = emptyGame({ goalIndex: 0 });
-    expect(balanceAfter(s, 'well')).toBe(computeEconomy(s).silverDelta);
+    expect(balanceAfter(s, 'plaza')).toBe(computeEconomy(s).silverDelta);
   });
 
   it('a workshop only costs its upkeep: it makes no silver', () => {
@@ -216,18 +218,18 @@ describe('food after building', () => {
 describe('houses served', () => {
   it('counts houses with a family inside the radius of a service', () => {
     const s = emptyGame();
-    const well = put(s, 'well', EAST, 27);
+    const plaza = put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1); // inside
     put(s, 'house', ROADSIDE, 29); // empty plot: not counted
     put(s, 'house', ROADSIDE, 41, 1); // too far (radius 4)
-    expect(housesServed(s, well)).toBe(1);
+    expect(housesServed(s, plaza)).toBe(1);
   });
 
   it('is 0 for a disconnected service and null for kinds without one', () => {
     const s = emptyGame();
-    const well = put(s, 'well', 2, 2);
+    const plaza = put(s, 'plaza', 2, 2);
     put(s, 'house', 4, 2, 1);
-    expect(housesServed(s, well)).toBe(0);
+    expect(housesServed(s, plaza)).toBe(0);
     expect(housesServed(s, put(s, 'workshop', EAST, 30))).toBeNull();
   });
 });
@@ -254,21 +256,21 @@ describe('spots serving a building', () => {
   it('every spot is a valid place whose radius reaches the house', () => {
     const s = emptyGame();
     const house = put(s, 'house', ROADSIDE, 40, 1);
-    const spots = spotsServing(s, 'well', house);
+    const spots = spotsServing(s, 'plaza', house);
     expect(spots.length).toBeGreaterThan(0);
-    for (const c of spots) expect(checkPlace(s, 'well', c.x, c.y, c.rotated).ok).toBe(true);
+    for (const c of spots) expect(checkPlace(s, 'plaza', c.x, c.y, c.rotated).ok).toBe(true);
     const c = spots[0];
-    place(s, 'well', c.x, c.y, c.rotated);
-    expect(needMet(s, house, 'well')).toBe(true);
+    place(s, 'plaza', c.x, c.y, c.rotated);
+    expect(needMet(s, house, 'plaza')).toBe(true);
   });
 
   it('leaves out places too far from the house', () => {
     const s = emptyGame();
     const house = put(s, 'house', ROADSIDE, 40, 1);
-    for (const c of spotsServing(s, 'well', house)) {
+    for (const c of spotsServing(s, 'plaza', house)) {
       expect(Math.abs(c.y - house.y)).toBeLessThanOrEqual(4 + 2);
     }
-    expect(spotsServing(s, 'well', house).some((c) => c.y < 30)).toBe(false);
+    expect(spotsServing(s, 'plaza', house).some((c) => c.y < 30)).toBe(false);
   });
 
   it('tries both orientations of a non-square building', () => {
@@ -288,7 +290,7 @@ describe('houses by level', () => {
     put(s, 'house', ROADSIDE, 29, 1);
     put(s, 'house', ROADSIDE, 31, 1);
     put(s, 'house', ROADSIDE, 33, 4);
-    put(s, 'well', EAST, 27); // not a house
+    put(s, 'plaza', EAST, 27); // not a house
     expect(housesByLevel(s)).toEqual([1, 2, 0, 0, 1]);
   });
 });
@@ -303,5 +305,50 @@ describe('food made and eaten', () => {
     expect(e.foodEaten).toBeCloseTo(HOUSE_LEVELS[2].residents * HOUSE_LEVELS[2].food);
     expect(e.foodMade).toBeCloseTo(e.foodDelta + e.foodEaten);
     expect(e.foodMade).toBeGreaterThan(0);
+  });
+});
+
+describe('food lost if removed (Demolir preview)', () => {
+  const G = BUILDINGS.granary.storage!;
+  const full = () => {
+    const s = emptyGame();
+    put(s, 'granary', EAST, 30);
+    put(s, 'house', ROADSIDE, 30, 1);
+    s.food = RULES.baseFoodStorage + G; // the store is full
+    return s;
+  };
+
+  it('a granary loses the food above what the city keeps without it', () => {
+    const s = full();
+    expect(foodLostIfRemoved(s, EAST, 30)).toBe(G);
+    s.food = RULES.baseFoodStorage + 1;
+    expect(foodLostIfRemoved(s, EAST + 1, 31)).toBe(1); // any cell of the granary
+    s.food = RULES.baseFoodStorage;
+    expect(foodLostIfRemoved(s, EAST, 30)).toBe(0); // it all fits in the base store
+  });
+
+  it('a road whose cut disconnects the granary loses food too; other roads do not', () => {
+    const s = full();
+    expect(foodLostIfRemoved(s, ROAD_X, 28)).toBe(G); // between the ring and the granary
+    expect(foodLostIfRemoved(s, ROAD_X, 40)).toBe(0); // below it
+  });
+
+  it('nothing is lost for a house, an empty cell or the protected altar, and the city is untouched', () => {
+    const s = full();
+    const before = JSON.stringify({ b: s.buildings, r: s.roads, n: s.network, f: s.food, $: s.silver });
+    expect(foodLostIfRemoved(s, ROADSIDE, 30)).toBe(0);
+    expect(foodLostIfRemoved(s, 1, 1)).toBe(0);
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    expect(foodLostIfRemoved(s, altar.x, altar.y)).toBe(0);
+    foodLostIfRemoved(s, EAST, 30);
+    foodLostIfRemoved(s, ROAD_X, 28);
+    expect(JSON.stringify({ b: s.buildings, r: s.roads, n: s.network, f: s.food, $: s.silver })).toBe(before);
+    expect(s.grid[indexOf(s, EAST, 30)]?.kind).toBe('granary');
+  });
+
+  it('works while in debt (demolishing is allowed in debt)', () => {
+    const s = full();
+    s.silver = -50;
+    expect(foodLostIfRemoved(s, EAST, 30)).toBe(G);
   });
 });

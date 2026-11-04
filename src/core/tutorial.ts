@@ -5,7 +5,7 @@ import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } fro
 import { isGatherSource } from './harvest';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
-export type TutorialStepId = 'well' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
+export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
 export interface TutorialStep {
   id: TutorialStepId;
   /** The tool the step points at (null: just watch, or tap). Every tool stays usable. */
@@ -15,7 +15,7 @@ export interface TutorialStep {
   target: number;
 }
 
-/** The six steps of the first game (food first: road, fisher or gatherer, field; then well, house, family), then the two short ones (balance at goal 2, then the market). */
+/** The six steps of the first game (food first: road, fisher or gatherer, field; then plaza, house, family), then the two short ones (balance at goal 2, then the market). */
 export const TUTORIAL_STEPS = TUTORIAL.steps as TutorialStep[];
 export const TUTORIAL_EXTRAS = TUTORIAL.extras as TutorialStep[];
 
@@ -48,7 +48,7 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
     case 'family':
       return s.milestones.includes('firstFamily') ? 1 : 0;
     case 'field':
-    case 'well':
+    case 'plaza':
     case 'market':
       return connected(s, step.id);
     case 'upkeep':
@@ -141,20 +141,26 @@ export function foodSpot(s: GameState): FoodSpot | null {
 /** The suggested road of the tutorial: the road to `foodSpot` (empty when there is none to build). */
 export const ghostRoad = (s: GameState): Cell[] => foodSpot(s)?.road ?? [];
 
-/** Free house spots touching the network with water (a cell in a connected well's reach): the green spots of the house step. */
-export function wateredHouseSpots(s: GameState): Cell[] {
+/** Free house spots touching the network near a plaza (a cell in a connected plaza's reach): the green spots of the house step. */
+export function plazaHouseSpots(s: GameState): Cell[] {
   const { w, h } = dimsOf('house');
-  return placeSpots(s, 'house').filter((o) => footprint(o.x, o.y, w, h).some((c) => s.coverage.well[indexOf(s, c.x, c.y)]));
+  return placeSpots(s, 'house').filter((o) => footprint(o.x, o.y, w, h).some((c) => s.coverage.plaza[indexOf(s, c.x, c.y)]));
 }
 
 /**
- * Where the tutorial arrow suggests the house: the watered spot nearest the altar, so the family
- * that comes does not close the gate for want of water. Null when there is none.
+ * Where the tutorial arrow suggests the house: the spot near a plaza nearest the altar, so the
+ * tent can become a mud-brick house. Null when there is none.
  */
-export function houseHint(s: GameState): Cell | null {
+export const houseHint = (s: GameState): Cell | null => nearestAltar(plazaHouseSpots(s));
+
+/** Where the tutorial camera goes on the field step: the free field spot touching the network nearest the altar. */
+export const fieldHint = (s: GameState): Cell | null => nearestAltar(placeSpots(s, 'field'));
+
+/** Of these cells, the one nearest the altar (Manhattan distance; the first on ties). */
+function nearestAltar(cells: Cell[]): Cell | null {
   const a = RULES.map.altar;
   const d = (c: Cell) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
-  return wateredHouseSpots(s).reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
+  return cells.reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
 }
 
 /** Houses with a family that a service of this kind placed at (x, y) would reach. */

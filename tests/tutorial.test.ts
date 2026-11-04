@@ -7,12 +7,15 @@ import {
   foodSpot,
   gatherFood,
   ghostRoad,
+  fieldHint,
   houseHint,
   indexOf,
   isFreeLand,
   markTutorial,
   needMet,
+  placeSpots,
   refreshCity,
+  RULES,
   servedHouses,
   TUTORIAL_EXTRAS,
   TUTORIAL_STEPS,
@@ -20,7 +23,7 @@ import {
   tutorialProgress,
   tutorialStepDone,
   stepWeek,
-  wateredHouseSpots,
+  plazaHouseSpots,
   type Cell,
   type TutorialStepId,
 } from '../src/core';
@@ -35,7 +38,7 @@ describe('tutorial steps', () => {
       ['road', 'road', 1],
       ['gather', 'fisher', 1],
       ['field', 'field', 1],
-      ['well', 'well', 1],
+      ['plaza', 'plaza', 1],
       ['house', 'house', 1],
       ['family', null, 1],
     ]);
@@ -116,13 +119,13 @@ describe('tutorial steps', () => {
   it('family: done once a family really arrives in the simulation', () => {
     const s = emptyGame();
     const mark = markTutorial(s);
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27);
     for (let k = 0; k < 8 && !tutorialStepDone(s, step('family'), mark); k++) stepWeek(s, constRng(0));
     expect(tutorialStepDone(s, step('family'), mark)).toBe(true);
   });
 
-  it('field, well and market: done by one connected building of the kind', () => {
+  it('field, plaza and market: done by one connected building of the kind', () => {
     const s = emptyGame();
     const mark = markTutorial(s);
     const done = (id: TutorialStepId) => tutorialStepDone(s, step(id), mark);
@@ -130,9 +133,9 @@ describe('tutorial steps', () => {
     expect(done('field')).toBe(false);
     put(s, 'field', westOf('field'), 30);
     expect(done('field')).toBe(true);
-    expect(done('well')).toBe(false);
-    put(s, 'well', EAST, 27);
-    expect(done('well')).toBe(true);
+    expect(done('plaza')).toBe(false);
+    put(s, 'plaza', EAST, 27);
+    expect(done('plaza')).toBe(true);
     expect(done('market')).toBe(false);
     put(s, 'market', EAST, 30);
     expect(done('market')).toBe(true);
@@ -203,7 +206,7 @@ describe('food spot and ghost road', () => {
     const s = emptyGame();
     const first = ghostRoad(s);
     const mid = first[Math.floor(first.length / 2)];
-    put(s, 'well', mid.x, mid.y);
+    put(s, 'plaza', mid.x, mid.y);
     refreshCity(s);
     const next = ghostRoad(s);
     expect(next.length).toBeGreaterThan(0);
@@ -212,24 +215,47 @@ describe('food spot and ghost road', () => {
 });
 
 describe('house hint', () => {
-  it('is null with no well, and otherwise a free spot with water, the nearest to the altar', () => {
+  it('is null with no plaza, and otherwise a free spot near one, the nearest to the altar', () => {
     const s = emptyGame();
     expect(houseHint(s)).toBeNull();
-    expect(wateredHouseSpots(s)).toEqual([]);
-    put(s, 'well', EAST, 27);
+    expect(plazaHouseSpots(s)).toEqual([]);
+    put(s, 'plaza', EAST, 27);
     refreshCity(s);
-    const spots = wateredHouseSpots(s);
+    const spots = plazaHouseSpots(s);
     expect(spots.length).toBeGreaterThan(0);
     for (const o of spots) {
       const cells = [0, 1].flatMap((dx) => [0, 1].map((dy) => indexOf(s, o.x + dx, o.y + dy)));
-      expect(cells.some((i) => s.coverage.well[i])).toBe(true);
+      expect(cells.some((i) => s.coverage.plaza[i])).toBe(true);
     }
     const hint = houseHint(s)!;
     expect(spots).toContainEqual(hint);
-    // A family on the hinted plot keeps the gate open: the tent has water.
+    // A family on the hinted plot keeps the gate open: the tent has a plaza.
     const tent = put(s, 'house', hint.x, hint.y, 1);
     refreshCity(s);
-    expect(needMet(s, tent, 'well')).toBe(true);
+    expect(needMet(s, tent, 'plaza')).toBe(true);
+  });
+});
+
+describe('field hint (tutorial camera)', () => {
+  it('is the free field spot touching the network nearest the altar', () => {
+    const s = emptyGame();
+    const hint = fieldHint(s)!;
+    const spots = placeSpots(s, 'field');
+    expect(spots).toContainEqual(hint);
+    const a = RULES.map.altar;
+    const d = (c: { x: number; y: number }) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
+    for (const o of spots) expect(d(o)).toBeGreaterThanOrEqual(d(hint));
+    // Taking that spot moves the hint elsewhere.
+    put(s, 'field', hint.x, hint.y);
+    const next = fieldHint(s)!;
+    expect(next).not.toEqual(hint);
+    expect(placeSpots(s, 'field')).toContainEqual(next);
+  });
+
+  it('is null when no field fits anywhere', () => {
+    const s = emptyGame();
+    s.ground = s.ground.map(() => 'river');
+    expect(fieldHint(s)).toBeNull();
   });
 });
 
@@ -238,22 +264,22 @@ describe('served houses', () => {
     const s = emptyGame();
     const near = put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29); // empty plot: not counted
-    put(s, 'house', ROADSIDE, 42, 1); // too far for a well at y 27
-    expect(servedHouses(s, 'well', EAST, 27)).toEqual([near]);
+    put(s, 'house', ROADSIDE, 42, 1); // too far for a plaza at y 27
+    expect(servedHouses(s, 'plaza', EAST, 27)).toEqual([near]);
     expect(servedHouses(s, 'house', EAST, 27)).toEqual([]); // no radius
     expect(servedHouses(s, 'market', EAST, 36, true).map((b) => b.y)).toEqual([42]);
   });
 });
 
 describe('served houses (radius edge)', () => {
-  // A 2x2 well at (EAST, 27) with radius 4 reaches rows 23..32.
+  // A 2x2 plaza at (EAST, 27) with radius 4 reaches rows 23..32.
   it('counts a house with one cell at the edge of the radius, not one just beyond', () => {
-    const r = BUILDINGS.well.radius!;
+    const r = BUILDINGS.plaza.radius!;
     const edge = emptyGame();
     const touching = put(edge, 'house', ROADSIDE, 28 + r, 2); // rows 32..33: row 32 is inside
-    expect(servedHouses(edge, 'well', EAST, 27)).toEqual([touching]);
+    expect(servedHouses(edge, 'plaza', EAST, 27)).toEqual([touching]);
     const far = emptyGame();
     put(far, 'house', ROADSIDE, 29 + r, 1); // rows 33..34: outside
-    expect(servedHouses(far, 'well', EAST, 27)).toEqual([]);
+    expect(servedHouses(far, 'plaza', EAST, 27)).toEqual([]);
   });
 });

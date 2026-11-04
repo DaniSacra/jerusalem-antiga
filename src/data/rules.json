@@ -1,6 +1,6 @@
 {
   "startSilver": 180,
-  "startUnlocked": ["road", "house", "field", "well", "fisher", "gatherer"],
+  "startUnlocked": ["road", "house", "field", "plaza", "fisher", "gatherer"],
   "weekSeconds": 3.2,
   "workerShare": 0.5,
   "unemploymentAlert": 6,
@@ -29,8 +29,8 @@
   "happiness": {
     "base": 50,
     "sacred": 10,
-    "garden": 20,
-    "well": 5,
+    "park": 20,
+    "plaza": 5,
     "market": 5,
     "famine": -30,
     "idleScale": 40,
@@ -47,11 +47,12 @@
     "rows": 48,
     "altar": { "x": 22, "y": 22 },
     "clearRadius": 9,
-    "rocks": [35, 65],
-    "olives": [45, 75],
-    "palms": [35, 65],
+    "rocks": [70, 100],
+    "olives": [80, 110],
+    "palms": [50, 80],
     "grassShare": 0.45,
     "river": { "minWidth": 3, "maxWidth": 4, "distance": [8, 18] },
-    "denseGrove": { "min": 1, "trees": 18, "radius": 3, "distance": [11, 20] }
+    "denseGrove": { "min": 2, "trees": 24, "radius": 3, "distance": [10, 20] },
+    "rockOutcrop": { "min": 1, "rocks": 12, "radius": 2, "distance": [10, 18] }
   }
 }

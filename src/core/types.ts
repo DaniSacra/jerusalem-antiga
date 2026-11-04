@@ -1,22 +1,23 @@
 export type Ground = 'sand' | 'grass' | 'river';
 export type Feature = 'rock' | 'palm' | 'olive';
-export type BuildingKind = 'house' | 'field' | 'well' | 'fisher' | 'gatherer' | 'granary' | 'market' | 'workshop' | 'garden' | 'temple' | 'altar';
+export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 /** The four seasons, in order. */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export type BuildableKind = Exclude<BuildingKind, 'altar'>;
-/** Groups of the build menu (see menu.ts): housing, water and food, work, special. */
+/** Groups of the build menu (see menu.ts): housing, food, work, special. */
 export type BuildingCategory = 'home' | 'supply' | 'work' | 'special';
 /** Everything the player can place: buildings and road. */
 export type Placeable = BuildableKind | 'road';
-/** Area services; "sacred" is the radius of the altar or a temple. Gardens only add happiness. */
-export type ServiceKind = 'well' | 'market' | 'sacred' | 'garden';
-export type NeedKind = 'road' | ServiceKind;
+/** Area services; "sacred" is the radius of the altar or a temple (happiness only). */
+export type ServiceKind = 'plaza' | 'market' | 'sacred' | 'park';
+/** What a house level asks for: a road and the services around it (the altar is not one). */
+export type NeedKind = 'road' | Exclude<ServiceKind, 'sacred'>;
 /** What a building's balloon can point out: a missing need, a workplace with no workers or a sad house. */
 export type BalloonKind = NeedKind | 'workers' | 'sad' | 'noSource';
 
-export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred', 'garden'];
+export const SERVICE_KINDS: readonly ServiceKind[] = ['plaza', 'market', 'sacred', 'park'];
 
 export type Rng = () => number;
 
@@ -101,8 +102,6 @@ export interface BuildingDef {
   gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number };
   /** Food this building lets the city keep (granary). */
   storage?: number;
-  /** Silver made per week at full efficiency (no building makes silver for now; kept for later). */
-  silver?: number;
   /** Workshop: each connected one adds this share to the fields' food, up to `fieldBonusMax` in all. */
   fieldBonus?: number;
   fieldBonusMax?: number;
@@ -124,9 +123,9 @@ export interface GoalDef {
   /**
    * residents: at least `target` residents; houses: houses of at least `level`; build: connected
    * buildings of `kind`; foodUntilSpring: weeks the food lasts, up to the first spring (see
-   * goalTarget); water: houses (plots too) with a well, out of max(target, all houses).
+   * goalTarget).
    */
-  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'water';
+  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring';
   target: number;
   /** Minimum house level, for type "houses". */
   level?: number;
@@ -190,8 +189,8 @@ export interface Rules {
   happiness: {
     base: number;
     sacred: number;
-    garden: number;
-    well: number;
+    park: number;
+    plaza: number;
     market: number;
     famine: number;
     /** Penalty = share of workers without a job x idleScale, at most idleMax. */
@@ -221,6 +220,8 @@ export interface Rules {
     river: { minWidth: number; maxWidth: number; distance: [number, number] };
     /** At least `min` groves of `trees`+ trees in a square of `radius` around a center `distance` cells from the altar's border. */
     denseGrove: { min: number; trees: number; radius: number; distance: [number, number] };
+    /** At least `min` outcrops of `rocks`+ rocks (taken from `rocks`) in a square of `radius` around a center `distance` cells from the altar's border. */
+    rockOutcrop: { min: number; rocks: number; radius: number; distance: [number, number] };
   };
 }
 
@@ -300,8 +301,6 @@ export interface GameState {
   lastFamilyWeek: number;
   /** Food spoiled this week because the stores were full (0 when nothing spoiled). */
   spoiled: number;
-  /** Food harvested so far in the whole game. */
-  harvested: number;
   /** A week of famine happened since the last autumn began. */
   famineThisYear: boolean;
   /** Milestones already reached, in order. */

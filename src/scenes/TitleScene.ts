@@ -31,7 +31,7 @@ export class TitleScene extends Phaser.Scene {
       [TEX.feature('palm', 0), 245, 140, 1.4],
       [TEX.building('house', 4), 80, 410, 0.8],
       [TEX.building('house', 3), 185, 470, 0.8],
-      [TEX.building('well'), 90, 560, 0.8],
+      [TEX.building('plaza'), 90, 560, 0.8],
       [TEX.feature('olive', 1), 220, 640, 1.4],
       [TEX.building('altar'), 1150, 200, 0.6],
       [TEX.building('market', 0, true), 1110, 330, 0.7],

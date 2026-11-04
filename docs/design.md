@@ -28,8 +28,8 @@ Mantidos:
 8. Cidade viva: gente nas ruas, casas evoluindo, coisas se mexendo.
 9. A diversão é posicionar bem: o bairro inteiro sobe quando o lugar é bom.
 10. Mecânica antes de história: nenhuma narrativa antes do playtest aprovar a mecânica.
-11. Uma mecânica nova por vez. Exceção proposta: o P1 "Ritmo" como bloco (várias regras pequenas a
-    serviço do ritmo; nenhuma é sistema novo). Falta a aprovação do usuário.
+11. Uma mecânica nova por vez. Exceção: o P1 "Ritmo" como bloco (várias regras pequenas a serviço
+    do ritmo; nenhuma é sistema novo), aceita quando o usuário aprovou seguir o roteiro (04/11).
 
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje
@@ -51,7 +51,30 @@ por cima das seções abaixo:
   vence 98%; tutorial perde 0 de 16. Mas a partida dura ~2,5 min, as metas 1–4 caem em 9 semanas,
   o campo dá 89% da comida e 19–42% estraga
 
-## Implementado: Pacote 1 "Ritmo" (2026-11-04, aguarda o teste do usuário)
+## Próximo: Pacote 2 "Água sai e mapa" (aprovado pelo usuário em 2026-11-04)
+Especificação completa, pronta para implementar: `docs/revisoes/2026-11-04/plano-p2.md` (com o
+esboço do P3 "Madeira e pedra" no fim). Nenhuma regra nova: a Praça troca o Poço, o Parque troca o
+Jardim e o raio do altar. Resumo (atual → novo):
+- Poço sai (dados, código, arte e textos). Sai a porta `water` e o objetivo `water`. Não há saves a
+  migrar (só `tutorialDone` e configurações)
+- Casas: barro = rua + **praça**; pedra = + mercado; casa grande = + **parque** (o altar sai da
+  evolução, decisão do usuário: "não do altar"). Altar e templo continuam únicos e dão Alegria +10
+- Praça (nova, liberada no início): 25 de prata, manutenção 2, 2 x 2, raio 4, Alegria +5
+- Jardim → Parque: custo 35 → 40, manutenção 1 → 2, raio 3 → 4, Alegria +20, liberado no
+  objetivo 5 (igual)
+- Tutorial: o passo do poço vira o da praça, no mesmo lugar (perto das tendas)
+- Mapa: rochas [35, 65] → [70, 100], oliveiras [45, 75] → [80, 110], palmeiras [35, 65] → [50, 80],
+  bosques densos 1 → 2 com 18 → 24 árvores, afloramento de rochas garantido (novo `rockOutcrop`:
+  12 rochas, raio 2, a 10–18 do altar) para a pedreira do P3
+- Interface: câmera do tutorial, fila de toasts, "Perde N de comida" ao demolir celeiro, necessidade
+  trancada com "libera no objetivo N", textos pendentes do P1
+- Medição: nada pior que o P1 (Comum 6–10 casas no Ano 1, vitória 30–50% em 25–35 min, ≤ 7 derrotas,
+  prata parada ≤ 9/100, templo sempre com lugar); melhorar: objetivos 5 e 6 separados ≥ 13 semanas,
+  ≤ 3 objetivos por ano
+- Alavancas em ordem: famílias (intervalo 6 → 7 → 8), parque (raio 5, objetivo 4), prata (manutenção de
+  praça e parque), Coletora (`max` 4,5 → 3,5), densidade, Mercado no objetivo 2
+
+## Feito: Pacote 1 "Ritmo" (2026-11-04, no main: 196cd9d e a06d471)
 Especificação completa em `docs/revisoes/2026-11-04/plano.md`, seção 2. Resumo (atual → novo):
 - Casas: moradores 3/6/10/16 → 4/6/10/20; imposto 1/2/3,5/6 → 1/1,5/2,5/3; comida por morador
   0,2/0,15/0,2/0,22 → 0,2 em todos. Casa senhorial (30) só registrada, para o P10
@@ -610,6 +633,19 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04 — P2 "Água sai e mapa" aprovado pelo usuário (seguir o roteiro). Casas evoluem por
+  praça, mercado e parque; o altar sai da evolução. Motivo: as decisões do usuário de 04/11 ("não do
+  altar") valem mais que a lista de pacotes ("… e altar").
+- 2026-11-04 — "Jardim vira praça e parque" = duas construções com a regra de serviço com raio que
+  já existe (Praça no lugar do Poço, Parque no lugar do Jardim), não uma construção com níveis.
+  Motivo: zero regra nova; a casa de barro não pode depender de algo liberado no objetivo 5.
+- 2026-11-04 — Parque continua no objetivo 5. Motivo: a casa grande deixa de nascer no Ano 1 pelo
+  raio do altar, e os objetivos 5 e 6 deixam de cair na mesma semana (critério J).
+- 2026-11-04 — Arte do poço removida; a Praça ganha arte própria sem poço nem fonte; a aguadeira
+  fica e vai à praça e ao mercado. Motivo: o usuário tirou o poço do jogo; arte sem uso confunde.
+- 2026-11-04 — Entram no P2: câmera do tutorial, fila de toasts, toast final do tutorial, "Perde N de
+  comida" ao demolir celeiro, cadeado nas necessidades, textos do P1 e limpeza de código morto.
+  DEPOIS: marco anual do inverno (P5); Mercado no objetivo 2 e objetivo 8 = 350 só como alavanca.
 - 2026-11-04 — Novo rumo (usuário): sobrevivência e contemplação, ~30 min, ~30% de vitórias,
   templo com 500 moradores a partir do Ano 8. Pilares novos acima. Motivo: o jogo durava 2,6 min,
   90–100% venciam e a prata sobrava (revisão de 11a95cd).
@@ -925,9 +961,10 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
 ## Próximos candidatos (roteiro de 2026-11-04)
 Um pacote por vez, cada um medido antes do próximo (detalhes em
 `docs/revisoes/2026-11-04/plano.md`, seção 1):
-1. Ritmo (com a seca no Ano 3)
-2. Água sai e mapa (+ câmera do tutorial e fila de toasts do antigo P2)
-3. Madeira e pedra
+1. ~~Ritmo (com a seca no Ano 3)~~ feito (196cd9d, a06d471)
+2. **Próximo:** Água sai e mapa (+ câmera do tutorial e fila de toasts do antigo P2), especificado em
+   `docs/revisoes/2026-11-04/plano-p2.md`
+3. Madeira e pedra (esboço no fim de `plano-p2.md`; especificação depois do P2 medido)
 4. Lenha e inverno (neve, reserva do celeiro)
 5. Recuperação (dívida gradual, derrota com a cidade quase vazia)
 6. Obras com tempo + templo calibrado para ~30%

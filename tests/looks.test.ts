@@ -35,7 +35,7 @@ describe('house looks', () => {
 
   it('only houses get a look', () => {
     const s = emptyGame();
-    place(s, 'well', 1, 1, false, constRng(0.99));
+    place(s, 'plaza', 1, 1, false, constRng(0.99));
     expect(s.buildings.at(-1)).toMatchObject({ variant: 0, mirrored: false });
     place(s, 'house', 4, 1, false, constRng(0.99));
     expect(s.buildings.at(-1)).toMatchObject({ variant: 1, mirrored: false });
@@ -65,14 +65,14 @@ describe('house looks', () => {
   it('draws a new look at every level change, including when a family arrives', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
-    put(s, 'well', ROADSIDE, 32);
+    put(s, 'plaza', ROADSIDE, 32);
     b.variant = 0;
     b.mirrored = true;
     for (let k = 0; k < RULES.weeksToUpgrade; k++) stepWeek(s, constRng(0.99));
     expect(b).toMatchObject({ level: 2, variant: 5, mirrored: false });
 
     const t = emptyGame();
-    put(t, 'well', EAST, 27); // families only come with water
+    put(t, 'plaza', EAST, 27); // a plaza by the plot
     const plot = put(t, 'house', ROADSIDE, 27);
     plot.variant = 1;
     for (let k = 0; k < 8 && plot.level === 0; k++) stepWeek(t, constRng(0)); // the family walks ~20 cells, 6 per week
@@ -98,7 +98,7 @@ describe('field looks', () => {
 
   it('leaves single-look buildings at variant 0', () => {
     const s = emptyGame();
-    place(s, 'well', 1, 1, false, constRng(0.99));
+    place(s, 'plaza', 1, 1, false, constRng(0.99));
     expect(s.buildings.at(-1)!.variant).toBe(0);
   });
 });

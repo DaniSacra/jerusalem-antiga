@@ -15,6 +15,7 @@ const UNDER_PANEL = 45;
 interface Toast {
   msg: string;
   big: boolean;
+  valid?: () => boolean;
   root: Phaser.GameObjects.Container;
   h: number;
   timer: Phaser.Time.TimerEvent;
@@ -26,6 +27,8 @@ export type Tone = 'info' | 'bad' | 'good';
 export interface ToastOptions {
   big?: boolean;
   ms?: number;
+  /** A warning that can stop being true: dropped from the line, or taken off the screen, once it is not. */
+  valid?: () => boolean;
 }
 
 interface Waiting {
@@ -68,6 +71,12 @@ export class Toasts {
     return this.held ? 0 : this.list.some((t) => t.big) ? 1 : MAX;
   }
 
+  /** Top edge of the toasts on screen (null when there are none). */
+  get top(): number | null {
+    if (!this.list.length) return null;
+    return this.y0 - this.list.reduce((sum, t) => sum + t.h + px(6), -px(6));
+  }
+
   /** Holds new toasts while a panel is open; when it closes, the waiting ones come in. */
   hold(on: boolean) {
     if (on === this.held) return;
@@ -79,8 +88,15 @@ export class Toasts {
   private flush() {
     while (this.queue.length && this.list.length < this.room()) {
       const next = this.queue.shift()!;
+      if (next.opt.valid && !next.opt.valid()) continue;
       this.add(next.msg, next.tone, next.opt);
     }
+  }
+
+  /** After the city changes: warnings that no longer hold leave the line and the screen. */
+  prune() {
+    this.queue = this.queue.filter((q) => !q.opt.valid || q.opt.valid());
+    for (const t of this.list) if (t.valid && !t.valid()) this.dismiss(t);
   }
 
   private add(msg: string, tone: Tone, opt: ToastOptions) {
@@ -102,7 +118,7 @@ export class Toasts {
     if (opt.big) bg.lineStyle(px(2), NOVA.gold, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
     const root = s.add.container(GAME_W / 2, this.y0 - h / 2, [bg, label]).setDepth(DEPTH).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
-    const toast: Toast = { msg, big: !!opt.big, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
+    const toast: Toast = { msg, big: !!opt.big, valid: opt.valid, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
     this.layout();
   }

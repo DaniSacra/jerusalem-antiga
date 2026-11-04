@@ -33,24 +33,26 @@ describe('target level of a house', () => {
     const plot = put(s, 'house', ROADSIDE, 29);
     expect(targetLevel(s, tent)).toBe(1);
     expect(targetLevel(s, plot)).toBe(0);
-    put(s, 'well', EAST, 27);
-    expect(targetLevel(s, tent)).toBe(2); // climbs with a well
+    put(s, 'plaza', EAST, 27);
+    expect(targetLevel(s, tent)).toBe(2); // climbs with a plaza
     const stone = put(s, 'house', ROADSIDE, 31, 3);
     expect(targetLevel(s, stone)).toBe(2); // no market: drops to mud-brick
     s.coverage.market.fill(true);
     s.coverage.sacred.fill(true);
+    expect(targetLevel(s, tent)).toBe(3); // the altar's radius is not a need: stops at stone
+    s.coverage.park.fill(true);
     expect(targetLevel(s, tent)).toBe(4); // climbs every level it can
   });
 });
 
 describe('food forecast at the target level', () => {
-  it('a new well changes the forecast at once, before the tents climb', () => {
+  it('a new plaza changes the forecast at once, before the tents climb', () => {
     const s = emptyGame({ food: 20 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
     const asTents = weeksOfFood(20, 0, eatAt(1, 2));
     expect(foodForecast(s)?.weeks).toBe(asTents);
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     const asMud = weeksOfFood(20, 0, eatAt(2, 2));
     expect(asMud).toBeLessThan(asTents);
     expect(foodForecast(s)?.weeks).toBe(asMud); // two mud-brick houses
@@ -74,7 +76,7 @@ describe('food forecast at the target level', () => {
     for (let level = 1; level <= top; level++) {
       const s = emptyGame();
       const b = put(s, 'house', ROADSIDE, 27, level);
-      for (const need of ['well', 'market', 'sacred'] as const) s.coverage[need].fill(true); // it could reach the top
+      for (const need of ['plaza', 'market', 'park'] as const) s.coverage[need].fill(true); // it could reach the top
       expect(targetLevel(s, b)).toBe(top);
       const planned = Math.min(level + 1, top);
       expect(plannedEating(s), `level ${level}`).toEqual({
@@ -87,7 +89,7 @@ describe('food forecast at the target level', () => {
 
   it('plans a house that misses its own needs at the level it drops to', () => {
     const s = emptyGame();
-    const stone = put(s, 'house', ROADSIDE, 27, 3); // no well, no market: drops to a tent
+    const stone = put(s, 'house', ROADSIDE, 27, 3); // no plaza, no market: drops to a tent
     expect(targetLevel(s, stone)).toBe(1);
     expect(plannedEating(s).residents).toBe(HOUSE_LEVELS[1].residents);
   });
@@ -98,14 +100,14 @@ describe('winter in the forecast', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 3);
-    s.coverage.well.fill(false);
+    s.coverage.plaza.fill(false);
     const p = plannedEating(s);
     // The stone house has no services: it is planned as a tent too.
     expect(p.residents).toBe(2 * HOUSE_LEVELS[1].residents);
     expect(p.winterEaten).toBeCloseTo(p.eaten * RULES.winter.tentFoodFactor);
     const m = emptyGame();
-    put(m, 'well', EAST, 27);
-    put(m, 'house', ROADSIDE, 27, 2); // mud-brick, with water: planned as mud-brick (no market)
+    put(m, 'plaza', EAST, 27);
+    put(m, 'house', ROADSIDE, 27, 2); // mud-brick, with a plaza: planned as mud-brick (no market)
     const q = plannedEating(m);
     expect(q.residents).toBe(HOUSE_LEVELS[2].residents);
     expect(q.winterEaten).toBeCloseTo(q.eaten * RULES.winter.foodFactor);
@@ -148,7 +150,7 @@ describe('workshop bonus in the forecast', () => {
     for (const y of [33, 35]) put(s, 'house', ROADSIDE, y, 1);
     put(s, 'field', westOf('field'), 38);
     const serve = () => {
-      for (const need of ['well', 'market', 'sacred'] as const) s.coverage[need].fill(true);
+      for (const need of ['plaza', 'market', 'park'] as const) s.coverage[need].fill(true);
     };
     serve();
     const base = BUILDINGS.field.harvest! / (3 * W);
@@ -173,7 +175,7 @@ describe('food forecast and steps', () => {
     const s = emptyGame({ food: 40, goalIndex: 0 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
-    put(s, 'well', EAST, 27); // 40 lasts the tents longer than the mud-brick houses they become
+    put(s, 'plaza', EAST, 27); // 40 lasts the tents longer than the mud-brick houses they become
     expect(weeksOfFood(40, 0, eatAt(2, 2))).toBeLessThan(2 * W);
     checkGoal(s, []);
     expect(s.goalIndex).toBe(0);
@@ -198,7 +200,7 @@ describe('food forecast and steps', () => {
     for (let seed = 1; seed <= 80; seed++) {
       const rng = createRng(seed);
       const s = emptyGame({ food: Math.floor(rng() * 40), week: Math.floor(rng() * WEEKS_PER_YEAR) });
-      const tents = 2 + Math.floor(rng() * 5); // no well: they stay tents
+      const tents = 2 + Math.floor(rng() * 5); // no plaza: they stay tents
       for (let k = 0; k < tents; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 1);
       if (rng() < 0.4) put(s, 'fisher', besideRiver(s, 30), 30);
       if (rng() < 0.3) put(s, 'fisher', besideRiver(s, 34), 34);

@@ -56,7 +56,7 @@ export function plannedEating(s: GameState, extraTents = 0): { residents: number
  * When the food runs out with the city as it is: weeks of food left (whole weeks before the
  * famine week) and the season of that week. Counts the steady food, the field harvests (this
  * year's drought until the next autumn, none after), the store limit and the winter eating.
- * Every house eats (and works) at its planned level (see `plannedEating`), so a new well already
+ * Every house eats (and works) at its planned level (see `plannedEating`), so a new plaza already
  * shows the bigger houses it brings. With `reserveWeeks`, the food "runs out" when it drops below
  * that many weeks of eating. Null when the food lasts the whole horizon (a year by default).
  */

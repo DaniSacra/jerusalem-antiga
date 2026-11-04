@@ -63,8 +63,6 @@ export function weeksToNextLevel(s: GameState, b: Building): number | null {
 }
 
 /** A need is shown only once its building can be built (the altar always exists). */
-const needVisible = (s: GameState, need: NeedKind) => need === 'road' || need === 'sacred' || s.unlocked.includes(need);
-
 /**
  * First problem of a building, shown as a balloon: no road first; then workplaces with no
  * workers at all; then a fisher or gatherer with no river or trees in reach; then, for houses of levels 1-3, the first missing need of the next level (the
@@ -76,7 +74,7 @@ export function balloonNeed(s: GameState, b: Building, e: Economy = computeEcono
   if (BUILDINGS[b.kind].gather && gatherCells(s, b) === 0) return 'noSource';
   if (b.kind !== 'house' || b.level < 1) return null;
   const first = b.level < HOUSE_LEVELS.length - 1 ? missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0] : undefined;
-  if (first && needVisible(s, first)) return first;
+  if (first) return first; // a locked need shows too (with a lock): the player learns what comes next
   return houseHappiness(s, b, idleShare(s, e)).mood === 'sad' ? 'sad' : null;
 }
 

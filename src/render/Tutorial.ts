@@ -194,6 +194,11 @@ export class TutorialView {
   contains(x: number, y: number) {
     return !!this.rect && inRect(this.rect, x, y);
   }
+
+  /** Top edge of the bubble (null while hidden). */
+  get top(): number | null {
+    return this.rect?.y ?? null;
+  }
 }
 
 /** Arrow pointing down, tip at (0, dy). */

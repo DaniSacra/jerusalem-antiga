@@ -66,7 +66,7 @@ describe('road network', () => {
 describe('road requirement', () => {
   it('marks every building kind as connected only when touching the network', () => {
     const s = emptyGame();
-    const kinds = ['house', 'field', 'well', 'market', 'workshop'] as const;
+    const kinds = ['house', 'field', 'plaza', 'market', 'workshop'] as const;
     let y = 27;
     kinds.forEach((kind, k) => {
       const b = put(s, kind, westOf(kind), y);
@@ -79,7 +79,7 @@ describe('road requirement', () => {
   it('connects a building that touches the altar itself', () => {
     const s = emptyGame();
     s.roads = s.roads.map(() => false); // without the starting roads
-    expect(put(s, 'well', 26, 22).connected).toBe(true);
+    expect(put(s, 'plaza', 26, 22).connected).toBe(true);
   });
 
   it('still allows building away from roads', () => {

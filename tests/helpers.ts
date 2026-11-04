@@ -16,7 +16,7 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
-  s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+  s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'park', 'temple'];
   s.goalIndex = RULES.upkeepStartsAfterGoal; // upkeep is charged (tests of the first goals set goalIndex)
   Object.assign(s, overrides);
   refreshCity(s);

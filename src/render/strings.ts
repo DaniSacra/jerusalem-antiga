@@ -11,7 +11,7 @@ export const T = {
   start: 'Começar',
   howTo: [
     'Comida para o inverno: pesque, colete e plante campos no outono.',
-    `Dê água às casas com poços. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
+    `Praças perto das tendas fazem casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -49,17 +49,13 @@ export const T = {
   /** Why no new family comes (Avisos and the statistics problems). */
   familyBlock: {
     famine: 'Nenhuma família vem: falta comida. Pesque ou colete',
-    water: 'Nenhuma família vem: casa longe do poço. Construa outro poço',
     food: 'Nenhuma família vem: falta sobra de comida para mais uma família. Pesque ou colete',
     storage: 'Nenhuma família vem: o estoque está cheio',
     wait: 'Uma nova família pode chegar em breve',
     noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
   } satisfies Record<FamilyBlock, string>,
   /** Why no new family comes; "storage" names the store size and how to get a granary. */
-  /** `water` while the city has no well yet. */
-  familyNoWell: 'Nenhuma família vem: casa sem água. Construa um poço perto',
   familyBlockText(block: FamilyBlock, s: GameState): string {
-    if (block === 'water' && !s.buildings.some((b) => b.kind === 'well' && b.connected)) return T.familyNoWell;
     if (block !== 'storage') return T.familyBlock[block];
     const granary = s.unlocked.includes('granary') ? 'Construa o celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
     return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
@@ -67,6 +63,8 @@ export const T = {
   familyLeft: 'Uma família foi embora: fome',
   famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
+  /** A dragged road reached a button or panel and stopped there. */
+  roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue de onde parou',
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   fail: {
@@ -82,7 +80,7 @@ export const T = {
   /** Extra message when a goal unlocks a building, explaining what it is for. */
   unlocked: {
     workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${WORKSHOP_BONUS}`,
-    garden: 'Jardim liberado: casas felizes pagam mais imposto e atraem famílias',
+    park: 'Parque liberado: casas de pedra perto dele viram casas grandes',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
@@ -112,31 +110,31 @@ export const T = {
     nothing: 'Nada para demolir aqui',
     rockClear: 'Rochas não podem ser removidas',
   },
-  upkeepStart: 'Agora poços, campos e demais construções custam prata por semana',
-  /** Preview of a well, market or garden: houses with a family inside its radius. */
+  upkeepStart: 'Agora praças, campos e demais construções custam prata por semana',
+  /** Preview of a plaza, market or park: houses with a family inside its radius. */
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
     step: {
       road: 'Puxe uma rua pelo caminho marcado, até onde há comida',
       gather: 'Construa um pescador junto ao rio ou uma coletora perto das árvores',
       field: 'Construa um campo: ele dá comida já, até o inverno congelar',
-      well: 'Construa um poço perto das tendas da caravana',
-      house: 'Construa uma casa encostada na rua, perto do poço',
+      plaza: 'Construa uma praça perto das tendas da caravana',
+      house: 'Construa uma casa encostada na rua, perto da praça',
       family: 'Uma família está chegando!',
-      upkeep: 'Agora poços, campos e demais construções custam prata por semana',
+      upkeep: 'Agora praças, campos e demais construções custam prata por semana',
       market: 'Casas de barro com mercado perto viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
     pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
     skip: 'Pular tutorial',
     ok: 'Entendi',
     again: 'Rever o tutorial',
-    done: 'Muito bem! Agora siga os objetivos no alto da tela',
+    done: 'Muito bem! Construa mais casas: cada uma recebe uma família',
   },
   mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
   happinessPart: {
     sacred: 'Altar',
-    garden: 'Jardim',
-    well: 'Poço',
+    park: 'Parque',
+    plaza: 'Praça',
     market: 'Mercado',
     famine: 'Fome',
     idle: 'Desemprego',
@@ -161,7 +159,7 @@ export const T = {
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
-  need: { road: 'Rua', well: 'Poço', market: 'Mercado', sacred: 'Altar ou Templo', garden: 'Jardim' } satisfies Record<NeedKind, string>,
+  need: { road: 'Rua', plaza: 'Praça', market: 'Mercado', park: 'Parque' } satisfies Record<NeedKind, string>,
   /** Interface Nova (drafts for the copywriter). */
   nova: {
     level: 'NÍVEL',
@@ -192,6 +190,9 @@ export const T = {
     goalOf: (n: number, total: number) => `Objetivo ${n} de ${total}`,
     /** `weeks`: the goal counts weeks (food until spring). */
     progress: (p: number, target: number, weeks = false) => `${Math.min(p, target)}/${target}${weeks ? ' sem' : ''}`,
+    /** A goal's progress; none for "food until spring" once spring has come (the weeks are done: "0/1" says nothing). */
+    goalProgress: (g: GoalDef, p: number, target: number): string | null =>
+      g.type !== 'foodUntilSpring' ? T.nova.progress(p, target) : target > 1 ? T.nova.progress(p, target, true) : null,
     seasonName: { spring: 'Primavera', summer: 'Verão', autumn: 'Outono', winter: 'Inverno' } satisfies Record<Season, string>,
     calendar: (season: Season, year: number, week: number, long: boolean) =>
       `${T.nova.seasonName[season]} · Ano ${year} · ${long ? 'Semana' : 'Sem'} ${week}`,
@@ -204,7 +205,7 @@ export const T = {
     costKey: (cost: number, key: string) => `${cost} · tecla ${key}`,
     lockedGoal: (n: number, year?: number) => `objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     unlocksAt: (n: number, year?: number) => `Libera no objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
-    category: { home: 'Moradia', supply: 'Água e comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
+    category: { home: 'Moradia', supply: 'Comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
     /** Balloon of the chosen building: price and upkeep per week. */
     price: (cost: number, upkeep: number, charged: boolean) =>
       upkeep ? `${cost} prata · ${upkeep} por semana${charged ? '' : ` depois do Objetivo ${RULES.upkeepStartsAfterGoal}`}` : `${cost} prata`,
@@ -214,15 +215,15 @@ export const T = {
     foodAfter: (n: number) => `Comida depois: ${signed(n)}/sem`,
     /** What each building is for, in one sentence. */
     effect: {
-      house: 'Abriga uma família. Cresce com poço, mercado e altar perto.',
+      house: 'Abriga uma família. Cresce com praça, mercado e parque perto.',
       field: 'Dá comida o ano todo, menos no inverno, quando congela. Arraste para fazer vários.',
-      well: 'Tendas com poço por perto viram casas de barro.',
+      plaza: 'Tendas perto de uma praça viram casas de barro.',
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
-      garden: 'Alegra as casas por perto: mais imposto e mais famílias.',
+      park: 'Casas de pedra perto de um parque viram casas grandes.',
       temple: 'Vence o jogo. Precisa encostar numa rua ligada ao altar.',
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
@@ -236,9 +237,14 @@ export const T = {
     /** Fisher and gatherer rule in the chosen building balloon. */
     gatherRule: (source: 'river' | 'tree', perCell: number, radius: number, max: number) =>
       `${fmt(perCell)} comida por ${source === 'river' ? 'trecho de rio' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
-    /** Over a field preview and in its balloon. */
-    fieldSeasons: 'Dá comida na primavera, no verão e no outono. No inverno congela.',
     stores: (n: number) => `Guarda ${n} de comida`,
+    /** Demolir aimed at a granary (or a road that links one): the food that would spoil. */
+    foodLost: (n: number) => `Perde ${fmt(n)} de comida`,
+    /** Workshop balloon: its field bonus, the city's total after it and the cap ("no teto" once there). */
+    workshopBonus: (each: number, total: number, max: number) =>
+      `+${each}% de comida dos campos (total ${total}%, ${total >= max ? 'no teto' : `teto ${max}%`})`,
+    /** Workshop balloon when the cap is already reached: it only adds jobs. */
+    workshopFull: (max: number) => `Campos já no teto (+${max}%): esta oficina só dá vagas`,
     buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', settings: 'Configurações' },
     goals: {
       done: '✓',
@@ -280,7 +286,7 @@ export const T = {
       efficiency: 'Eficiência',
       houses: 'Casas',
       happiness: 'Alegria',
-      why: 'Jardim e altar alegram; fome e desemprego entristecem.',
+      why: 'Parque, praça e altar alegram; fome e desemprego entristecem.',
     },
     settings: {
       turn: 'Girar a visão',
@@ -293,9 +299,11 @@ export const T = {
     inspect: {
       next: (cur: string, next: string) => `${cur} → ${next}`,
       top: 'nível máximo',
-      residents: (n: number, tax: number) => `${n} moradores · imposto ${fmt(tax)}/sem`,
+      residents: (n: number, tax: number) => `${n} moradores · imposto ${fmt2(tax)}/sem`,
       evolve: 'Ao evoluir',
-      gain: (residents: number, tax: number, food: number) => `+${residents} moradores · +${fmt(tax)} de imposto · come +${fmt(food)}/sem`,
+      gain: (residents: number, tax: number, food: number) => `+${residents} moradores · +${fmt2(tax)} de imposto · come ${signed(food)}/sem`,
+      /** A missing service that a goal still has to unlock. */
+      lockedNeed: (name: string, goal: number) => `${name} (libera no objetivo ${goal})`,
       noRoad: 'sem rua',
       famine: 'fome: não evolui',
       /** Weeks until a house climbs to the next level. */
@@ -322,7 +330,7 @@ export const T = {
       road: (linked: boolean, entrance: boolean) => `${entrance ? 'Rua · entrada da cidade' : 'Rua'} · ${linked ? 'ligada ao altar ✓' : 'não ligada ao altar ✗'}`,
       tree: (name: string) => `${name} · Demolir corta por ${RULES.treeClearCost} prata`,
       rock: (name: string) => `${name} · não dá para construir aqui`,
-      where: { well: 'Onde pôr um poço', market: 'Onde pôr um mercado', sacred: 'Onde pôr o Templo', road: 'Ligar à rua' },
+      where: { plaza: 'Onde pôr uma praça', market: 'Onde pôr um mercado', park: 'Onde pôr um parque', road: 'Ligar à rua' },
       noSpot: 'Nenhum lugar livre por perto: abra uma rua ao lado',
       demolish: 'Demolir',
       confirm: 'Certeza?',
@@ -348,6 +356,9 @@ export function fmt(n: number): string {
   const k = Math.abs(n) < 1 ? 100 : 10;
   return String(Math.round(n * k) / k).replace('.', ',');
 }
+
+/** Up to two decimals at any size (1,25 and 0,25), so tax figures side by side add up. */
+export const fmt2 = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
 
 export const signed = (n: number) => (n < 0 ? '−' : '+') + fmt(Math.abs(n));
 

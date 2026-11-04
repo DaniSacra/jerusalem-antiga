@@ -13,9 +13,10 @@ import {
   roadMask,
   serviceOf,
   placeSpots,
-  wateredHouseSpots,
+  plazaHouseSpots,
   servedHouses,
   type Building,
+  type BuildableKind,
   type BuildingKind,
   type Cell,
   type GameState,
@@ -74,9 +75,15 @@ interface Balloon {
   need: BalloonKind;
   root: Phaser.GameObjects.Container;
   icon: Phaser.GameObjects.Image;
+  /** Small lock over the icon while the need's building is still locked. */
+  lock: Phaser.GameObjects.Image;
   baseY: number;
   phase: number;
 }
+
+/** A balloon for a service the city cannot build yet. */
+const isLocked = (s: GameState, need: BalloonKind) => (SERVICE_NEEDS as readonly string[]).includes(need) && !s.unlocked.includes(need as BuildableKind);
+const SERVICE_NEEDS = ['plaza', 'market', 'park'] as const;
 
 const local = (x: number, y: number, z = 0) => ({ x: (x - y) * HW, y: (x + y) * HH - z });
 
@@ -167,7 +174,7 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
-  /** "Atende N casas" above the preview of a well, market or garden. */
+  /** "Atende N casas" above the preview of a plaza, market or park. */
   private serves: Phaser.GameObjects.Text;
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
@@ -592,13 +599,15 @@ export class MapView {
         cur.icon.setTexture(TEX.need(need));
         cur.need = need;
       }
+      cur.lock.setVisible(isLocked(s, need));
       return;
     }
     const sc = this.scene;
     const bg = sc.add.image(0, 0, TEX.balloon).setOrigin(0.5, 1);
     const icon = sc.add.image(0, -16, TEX.need(need)).setScale(0.8);
-    const root = sc.add.container(c.x + 6, baseY, [bg, icon]).setDepth(DEPTH.fx + 1);
-    this.balloons.set(b.id, { need, root, icon, baseY, phase: cellHash(b.x, b.y) % 100 });
+    const lock = sc.add.image(8, -9, TEX.uiIcon('lock')).setDisplaySize(12, 12).setVisible(isLocked(s, need));
+    const root = sc.add.container(c.x + 6, baseY, [bg, icon, lock]).setDepth(DEPTH.fx + 1);
+    this.balloons.set(b.id, { need, root, icon, lock, baseY, phase: cellHash(b.x, b.y) % 100 });
   }
 
   // ---------- feedback ----------
@@ -721,7 +730,7 @@ export class MapView {
     const seen = new Set<number>();
     const { w, h } = dimsOf(kind);
     // The tutorial's house spots are the ones with water (a family there keeps the gate open).
-    const spots = kind === 'house' ? wateredHouseSpots(s) : placeSpots(s, kind);
+    const spots = kind === 'house' ? plazaHouseSpots(s) : placeSpots(s, kind);
     for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
   }
@@ -771,7 +780,7 @@ export class MapView {
     }
 
     const service = isPlaceTool(tool) && tool !== 'road' ? serviceOf(tool) : null;
-    if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.sacred), C.gold, 0.14);
+    if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.plaza), C.need.plaza, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
     if (tool === 'temple') this.spots(this.spotsArea(s, 'temple'));

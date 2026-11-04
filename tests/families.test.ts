@@ -24,24 +24,24 @@ const always = constRng(0);
 const never = constRng(0.99);
 
 /**
- * Gives the houses at ROADSIDE (y 27..35) water and the city a granary full of food, so nothing
+ * Gives the houses at ROADSIDE (y 27..35) a plaza and the city a granary full of food, so nothing
  * but the rule under test blocks new families.
  */
-function wellFed(s: GameState) {
-  put(s, 'well', EAST, 30);
+function plazaFed(s: GameState) {
+  put(s, 'plaza', EAST, 30);
   put(s, 'granary', EAST, 36);
   s.food = foodCapacity(s);
 }
 
-/** A well east of the starting road, reaching the ROADSIDE houses at y 26..35. */
-const water = (s: GameState) => put(s, 'well', EAST, 30);
-/** A well west of the ring (x 19..20, y 25..26), reaching ROADSIDE houses up to y 30 and leaving x = 25 free. */
-const waterWest = (s: GameState) => put(s, 'well', 19, 25);
+/** A plaza east of the starting road, reaching the ROADSIDE houses at y 26..35. */
+const plaza = (s: GameState) => put(s, 'plaza', EAST, 30);
+/** A plaza west of the ring (x 19..20, y 25..26), reaching ROADSIDE houses up to y 30 and leaving x = 25 free. */
+const plazaWest = (s: GameState) => put(s, 'plaza', 19, 25);
 
 describe('families', () => {
   it('a connected plot gets a family that walks from the entrance and turns it into a tent', () => {
     const s = emptyGame();
-    water(s);
+    plaza(s);
     const plot = put(s, 'house', ROADSIDE, 27);
     stepWeek(s, always); // sets out and walks its first week at once
     expect(s.families).toHaveLength(1);
@@ -66,7 +66,7 @@ describe('families', () => {
   it('sends at most one family every familyIntervalWeeks', () => {
     expect(RULES.familyIntervalWeeks).toBeGreaterThan(1);
     const s = emptyGame();
-    wellFed(s);
+    plazaFed(s);
     for (let y = 27; y <= 33; y += 2) put(s, 'house', ROADSIDE, y);
     const sent = () => s.families.length + s.buildings.filter((b) => b.kind === 'house' && b.level === 1).length;
     stepWeek(s, always);
@@ -83,7 +83,7 @@ describe('families', () => {
   it('dispatches with the family chance scaled by happiness', () => {
     const s = emptyGame();
     for (const y of [29, 31, 33]) put(s, 'house', ROADSIDE, y, 1);
-    wellFed(s);
+    plazaFed(s);
     put(s, 'house', ROADSIDE, 27);
     const chance = RULES.familyChance * familyFactor(computeEconomy(s).happiness);
     stepWeek(s, constRng(chance + 0.01));
@@ -107,22 +107,22 @@ describe('families', () => {
     expect(f.families).toHaveLength(0);
   });
 
-  it('waits until every house with a family has water', () => {
+  it('a house with a family and no plaza does not close the gate: the family comes', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 41, 1); // far from the well
-    wellFed(s);
+    const dry = put(s, 'house', ROADSIDE, 41, 1); // far from the plaza
+    plazaFed(s);
     put(s, 'house', ROADSIDE, 27);
-    expect(familyBlock(s)).toBe('water');
-    stepWeek(s, always);
-    expect(s.families).toHaveLength(0);
-    put(s, 'well', EAST, 41);
+    expect(dry.connected).toBe(true);
+    expect(s.coverage.plaza[indexOf(s, ROADSIDE, 41)]).toBe(false);
     expect(familyBlock(s)).toBeNull();
+    stepWeek(s, always);
+    expect(s.families).toHaveLength(1);
   });
 
   it('waits until the food lasts until the next harvest', () => {
     const s = emptyGame();
     for (const y of [33, 35]) put(s, 'house', ROADSIDE, y, 1);
-    wellFed(s);
+    plazaFed(s);
     put(s, 'house', ROADSIDE, 27);
     s.food = 5; // the harvest is 26 weeks away
     expect(familyBlock(s)).toBe('food');
@@ -134,7 +134,7 @@ describe('families', () => {
 
   it('cancels the family if the plot is demolished or cut off, and reroutes around changes', () => {
     const s = emptyGame();
-    water(s);
+    plaza(s);
     put(s, 'house', ROADSIDE, 27);
     stepWeek(s, always);
     expect(s.families).toHaveLength(1);
@@ -143,7 +143,7 @@ describe('families', () => {
     expect(s.families).toHaveLength(0);
 
     const r = emptyGame();
-    waterWest(r);
+    plazaWest(r);
     const plot = put(r, 'house', ROADSIDE, 27);
     stepWeek(r, always);
     expect(r.families).toHaveLength(1);
@@ -160,7 +160,7 @@ describe('families', () => {
   it('starts at a road next to the altar if the entrance was cut off, never inside the altar', () => {
     const s = emptyGame();
     clearCell(s, 24, 47);
-    water(s);
+    plaza(s);
     put(s, 'house', ROADSIDE, 30);
     stepWeek(s, always);
     const altar = s.buildings.find((b) => b.kind === 'altar')!;
@@ -171,34 +171,24 @@ describe('families', () => {
 });
 
 describe('family gate (edges)', () => {
-  it('an empty plot without water does not close the gate; a tent without water does', () => {
+  it('a city with no plaza at all still gets families', () => {
     const s = emptyGame();
-    wellFed(s); // water at y 26..35
+    put(s, 'granary', EAST, 36);
+    s.food = foodCapacity(s);
     put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29);
+    put(s, 'house', ROADSIDE, 29, 1);
+    const plot = put(s, 'house', ROADSIDE, 31);
+    expect(s.buildings.some((b) => b.kind === 'plaza')).toBe(false);
     expect(familyBlock(s)).toBeNull();
-    const far = put(s, 'house', ROADSIDE, 41); // a plot out of reach
-    expect(familyBlock(s)).toBeNull();
-    far.level = 1;
-    expect(familyBlock(s)).toBe('water');
+    stepWeek(s, always);
+    expect(s.families.map((f) => f.houseId)).toEqual([plot.id]);
   });
 
-  it('a disconnected house without water does not close it', () => {
-    const s = emptyGame();
-    wellFed(s);
-    put(s, 'house', ROADSIDE, 27);
-    const far = put(s, 'house', 2, 2, 1);
-    expect(far.connected).toBe(false);
-    expect(familyBlock(s)).toBeNull();
-  });
-
-  it('gives the most important reason first: famine, water, food, wait, then no plot', () => {
+  it('gives the most important reason first: famine, food, wait, then no plot', () => {
     const s = emptyGame({ famine: true, food: 0, lastFamilyWeek: 0 });
-    put(s, 'house', ROADSIDE, 41, 1); // no water, eats with no food
+    put(s, 'house', ROADSIDE, 41, 1); // no plaza, eats with no food
     expect(familyBlock(s)).toBe('famine');
     s.famine = false;
-    expect(familyBlock(s)).toBe('water');
-    put(s, 'well', EAST, 41);
     expect(familyBlock(s)).toBe('food');
     put(s, 'granary', EAST, 36);
     s.food = foodCapacity(s);
@@ -211,7 +201,7 @@ describe('family gate (edges)', () => {
 
   it('waits exactly familyIntervalWeeks after the last family set out', () => {
     const s = emptyGame({ week: 10, lastFamilyWeek: 10 - RULES.familyIntervalWeeks + 1 });
-    water(s);
+    plaza(s);
     put(s, 'house', ROADSIDE, 27);
     expect(familyBlock(s)).toBe('wait'); // week 10
     stepWeek(s, always); // families set out in the new week, 11
@@ -221,7 +211,7 @@ describe('family gate (edges)', () => {
 
   it('a plot with a family on the way is not open for another one', () => {
     const s = emptyGame();
-    wellFed(s);
+    plazaFed(s);
     put(s, 'house', ROADSIDE, 27);
     stepWeek(s, always);
     expect(s.families).toHaveLength(1);
@@ -236,21 +226,37 @@ describe('family gate (edges)', () => {
 });
 
 describe('caravan and families', () => {
-  it('the caravan tents need water before any new family comes', () => {
+  it('the caravan tents without a plaza do not close the gate: only the food does', () => {
     for (const seed of [1, 2, 3]) {
       const s = createGame(createRng(seed));
       put(s, 'house', ROADSIDE, 30);
-      expect(familyBlock(s)).toBe('water');
+      expect(familyBlock(s), `seed ${seed}`).toBe('food'); // the caravan food does not last to the harvest
+      put(s, 'granary', EAST, 36);
+      s.food = foodCapacity(s);
+      expect(familyBlock(s), `seed ${seed}`).toBeNull();
+    }
+  });
+
+  it('the gate never answers water: over seeded games it gives only the known reasons', () => {
+    const reasons = new Set<string | null>([null, 'famine', 'food', 'storage', 'wait', 'noPlot']);
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const s = createGame(createRng(seed));
+      for (const y of [30, 32, 34]) put(s, 'house', ROADSIDE, y);
+      const rng = createRng(seed + 100);
+      for (let w = 0; w < 80; w++) {
+        expect(reasons.has(familyBlock(s)), `seed ${seed}, week ${s.week}: ${familyBlock(s)}`).toBe(true);
+        stepWeek(s, rng);
+      }
     }
   });
 });
 
 describe('honest family gate', () => {
-  it('counts the houses at the level they will reach: a well with 2 tents lets no family starve the city', () => {
-    // 2 tents with a well will be mud-brick houses: 80 food lasts them to the spring (week 26),
+  it('counts the houses at the level they will reach: a plaza with 2 tents lets no family starve the city', () => {
+    // 2 tents with a plaza will be mud-brick houses: 80 food lasts them to the spring (week 26),
     // but not with one more tent and the reserve, so no family sets out.
     const s = emptyGame({ food: 80, goalIndex: 0 });
-    water(s);
+    plaza(s);
     put(s, 'granary', EAST, 36); // room for the 80
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
@@ -280,7 +286,7 @@ describe('honest family gate', () => {
     // 4 mud-brick houses and a new tent: the winter needs more than the store of 50, although
     // the autumn field makes plenty.
     const s = emptyGame({ food: RULES.baseFoodStorage });
-    water(s);
+    plaza(s);
     for (const y of [27, 29, 31, 33]) put(s, 'house', ROADSIDE, y, 2);
     put(s, 'field', westOf('field'), 37);
     expect(familyBlock(s)).toBe('storage');
@@ -293,7 +299,7 @@ describe('honest family gate', () => {
     for (let seed = 1; seed <= 40; seed++) {
       const rng = createRng(seed);
       const s = emptyGame({ food: Math.floor(rng() * 60), week: 1 + Math.floor(rng() * 11), lastFamilyWeek: -Infinity });
-      water(s);
+      plaza(s);
       const tents = Math.floor(rng() * 4);
       for (let k = 0; k < 4; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, k < tents ? 1 : 0);
       const quiet = structuredClone(s);
@@ -306,8 +312,8 @@ describe('honest family gate', () => {
 });
 
 describe('an empty city never gets stuck', () => {
-  it('with no residents and nobody on the way, water and food do not close the gate', () => {
-    // The playtester's case: no tents, little silver, no food and a plot without water.
+  it('with no residents and nobody on the way, food does not close the gate', () => {
+    // The playtester's case: no tents, little silver, no food and a plot without a plaza.
     for (let seed = 1; seed <= 30; seed++) {
       const s = emptyGame({ food: 0, silver: 20, goalIndex: 0 });
       const plot = put(s, 'house', ROADSIDE, 27);
@@ -327,12 +333,12 @@ describe('an empty city never gets stuck', () => {
 
 describe('food reserve at the door', () => {
   /**
-   * Two tents with water (planned as mud-brick houses), a granary, two plots, and the smallest food
+   * Two tents with a plaza (planned as mud-brick houses), a granary, two plots, and the smallest food
    * (to 0.1) with which the forecast (one new tent, the given reserve) lasts until the spring.
    */
   function setup() {
     const s = emptyGame({ lastFamilyWeek: -Infinity });
-    wellFed(s);
+    plazaFed(s);
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
     put(s, 'house', ROADSIDE, 31);

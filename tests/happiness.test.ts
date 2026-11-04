@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepWeek, taxFactor } from '../src/core';
-import { foodCapacity } from '../src/core';
+import { foodCapacity, GOALS, unlockingGoal } from '../src/core';
 import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
@@ -13,22 +13,44 @@ describe('house happiness', () => {
     expect(houseHappiness(s, far, 0)).toEqual({ value: H.base, mood: 'neutral', parts: [] });
 
     const near = put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'well', ROADSIDE, 29);
-    put(s, 'garden', EAST, 27);
+    put(s, 'plaza', ROADSIDE, 29);
+    put(s, 'park', EAST, 27);
     put(s, 'market', EAST, 29);
     const h = houseHappiness(s, near, 0);
-    expect(kinds(h)).toEqual(['sacred', 'garden', 'well', 'market']);
-    expect(h.value).toBe(H.base + H.sacred + H.garden + H.well + H.market);
+    expect(kinds(h)).toEqual(['sacred', 'park', 'plaza', 'market']);
+    expect(h.value).toBe(H.base + H.sacred + H.park + H.plaza + H.market);
     expect(h.mood).toBe('happy');
   });
 
-  it('a garden only cheers houses within its radius, and only when connected', () => {
+  it('each source alone adds its points: plaza +5, park +20, altar +10', () => {
+    expect([H.plaza, H.park, H.sacred, H.market]).toEqual([5, 20, 10, 5]);
+    const alone = (kind: 'plaza' | 'park' | null, y: number) => {
+      const s = emptyGame();
+      const b = put(s, 'house', ROADSIDE, y, 1);
+      if (kind) put(s, kind, EAST, y);
+      return houseHappiness(s, b, 0);
+    };
+    expect(alone('plaza', 40)).toMatchObject({ value: H.base + 5, parts: [{ kind: 'plaza', value: 5 }] });
+    expect(alone('park', 40)).toMatchObject({ value: H.base + 20, parts: [{ kind: 'park', value: 20 }] });
+    expect(alone(null, 27)).toMatchObject({ value: H.base + 10, parts: [{ kind: 'sacred', value: 10 }] }); // by the altar
+    expect(alone(null, 40).value).toBe(H.base); // out of the altar's radius: nothing
+  });
+
+  it('the temple cheers like the altar, within its radius', () => {
+    const s = emptyGame();
+    const b = put(s, 'house', ROADSIDE, 40, 1);
+    expect(kinds(houseHappiness(s, b, 0))).toEqual([]);
+    put(s, 'temple', EAST, 36);
+    expect(houseHappiness(s, b, 0)).toMatchObject({ value: H.base + H.sacred, parts: [{ kind: 'sacred', value: H.sacred }] });
+  });
+
+  it('a park only cheers houses within its radius, and only when connected', () => {
     const s = emptyGame();
     const house = put(s, 'house', ROADSIDE, 40, 1);
-    put(s, 'garden', 1, 1); // disconnected and far
+    put(s, 'park', 1, 1); // disconnected and far
     expect(kinds(houseHappiness(s, house, 0))).toEqual([]);
-    put(s, 'garden', EAST, 40);
-    expect(kinds(houseHappiness(s, house, 0))).toEqual(['garden']);
+    put(s, 'park', EAST, 40);
+    expect(kinds(houseHappiness(s, house, 0))).toEqual(['park']);
   });
 
   it('loses points for famine and for idle workers, capped and clamped to 0..100', () => {
@@ -69,10 +91,10 @@ describe('happiness effects', () => {
     const tax = HOUSE_LEVELS[1].tax;
     const happy = emptyGame();
     put(happy, 'house', ROADSIDE, 27, 1);
-    put(happy, 'garden', EAST, 27);
+    put(happy, 'park', EAST, 27);
     put(happy, 'workshop', EAST, 30); // jobs for everyone
     const h = computeEconomy(happy);
-    expect(h.happiness).toBe(H.base + H.sacred + H.garden);
+    expect(h.happiness).toBe(H.base + H.sacred + H.park);
     expect(h.taxes).toBeCloseTo(tax * taxFactor(h.happiness));
     expect(h.taxes).toBeGreaterThan(tax);
 
@@ -111,13 +133,13 @@ describe('happiness effects', () => {
     const town = (happy: boolean) => {
       const s = emptyGame();
       for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 1);
-      put(s, 'well', EAST, 27); // water for the 3 houses, so families may come
+      put(s, 'plaza', EAST, 27); // a plaza for the 3 houses
       put(s, 'workshop', EAST, 36);
-      if (happy) for (const y of [29, 32]) put(s, 'garden', EAST, y + 1);
+      if (happy) for (const y of [29, 32]) put(s, 'park', EAST, y + 1);
       put(s, 'granary', EAST, 40);
       s.food = foodCapacity(s);
       put(s, 'house', ROADSIDE, 40);
-      put(s, 'well', ROADSIDE, 42); // water for the plot too
+      put(s, 'plaza', ROADSIDE, 42); // a plaza for the plot too
       return s;
     };
     const happy = town(true);
@@ -133,8 +155,8 @@ describe('happiness effects', () => {
 
   it('counts the houses in each mood', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 1); // sacred + garden: happy
-    put(s, 'garden', EAST, 27);
+    put(s, 'house', ROADSIDE, 27, 1); // sacred + park: happy
+    put(s, 'park', EAST, 27);
     put(s, 'workshop', EAST, 30); // jobs for all
     put(s, 'house', ROADSIDE, 40, 1); // nothing: content
     put(s, 'house', ROADSIDE, 34); // empty plot: not counted
@@ -148,7 +170,7 @@ describe('happiness on screen (core data)', () => {
   it('house info shows the happiness and the tax it really pays', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'garden', EAST, 27);
+    put(s, 'park', EAST, 27);
     put(s, 'workshop', EAST, 30);
     const info = houseInfo(s, b)!;
     expect(info.happiness).toEqual(houseHappiness(s, b, 0));
@@ -159,9 +181,9 @@ describe('happiness on screen (core data)', () => {
   it('a sad house shows a sad balloon once no next-level need is missing', () => {
     const s = emptyGame({ famine: true });
     const b = put(s, 'house', ROADSIDE, 40, 1);
-    expect(balloonNeed(s, b)).toBe('well'); // the missing need comes first
-    put(s, 'well', ROADSIDE, 42);
-    expect(balloonNeed(s, b)).toBe('sad'); // market still locked: nothing else to point at
+    expect(balloonNeed(s, b)).toBe('plaza'); // the missing need comes first
+    put(s, 'plaza', ROADSIDE, 42);
+    expect(balloonNeed(s, b)).toBe('sad'); // the tent has what a mud-brick house needs: nothing else to point at
     s.famine = false;
     put(s, 'workshop', EAST, 40);
     put(s, 'workshop', EAST, 43); // enough jobs for a big house too
@@ -173,10 +195,10 @@ describe('happiness on screen (core data)', () => {
   });
 });
 
-describe('happiness before the garden', () => {
-  it('is off until the garden is unlocked: content, no reasons, plain tax and families', () => {
+describe('happiness before the park', () => {
+  it('is off until the park is unlocked: content, no reasons, plain tax and families', () => {
     const s = emptyGame({ famine: true });
-    s.unlocked = s.unlocked.filter((k) => k !== 'garden');
+    s.unlocked = s.unlocked.filter((k) => k !== 'park');
     expect(happinessOn(s)).toBe(false);
     const b = put(s, 'house', ROADSIDE, 40, 1); // famine and idle: would be sad
     expect(houseHappiness(s, b, 1)).toEqual({ value: H.base, mood: 'neutral', parts: [] });
@@ -184,9 +206,20 @@ describe('happiness before the garden', () => {
     expect(e.taxes).toBe(HOUSE_LEVELS[1].tax);
     expect(familyFactor(e.happiness)).toBe(1);
     expect(balloonNeed(s, b)).not.toBe('sad');
-    s.unlocked.push('garden');
+    s.unlocked.push('park');
     expect(happinessOn(s)).toBe(true);
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
+  });
+
+  it('turns on with the goal that unlocks the park (goal 5), not before', () => {
+    expect(unlockingGoal('park')).toBe(5);
+    expect(RULES.startUnlocked).not.toContain('park');
+    const s = emptyGame();
+    s.unlocked = [...RULES.startUnlocked];
+    for (const g of GOALS.slice(0, 4)) if (g.unlock) s.unlocked.push(g.unlock);
+    expect(happinessOn(s)).toBe(false);
+    s.unlocked.push(GOALS[4].unlock!);
+    expect(happinessOn(s)).toBe(true);
   });
 });
 

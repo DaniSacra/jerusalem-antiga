@@ -321,12 +321,13 @@ export class TopBar {
       const p = goalProgress(s, goal);
       const target = goalTarget(s, goal);
       const head = PHONE ? N.goal : N.goalOf(s.goalIndex + 1, goalCount());
+      const progress = N.goalProgress(goal, p, target);
       this.goal.set(
         [
           { text: head, color: NOVA_CSS.gold, size: S.small },
           { text: N.goalText(goal) },
           ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
-          { text: N.progress(p, target, goal.type === 'foodUntilSpring' && target > 1), color: NOVA_CSS.gold },
+          ...(progress ? [{ text: progress, color: NOVA_CSS.gold }] : []),
         ],
         maxW,
       );

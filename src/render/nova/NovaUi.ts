@@ -3,6 +3,7 @@ import {
   BUILDINGS,
   dimsOf,
   foodAfter,
+  foodLostIfRemoved,
   harvestsIn,
   weeksToHarvest,
   indexOf,
@@ -147,7 +148,10 @@ export class NovaUi {
     this.column.refresh(s, tool);
     this.list = notices(s, city);
     // During the tutorial the bubble already says why no family comes: no toast for it.
-    for (const n of this.tools.newAlerts(this.list)) if (n.toast && !(tutorial && n.family)) this.toasts.show(n.text, n.bad ? 'bad' : 'info');
+    // A warning toast waiting in line (or on screen) goes away once its problem is gone.
+    for (const n of this.tools.newAlerts(this.list))
+      if (n.toast && !(tutorial && n.family)) this.toasts.show(n.text, n.bad ? 'bad' : 'info', { valid: () => this.list.some((o) => o.key === n.key) });
+    this.toasts.prune();
     this.tools.refresh(tool, this.list, this.panels.open);
     this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });
     this.inspector.refresh(s, city, tool === 'view' ? selected : null);
@@ -160,6 +164,18 @@ export class NovaUi {
 
   pointTutorial(target: TutorialTarget | null) {
     this.tutorial.point(target);
+  }
+
+  /**
+   * Center of the map left free by the interface: under the top bar, right of the side buttons, left
+   * of the column, above the tutorial bubble and the toasts. The tutorial camera brings its place here.
+   */
+  freeCenter(): { x: number; y: number } {
+    const top = this.top.bottom + S.gap;
+    const bottom = Math.min(this.tutorial.top ?? this.tools.top, this.tools.top, this.toasts.top ?? H) - S.gap;
+    const left = this.tools.sideRight + S.gap;
+    const right = this.column.rect.x - S.gap;
+    return { x: (left + right) / 2, y: (top + bottom) / 2 };
   }
 
   buttonOf(tool: Tool): ButtonSpot | null {
@@ -222,7 +238,8 @@ export class NovaUi {
   }
 
   update() {
-    this.toasts.hold(!!this.panels.open);
+    // An open panel or the tapped building's balloon holds the toasts (they would cover it).
+    this.toasts.hold(!!this.panels.open || this.inspector.open);
     this.inspector.update();
     this.updateTag();
   }
@@ -232,8 +249,15 @@ export class NovaUi {
     const t = this.tool;
     if (t === 'clear') {
       const i = indexOf(s, c.x, c.y);
-      const tree = i >= 0 && !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
-      return tree ? { text: T.nova.cutTree, ...c, w: 1, h: 1, lift: px(40) } : null;
+      if (i < 0) return null;
+      const tree = !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
+      if (tree) return { text: T.nova.cutTree, ...c, w: 1, h: 1, lift: px(40) };
+      // A granary, or the road that links one: the food that would spoil.
+      const lost = foodLostIfRemoved(s, c.x, c.y);
+      if (lost <= 0) return null;
+      const b = s.grid[i];
+      const foot = b ? { x: b.x, y: b.y, w: b.w, h: b.h } : { ...c, w: 1, h: 1 };
+      return { text: T.nova.foodLost(lost), bad: true, ...foot, lift: (b ? (HEIGHT[TEX.building(b.kind)] ?? 40) : 20) + px(14) };
     }
     if (t === 'view' || t === 'road') return null;
     const def = BUILDINGS[t];

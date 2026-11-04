@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   alerts,
-  campWellSpot,
+  campPlazaSpot,
   checkPlace,
-  familyBlock,
   indexOf,
   needMet,
   place,
@@ -80,7 +79,7 @@ describe('caravan', () => {
     const s = createGame(createRng(3));
     expect(seasonOf(s.week)).toBe('autumn');
     expect(RULES.startSilver).toBe(180);
-    expect([BUILDINGS.house.cost, BUILDINGS.field.cost, BUILDINGS.well.cost, RULES.roadCost]).toEqual([30, 20, 25, 2]);
+    expect([BUILDINGS.house.cost, BUILDINGS.field.cost, BUILDINGS.plaza.cost, RULES.roadCost]).toEqual([40, 20, 25, 2]);
   });
 });
 
@@ -137,14 +136,14 @@ describe('harvest', () => {
     expect(weeksToHarvest(SUMMER)).toBe(YEAR - W);
   });
 
-  it('announces the first harvest week and counts what was harvested', () => {
+  it('announces the first harvest week and reaches the first-harvest milestone', () => {
     const s = emptyGame({ week: SPRING });
     put(s, 'house', ROADSIDE, 27, 4);
     put(s, 'field', westOf('field'), 30).built = 0;
     put(s, 'granary', EAST, 30);
     const events = stepWeek(s, never);
     expect(events.find((e) => e.type === 'harvestStart')).toBeDefined();
-    expect(s.harvested).toBeGreaterThan(0);
+    expect(s.milestones).toContain('firstHarvest');
     expect(stepWeek(s, never).find((e) => e.type === 'harvestStart')).toBeUndefined();
   });
 });
@@ -211,7 +210,7 @@ describe('winter and drought', () => {
     const between = constRng((RULES.winterFamineLeaveChance + RULES.famineLeaveChance) / 2);
     const tent = (week: number) => {
       const s = emptyGame({ food: 0, famine: true, week });
-      put(s, 'well', EAST, 27);
+      put(s, 'plaza', EAST, 27);
       return [s, put(s, 'house', ROADSIDE, 27, 1)] as const;
     };
     const [autumn, a] = tent(2);
@@ -224,7 +223,7 @@ describe('winter and drought', () => {
 
   it('a mud-brick house protects from the winter', () => {
     const s = emptyGame({ food: 0, famine: true, week: WINTER + 2 });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     const b = put(s, 'house', ROADSIDE, 27, 2);
     expect(stepWeek(s, constRng(0.3)).find((e) => e.type === 'familyLeft')).toBeUndefined();
     expect(b.level).toBe(2);
@@ -330,7 +329,7 @@ describe('winter and drought', () => {
 describe('alerts', () => {
   it('warns about the winter at the end of autumn while there are tents', () => {
     const s = emptyGame({ week: W - RULES.winterWarningWeeks });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1);
     s.food = 40;
     expect(alerts(s).map((a) => a.kind)).toContain('winterComing');
@@ -362,7 +361,7 @@ describe('milestones', () => {
 
   it('a new family, the first mud-brick and stone houses: once each', () => {
     const s = emptyGame();
-    put(s, 'well', EAST, 27); // families only come with water for every house
+    put(s, 'plaza', EAST, 27); // a plaza for the tents to climb
     put(s, 'granary', EAST, 36); // and food for the winter
     s.food = foodCapacity(s);
     put(s, 'house', ROADSIDE, 27);
@@ -375,7 +374,7 @@ describe('milestones', () => {
     expect(Object.keys(s.milestoneWeeks).sort()).toEqual([...s.milestones].sort());
     // Levels reached by houses that did not come from a family.
     const t = emptyGame({ food: RULES.baseFoodStorage }); // enough for the house all along
-    put(t, 'well', EAST, 27);
+    put(t, 'plaza', EAST, 27);
     put(t, 'market', EAST, 30);
     const h = put(t, 'house', ROADSIDE, 27, 1);
     const seen: string[] = [];
@@ -390,7 +389,7 @@ describe('milestones', () => {
 
   it('keeps the week each milestone was reached, and never moves it', () => {
     const s = emptyGame();
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27);
     let at = -1;
     for (let k = 0; k < 10; k++) {
@@ -482,22 +481,6 @@ describe('survival goals', () => {
     expect(t.goalIndex).toBe(1);
   });
 
-  it('water for every house with a family, at least the target', () => {
-    const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 1);
-    const g = goal('water', 4);
-    expect(goalTarget(s, g)).toBe(4);
-    expect(goalProgress(s, g)).toBe(0);
-    put(s, 'well', EAST, 27);
-    expect(goalProgress(s, g)).toBe(2);
-    for (let y = 31; y <= 37; y += 2) put(s, 'house', ROADSIDE, y, 1); // 4 tents more, some out of the well
-    put(s, 'house', ROADSIDE, 39); // plots do not count
-    expect(goalTarget(s, g)).toBe(6);
-    expect(goalProgress(s, g)).toBeLessThan(6);
-    put(s, 'house', 2, 2, 1); // a house off the roads counts neither way, like the family gate
-    expect(goalTarget(s, g)).toBe(6);
-  });
 });
 
 describe('harvest (simulation edges)', () => {
@@ -542,15 +525,15 @@ describe('harvest (simulation edges)', () => {
   it('announces the spring harvest in its first week and adds up every week, summer too', () => {
     const s = emptyGame({ week: SPRING, food: 0 });
     put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 1); // 2 tents without a well stay tents: workers for the 2 jobs
+    put(s, 'house', ROADSIDE, 29, 1); // 2 tents without a plaza stay tents: workers for the 2 jobs
     put(s, 'field', westOf('field'), 31).built = 0;
     const weekly = computeEconomy(s).harvest;
     expect(stepWeek(s, never)).toContainEqual({ type: 'harvestStart', amount: Math.round(weekly * W * 100) / 100 });
     for (let k = 1; k < W; k++) expect(stepWeek(s, never).some((e) => e.type === 'harvestStart')).toBe(false);
-    expect(s.harvested).toBeCloseTo(weekly * W);
+    expect(s.milestones).toContain('firstHarvest');
     expect(seasonOf(s.week)).toBe('summer');
+    expect(computeEconomy(s).harvest).toBeCloseTo(weekly); // the summer gives food too
     expect(stepWeek(s, never).some((e) => e.type === 'harvestStart')).toBe(false); // announced once a year
-    expect(s.harvested).toBeCloseTo(weekly * (W + 1)); // the summer gives food too
   });
 });
 
@@ -648,7 +631,7 @@ describe('forecast (edges)', () => {
 describe('winter (edges)', () => {
   it('a mud-brick house dropping in a winter famine is a winter loss; a new winter clears it', () => {
     const s = emptyGame({ food: 0, famine: true, week: WINTER + 2 });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     const b = put(s, 'house', ROADSIDE, 27, 2);
     stepWeek(s, constRng(RULES.famineDropChance - 0.01));
     expect(b.level).toBe(1);
@@ -660,7 +643,7 @@ describe('winter (edges)', () => {
 
   it('a tent leaving in a winter famine is a winter loss, and the first winter is not won', () => {
     const s = emptyGame({ food: 0, famine: true, week: SPRING - 1 });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 2); // stays (the roll is above the drop chance)
     const events = stepWeek(s, constRng(RULES.winterFamineLeaveChance - 0.01));
@@ -681,7 +664,7 @@ describe('winter (edges)', () => {
 
   it('a famine outside winter is not a winter loss', () => {
     const s = emptyGame({ food: 0, famine: true, week: SUMMER + 2 });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1);
     expect(stepWeek(s, constRng(RULES.famineLeaveChance - 0.01))).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27 });
     expect(s.winterLoss).toBe(false);
@@ -728,17 +711,16 @@ describe('caravan (layout)', () => {
     }
   });
 
-  it('in 500 maps one free, connected well spot by the camp waters every caravan tent', () => {
-    const spot = campWellSpot();
+  it('in 500 maps one free, connected plaza spot by the camp reaches every caravan tent', () => {
+    const spot = campPlazaSpot();
     for (let seed = 1; seed <= 500; seed++) {
       const s = createGame(createRng(seed));
-      s.unlocked = [...s.unlocked, 'well'];
-      expect(checkPlace(s, 'well', spot.x, spot.y).ok, `seed ${seed}`).toBe(true);
-      place(s, 'well', spot.x, spot.y);
-      const well = s.grid[indexOf(s, spot.x, spot.y)]!;
-      expect(well.connected).toBe(true);
-      for (const t of s.buildings.filter((b) => b.kind === 'house')) expect(needMet(s, t, 'well'), `seed ${seed}`).toBe(true);
-      expect(familyBlock(s)).not.toBe('water');
+      s.unlocked = [...s.unlocked, 'plaza'];
+      expect(checkPlace(s, 'plaza', spot.x, spot.y).ok, `seed ${seed}`).toBe(true);
+      place(s, 'plaza', spot.x, spot.y);
+      const plaza = s.grid[indexOf(s, spot.x, spot.y)]!;
+      expect(plaza.connected).toBe(true);
+      for (const t of s.buildings.filter((b) => b.kind === 'house')) expect(needMet(s, t, 'plaza'), `seed ${seed}`).toBe(true);
     }
   });
 
@@ -756,7 +738,7 @@ describe('caravan (layout)', () => {
 describe('alerts (order)', () => {
   it('in summer: debt, food short, spoiling, then the deficit', () => {
     const s = emptyGame({ week: SUMMER, silver: -5, food: 10, spoiled: 3 });
-    put(s, 'well', EAST, 27);
+    put(s, 'market', EAST, 27); // upkeep above the tent's tax
     put(s, 'house', ROADSIDE, 27, 1);
     expect(alerts(s).map((a) => a.kind)).toEqual(['debt', 'foodShort', 'spoiling', 'deficit']);
   });

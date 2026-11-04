@@ -29,10 +29,10 @@ import {
  * every map. It is the guard against "the game is impossible": if a number change breaks it,
  * this test fails before any player sees it.
  *
- * The plan: road to the best food spot and a fisher or gatherer there, a field, a well for the
+ * The plan: road to the best food spot and a fisher or gatherer there, a field, a plaza for the
  * caravan tents; then each week, with the silver it has, the granary once unlocked, more food when
- * the forecast does not reach the spring, a plot near water when a family could come, and a well
- * for a house without water. It never spends below 0.
+ * the forecast does not reach the spring, a plot near a plaza when a family could come, and a
+ * plaza for a tent without one. It never spends below 0.
  */
 const altar = RULES.map.altar;
 const near = (to: Cell) => (a: Cell, b: Cell) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y));
@@ -50,19 +50,19 @@ function addFood(s: GameState): boolean {
   return build(s, spot.kind, spot);
 }
 
-/** A well for this house: the spot that also reaches the most houses with a family. */
-function wellFor(s: GameState, house: Building): boolean {
-  const families = s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'well'));
-  const reach = (c: Cell) => families.filter((h) => Math.max(c.x - h.x - h.w, h.x - c.x - 2, c.y - h.y - h.h, h.y - c.y - 2) < (BUILDINGS.well.radius ?? 0)).length;
-  const spot = spotsServing(s, 'well', house).sort((a, b) => reach(b) - reach(a))[0];
-  return build(s, 'well', spot, spot?.rotated);
+/** A plaza for this house: the spot that also reaches the most houses with a family. */
+function plazaFor(s: GameState, house: Building): boolean {
+  const families = s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'plaza'));
+  const reach = (c: Cell) => families.filter((h) => Math.max(c.x - h.x - h.w, h.x - c.x - 2, c.y - h.y - h.h, h.y - c.y - 2) < (BUILDINGS.plaza.radius ?? 0)).length;
+  const spot = spotsServing(s, 'plaza', house).sort((a, b) => reach(b) - reach(a))[0];
+  return build(s, 'plaza', spot, spot?.rotated);
 }
 
-/** A plot near a well, so the family that comes has water. */
+/** A plot near a plaza, so the tent that comes can become a mud-brick house. */
 function addPlot(s: GameState): boolean {
-  const wells = s.buildings.filter((b) => b.kind === 'well' && b.connected);
-  if (!wells.length) return false;
-  const spot = placeSpots(s, 'house').sort(near(wells[0]))[0];
+  const plazas = s.buildings.filter((b) => b.kind === 'plaza' && b.connected);
+  if (!plazas.length) return false;
+  const spot = placeSpots(s, 'house').sort(near(plazas[0]))[0];
   return build(s, 'house', spot);
 }
 
@@ -70,8 +70,8 @@ function playWeek(s: GameState) {
   const has = (k: BuildableKind) => s.buildings.some((b) => b.kind === k && b.connected);
   if (!has('fisher') && !has('gatherer')) addFood(s);
   if (!has('field')) build(s, 'field', placeSpots(s, 'field').sort(near(altar))[0]);
-  const dry = s.buildings.find((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'well'));
-  if (dry) wellFor(s, dry);
+  const bare = s.buildings.find((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'plaza'));
+  if (bare) plazaFor(s, bare);
   if (s.unlocked.includes('granary') && !has('granary')) build(s, 'granary', placeSpots(s, 'granary').sort(near(altar))[0]);
   if (!foodLastsToHarvest(s)) addFood(s);
   if (familyBlock(s) === 'noPlot' && s.silver >= costOf('house') + 10) addPlot(s);
@@ -124,12 +124,12 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
 });
 
 describe('invariants of the start', () => {
-  it('the starting silver pays the minimal kit: road to food, fisher or gatherer, field, well, a plot', () => {
+  it('the starting silver pays the minimal kit: road to food, fisher or gatherer, field, plaza, a plot', () => {
     for (const seed of SEEDS) {
       const s = createGame(createRng(seed));
       const spot = foodSpot(s);
       expect(spot).not.toBeNull();
-      const kit = spot!.road.length * costOf('road') + costOf(spot!.kind) + costOf('field') + costOf('well') + costOf('house');
+      const kit = spot!.road.length * costOf('road') + costOf(spot!.kind) + costOf('field') + costOf('plaza') + costOf('house');
       expect(kit).toBeLessThanOrEqual(s.silver);
     }
   });

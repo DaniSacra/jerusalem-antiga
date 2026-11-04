@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -159,9 +159,16 @@ export class BuildColumn {
       { text: head, color: NOVA_CSS.gold },
       { text: N.effect[kind], bold: false },
     ];
-    if (d.harvest) lines.push({ text: N.fieldSeasons, color: NOVA_CSS.good });
     if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max), color: NOVA_CSS.muted, bold: false });
     if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
+    if (d.fieldBonus) {
+      // The workshop's field bonus: the city's total after it, and when it is already at the cap.
+      const pct = (n: number) => Math.round(n * 100);
+      const now = fieldBonus(s);
+      const max = d.fieldBonusMax ?? 0;
+      const after = Math.min(max, now + d.fieldBonus);
+      lines.push(now >= max ? { text: N.workshopFull(pct(max)), color: NOVA_CSS.warn } : { text: N.workshopBonus(pct(d.fieldBonus), pct(after), pct(max)), color: NOVA_CSS.good });
+    }
     if (!PHONE && d.radius) lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
     if (!PHONE) {
       const after = balanceAfter(s, kind);

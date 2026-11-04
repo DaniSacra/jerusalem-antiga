@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { craftOf, createRng, doorsOf, edgeCells, mainRoadCells, pickWalkerType, walkerGoal, walkerStart, walkerTypesAvailable, type Building, type WalkerGoal } from '../src/core';
+import { craftOf, createRng, doorsOf, edgeCells, mainRoadCells, pickWalkerType, walkerGoal, walkerStart, walkerTypesAvailable, WALKERS, type Building, type WalkerGoal } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const inDoors = (s: Parameters<typeof doorsOf>[0], b: Building, goal: WalkerGoal | null) => {
@@ -14,7 +14,7 @@ describe('walker types', () => {
     put(s, 'workshop', 1, 1); // disconnected: no artisan yet
     expect(walkerTypesAvailable(s)).not.toContain('artisan');
     put(s, 'workshop', westOf('workshop'), 30);
-    put(s, 'well', ROADSIDE, 27);
+    put(s, 'plaza', ROADSIDE, 27);
     expect(walkerTypesAvailable(s)).toEqual(expect.arrayContaining(['artisan', 'waterCarrier']));
     expect(walkerTypesAvailable(s)).not.toContain('farmer');
   });
@@ -40,20 +40,41 @@ describe('walker types', () => {
 });
 
 describe('walker destinations', () => {
+  it('the water carrier goes to a plaza or a market, and to each one with only it', () => {
+    expect(WALKERS.find((w) => w.type === 'waterCarrier')!.to).toEqual(['plaza', 'market']);
+    const onlyMarket = emptyGame();
+    expect(walkerTypesAvailable(onlyMarket)).not.toContain('waterCarrier');
+    const market = put(onlyMarket, 'market', westOf('market'), 31);
+    expect(walkerTypesAvailable(onlyMarket)).toContain('waterCarrier');
+    expect(inDoors(onlyMarket, market, walkerGoal(onlyMarket, 'waterCarrier', createRng(1)))).toBe(true);
+    const onlyPlaza = emptyGame();
+    const plaza = put(onlyPlaza, 'plaza', ROADSIDE, 27);
+    expect(inDoors(onlyPlaza, plaza, walkerGoal(onlyPlaza, 'waterCarrier', createRng(1)))).toBe(true);
+    // With both, the seeded rng sends her to each of them.
+    const both = emptyGame();
+    const p = put(both, 'plaza', ROADSIDE, 27);
+    const m = put(both, 'market', westOf('market'), 31);
+    const rng = createRng(7);
+    const targets = new Set(Array.from({ length: 20 }, () => walkerGoal(both, 'waterCarrier', rng)?.target));
+    expect(targets).toEqual(new Set([p, m]));
+  });
+
   it('sends each type to its building', () => {
     const s = emptyGame();
-    const well = put(s, 'well', ROADSIDE, 27);
+    const plaza = put(s, 'plaza', ROADSIDE, 27);
     const field = put(s, 'field', ROADSIDE, 29);
     const market = put(s, 'market', westOf('market'), 31);
     const workshop = put(s, 'workshop', westOf('workshop'), 35);
     const altar = s.buildings.find((b) => b.kind === 'altar')!;
     const rng = createRng(1);
-    expect(inDoors(s, well, walkerGoal(s, 'waterCarrier', rng))).toBe(true);
+    const carrier = walkerGoal(s, 'waterCarrier', rng);
+    expect(inDoors(s, plaza, carrier) || inDoors(s, market, carrier)).toBe(true);
     expect(inDoors(s, field, walkerGoal(s, 'farmer', rng))).toBe(true);
     expect(inDoors(s, market, walkerGoal(s, 'basketWoman', rng))).toBe(true);
     expect(inDoors(s, market, walkerGoal(s, 'porter', rng))).toBe(true);
     expect(inDoors(s, field, walkerGoal(s, 'porter', rng, true))).toBe(true); // and back to the field
-    expect(inDoors(s, well, walkerGoal(s, 'waterCarrier', rng, true))).toBe(true); // no "from": same goal
+    const back = walkerGoal(s, 'waterCarrier', rng, true); // no "from": same kind of goal
+    expect(inDoors(s, plaza, back) || inDoors(s, market, back)).toBe(true);
     expect(inDoors(s, workshop, walkerGoal(s, 'artisan', rng))).toBe(true);
     expect(inDoors(s, altar, walkerGoal(s, 'elder', rng))).toBe(true);
   });

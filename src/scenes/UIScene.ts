@@ -76,6 +76,11 @@ export class UIScene extends Phaser.Scene {
     this.view.pointTutorial(target);
   }
 
+  /** Center of the map area the interface leaves free (the tutorial camera brings its place there). */
+  freeCenter(): { x: number; y: number } {
+    return this.view.freeCenter();
+  }
+
   /** Screen center of a tool's button and the side the tutorial arrow comes from. */
   buttonOf(tool: Tool): ButtonSpot | null {
     return this.view.buttonOf(tool);

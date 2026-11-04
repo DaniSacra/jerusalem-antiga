@@ -47,13 +47,12 @@ describe('economy', () => {
     expect(e).toMatchObject({ workers: 5, jobs: 6 });
     expect(e.efficiency).toBeCloseTo(5 / 6);
     expect(e.foodDelta).toBeCloseTo(3 * (BUILDINGS.field.harvest! / FIELD_WEEKS) * (5 / 6) - 10 * HOUSE_LEVELS[3].food);
-    expect(e.production.field).toBeUndefined(); // fields make food, not silver
     put(s, 'house', ROADSIDE, 38, 4);
     e = computeEconomy(s);
     expect(e.efficiency).toBe(1);
   });
 
-  it('ignores jobs and production of disconnected buildings, but still charges their upkeep', () => {
+  it('ignores jobs and food of disconnected buildings, but still charges their upkeep', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 3);
     const tax = HOUSE_LEVELS[3].tax;
@@ -65,7 +64,6 @@ describe('economy', () => {
     expect(e.jobs).toBe(0);
     expect(e.yearJobs).toBe(0);
     expect(e.foodDelta).toBeCloseTo(-10 * HOUSE_LEVELS[3].food);
-    expect(e.production).toEqual({});
     expect(e).toMatchObject({ taxes: tax, upkeep: { field: up('field'), workshop: up('workshop'), market: up('market') } });
     expect(e.silverDelta).toBeCloseTo(tax - up('field') - up('workshop') - up('market'));
     put(s, 'workshop', westOf('workshop'), 29); // connected: jobs, but no silver
@@ -78,26 +76,26 @@ describe('economy', () => {
     const s = emptyGame();
     expect(computeEconomy(s).upkeep).toEqual({}); // altar and starting roads
     put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'well', ROADSIDE, 29);
+    put(s, 'plaza', ROADSIDE, 29);
     put(s, 'field', EAST, 27);
     put(s, 'market', westOf('market') - 2, 31);
     put(s, 'workshop', EAST, 30);
     put(s, 'temple', EAST, 34);
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
-      well: 3,
       field: 1,
+      plaza: 1,
       fisher: 1,
       gatherer: 1,
       granary: 1,
       market: 4,
       workshop: 2,
-      garden: 1,
+      park: 1,
       temple: 10,
     });
-    expect(e.upkeep).toEqual({ well: 3, field: 1, market: 4, workshop: 2, temple: 10 });
+    expect(e.upkeep).toEqual({ plaza: 1, field: 1, market: 4, workshop: 2, temple: 10 });
     expect(costliestUpkeep(e)).toEqual({ kind: 'temple', amount: 10 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes - 20); // the balance shown as +X/sem
+    expect(e.silverDelta).toBeCloseTo(e.taxes - 18); // the balance shown as +X/sem
   });
 
   it('eats food per resident according to the house level', () => {
@@ -155,7 +153,7 @@ describe('fields make food, not silver', () => {
   it('a field has 2 jobs and a yearly harvest; no building makes silver now', () => {
     expect(BUILDINGS.field).toMatchObject({ jobs: 2, harvest: 468 });
     expect('food' in BUILDINGS.field).toBe(false); // fields feed the city through the harvest
-    for (const def of Object.values(BUILDINGS)) expect(def.silver).toBeUndefined();
+    for (const def of Object.values(BUILDINGS)) expect('silver' in def).toBe(false);
   });
 
   it('at 100% efficiency the field adds food and only costs its upkeep in silver', () => {
@@ -164,7 +162,7 @@ describe('fields make food, not silver', () => {
     put(s, 'field', westOf('field'), 29); // 2 jobs
     atHarvest(s);
     const e = computeEconomy(s);
-    expect(e).toMatchObject({ jobs: 2, efficiency: 1, production: {} });
+    expect(e).toMatchObject({ jobs: 2, efficiency: 1 });
     expect(e.harvest).toBeCloseTo(BUILDINGS.field.harvest! / FIELD_WEEKS);
     expect(e.silverDelta).toBeCloseTo(e.taxes - BUILDINGS.field.upkeep!);
   });
@@ -194,24 +192,15 @@ describe('fields make food, not silver', () => {
   });
 });
 
-describe('silver production (kept for later buildings)', () => {
-  it('a connected building with silver adds it, scaled by the efficiency, to the balance', () => {
-    const def = BUILDINGS.workshop;
-    def.silver = 4; // no building makes silver today: borrow the workshop for this test
-    try {
-      const s = emptyGame();
-      put(s, 'workshop', EAST, 27);
-      let e = computeEconomy(s);
-      expect(e).toMatchObject({ efficiency: 0, production: { workshop: 0 } }); // nobody to work
-      put(s, 'house', ROADSIDE, 31, 4); // workers for its jobs
-      e = computeEconomy(s);
-      expect(e.efficiency).toBe(1);
-      expect(e.production.workshop).toBeCloseTo(4);
-      expect(e.silverDelta).toBeCloseTo(e.taxes + 4 - def.upkeep!);
-    } finally {
-      delete def.silver;
-    }
-    expect(BUILDINGS.workshop.silver).toBeUndefined();
+describe('weekly silver', () => {
+  it('is only taxes minus upkeep: workers at a workshop add no silver', () => {
+    const s = emptyGame();
+    put(s, 'workshop', EAST, 27);
+    put(s, 'house', ROADSIDE, 31, 4); // workers for its jobs
+    const e = computeEconomy(s);
+    expect(e.efficiency).toBe(1);
+    expect('production' in e).toBe(false);
+    expect(e.silverDelta).toBeCloseTo(e.taxes - BUILDINGS.workshop.upkeep!);
   });
 });
 
@@ -229,7 +218,7 @@ describe('workshop field bonus', () => {
   const spots = [27, 30, 33, 36];
 
   it('each connected workshop adds fieldBonus to the fields, capped at fieldBonusMax (the 4th only gives jobs)', () => {
-    expect(ws.silver).toBeUndefined();
+    expect('silver' in ws).toBe(false);
     expect(ws.fieldBonus).toBeGreaterThan(0);
     expect(ws.fieldBonusMax).toBeGreaterThanOrEqual(ws.fieldBonus!);
     const { s, field } = city();
@@ -312,7 +301,7 @@ describe('unemployment', () => {
   });
 
   it('alerts only once the workshop is unlocked and from the threshold up', () => {
-    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'well', 'market'] });
+    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'plaza', 'market'] });
     const workers = (residents: number) => Math.floor(residents * RULES.workerShare);
     const alone = workers(HOUSE_LEVELS[3].residents);
     const withTent = workers(HOUSE_LEVELS[3].residents + T.residents);
@@ -361,7 +350,7 @@ describe('unemployment', () => {
 describe(`upkeep starts after goal ${RULES.upkeepStartsAfterGoal}`, () => {
   it('charges no upkeep, no deficit and no debt before it', () => {
     const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0 });
-    put(s, 'well', ROADSIDE, 29);
+    put(s, 'plaza', ROADSIDE, 29);
     put(s, 'field', EAST, 27);
     expect(upkeepCharged(s)).toBe(false);
     const e = computeEconomy(s);
@@ -374,13 +363,13 @@ describe(`upkeep starts after goal ${RULES.upkeepStartsAfterGoal}`, () => {
 
   it('charges it from the first week after the goal, and announces it once', () => {
     const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0 });
-    put(s, 'well', EAST, 27);
-    put(s, 'well', EAST, 33);
+    put(s, 'plaza', EAST, 27);
+    put(s, 'plaza', EAST, 33);
     meetGoal(s, GOALS[s.goalIndex]);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events.filter((e) => e.type === 'upkeepStart')).toHaveLength(1);
-    expect(computeEconomy(s).upkeep).toEqual({ well: 2 * BUILDINGS.well.upkeep! });
+    expect(computeEconomy(s).upkeep).toEqual({ plaza: 2 * BUILDINGS.plaza.upkeep! });
     const later: GameEvent[] = [];
     s.goalIndex = RULES.upkeepStartsAfterGoal;
     checkGoal(s, later); // other goals never announce it again
@@ -391,7 +380,7 @@ describe(`upkeep starts after goal ${RULES.upkeepStartsAfterGoal}`, () => {
 describe('upkeep start (edges)', () => {
   it('goal 1 does not start upkeep nor announce it', () => {
     const s = emptyGame({ goalIndex: 0, silver: 0, food: 40 });
-    put(s, 'well', EAST, 27);
+    put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1); // 40 food for one tent: lasts until spring, goal 1 done
     const events: GameEvent[] = [];
     checkGoal(s, events);
@@ -405,8 +394,8 @@ describe('upkeep start (edges)', () => {
     const never = () => 0.99;
     const goal = GOALS[RULES.upkeepStartsAfterGoal - 1];
     const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0, food: 40 });
-    put(s, 'well', EAST, 27);
-    put(s, 'well', EAST, 33);
+    put(s, 'plaza', EAST, 27);
+    put(s, 'plaza', EAST, 33);
     meetGoal(s, goal);
     const free = computeEconomy(s);
     expect(free.upkeep).toEqual({});
@@ -415,7 +404,7 @@ describe('upkeep start (edges)', () => {
     expect(s.silver).toBe(Math.round((free.silverDelta + goal.reward) * 100) / 100); // taxes + reward, no upkeep
     expect(upkeepCharged(s)).toBe(true);
     const paid = computeEconomy(s);
-    expect(paid.upkeep).toEqual({ well: 2 * BUILDINGS.well.upkeep! });
+    expect(paid.upkeep).toEqual({ plaza: 2 * BUILDINGS.plaza.upkeep! });
     const before = s.silver;
     const second = stepWeek(s, never);
     expect(second.some((e) => e.type === 'upkeepStart')).toBe(false);

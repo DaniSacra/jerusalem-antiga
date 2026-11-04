@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, buildMenu, CATEGORIES, RULES, type BuildableKind } from '../src/core';
 
-const ALL: BuildableKind[] = ['house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+const ALL: BuildableKind[] = ['house', 'field', 'plaza', 'market', 'workshop', 'park', 'temple'];
 
 describe('build menu', () => {
   it('gives every buildable kind a category and none to the altar', () => {
@@ -10,8 +10,8 @@ describe('build menu', () => {
   });
 
   it('uses the configured categories', () => {
-    expect([BUILDINGS.house.category, BUILDINGS.garden.category]).toEqual(['home', 'home']);
-    expect([BUILDINGS.well.category, BUILDINGS.field.category]).toEqual(['supply', 'supply']);
+    expect([BUILDINGS.house.category, BUILDINGS.plaza.category, BUILDINGS.park.category]).toEqual(['home', 'home', 'home']);
+    expect(BUILDINGS.field.category).toBe('supply');
     expect([BUILDINGS.market.category, BUILDINGS.workshop.category]).toEqual(['work', 'work']);
     expect(BUILDINGS.temple.category).toBe('special');
   });
@@ -33,8 +33,8 @@ describe('build menu', () => {
     expect(buildMenu(ALL, 6)).toEqual({
       mode: 'categories',
       groups: [
-        { category: 'home', items: ['house', 'garden'] },
-        { category: 'supply', items: ['field', 'well'] },
+        { category: 'home', items: ['house', 'plaza', 'park'] },
+        { category: 'supply', items: ['field'] },
         { category: 'work', items: ['market', 'workshop'] },
         { category: 'special', items: ['temple'] },
       ],
@@ -42,11 +42,11 @@ describe('build menu', () => {
   });
 
   it('leaves out empty categories', () => {
-    expect(buildMenu(['well', 'house', 'field'], 2)).toEqual({
+    expect(buildMenu(['plaza', 'field', 'house'], 2)).toEqual({
       mode: 'categories',
       groups: [
-        { category: 'home', items: ['house'] },
-        { category: 'supply', items: ['well', 'field'] },
+        { category: 'home', items: ['plaza', 'house'] },
+        { category: 'supply', items: ['field'] },
       ],
     });
   });
