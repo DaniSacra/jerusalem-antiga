@@ -28,4 +28,12 @@ Princípios:
 Ao revisar, rode o jogo com Playwright em celular deitado (844 x 390) e PC
 (1366 x 768). As capturas são só para sua análise, nunca para o usuário.
 Entregue no máximo 10 melhorias, em ordem de impacto, com o arquivo a mudar.
+PROCESSOS LONGOS (para não travar)
+- Nunca espere um processo com `pgrep -f`/`pkill -f` em laço: o comando acha a si mesmo e a espera
+  nunca termina. Rode em primeiro plano com `timeout` (ex.: `timeout 900 npm run sim -- ...`) ou
+  espere pelo PID (`cmd & pid=$!; wait $pid`).
+- Testes visuais: use `VISUAL_PORT` e `VISUAL_OUT` próprios (outro agente pode estar rodando) e
+  `timeout 1500`. Uma falha só por tempo com a máquina carregada: rode o cenário de novo sozinho.
+- Salve o relatório aos poucos, a cada etapa, para não perder tudo se algo travar.
+
 Nunca faça commit nem push.

@@ -72,6 +72,14 @@ MODELOS 3D NO MESHY (só para a prova em Three.js)
 - Tamanho: prefira o menor polycount que ficar bom (alvo ≤ 10k triângulos por construção,
   ≤ 3k por árvore/rocha) e textura ≤ 1024 px, por causa do celular.
 
+PROCESSOS LONGOS (para não travar)
+- Nunca espere um processo com `pgrep -f`/`pkill -f` em laço: o comando acha a si mesmo e a espera
+  nunca termina. Rode em primeiro plano com `timeout` (ex.: `timeout 900 npm run sim -- ...`) ou
+  espere pelo PID (`cmd & pid=$!; wait $pid`).
+- Testes visuais: use `VISUAL_PORT` e `VISUAL_OUT` próprios (outro agente pode estar rodando) e
+  `timeout 1500`. Uma falha só por tempo com a máquina carregada: rode o cenário de novo sozinho.
+- Salve o relatório aos poucos, a cada etapa, para não perder tudo se algo travar.
+
 Nunca faça commit nem push. Ao terminar, deixe as alterações no working tree
 e relate o que mudou; só o agente principal faz commit e push, e apenas quando
 o usuário mandar.
