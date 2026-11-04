@@ -606,6 +606,15 @@ export interface Result {
   features0: number;
   /** The temple had a free spot the week it was unlocked (null: never unlocked). */
   templeRoom: boolean | null;
+  /** At the temple unlock: a 6x6 spot of free land or trees within SERVICE_ROAD road cells / anywhere on free land or trees. */
+  templeNear: boolean | null;
+  templeAny: boolean | null;
+  /** Silver spent cutting trees (bot actions only). */
+  clearSpent: number;
+  /** Big houses (level 4) at week 260. */
+  big260: number;
+  /** Upkeep per building kind at week 156 (start of year 4 = end of year 3). */
+  upkeepY3: Record<string, number>;
 }
 
 const riverDistance = (s: GameState) => {
@@ -614,6 +623,22 @@ const riverDistance = (s: GameState) => {
   for (let i = 0; i < s.ground.length; i++) if (s.ground[i] === 'river') d = Math.min(d, cheb({ x: i % s.cols, y: Math.floor(i / s.cols), w: 1, h: 1 }, a));
   return d;
 };
+
+/** Diagnostic for M2: a 6x6 rect of free land or trees (cuttable) near the network (<= SERVICE_ROAD road cells) / anywhere. */
+function templeRoomLoose(s: GameState): [boolean, boolean] {
+  const { w, h } = dimsOf('temple');
+  const open = (x: number, y: number) => { const i = indexOf(s, x, y); return isFreeLand(s, x, y) || (!s.grid[i] && !s.roads[i] && s.ground[i] !== 'river' && (s.feature[i] === 'palm' || s.feature[i] === 'olive')); };
+  const rd = roadDist(s);
+  let near = false, any = false;
+  for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
+    let ok = true;
+    for (let dy = 0; dy < h && ok; dy++) for (let dx = 0; dx < w && ok; dx++) ok = open(x + dx, y + dy);
+    if (!ok) continue;
+    any = true;
+    if (rectReach(s, { x, y, w, h }, rd).d <= SERVICE_ROAD) near = true;
+  }
+  return [near, any];
+}
 
 export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const rng = createRng(seed);
@@ -625,7 +650,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
     food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
     houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], levelsAtEnd: [],
-    features0: s.feature.filter((f) => f).length, templeRoom: null,
+    features0: s.feature.filter((f) => f).length, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
   };
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
@@ -633,8 +658,11 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   let run = 0;
   let dryYear = false;
   let goalSince = 0;
+  const trees = () => s.feature.filter((f) => f === 'palm' || f === 'olive').length;
   while (s.week < maxWeeks) {
+    const t0 = trees();
     bot.act(s);
+    res.clearSpent += (t0 - trees()) * RULES.treeClearCost;
     const eco = computeEconomy(s);
     const block = familyBlock(s, eco) ?? 'open';
     res.blocks[block] = (res.blocks[block] ?? 0) + 1;
@@ -657,7 +685,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.drought && !wasDrought) { res.droughtYears++; dryYear = true; }
     if (seasonOf(s.week) === 'autumn' && s.week % RULES.weeksPerSeason === 0) dryYear = false;
     for (let g = goalBefore; g < s.goalIndex; g++) res.goalWeeks[g] = s.week;
-    if (res.templeRoom === null && s.unlocked.includes('temple')) res.templeRoom = templeSpots(s).length > 0;
+    if (res.templeRoom === null && s.unlocked.includes('temple')) {
+      res.templeRoom = templeSpots(s).length > 0;
+      [res.templeNear, res.templeAny] = templeRoomLoose(s);
+    }
+    if (s.week === 260) res.big260 = s.buildings.filter((b) => b.kind === 'house' && b.level === 4).length;
+    if (s.week === 156) for (const b of s.buildings) { const u = BUILDINGS[b.kind].upkeep ?? 0; if (u) res.upkeepY3[b.kind] = (res.upkeepY3[b.kind] ?? 0) + u; }
     if (s.goalIndex > goalBefore) goalSince = s.week;
     if (s.goalIndex < GOALS.length && s.week - goalSince > res.goalWait) { res.goalWait = s.week - goalSince; res.goalWaitIndex = s.goalIndex; }
     if (s.silver < 0) { res.debtEver = true; if (s.week <= 52) res.debtY1 = true; else if (s.week <= 104) res.debtY2 = true; }
