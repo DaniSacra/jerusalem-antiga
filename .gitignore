@@ -2,3 +2,7 @@ node_modules
 dist
 *.log
 screenshots
+
+# Local secrets (API keys)
+.env.local
+.env.*.local
