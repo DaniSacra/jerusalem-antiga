@@ -270,7 +270,11 @@ export const T = {
       reward: (reward: number) => `+${reward} prata`,
       victory: 'vitória',
       unlocks: (kind: Placeable) => `libera ${toolName(kind)}`,
+      /** Silver saved for the temple while it is unlocked and not built. */
+      templeSavings: (silver: number, cost: number) => `Junte ${cost} para o Templo: ${Math.min(silver, cost)}/${cost}`,
     },
+    /** The same, short, at the end of the goal pill. */
+    templeSavingsPill: (silver: number, cost: number) => `Templo ${Math.min(silver, cost)}/${cost}`,
     /** A goal's text, with the year it opens ("a partir do Ano 8"). */
     goalText: (g: GoalDef) => (g.fromYear ? `${g.text} a partir do Ano ${g.fromYear}` : g.text),
     noAlerts: 'Nenhum aviso. A cidade vai bem.',

@@ -4,6 +4,7 @@
  *   npm run sim -- --bots comum --seeds 100      # one bot, more seeds
  *   npm run sim -- --brief | --json | --rows     # one line per bot, raw results, one line per run
  *   npm run sim -- --trace comum:1:80            # week by week of one game (bot:seed:weeks)
+ *   npm run sim -- --profile savesTemple=true   # changes a bot profile field for this run
  *   npm run sim -- --set rules.workerShare=0.5 --drop-goal 4
  *        # tries balance numbers in memory only (src/data is not touched); --drop-goal is 1-based
  */
@@ -27,15 +28,31 @@ const args = process.argv.slice(2);
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const ov = applyOverrides(args);
 const bots = opt('bots', Object.keys(PROFILES).join(',')).split(',');
+// --profile key=json: changes a profile field of every bot run (e.g. savesTemple=true).
+args.forEach((a, i) => {
+  if (a !== '--profile') return;
+  const [k, raw] = args[i + 1].split('=');
+  for (const b of bots) (PROFILES[b] as unknown as Record<string, unknown>)[k] = JSON.parse(raw);
+});
 const seeds = Number(opt('seeds', '20'));
 const maxWeeks = Number(opt('weeks', '1000'));
 const med = (v: number[]) => { const a = v.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor((a.length - 1) / 2)] : NaN; };
+/** Quantile q (0-1) of the finite values, nearest rank below. */
+const qt = (v: number[], q: number) => { const a = v.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor((a.length - 1) * q)] : NaN; };
 const f = (n: number, d = 0) => (Number.isFinite(n) ? n.toFixed(d) : '-');
 const mins = (w: number) => (w * RULES.weekSeconds) / 60;
 if (ov.length) console.log('overrides', ov.join(' '));
 const all: Result[] = [];
 /** J1: weeks between goal 5 and goal 6 (NaN when goal 6 was not reached). */
 const gap56 = (r: Result) => (r.goalWeeks[5] ?? NaN) - (r.goalWeeks[4] ?? NaN);
+/** End pace: wait from the second-to-last goal to the last regular one, and from that one to victory. */
+const endPace = (rs: Result[]) => {
+  const last = GOALS.length - 2;
+  const reached = rs.filter((r) => r.goalWeeks[last] != null);
+  const toWin = reached.filter((r) => r.won).map((r) => r.weeks - (r.goalWeeks[last] as number));
+  const wait = rs.map((r) => (r.goalWeeks[last] ?? NaN) - (r.goalWeeks[last - 1] ?? NaN));
+  return `end g${last}→${last + 1} med ${f(med(wait))} p75 ${f(qt(wait, 0.75))} | g${last + 1}→win med ${f(med(toWin))} p75 ${f(qt(toWin, 0.75))} | g${last + 1} reached ${reached.length} won ${toWin.length} (${f((100 * toWin.length) / reached.length)}%)`;
+};
 /** J2: most goals done in one year (a goal done in week w belongs to the year of week w - 1). */
 const perYear = (r: Result) => {
   const count: Record<number, number> = {};
@@ -56,7 +73,7 @@ for (const name of bots) {
     const won = rs.filter((r) => r.won);
     const g = (i: number) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)));
     const pc = (k: number) => `${f((100 * k) / n)}%`;
-    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeGap).length)}/${rs.filter((r) => r.templeGap !== null).length} (ready ${rs.filter((r) => r.templeRoom).length}, ≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
+    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeGap).length)}/${rs.filter((r) => r.templeGap !== null).length} (ready ${rs.filter((r) => r.templeRoom).length}, ≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | ${endPace(rs)} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -95,7 +112,7 @@ for (const name of bots) {
     const d = rs.map((r) => r.goalWeeks[i]).filter((x): x is number => x !== null);
     console.log(`${String(i + 1).padStart(2)} ${g.text.padEnd(36).slice(0, 36)} ${String(d.length).padStart(3)}  ${f(med(d)).padStart(5)} (${d.length ? Math.min(...d) + '-' + Math.max(...d) : '-'})  ${f(mins(med(d)), 1)}`);
   });
-  console.log(`win weeks med ${f(med(won.map((r) => r.weeks)))} = ${f(mins(med(won.map((r) => r.weeks))), 1)} min`);
+  console.log(`win weeks med ${f(med(won.map((r) => r.weeks)))} = ${f(mins(med(won.map((r) => r.weeks))), 1)} min | ${endPace(rs)}`);
   const kinds = [...new Set(rs.flatMap((r) => Object.keys(r.built)))];
   console.log(`built med: ${kinds.map((k) => `${k} ${f(med(rs.map((r) => r.built[k] ?? 0)))}`).join(', ')}`);
 }

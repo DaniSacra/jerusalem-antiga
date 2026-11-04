@@ -5,6 +5,7 @@ import {
   foodCapacity,
   gatherFood,
   goalProgress,
+  templeSavings,
   goalTarget,
   GOALS,
   happinessOn,
@@ -290,6 +291,8 @@ export class Panels {
           gap: cur ? px(2) : 0,
         });
       });
+      const save = templeSavings(s);
+      if (save) lines.push({ parts: [{ text: N.goals.templeSavings(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold, bold: true }], gap: px(2) });
       // Two halves, so a short screen lays them out in two columns.
       const half = Math.ceil(lines.length / 2);
       return [[title(N.buttons.goals), ...lines.slice(0, half)], lines.slice(half)];

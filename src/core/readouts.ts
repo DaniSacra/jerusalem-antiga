@@ -12,6 +12,15 @@ import type { BuildableKind, Building, Cell, GameState, Season } from './types';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
 
+/**
+ * Silver saved toward the temple, from the goal that unlocks it until it stands (null otherwise):
+ * the "Junte 800 para o Templo" line. The silver is never shown below 0 (a city in debt).
+ */
+export function templeSavings(s: GameState): { silver: number; cost: number } | null {
+  if (!s.unlocked.includes('temple') || s.buildings.some((b) => b.kind === 'temple')) return null;
+  return { silver: Math.max(0, Math.floor(s.silver)), cost: BUILDINGS.temple.cost };
+}
+
 /** What the screen reads about the city, computed once per refresh. */
 export interface CityReadout {
   eco: Economy;

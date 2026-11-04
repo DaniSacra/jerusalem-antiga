@@ -369,7 +369,8 @@ com a água no Pacote 2).
   a caminho: o objetivo só se cumpre com alguém morando (nunca com todos indo embora).
 - **`fromYear`:** o objetivo só se cumpre a partir desse ano (`goalOpen`); o texto mostra "a partir
   do Ano N" na pílula e na lista. O Templo libera no Objetivo 8, para o jogador juntar prata e
-  construí-lo antes; a vitória vem quando os objetivos 9 (500 moradores) e 10 (o Templo) se cumprem.
+  construí-lo antes (do Templo liberado até erguido, a pílula do objetivo termina com "· Templo 312/800"
+  e a lista de objetivos com "Junte 800 para o Templo: 312/800", verde quando chega; `templeSavings`); a vitória vem quando os objetivos 9 (500 moradores) e 10 (o Templo) se cumprem.
   Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na mesma semana do
   Objetivo 9 (`checkGoal`). Erguido antes do 9 (`templeWaitsForGoal`), toast "Templo erguido! A
   vitória vem com 500 moradores, a partir do Ano 8" (números de `goals.json`); a dica do Templo diz

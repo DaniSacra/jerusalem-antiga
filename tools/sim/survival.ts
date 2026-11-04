@@ -61,6 +61,10 @@ export interface Profile {
   reactsToBalloons: boolean;
   /** From the goal that unlocks the temple on, keeps a 6x6 free for it and saves silver for it. */
   reservesTemple: boolean;
+  /** Reads the "Junte 800 para o Templo" line: from the unlock until the temple stands, keeps its price
+   * (only food, the granary and houses may use it) and waits for it on the last goal. Off by default;
+   * `--profile savesTemple=true` turns it on. */
+  savesTemple?: boolean;
   /** Weights for choosing a food building when not planning [fisher, gatherer, field]. */
   foodMix: [number, number, number];
   /** Keeps jobs <= workers (does not build workplaces without people). */
@@ -198,6 +202,7 @@ export class SurvivalBot {
 
   /** Silver kept for the temple: half its price while its goal runs, all of it once unlocked. */
   private savings(s: GameState) {
+    if (this.p.savesTemple && s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple')) return costOf('temple');
     if (!this.reserved) return 0;
     return s.unlocked.includes('temple') ? costOf('temple') : costOf('temple') / 2;
   }
@@ -289,7 +294,7 @@ export class SurvivalBot {
       if (templeSpots(s).length) {
         if (s.silver >= costOf('temple')) return this.place(s, 'temple');
       } else if (this.place(s, 'temple')) return true;
-      if (this.p.planner) return false; // saves
+      if (this.p.planner || this.p.savesTemple) return false; // saves
     }
 
     // 6. Houses.
@@ -676,6 +681,11 @@ export interface Result {
   big260: number;
   /** Upkeep per building kind at week 156 (start of year 4 = end of year 3). */
   upkeepY3: Record<string, number>;
+  /** At the end of the run: silver, weekly silver change, and whether the temple had a ready spot / any 6x6 of free land or trees. */
+  endSilver: number;
+  endIncome: number;
+  endTempleRoom: boolean;
+  endTempleAny: boolean;
 }
 
 const riverDistance = (s: GameState) => {
@@ -712,6 +722,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
     houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, templeGap: null, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
+    endSilver: 0, endIncome: 0, endTempleRoom: false, endTempleAny: false,
   };
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
@@ -796,6 +807,10 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.won) { res.won = true; res.weeks = s.week; if (s.week < 52) res.year1 = true; break; }
     if (s.lost) { res.lost = true; res.debtLoss = true; res.weeks = s.week; break; }
   }
+  res.endSilver = s.silver;
+  res.endIncome = computeEconomy(s).silverDelta;
+  res.endTempleRoom = templeSpots(s).length > 0;
+  res.endTempleAny = templeRoomLoose(s)[1];
   res.levelsAtEnd = [1, 2, 3, 4].map((l) => s.buildings.filter((b) => b.kind === 'house' && b.level === l).length);
   return res;
 }
