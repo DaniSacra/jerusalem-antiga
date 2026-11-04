@@ -19,3 +19,6 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   }
   return items;
 }
+
+/** Whole number in [min, max]. */
+export const between = (rng: Rng, [min, max]: readonly [number, number]) => min + Math.floor(rng() * (max - min + 1));

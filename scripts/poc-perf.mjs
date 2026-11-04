@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const PORT = 5199;
+const PORT = 5175;
 const BASE = `http://localhost:${PORT}`;
 const OUT = 'screenshots/poc';
 const shotsOnly = process.argv.includes('--shots-only');

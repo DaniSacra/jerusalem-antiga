@@ -1,8 +1,7 @@
-/** In-memory overrides of the data tables (and bot profiles), to measure proposals without editing src/data. */
+/** In-memory overrides of the data tables, to measure proposals without editing src/data. */
 import { BUILDINGS, GOALS, HOUSE_LEVELS, RULES } from '../../src/core';
-import { BOTS } from './bots';
 
-const TABLES: Record<string, unknown> = { buildings: BUILDINGS, goals: GOALS, houses: HOUSE_LEVELS, rules: RULES, bots: BOTS };
+const TABLES: Record<string, unknown> = { buildings: BUILDINGS, goals: GOALS, houses: HOUSE_LEVELS, rules: RULES };
 
 /**
  * Applies `--set table.path=json` and `--drop-goal N` (1-based; its unlock moves to the goal before).

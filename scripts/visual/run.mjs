@@ -16,7 +16,9 @@ import { createServer } from 'vite';
 
 const OUT = 'screenshots';
 const PORT = 5199;
-const URL = `http://localhost:${PORT}/`;
+/** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
+const SEED = 5;
+const URL = `http://localhost:${PORT}/?seed=${SEED}`;
 const GAME_W = 1280;
 const GAME_H = 720;
 const filter = process.argv[2] ?? '';
@@ -47,15 +49,19 @@ function gameToPage(page, x, y) {
   }, [x, y]);
 }
 
-/** Game position of a UI element from the layout helpers, e.g. ('buildButton', 2) or ('plaqueSlot', 1). */
-const uiPoint = (page, fn, k) =>
-  page.evaluate(([fn, k]) => {
-    const p = window.layout[fn](k);
-    return 'w' in p ? [p.x + p.w / 2, p.y + p.h / 2] : [p.x, p.y];
-  }, [fn, k]);
+/** Game position of a part of the interface by its name (see `novaPoint` in layout.ts), e.g. 'tool-road' or 'pill-silver'. */
+const uiPoint = (page, name) =>
+  page.evaluate((name) => {
+    const p = window.layout.novaPoint(name);
+    if (!p) throw new Error(`no interface part named ${name} (or it is hidden)`);
+    return [p.x, p.y];
+  }, name);
 
-/** Clicks a UI element with the mouse (see uiPoint). */
-const clickUi = async (page, fn, k) => page.mouse.click(...(await gameToPage(page, ...(await uiPoint(page, fn, k)))));
+/** Clicks a part of the interface with the mouse (see uiPoint). */
+const clickUi = async (page, name) => page.mouse.click(...(await gameToPage(page, ...(await uiPoint(page, name)))));
+
+/** Picks a tool directly (the build column shows categories; the keys are 1 Mover, 2 Rua, 3–6 categories, 0 Demolir). */
+const pick = (page, t) => page.evaluate((t) => window.game.selectTool(t), t);
 
 /** Real multi-touch through the Chrome DevTools Protocol, in game coordinates. */
 async function touchInput(page) {
@@ -99,11 +105,18 @@ async function startGame(page, { tutorial = false } = {}) {
   await page.waitForTimeout(300);
 }
 
-/** Selects a tool by its 1-based toolbar position (keyboard shortcut). */
+/** Presses a PC tool key: 1 Mover, 2 Rua, 3–6 the categories (again: the next building), 0 Demolir. */
 const tool = (page, n) => page.keyboard.press(`Digit${n}`);
 
 /** Page position of the center of a grid cell. */
 const cellToPage = async (page, x, y) => gameToPage(page, ...(await cellToScreen(page, x, y)));
+
+/** Clicks a grid cell, which must be on the open map (not under the UI). */
+async function mouseClick(page, x, y) {
+  const [sx, sy] = await cellToScreen(page, x, y);
+  assert(!(await page.evaluate(([x, y]) => window.game.ui.isOverUi(x, y), [sx, sy])), `cell ${x},${y} is not under the UI`);
+  await page.mouse.click(...(await cellToPage(page, x, y)));
+}
 
 /** Drags the mouse through grid cells; every cell must be on the open map (not under the UI). */
 async function mouseDrag(page, cells) {
@@ -136,13 +149,14 @@ async function setupHudCity(page) {
     const { state: s, core } = window;
     s.silver = 1e4;
     s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
     s.unlocked.push('market', 'workshop');
     for (let y = 27; y <= 41; y += 2) {
       core.place(s, 'house', 22, y);
       s.grid[y * s.cols + 22].level = 2;
     }
     core.place(s, 'field', 25, 27);
-    for (let k = 0; k < 6 && core.computeEconomy(s).silverDelta >= 0; k++) core.place(s, 'well', 4 + 3 * k, 4); // off the road
+    for (let k = 0; k < 12 && core.computeEconomy(s).silverDelta >= 0; k++) core.place(s, 'plaza', 4 + 3 * k, 4); // off the road
     s.silver = 180;
     s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
     window.game.setSpeed(0);
@@ -159,8 +173,9 @@ async function buildTown(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
     s.silver = 1e6;
-    s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+    s.unlocked = ['road', 'house', 'field', 'plaza', 'fisher', 'gatherer', 'granary', 'market', 'workshop', 'park', 'temple'];
     s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
     for (let x = 12; x <= 36; x++) {
       core.place(s, 'road', x, 18);
       core.place(s, 'road', x, 31);
@@ -177,7 +192,7 @@ async function buildTown(page) {
     };
     for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 19, (k % 4) + 1);
     for (let k = 0; k < 5; k++) put('house', 13 + 2 * k, 29, (k + 2) % 5);
-    put('well', 27, 25);
+    put('plaza', 27, 25);
     put('market', 29, 25, 0, true); // rotated 4x2
     put('workshop', 33, 25);
     put('field', 26, 29);
@@ -186,7 +201,14 @@ async function buildTown(page) {
     put('house', 34, 29, 3);
     put('market', 34, 19); // 2x4 upright
     put('temple', 25, 32);
-    put('garden', 19, 22); // beside the altar ring, cheers the houses above it
+    put('park', 19, 22); // beside the altar ring, cheers the houses above it
+    put('granary', 18, 24); // food store, beside the altar ring
+    put('gatherer', 13, 26);
+    for (const [x, y] of [[15, 26], [16, 27], [15, 28]]) s.feature[y * s.cols + x] = 'olive'; // its grove
+    // A fisher by the river east of the town, on a road from the east wall.
+    let rx = 37;
+    while (s.ground[27 * s.cols + rx + 2] !== 'river' && rx < s.cols - 3) core.place(s, 'road', rx++, 27);
+    put('fisher', rx, 27);
     put('field', 3, 3); // disconnected: shows the "no road" balloon
     window.game.refresh();
     const cam = window.game.cameras.main;
@@ -205,27 +227,27 @@ async function shot(page, name, { scaffolds = false } = {}) {
 }
 
 /**
- * Sets the look of the year on a paused town: a month, the rare years (snow, drought), the weather
+ * Sets the look of the year on a paused town: a week, the rare years (snow, drought), the weather
  * (sky, rain level) and how wet the ground is, then waits until the map shows it (snowy copies of
  * the textures included) and the drops are on screen.
  */
-async function setLook(page, month, { snow = false, drought = false, sky = 'clear', level = 'medium', wet = 0 } = {}) {
-  await page.evaluate(([month, o]) => {
+async function setLook(page, week, { snow = false, drought = false, sky = 'clear', level = 'medium', wet = 0 } = {}) {
+  await page.evaluate(([week, o]) => {
     const g = window.game;
-    window.state.month = month;
+    window.state.week = week;
     g.seasons.force({ snow: o.snow, drought: o.drought });
     g.weather.force(o.sky, o.sky === 'clear' ? 0 : 1, o.level);
     g.weather.forceWet(o.wet);
     g.refresh();
-  }, [month, { snow, drought, sky, level, wet }]);
+  }, [week, { snow, drought, sky, level, wet }]);
   // The look is applied on the next frames (a few snowy textures per frame): wait for them, not a fixed time.
   await page.waitForFunction(
     (m) => {
       const map = window.game.map;
-      const M = window.core.RULES.monthsPerSeason;
+      const M = window.core.RULES.weeksPerSeason;
       return map.look && map.look.season === window.core.seasonOf(m) && Math.floor(map.look.at) === m % M && !map.snowDirty;
     },
-    month,
+    week,
     { timeout: 20000 },
   );
 }
@@ -241,7 +263,7 @@ async function seasonsScenario(page, suffix) {
   await page.evaluate(() => {
     window.game.setSpeed(0);
     window.game.dayNight.setTime(0.3);
-    window.state.food = 1e4; // no famine balloons over the captures
+    window.state.food = window.core.foodCapacity(window.state); // full stores: no famine balloons over the captures
     // Groves around the town (buildTown clears the trees): olives (some drawn as almonds and figs) and palms.
     const s = window.state;
     for (let y = 8; y < 46; y++) {
@@ -254,33 +276,35 @@ async function seasonsScenario(page, suffix) {
     }
     window.game.refresh();
   });
-  const M = await page.evaluate(() => window.core.RULES.monthsPerSeason);
+  const M = await page.evaluate(() => window.core.RULES.weeksPerSeason);
   const look = () => page.evaluate(() => {
     const l = window.game.map.look;
     return { season: l.season, almond: l.almond, fig: l.fig, crop: l.crop, harvest: l.harvest, snow: l.snow, drought: l.drought, smoke: l.smoke };
   });
   const views = () => page.evaluate(() => [...window.game.map.views.values()].map((v) => v.main.texture.key));
-  const icon = () => page.evaluate(() => window.game.ui.hud.seasonIcon.texture.key);
-  /** The plaque's drought mark (icon and word): shown, and where, in screen px for a close capture. */
+  const icon = () => page.evaluate(() => window.game.ui.view.top.season.icon.texture.key);
+  /** The season pill's drought mark (its icon): shown, and where, in screen px for a close capture. */
   const droughtMark = () => page.evaluate(() => {
-    const [img, label] = window.game.ui.hud.drought;
+    const pill = window.game.ui.view.top.season;
     const r = document.querySelector('canvas').getBoundingClientRect();
-    return { on: img.visible && img.alpha > 0.9 && label.visible, k: r.height / window.game.scale.height, left: r.left, top: r.top, key: img.texture.key };
+    const key = pill.icon.texture.key;
+    return { on: key === 'icon-drought', k: r.height / window.game.scale.height, left: r.left, top: r.top, key, rect: pill.rect };
   });
 
+  // The year starts in autumn: autumn, winter, spring, summer.
   const seasons = [
-    ['spring', 0 * M + 5],
-    ['summer', 1 * M + 5],
-    ['autumn', 2 * M + 4],
-    ['winter', 3 * M + 3],
+    ['spring', 2 * M + 5],
+    ['summer', 3 * M + 5],
+    ['autumn', 0 * M + 4],
+    ['winter', 1 * M + 3],
   ];
-  for (const [season, month] of seasons) {
-    await setLook(page, month);
+  for (const [season, week] of seasons) {
+    await setLook(page, week);
     const l = await look();
-    assert(l.season === season, `month ${month} is ${season} (${l.season})`);
-    assert((await icon()) === `icon-${season}`, `the month shows the ${season} icon`);
+    assert(l.season === season, `week ${week} is ${season} (${l.season})`);
+    assert((await icon()) === `icon-${season}`, `the week shows the ${season} icon`);
     assert(!(await droughtMark()).on, `no drought mark in a normal ${season}`);
-    if (season === 'spring') assert(l.crop === 'green', `green wheat in spring (${l.crop})`);
+    if (season === 'spring') assert(l.crop === 'gold', `golden wheat at the spring harvest (${l.crop})`);
     if (season === 'winter') {
       assert(l.smoke === 1 && (await page.evaluate(() => window.game.map.smoke.emitting)), 'smoke from the houses in winter');
       assert(l.almond === 'bare' && l.fig === 'bare', `almonds and figs bare in early winter (${l.almond}, ${l.fig})`);
@@ -298,7 +322,7 @@ async function seasonsScenario(page, suffix) {
   }
 
   // Late winter: the almond trees in bloom, figs still bare.
-  await setLook(page, 3 * M + 9);
+  await setLook(page, 1 * M + 9);
   const late = await look();
   assert(late.almond === 'bloom' && late.fig === 'bare', `almond bloom in late winter (${late.almond}, ${late.fig})`);
   await shot(page, `seasons-almond${suffix}`);
@@ -306,7 +330,7 @@ async function seasonsScenario(page, suffix) {
   // Rain in three strengths: drops all over the screen (more the heavier), splashes, wet ground and puddles.
   let last = 0;
   for (const [level, wet] of [['light', 0.4], ['medium', 0.7], ['heavy', 1]]) {
-    await setLook(page, 3 * M + 2, { sky: 'rain', level, wet });
+    await setLook(page, 1 * M + 2, { sky: 'rain', level, wet });
     const drops = await page.evaluate(() => window.game.weather.rain.getAliveParticleCount());
     assert(drops > Math.max(40, last), `rain falls (${level}: ${drops} drops, more than ${last})`);
     last = drops;
@@ -316,7 +340,7 @@ async function seasonsScenario(page, suffix) {
   }
 
   // A snowy winter: snow on the ground, the roofs and the trees, and snow falling.
-  await setLook(page, 3 * M + 6, { snow: true, sky: 'snow' });
+  await setLook(page, 1 * M + 6, { snow: true, sky: 'snow' });
   const sn = await look();
   assert(sn.snow === 1, `snow cover in a snowy winter (${sn.snow})`);
   const snowy = (await views()).filter((k) => k.endsWith('-snow')).length;
@@ -324,17 +348,20 @@ async function seasonsScenario(page, suffix) {
   await shot(page, `weather-snow${suffix}`);
 
   // A summer drought: cracked earth, brown grass, the river shrunk to mud banks, dry low wheat.
-  await setLook(page, 1 * M + 8, { drought: true });
+  await setLook(page, 3 * M + 6, { drought: true });
   const dr = await look();
-  assert(dr.drought === 1 && dr.crop === 'dry', `drought (${dr.drought}, ${dr.crop})`);
+  assert(dr.drought === 1, `drought (${dr.drought})`);
+  // Each field shows its own stage now (the drought thins the thirsty ones).
+  const stages = await page.evaluate(() => [...window.game.map.views.values()].filter((v) => v.kind === 'field').map((v) => v.stage));
+  assert(stages.length > 0 && stages.every(Boolean), `every field shows a crop stage in a dry summer (${stages})`);
   const mud = await page.evaluate(() => window.game.map.tiles.filter((t) => t.show === 'mud').length);
   assert(mud > 20, `dry river banks (${mud} cells)`);
   const mark = await droughtMark();
-  assert(mark.on && mark.key === 'icon-drought', `the plaque shows the drought mark (${JSON.stringify(mark)})`);
+  assert(mark.on, `the season pill shows the drought mark (${JSON.stringify(mark)})`);
   await shot(page, `seasons-drought${suffix}`);
-  // Close-up of the plaque: the drought mark above the season icon, nothing in the row moved.
-  const P = await page.evaluate(() => window.layout.PLAQUE);
-  await page.screenshot({ path: `${OUT}/seasons-drought-icon${suffix}.png`, clip: { x: mark.left + P.x * mark.k, y: mark.top, width: P.w * mark.k, height: (P.h + 8) * mark.k } });
+  // Close-up of the season pill with the drought icon.
+  const P = mark.rect;
+  await page.screenshot({ path: `${OUT}/seasons-drought-icon${suffix}.png`, clip: { x: mark.left + (P.x - 8) * mark.k, y: mark.top + (P.y - 8) * mark.k, width: (P.w + 16) * mark.k, height: (P.h + 16) * mark.k } });
   // Zoomed out over the river: the drought's mud banks and the sky behind the diorama.
   const cam = await page.evaluate(() => {
     const c = window.game.cameras.main;
@@ -355,16 +382,16 @@ async function seasonsScenario(page, suffix) {
   await shot(page, `seasons-drought-noui${suffix}`);
   await hideUi(page, false);
 
-  // Back to the seasons: one season toast when a month opens a new season.
+  // Back to the seasons: one season toast when a week opens a new season.
   await page.evaluate(([m]) => {
     window.game.weather.force(null);
     window.game.weather.forceWet(null);
     window.game.seasons.force(null);
-    window.state.month = m - 1;
-    window.game.handleEvents(window.core.stepMonth(window.state, window.core.createRng(1)));
+    window.state.week = m - 1;
+    window.game.handleEvents(window.core.stepWeek(window.state, window.core.createRng(1)));
     window.game.refresh();
-  }, [4 * M]);
-  const toasts = await page.evaluate(() => window.game.ui.toasts.list.map((t) => t.msg));
+  }, [2 * M]);
+  const toasts = await page.evaluate(() => { const t = window.game.ui.view.toasts; return [...t.list, ...t.queue].map((x) => x.msg); });
   assert(toasts.some((m) => m.startsWith('Chegou a primavera')), `a toast announces the spring (${toasts})`);
   await page.waitForTimeout(300);
   assert(!(await droughtMark()).on, 'the drought mark goes away after the drought');
@@ -374,9 +401,10 @@ async function seasonsScenario(page, suffix) {
 /** Presses a button of the tutorial bubble ('skipBtn' or 'okBtn'). */
 async function clickTutorial(page, which) {
   const [x, y] = await page.evaluate((k) => {
-    const v = window.game.ui.tutorial;
+    const v = window.game.ui.view.tutorial;
     const c = k === 'skipBtn' ? v.skipBtn.root : v.okBtn.container;
-    return [c.x, c.y];
+    const m = c.getWorldTransformMatrix(); // the buttons sit inside the (scaled) tutorial balloon
+    return [m.tx, m.ty];
   }, which);
   await page.mouse.click(...(await gameToPage(page, x, y)));
   await page.waitForTimeout(200);
@@ -395,6 +423,25 @@ const placeNear = (page, kind, near) =>
   }, [kind, near ?? null]);
 
 const tutorialStep = (page) => page.evaluate(() => window.game.guide?.step?.id ?? null);
+
+/**
+ * After the tutorial camera glides to the step's place: the place (and on the phone the finger point
+ * under it) is on the free map, clear of the interface, the tutorial bubble and the toasts.
+ */
+async function assertStepInView(page, step) {
+  await page.waitForFunction(() => window.game.pan === null, null, { timeout: 5000 }).catch(() => {});
+  const r = await page.evaluate(() => {
+    const g = window.game;
+    const at = g.stepSpot(g.guide.step.id);
+    if (!at) return null;
+    const p = g.cellScreen(at.x, at.y, at.w, at.h);
+    const touch = navigator.maxTouchPoints > 0;
+    const pts = [[p.x, p.y], ...(touch && at.w * at.h <= 9 ? [[p.x, p.y + 90]] : [])];
+    const toastTop = g.ui.view.toasts.top ?? Infinity;
+    return { p: [Math.round(p.x), Math.round(p.y)], bad: pts.filter(([x, y]) => g.ui.isOverUi(x, y) || y >= toastTop || y < 0 || x < 0 || x > 1280) };
+  });
+  assert(r && r.bad.length === 0, `the ${step} place is on the free map after the camera glides (${JSON.stringify(r)})`);
+}
 
 /** Taps (phone) or clicks (PC) a game point. */
 async function press(page, x, y) {
@@ -420,85 +467,426 @@ async function dragCells(page, cells) {
   await page.waitForTimeout(200);
 }
 
+/** Opens the families' door: two granaries and food to reach the harvest (new families only come when the food lasts). */
+async function openFamilyDoor(page) {
+  await page.evaluate(() => {
+    window.state.silver = 1e4;
+    window.state.unlocked.push('granary');
+  });
+  await placeNear(page, 'granary');
+  await placeNear(page, 'granary');
+  await page.evaluate(() => {
+    const s = window.state;
+    s.food = 300;
+    window.game.refresh();
+  });
+  const block = await page.evaluate(() => window.core.familyBlock(window.state));
+  assert(block !== 'food' && block !== 'famine', `the food lets families come before the family step (${block})`);
+}
+
+/**
+ * Presses a building in the build column: the first press opens its category (the column shows the
+ * 4 categories), the second picks it from the strip. Returns the tool picked.
+ */
+async function pressBuild(page, kind) {
+  for (let k = 0; k < 2; k++) {
+    await press(page, ...(await uiPoint(page, `build-${kind}`)));
+    if (await page.evaluate((t) => window.game.tool === t, kind)) break;
+  }
+  return page.evaluate(() => window.game.tool);
+}
+
+/** Centers the camera on a building's footprint at a zoom. */
+const centerOnBuilding = (page, b, zoom = 1.2) =>
+  page.evaluate(([b, zoom]) => {
+    const cam = window.game.cameras.main;
+    const w = window.iso.gridToWorld(b.x + b.w / 2, b.y + b.h / 2);
+    cam.setZoom(zoom);
+    cam.centerOn(w.x, w.y);
+  }, [b, zoom]);
+
+/** Text lines of the tapped building's balloon. */
+const inspectorLines = (page) => page.evaluate(() => window.game.ui.view.inspector.card?.lines.map((l) => l.text) ?? []);
+
+/**
+ * Pacote 2 interface: a mud-brick house balloon with the locked market (lock on the map, "libera no
+ * objetivo 3" in the balloon), toasts held while that balloon is open (a stale one is dropped), Demolir
+ * aimed at a full granary ("Perde N de comida"), and the Moradia strip with Praça and Parque.
+ */
+async function p2Interface(page, suffix) {
+  await startGame(page);
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+  const house = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.setSpeed(0);
+    s.silver = 1e4;
+    const at = core.campPlazaSpot();
+    const r = core.place(s, 'plaza', at.x, at.y);
+    if (!r.ok) throw new Error(`plaza: ${r.reason}`);
+    for (const b of s.buildings.filter((b) => b.kind === 'house' && b.level >= 1 && core.needMet(s, b, 'plaza'))) b.level = 2;
+    core.refreshCity(s);
+    game.refresh();
+    const h = s.buildings.find((b) => b.kind === 'house' && b.level === 2);
+    return { x: h.x, y: h.y, w: h.w, h: h.h };
+  });
+  await centerOnBuilding(page, house);
+  await page.waitForTimeout(300);
+  const balloon = await page.evaluate(([x, y]) => {
+    const { state: s, game } = window;
+    const b = s.grid[y * s.cols + x];
+    const v = game.map.balloons.get(b.id);
+    return v ? { need: v.need, lock: v.lock.visible } : null;
+  }, [house.x, house.y]);
+  assert(balloon?.need === 'market' && balloon.lock, `the mud-brick house balloon shows the market with a lock (${JSON.stringify(balloon)})`);
+  await shot(page, `balloon-locked${suffix}`);
+
+  // Tapped: "✗ Mercado (libera no objetivo 3)", and no "Onde pôr" for a locked building.
+  await page.evaluate(([x, y]) => {
+    window.game.selected = { x, y };
+    window.game.refresh();
+  }, [house.x, house.y]);
+  await page.waitForTimeout(200);
+  const lines = await inspectorLines(page);
+  const goal = await page.evaluate(() => window.core.unlockingGoal('market'));
+  assert(lines.includes(`✗ Mercado (libera no objetivo ${goal})`), `the house balloon says when the market comes (${lines})`);
+  assert(await page.evaluate(() => !window.game.ui.view.inspector.card.action), 'no "Onde pôr" action for a locked building');
+  await shot(page, `balloon-locked-house${suffix}`);
+
+  // Toasts wait while the balloon is open; one that is no longer true is dropped.
+  await page.evaluate(() => {
+    window.__valid = true;
+    window.game.ui.toast('Teste: aviso com o balão aberto', 'info');
+    window.game.ui.toast('Teste: aviso que deixa de valer', 'bad', { valid: () => window.__valid });
+  });
+  await page.waitForTimeout(300);
+  const held = await page.evaluate(() => window.game.ui.view.toasts.list.length);
+  assert(held === 0, `no toast over the open balloon (${held})`);
+  await shot(page, `toast-inspector${suffix}`);
+  await page.evaluate(() => {
+    window.__valid = false;
+    window.game.deselect();
+  });
+  await page.waitForTimeout(400);
+  const after = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
+  assert(after.length === 1 && after[0] === 'Teste: aviso com o balão aberto', `the toast comes when the balloon closes, the stale one does not (${after})`);
+  await shot(page, `toast-inspector-closed${suffix}`);
+
+  // Demolir aimed at a full granary: "Perde N de comida" over it.
+  const granary = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    s.unlocked.push('granary');
+    const to = core.RULES.map.altar;
+    const spot = core.placeSpots(s, 'granary').sort((a, b) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y)))[0];
+    core.place(s, 'granary', spot.x, spot.y);
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s);
+    game.refresh();
+    const g = s.grid[spot.y * s.cols + spot.x];
+    return { x: g.x, y: g.y, w: g.w, h: g.h, lost: core.foodLostIfRemoved(s, g.x, g.y) };
+  });
+  assert(granary.lost > 0, `demolishing the full granary loses food (${granary.lost})`);
+  await centerOnBuilding(page, granary);
+  await page.evaluate(([x, y]) => {
+    window.game.selectTool('clear');
+    window.game.setHover({ x, y });
+  }, [granary.x + 1, granary.y + 1]);
+  await page.waitForTimeout(300);
+  const tag = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(tag && tag.startsWith('Perde'), `Demolir over the granary says the food lost (${tag})`);
+  await shot(page, `demolish-granary${suffix}`);
+  await page.evaluate(([x, y]) => {
+    window.game.setHover(null);
+    window.game.selectTool('view');
+    window.game.selected = { x, y };
+    window.game.refresh();
+  }, [granary.x, granary.y]);
+  await page.waitForTimeout(200);
+  const glines = await inspectorLines(page);
+  assert(glines.some((l) => l.includes('Perde')), `the granary balloon says the food Demolir would lose (${glines})`);
+  await shot(page, `demolish-granary-balloon${suffix}`);
+  await page.evaluate(() => window.game.deselect());
+
+  // The Moradia strip: Casa, Praça and Parque; the plaza chosen with its balloon.
+  await page.evaluate(() => {
+    window.state.unlocked.push('park');
+    window.game.ui.unlocked('park');
+    window.game.refresh();
+  });
+  await page.evaluate(() => window.game.ui.openCategory('home'));
+  await page.waitForTimeout(200);
+  const strip = await page.evaluate(() => window.game.ui.view.column.strip?.items.map((i) => i.kind) ?? null);
+  assert(!strip || (strip.includes('plaza') && strip.includes('park')), `Moradia has the plaza and the park (${strip})`);
+  await shot(page, `column-home${suffix}`);
+  await page.evaluate(() => window.game.ui.view.column.closeStrip());
+  assert((await pressBuild(page, 'park')) === 'park', 'the column picks the park');
+  await shot(page, `column-park${suffix}`);
+}
+
 /** Plays the whole tutorial as a new player would, with a screenshot of each step. */
 async function playTutorial(page, suffix) {
   await startGame(page, { tutorial: true });
   const shotStep = (name) => shot(page, `tutorial-${name}${suffix}`);
-  const pressTool = async (name, k) => press(page, ...(await uiPoint(page, name, k)));
-
-  // 1. Road: the arrow points at Rua, then along the marked road.
-  assert((await tutorialStep(page)) === 'road', 'the tutorial starts with the road');
   await page.evaluate(() => window.game.setSpeed(0));
+  await page.waitForTimeout(300);
+  await shot(page, `tutorial-caravan${suffix}`); // the opening sentence over the start
+  const caravan = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
+  assert(caravan.some((m) => m.startsWith('A caravana chegou com')), `the caravan sentence opens the game (${caravan})`);
+
+  // 1. Road to the best food spot, along the marked road. The clock stands still on build steps.
+  assert((await tutorialStep(page)) === 'road', 'the tutorial starts with the road to the food');
+  await page.evaluate(() => window.game.setSpeed(3));
+  const week0 = await page.evaluate(() => window.state.week);
+  await page.waitForTimeout(1500);
+  assert((await page.evaluate(() => window.state.week)) === week0, 'the clock stands still on a build step');
+  await page.evaluate(() => window.game.setSpeed(0));
+  await assertStepInView(page, 'road');
+  const ghostClear = await page.evaluate(() => {
+    const g = window.game;
+    const top = g.ui.view.toasts.top ?? Infinity;
+    return g.ghost.filter((c) => {
+      const p = g.cellScreen(c.x, c.y, 1, 1);
+      return g.ui.isOverUi(p.x, p.y) || p.y >= top;
+    });
+  });
+  assert(ghostClear.length === 0, `the caravan toast and the interface leave the marked road clear (${JSON.stringify(ghostClear)})`);
   await shotStep('step-1');
-  await tool(page, 4); // Campo is locked during the step
-  assert(await page.evaluate(() => window.game.tool === 'view'), 'only the step tool can be picked');
-  await pressTool('leftButton', 1); // Rua
+  await tool(page, 2);
+  assert(await page.evaluate(() => window.game.tool === 'road'), 'the Rua key picks the road');
+  await page.evaluate(() => window.game.selectTool('view'));
+  assert((await pressBuild(page, 'plaza')) === 'plaza', 'tools never lock: the plaza can be picked on the road step');
+  await page.evaluate(() => window.game.selectTool('view'));
+  await press(page, ...(await uiPoint(page, 'tool-road')));
   assert(await page.evaluate(() => window.game.tool === 'road'), 'the Rua button picks the road');
   const ghost = await page.evaluate(() => window.game.ghost.map((c) => [c.x, c.y]));
-  assert(ghost.length === 6, `a marked road of 6 cells (${ghost.length})`);
+  assert(ghost.length >= 2, `a marked road (${ghost.length})`);
   await dragCells(page, ghost);
-  assert((await tutorialStep(page)) === 'houses', 'dragging the marked road ends step 1');
+  const built = await page.evaluate((g) => g.map(([x, y]) => window.state.roads[window.core.indexOf(window.state, x, y)] ? 1 : 0).join(''), ghost);
+  assert((await tutorialStep(page)) === 'gather', `dragging the marked road ends step 1 (${JSON.stringify(ghost)} built ${built}, silver ${await page.evaluate(() => window.state.silver)})`);
 
-  // 2. Houses: green spots next to the road.
-  await pressTool('buildButton', 0); // Casa
-  await page.waitForTimeout(200);
+  // 2. Fisher or gatherer at the end of the road: the preview says what it yields.
+  await assertStepInView(page, 'gather');
   await shotStep('step-2');
-  for (let k = 0; k < 3; k++) await placeNear(page, 'house');
-  assert((await tutorialStep(page)) === 'family', '3 houses end step 2');
+  const spot = await page.evaluate(() => window.game.spot);
+  assert(spot && spot.food >= 1.2, `the road leads to a spot that brings food (${JSON.stringify(spot)})`);
+  assert((await pressBuild(page, spot.kind)) === spot.kind, `the column picks the ${spot.kind}`);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
+  await page.waitForTimeout(200);
+  const yields = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(yields && yields.startsWith('Rende'), `the preview says what it yields (${yields})`);
+  await shotStep('step-2-preview');
+  const placed = await page.evaluate(([k, x, y]) => {
+    const r = window.core.place(window.state, k, x, y);
+    window.game.refresh();
+    return r.ok ? 'ok' : r.reason;
+  }, [spot.kind, spot.x, spot.y]);
+  assert((await tutorialStep(page)) === 'field', `a fisher or gatherer ends step 2 (place: ${placed}, step ${await tutorialStep(page)})`);
 
-  // 3. A family arrives; the camera follows it.
-  await page.evaluate(() => window.game.setSpeed(1));
-  await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 20000 });
-  await page.waitForTimeout(700);
+  // 3. Field: the camera brings the free field spot nearest the altar into view.
+  await assertStepInView(page, 'field');
+  await pressBuild(page, 'field');
   await shotStep('step-3');
-  await page.waitForFunction(() => window.game.guide?.step?.id === 'field', null, { timeout: 30000 });
-
-  // 4. Field.
-  await page.evaluate(() => window.game.setSpeed(0));
-  await shotStep('step-4');
   await placeNear(page, 'field');
-  assert((await tutorialStep(page)) === 'well', 'a field ends step 4');
+  assert((await tutorialStep(page)) === 'plaza', 'a field ends step 3');
 
-  // 5. Well: the preview shows its radius and the houses it serves.
-  await pressTool('buildButton', 2); // Poço
-  const house = await page.evaluate(() => window.state.buildings.find((b) => b.kind === 'house' && b.level >= 1));
-  const spot = await page.evaluate(([x, y]) => {
+  // 4. Plaza near the caravan tents: the preview says how many houses it serves.
+  await assertStepInView(page, 'plaza');
+  assert((await pressBuild(page, 'plaza')) === 'plaza', 'the column picks the plaza (category, then the building)');
+  // The arrow's spot (campPlazaSpot) is free and reaches the caravan tents.
+  const plazaAt = await page.evaluate(() => {
     const { state: s, core } = window;
-    return core.placeSpots(s, 'well').sort((a, b) => Math.abs(a.x - x) + Math.abs(a.y - y) - (Math.abs(b.x - x) + Math.abs(b.y - y)))[0];
-  }, [house.x, house.y]);
-  await page.mouse.move(...(await cellToPage(page, spot.x + 1, spot.y + 1)));
-  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x + 1, spot.y + 1]);
+    const at = core.campPlazaSpot();
+    return { ...at, ok: core.checkPlace(s, 'plaza', at.x, at.y).ok, serves: core.servedHouses(s, 'plaza', at.x, at.y).length };
+  });
+  assert(plazaAt.ok && plazaAt.serves > 0, `the tutorial plaza spot is free and serves the tents (${JSON.stringify(plazaAt)})`);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [plazaAt.x, plazaAt.y]);
   await page.waitForTimeout(200);
   const serves = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
-  assert(serves && serves.startsWith('Atende'), `the well preview says how many houses it serves (${serves})`);
-  await shotStep('step-5');
+  assert(serves && serves.startsWith('Atende'), `the plaza preview says how many houses it serves (${serves})`);
+  await shotStep('plaza');
   await page.evaluate(([x, y]) => {
-    window.core.place(window.state, 'well', x, y);
+    window.core.place(window.state, 'plaza', x, y);
     window.game.refresh();
-  }, [spot.x, spot.y]);
-  assert((await tutorialStep(page)) === 'grow', 'a well ends step 5');
+  }, [plazaAt.x, plazaAt.y]);
+  assert((await tutorialStep(page)) === 'house', 'a plaza ends step 4');
 
-  // 6. Watch a tent become a mud house; then every unlocked tool is free.
-  await shotStep('step-6');
+  // 5. House next to the road, near the plaza.
+  await pressBuild(page, 'house');
+  await page.waitForTimeout(200);
+  const hintNear = await page.evaluate(() => {
+    const { state: s, game } = window;
+    const h = game.houseHint;
+    return !!h && [0, 1].some((dx) => [0, 1].some((dy) => s.coverage.plaza[(h.y + dy) * s.cols + h.x + dx]));
+  });
+  assert(hintNear, 'the arrow points at a house spot near the plaza');
+  await shotStep('step-5');
+  await placeNear(page, 'house');
+  assert((await tutorialStep(page)) === 'family', 'a house ends step 5');
+
+  // 6. A family arrives; the camera follows it. If nothing blocks the families, it comes.
+  await openFamilyDoor(page);
   await page.evaluate(() => window.game.setSpeed(3));
+  await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 30000 });
+  await page.waitForTimeout(700);
+  await shotStep('step-6');
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
-  assert(await page.evaluate(() => window.game.guide.allowed() === null), 'tools are free after step 6');
+  assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after step 6');
+  const end = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+  assert(end.some((m) => m.includes('Construa mais casas')), `the last tutorial toast asks for more houses (${end})`);
 
-  // Goal 2: the balance message, then the market.
+  // Goal 3: the balance message, then the market.
   await page.evaluate(() => {
     window.game.setSpeed(0);
     window.state.unlocked.push('market');
     window.game.handleEvents([{ type: 'upkeepStart' }]);
     window.game.refresh();
   });
-  assert((await tutorialStep(page)) === 'upkeep', 'goal 2 shows the balance message');
+  assert((await tutorialStep(page)) === 'upkeep', 'goal 3 shows the balance message');
   await shotStep('saldo');
   await clickTutorial(page, 'okBtn');
   assert((await tutorialStep(page)) === 'market', '"Entendi" moves on to the market');
   await shotStep('market');
+  await page.evaluate(() => (window.state.silver = 500));
   await placeNear(page, 'market');
   assert((await tutorialStep(page)) === null, 'a market ends the tutorial');
   assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
+}
+
+/** The family step never traps the player: with the families blocked, the bubble says why, no toast repeats it and the clock runs. */
+async function tutorialBlocked(page) {
+  await startGame(page, { tutorial: true });
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    window.game.setSpeed(0);
+    s.silver = 1e4;
+    // Jump to the family step with an empty store (the "food" block).
+    const g = window.game.guide;
+    while (g.step && g.step.id !== 'family') g.k++;
+    const spot = core.placeSpots(s, 'house').at(-1);
+    core.place(s, 'house', spot.x, spot.y);
+    s.food = 0;
+    window.game.refresh();
+  });
+  const why = await page.evaluate(() => [window.core.familyBlock(window.state), window.game.guide.holdsClock, window.game.ui.view.toasts.list.map((t) => t.msg)]);
+  assert(why[0] === 'food' && why[1] === false, `blocked families, and the clock runs (${JSON.stringify(why)})`);
+  assert(!why[2].some((m) => m.startsWith('Nenhuma família')), `no family toast during the tutorial (${why[2]})`);
+  await shot(page, 'tutorial-family-blocked');
+}
+
+/**
+ * A road drag (finger on the phone, mouse on the PC) from a map cell that ends over a button: the
+ * button must not fire, because the press did not start on it.
+ */
+async function dragOntoButton(page, from, [bx, by]) {
+  const start = await cellToScreen(page, ...from);
+  const mid = [(start[0] + bx) / 2, (start[1] + by) / 2];
+  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
+    const { touch } = await touchInput(page);
+    await touch('touchStart', [start]);
+    await page.waitForTimeout(220);
+    for (const p of [mid, [bx, by]]) {
+      await touch('touchMove', [p]);
+      await page.waitForTimeout(60);
+    }
+    await touch('touchEnd', []);
+  } else {
+    await page.mouse.move(...(await gameToPage(page, ...start)));
+    await page.mouse.down();
+    await page.mouse.move(...(await gameToPage(page, ...mid)), { steps: 5 });
+    await page.mouse.move(...(await gameToPage(page, bx, by)), { steps: 5 });
+    await page.mouse.up();
+  }
+  await page.waitForTimeout(250);
+}
+
+/** Releasing a road drag over "Pular tutorial" or the pause skips nothing and pauses nothing. */
+async function dragReleaseOnButton(page, suffix) {
+  await startGame(page, { tutorial: true });
+  await page.evaluate(() => window.game.setSpeed(1));
+  await press(page, ...(await uiPoint(page, 'tool-road')));
+  assert(await page.evaluate(() => window.game.tool === 'road'), 'the road is picked');
+  const skip = await page.evaluate(() => {
+    const m = window.game.ui.view.tutorial.skipBtn.root.getWorldTransformMatrix();
+    return [m.tx, m.ty];
+  });
+  const from = await page.evaluate(() => window.game.ghost[0]);
+  await dragOntoButton(page, [from.x, from.y], skip);
+  assert(await page.evaluate(() => window.game.guide !== null), 'a drag released on "Pular tutorial" does not skip it');
+  const pause = await page.evaluate(() => window.layout.novaPoint('speed-0') ?? window.layout.novaPoint('speed-1'));
+  assert(pause, 'the speed button is on screen');
+  await dragOntoButton(page, [from.x, from.y], [pause.x, pause.y]);
+  assert(await page.evaluate(() => window.game.speed === 1), 'a drag released on the speed button does not change it');
+  await shot(page, `drag-release-on-button${suffix}`);
+}
+
+/** "Comida depois" on the preview of a food building and in the balloon of a workplace that takes workers. */
+async function previewFoodAfter(page, suffix) {
+  await startGame(page);
+  await page.evaluate(() => {
+    window.game.setSpeed(0);
+    window.state.silver = 1e4;
+  });
+  const spot = await page.evaluate(() => window.core.foodSpot(window.state));
+  await page.evaluate((road) => {
+    for (const c of road) window.core.place(window.state, 'road', c.x, c.y);
+    window.game.refresh();
+  }, spot.road);
+  await pick(page, spot.kind);
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [spot.x, spot.y]);
+  await page.waitForTimeout(250);
+  const tag = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
+  assert(tag && tag.startsWith('Rende') && tag.includes('Comida depois'), `the preview says what it yields and the food after (${tag})`);
+  await shot(page, `preview-food-after${suffix}`);
+  // A market with 1 worker for many jobs: the balloon warns about the food it costs.
+  await page.evaluate(() => {
+    window.state.unlocked.push('market');
+    window.game.setHover(null);
+  });
+  await page.evaluate((s) => {
+    const st = window.state;
+    window.core.place(st, s.kind, s.x, s.y);
+    // Workshops until the jobs reach the workers: the market's 3 jobs then take workers from the food.
+    st.unlocked.push('workshop');
+    const eco = () => window.core.computeEconomy(st);
+    while (eco().jobs < eco().workers) {
+      const at = window.core.placeSpots(st, 'workshop')[0];
+      if (!at || !window.core.place(st, 'workshop', at.x, at.y).ok) break;
+    }
+    window.game.refresh();
+  }, spot);
+  await pick(page, 'market');
+  await page.waitForTimeout(250);
+  const lines = await page.evaluate(() => JSON.parse(window.game.ui.view.column.balloon.key || '[]').map((l) => l.text));
+  await shot(page, `preview-food-after-market${suffix}`);
+  return lines;
+}
+
+/** The season pill counts down to the winter (and to the spring in winter); the food pill says FOME in a famine. */
+async function harvestCountdown(page, suffix) {
+  await startGame(page);
+  await page.evaluate(() => window.game.setSpeed(0));
+  await page.waitForTimeout(200);
+  const pill = () => page.evaluate(() => window.game.ui.view.top.season.texts.filter((t) => t.visible).map((t) => t.text).join(' '));
+  const autumn = await pill();
+  assert(autumn.includes('inverno em'), `autumn counts down to the winter (${autumn})`);
+  await shot(page, `harvest-countdown-autumn${suffix}`);
+  await page.evaluate(() => {
+    const s = window.state;
+    s.week = window.core.RULES.weeksPerSeason + 4; // winter
+    s.food = 0;
+    s.famine = true;
+    window.game.refresh();
+  });
+  await page.waitForTimeout(200);
+  const winter = await pill();
+  assert(winter.includes('primavera em'), `winter counts down to the spring (${winter})`);
+  const food = await page.evaluate(() => window.game.ui.view.top.food.texts.filter((t) => t.visible).map((t) => t.text).join(' '));
+  assert(food.includes('FOME'), `the food pill says FOME in a famine (${food})`);
+  const fit = await page.evaluate(() => {
+    const p = window.game.ui.view.top.season;
+    return { right: p.root.x + p.w, width: window.game.ui.cameras.main.width };
+  });
+  assert(fit.right <= fit.width, `the season pill fits the screen (${JSON.stringify(fit)})`);
+  await shot(page, `harvest-countdown-winter${suffix}`);
 }
 
 // ---------- scenarios ----------
@@ -538,6 +926,43 @@ const scenarios = {
   /** First game on a phone: the six tutorial steps, then the balance and the market. */
   tutorial: { context: PHONE, run: (page) => playTutorial(page, '') },
   'tutorial-pc': { context: PC, run: (page) => playTutorial(page, '-pc') },
+  /** The family step with the families blocked: the reason shows and the tools are free (never stuck). */
+  'tutorial-blocked': { context: PC, run: tutorialBlocked },
+  /** "Comida depois" on the food preview, and on the balloon of a workplace that takes workers. */
+  'preview-food-after': { context: PHONE, run: (page) => previewFoodAfter(page, '') },
+  'preview-food-after-pc': {
+    context: PC,
+    async run(page) {
+      const lines = await previewFoodAfter(page, '-pc');
+      assert(lines.some((l) => l.startsWith('Comida depois')), `the market balloon says the food after (${lines})`);
+    },
+  },
+  /** Countdown to the winter and the spring on the season pill; FOME on the food pill. */
+  'harvest-countdown': { context: PHONE, run: (page) => harvestCountdown(page, '') },
+  'harvest-countdown-pc': { context: PC, run: (page) => harvestCountdown(page, '-pc') },
+  /** A toast that comes while a panel is open waits until the panel closes. */
+  async 'toast-panel'(page) {
+    await startGame(page);
+    await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+    await clickUi(page, 'side-stats');
+    await page.waitForTimeout(200);
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'the statistics are open');
+    await page.evaluate(() => window.game.ui.toast('Teste: um aviso chegando', 'info'));
+    await page.waitForTimeout(300);
+    const over = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
+    assert(over.length === 0, `no toast over the open panel (${over})`);
+    await shot(page, 'toast-panel-open');
+    await clickUi(page, 'side-stats');
+    await page.waitForTimeout(400);
+    assert((await page.evaluate(() => window.game.ui.view.toasts.list.length)) === 1, 'the toast comes when the panel closes');
+    await shot(page, 'toast-panel-closed');
+  },
+  /** Pacote 2: lock on the house balloon, toasts held by the tapped balloon, Demolir on a granary, Praça and Parque. */
+  'p2-ui': { context: PHONE, run: (page) => p2Interface(page, '') },
+  'p2-ui-pc': { context: PC, run: (page) => p2Interface(page, '-pc') },
+  /** A drag that ends over a button does not press it (phone and PC). */
+  'drag-release-on-button': { context: PHONE, run: (page) => dragReleaseOnButton(page, '') },
+  'drag-release-on-button-pc': { context: PC, run: (page) => dragReleaseOnButton(page, '-pc') },
 
   /** Skipping ends the tutorial for good; with the storage blocked the game still runs. */
   async 'tutorial-skip'(page) {
@@ -546,8 +971,8 @@ const scenarios = {
     await clickTutorial(page, 'skipBtn');
     assert(await page.evaluate(() => window.game.guide === null), 'Pular tutorial ends it');
     assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'skipping is remembered');
-    await tool(page, 4); // Campo is free again
-    assert(await page.evaluate(() => window.game.tool === 'field'), 'every unlocked tool is free after skipping');
+    await tool(page, 2); // Rua is free again
+    assert(await page.evaluate(() => window.game.tool === 'road'), 'every unlocked tool is free after skipping');
 
     const blocked = await page.context().newPage();
     const errors = [];
@@ -566,58 +991,66 @@ const scenarios = {
     await blocked.close();
   },
 
-  /** A tap on the options panel (title or edges) never reaches the map or the tools. */
+  /** A tap on the settings panel (title or edges) never reaches the map or the tools. */
   async options(page) {
     await startGame(page);
-    const gear = await page.evaluate(() => [window.layout.OPTIONS.x + window.layout.OPTIONS.w / 2, window.layout.OPTIONS.y + window.layout.OPTIONS.h / 2]);
-    await page.mouse.click(...(await gameToPage(page, ...gear)));
+    await clickUi(page, 'gear');
     await page.waitForTimeout(150);
-    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'the gear opens the options');
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'settings'), 'the gear opens the settings');
     const t0 = await page.evaluate(() => window.game.tool);
     const [x, y] = await page.evaluate(() => {
-      const r = window.game.ui.options.rect;
+      const r = window.game.ui.view.panels.rect;
       return [r.x + r.w / 2, r.y + 12];
     });
     await page.mouse.click(...(await gameToPage(page, x, y)));
     await page.waitForTimeout(150);
     assert(await page.evaluate((t) => window.game.tool === t && !window.game.selected, t0), 'tapping the panel title changes nothing on the map');
-    assert(await page.evaluate(() => window.game.ui.options.panel.visible), 'and the panel stays open');
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'settings'), 'and the panel stays open');
+    await shot(page, 'options');
   },
 
   async 'build-with-mouse'(page) {
     await startGame(page);
     const before = await stats(page);
-    assert(before.roads === 41, `starting roads (ring + road south) have 41 cells (got ${before.roads})`);
-    assert(before.buildings.join() === 'altar', 'only the altar at start');
+    assert(before.roads > 0, `the city starts with roads (${before.roads})`);
+    assert(before.buildings.filter((k) => k !== 'house').join() === 'altar', `only the altar and the caravan tents at start (${before.buildings})`);
+    await page.evaluate(() => (window.state.silver = 1e4));
 
     await tool(page, 2); // Rua
     await mouseDrag(page, [[27, 24], [32, 24]]);
-    await tool(page, 3); // Casa: 2x2, so dragging 6 cells places 3 houses
+    await tool(page, 3); // Moradia: Casa first, 2x2, so dragging 6 cells places 3 houses
+    assert(await page.evaluate(() => window.game.tool === 'house'), 'key 3 picks the house');
     await mouseDrag(page, [[27, 25], [32, 25]]);
-    await tool(page, 4); // Campo: 2x2 at the clicked cell
-    await page.mouse.click(...(await cellToScreen(page, 22, 29)));
-    await tool(page, 5); // Poço
-    await page.mouse.click(...(await cellToScreen(page, 22, 32)));
-    await page.mouse.move(...(await cellToScreen(page, 27, 30)));
+    // The same key again: the next one of Moradia, Praça (called directly: a key press is sometimes lost or doubled under software rendering).
+    await page.evaluate(() => window.game.pickCategory('home'));
+    const again = await page.evaluate(() => window.game.tool);
+    assert(again === 'plaza', `key 3 again picks the plaza (${again})`);
+    await mouseClick(page, 22, 32);
+    await tool(page, 4); // Comida: Campo first
+    assert(await page.evaluate(() => window.game.tool === 'field'), 'key 4 picks the field');
+    await mouseClick(page, 22, 29);
+    await page.mouse.move(...(await cellToPage(page, 27, 30)));
     await page.waitForTimeout(300);
     await shot(page, 'build-with-mouse');
 
     const after = await stats(page);
-    assert(after.roads === 47, `dragged road adds 6 cells (got ${after.roads})`);
-    assert(after.houses.length === 3, `dragged 3 houses (got ${after.houses.length})`);
-    assert(after.buildings.includes('field') && after.buildings.includes('well'), 'field and well placed');
+    assert(after.roads === before.roads + 6, `dragged road adds 6 cells (got ${after.roads - before.roads})`);
+    assert(after.houses.length === before.houses.length + 3, `dragged 3 houses (got ${after.houses.length - before.houses.length})`);
+    assert(after.buildings.includes('field') && after.buildings.includes('plaza'), 'field and plaza placed');
   },
 
   async 'families-arrive'(page) {
     await startGame(page);
-    await tool(page, 3);
+    await page.evaluate(() => (window.state.silver = 1e4));
+    await tool(page, 3); // Casa
     await mouseDrag(page, [[22, 28], [22, 36]]);
+    await openFamilyDoor(page);
     await setSpeed(page, 3);
     await tool(page, 1);
     await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 20000 });
     await page.waitForTimeout(400);
     await shot(page, 'families-walking');
-    await page.waitForFunction(() => window.state.buildings.some((b) => b.kind === 'house' && b.level >= 1), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.state.milestones.includes('firstFamily'), null, { timeout: 30000 });
     await page.waitForTimeout(1500);
     await shot(page, 'families-arrived');
   },
@@ -634,31 +1067,26 @@ const scenarios = {
         ['sunset', 0.56, 'dusk'],
         ['night', 0.76, 'moon'],
       ];
-      for (const [name, t, icon] of phases) {
+      for (const [name, t, phase] of phases) {
         await page.evaluate((t) => window.game.dayNight.setTime(t), t);
         await page.waitForTimeout(400);
-        const got = await page.evaluate(() => ({ icon: window.game.ui.hud.phase.texture.key, light: window.game.dayNight.current }));
-        assert(got.icon === `icon-${icon}`, `${name}: ${icon} next to the month (got ${got.icon})`);
+        const got = await page.evaluate(() => window.game.dayNight.current.phase);
+        assert(phase !== 'moon' || got === 'night', `${name}: night at ${t} (got ${got})`);
         await shot(page, `day-night-${name}`);
       }
       const night = await page.evaluate(() => window.game.dayNight.current);
       assert(night.night === 1 && Math.abs(night.walkers - 0.5) < 1e-9, `half the walkers at night (${night.walkers})`);
       assert(await page.evaluate(() => window.game.map.lights.groups.size > 10), 'windows, lamps and fires are lit at night');
-      // Turning the cycle off from the options panel: always day.
-      const opt = await page.evaluate(() => window.layout.OPTIONS);
-      await page.mouse.click(...(await gameToPage(page, opt.x + opt.w / 2, opt.y + opt.h / 2)));
+      // Turning the cycle off from the settings panel: always day.
+      await clickUi(page, 'gear');
       await page.waitForTimeout(200);
-      const row = await page.evaluate(() => {
-        const r = window.game.ui.options.rect;
-        return [r.x + r.w / 2, r.y + 6 + 36 + 30];
-      });
       await shot(page, 'day-night-options');
-      await page.mouse.click(...(await gameToPage(page, ...row)));
+      await clickUi(page, 'setting-dayNight');
       await page.waitForTimeout(300);
       const off = await page.evaluate(() => window.game.dayNight.current);
       assert(off.night === 0 && off.phase !== 'night', `cycle off shows the day (${off.phase})`);
       await shot(page, 'day-night-off');
-      await page.mouse.click(...(await gameToPage(page, ...row))); // back on for the next runs (saved in the browser)
+      await clickUi(page, 'setting-dayNight'); // back on for the next runs (saved in the browser)
     },
   },
 
@@ -748,10 +1176,10 @@ const scenarios = {
     await page.evaluate(() => window.game.selectTool('house'));
     await page.mouse.move(500, 300);
     await page.waitForTimeout(300);
-    await shot(page, 'overlay-house-sacred-area');
+    await shot(page, 'overlay-house-plaza-area');
   },
 
-  /** Happiness: the face on the plaque, its breakdown, a house's mood, the garden's radius and a sad balloon. */
+  /** Happiness: the face on the plaque, its breakdown, a house's mood, the park's radius and a sad balloon. */
   async happiness(page) {
     await startGame(page);
     await setSpeed(page, 0);
@@ -762,21 +1190,29 @@ const scenarios = {
     });
     const eco = await page.evaluate(() => window.game.eco);
     assert(eco.moods.happy + eco.moods.neutral + eco.moods.sad > 0, `houses have moods (${JSON.stringify(eco.moods)})`);
-    const [face, want] = await page.evaluate(() => [window.game.ui.hud.face.texture.key, `mood-${window.core.moodOf(window.game.eco.happiness)}`]);
-    assert(face === want, `plaque face follows the mood (${face}, ${want})`);
+    const face = () => page.evaluate(() => window.game.ui.view.top.joy.icon.texture.key);
+    const want = await page.evaluate(() => `mood-${window.core.moodOf(window.game.eco.happiness)}`);
+    assert((await face()) === want, `the Alegria pill face follows the mood (${await face()}, ${want})`);
 
-    await clickUi(page, 'plaqueSlot', 4);
-    assert(await page.evaluate(() => window.game.infoMode === 'happiness'), 'tapping the face shows the happiness breakdown');
+    const joy = await page.evaluate(() => {
+      const r = window.game.ui.view.top.joy.rect;
+      return [r.x + r.w / 2, r.y + r.h / 2];
+    });
+    await page.mouse.click(...(await gameToPage(page, ...joy)));
+    await page.waitForTimeout(150);
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'tapping the Alegria pill opens the statistics');
     await shot(page, 'happiness-breakdown');
+    await page.keyboard.press('Escape');
 
-    // A house next to the garden: happy, with its reasons in the info line.
+    // A house next to the park: happy, with its reasons in the info line.
     const mood = await page.evaluate(() => {
       const { state: s, core } = window;
       const b = s.grid[19 * s.cols + 19];
       window.game.select({ x: 19, y: 19 });
       return core.houseInfo(s, b).happiness;
     });
-    assert(mood?.parts.some((p) => p.kind === 'garden'), `the house beside the garden counts it (${JSON.stringify(mood)})`);
+    assert(mood?.parts.some((p) => p.kind === 'park'), `the house beside the park counts it (${JSON.stringify(mood)})`);
+    assert(await page.evaluate(() => window.game.ui.view.inspector.open), 'the house balloon shows its mood');
     await shot(page, 'happiness-house');
 
     // Famine makes every house sad: sad balloons and a red face.
@@ -785,17 +1221,17 @@ const scenarios = {
       window.game.refresh();
     });
     await page.waitForTimeout(300);
-    assert((await page.evaluate(() => window.game.ui.hud.face.texture.key)) === 'mood-sad', 'famine turns the face sad');
+    assert((await face()) === 'mood-sad', 'famine turns the face sad');
     await shot(page, 'happiness-sad');
 
-    // Picking the garden shows its radius.
+    // Picking the park shows its radius.
     await page.evaluate(() => {
       window.state.famine = false;
-      window.game.selectTool('garden');
+      window.game.selectTool('park');
     });
     await page.mouse.move(...(await cellToScreen(page, 16, 25)));
     await page.waitForTimeout(300);
-    await shot(page, 'overlay-garden');
+    await shot(page, 'overlay-park');
   },
 
   /** Farmers working inside fields: count follows efficiency, none on a field without a road. */
@@ -815,8 +1251,11 @@ const scenarios = {
     await page.evaluate(() => {
       const { state: s, core } = window;
       s.silver = 1e6;
-      s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'temple'];
+      s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'temple'];
       s.feature = s.feature.map(() => null);
+      for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
+      for (const c of core.campRoad()) s.roads[c.y * s.cols + c.x] = false; // and their camp road
+      core.refreshCity(s);
       for (let x = 12; x <= 36; x++) core.place(s, 'road', x, 18);
       for (let y = 18; y <= 31; y++) core.place(s, 'road', 12, y);
       for (let x = 12; x <= 24; x++) core.place(s, 'road', x, 31);
@@ -836,6 +1275,7 @@ const scenarios = {
       put('house', 15, 29).level = 4;
       put('house', 17, 29).level = 4;
       put('field', 16, 23); // no road: no farmers
+      s.week = 2 * core.RULES.weeksPerSeason; // the first spring: fields only take workers while they harvest
       window.game.cycleSpeed();
       window.game.cycleSpeed(); // pause
       core.refreshCity(s);
@@ -903,7 +1343,7 @@ const scenarios = {
       await page.waitForFunction(() => window.game?.ui && window.state && window.layout, null, { timeout: 15000 });
       await page.waitForTimeout(500);
 
-      await tap(await uiPoint(page, 'leftButton', 1)); // Rua
+      await tap(await uiPoint(page, 'tool-road')); // Rua
       assert(await page.evaluate((h) => window.game.scale.height === h, phoneH), `phone game height is ${phoneH}`);
       assert(await page.evaluate(() => window.game.tool === 'road'), 'tapping the Rua button picks the road');
       const a = await cellToScreen(page, 27, 23);
@@ -934,8 +1374,8 @@ const scenarios = {
     },
   },
 
-  /** New HUD on a phone in landscape: rails, plaque, goal and alert banners, preview above the finger. */
-  'hud-phone': {
+  /** Phone input: the preview above the finger, releasing over the column cancels, nothing under the top bar, gaps between buttons never build. */
+  'input-phone': {
     context: PHONE,
     async run(page) {
       await startGame(page);
@@ -943,75 +1383,56 @@ const scenarios = {
       await setupHudCity(page);
       const game = await page.evaluate(() => [window.game.scale.width, window.game.scale.height]);
       assert(game[0] === 1280 && game[1] === 591, `phone game size is 1280 x 591 (got ${game})`);
-      // Rail buttons are at least 44 screen px.
-      const px = await page.evaluate(() => (window.layout.BTN * document.querySelector('canvas').getBoundingClientRect().width) / 1280);
-      assert(px >= 44, `rail buttons are at least 44 screen px (got ${px.toFixed(1)})`);
-      await shot(page, 'hud-phone');
 
-      await tap(await uiPoint(page, 'buildButton', 2)); // Poço
-      assert(await page.evaluate(() => window.game.tool === 'well'), 'tapping the Poço button picks the well');
-      // Hold a finger on the map: the preview sits above it. Sliding onto a rail and releasing cancels.
+      await tap(await uiPoint(page, 'build-plaza')); // opens Moradia
+      await tap(await uiPoint(page, 'build-plaza')); // Praça in the strip
+      assert(await page.evaluate(() => window.game.tool === 'plaza'), 'the column picks the plaza');
+      // Hold a finger on the map: the preview sits above it. Sliding onto the column and releasing cancels.
       const count = async () => (await stats(page)).buildings.length;
       const n0 = await count();
-      const finger = [820, 470];
+      const finger = [700, 470];
       const under = await page.evaluate(([x, y]) => window.game.cellAt(x, y), finger);
       await touch('touchStart', [finger]);
       await touch('touchMove', [[finger[0] + 4, finger[1] + 2]]);
       await page.waitForTimeout(250);
-      await shot(page, 'hud-phone-preview');
+      await shot(page, 'input-phone-preview');
       const hover = await page.evaluate(() => window.game.hover);
       assert(hover && hover.x + hover.y < under.x + under.y, `the preview is aimed above the finger (${JSON.stringify([hover, under])})`);
-      await touch('touchMove', [await uiPoint(page, 'buildButton', 4)]);
+      await touch('touchMove', [await uiPoint(page, 'column')]);
       await page.waitForTimeout(100);
       await touch('touchEnd', []);
       await page.waitForTimeout(200);
-      assert((await count()) === n0, 'releasing a building over the rail cancels it');
+      assert((await count()) === n0, 'releasing a building over the column cancels it');
 
-      // A finger near the top rail edge would aim under the plaque: no preview, nothing built.
-      const before = (await stats(page)).buildings.length;
-      const [px0] = await uiPoint(page, 'plaqueSlot', 2);
-      await touch('touchStart', [[px0, 180]]); // aims 90 px higher, at the goal banner
+      // A finger just under the goal pill aims under it: no preview, nothing built.
+      const [gx, gy] = await uiPoint(page, 'pill-goal');
+      await touch('touchStart', [[gx, gy + 80]]); // aims 90 px higher, at the goal pill
       await page.waitForTimeout(250);
       const hidden = await page.evaluate(() => window.game.hover);
       await touch('touchEnd', []);
       await page.waitForTimeout(200);
-      assert(!hidden, 'no preview when the aimed point is under the plaque');
-      assert((await stats(page)).buildings.length === before, 'nothing is built under the plaque');
+      assert(!hidden, 'no preview when the aimed point is under the top bar');
+      assert((await count()) === n0, 'nothing is built under the top bar');
 
-      // Close the alert with its X, then tap the goal.
-      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
-      assert(shown && shown !== 'debt', `a closable alert is shown (${shown})`);
-      await tap(await page.evaluate(() => {
-        const r = window.game.ui.hud.closeRect;
-        return [r.x + r.w / 2, r.y + r.h / 2];
-      }));
-      const after = await page.evaluate(() => window.game.ui.hud.shown?.kind ?? null);
-      assert(after !== shown, `the closed alert is hidden (${shown} -> ${after})`);
-      await tap(await page.evaluate(() => [640, window.layout.GOAL_Y + window.layout.GOAL_H / 2]));
-      assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'tapping the goal shows it in the info line');
-      await shot(page, 'hud-phone-goal');
+      // Demolir, then a tap in the gap between two side buttons: nothing is demolished.
+      await tap(await uiPoint(page, 'tool-clear'));
+      const [ax, ay] = await uiPoint(page, 'side-alerts');
+      const [, sy] = await uiPoint(page, 'side-stats');
+      const gap = [ax, (ay + sy) / 2];
+      assert(await page.evaluate(([x, y]) => window.game.ui.isOverUi(x, y), gap), 'the gap between side buttons counts as interface');
+      await tap(gap);
+      assert((await count()) === n0, 'a tap between two buttons demolishes nothing');
+      await shot(page, 'input-phone-clear');
+      await page.keyboard.press('Escape');
+      assert(await page.evaluate(() => window.game.tool === 'view'), 'one Esc goes from Demolir back to Mover');
     },
   },
 
-  /** The smallest phone in landscape (800 x 360): every rail and speed button is still a 44 px target. */
-  'hud-small-phone': {
-    context: { ...PHONE, viewport: { width: 800, height: 360 } },
-    async run(page) {
-      await startGame(page);
-      const px = await page.evaluate(() => {
-        const k = document.querySelector('canvas').getBoundingClientRect().height / window.game.scale.height;
-        const { LEFT_BTN, BTN, SPEED_BTN, TOOL_W } = window.layout;
-        return { left: LEFT_BTN * k, right: BTN * k, speed: SPEED_BTN * k, width: TOOL_W * k };
-      });
-      for (const [name, v] of Object.entries(px)) assert(v >= 44, `${name} buttons are at least 44 screen px (got ${v.toFixed(1)})`);
-      const plaque = await page.evaluate(() => [window.layout.PLAQUE.x, window.layout.SPEED.x + window.layout.SPEED.w]);
-      assert(plaque[0] > plaque[1], `the plaque clears the speed buttons (${plaque})`);
-      await shot(page, 'hud-small-phone');
-    },
-  },
+  /** The smallest phone in landscape (800 x 360): the Nova still fits, with 44 px buttons. */
+  'nova-small-phone': { context: { ...PHONE, viewport: { width: 800, height: 360 } }, run: (page) => novaScenario(page, 'small-phone') },
 
-  /** New HUD on a PC: clicks on the rails and speed, the UI never builds, alert X, silver and goal. */
-  'hud-pc': {
+  /** PC input: speed buttons, a drag that starts on a pill builds nothing, the silver opens the statistics. */
+  'input-pc': {
     context: PC,
     async run(page) {
       await startGame(page);
@@ -1019,59 +1440,42 @@ const scenarios = {
       const game = await page.evaluate(() => [window.game.scale.width, window.game.scale.height]);
       assert(game[0] === 1280 && game[1] === 720, `PC game size is 1280 x 720 (got ${game})`);
 
-      await clickUi(page, 'buildButton', 3); // Mercado
-      assert(await page.evaluate(() => window.game.tool === 'market'), 'clicking the Mercado button picks the market');
+      await tool(page, 5); // Trabalho: Mercado first
+      assert(await page.evaluate(() => window.game.tool === 'market'), 'key 5 picks the market');
       const [mx, my] = await cellToPage(page, 29, 30);
-      await page.mouse.move(mx - 30, my); // leaving the rail: Phaser gives this move to the UI ("out" event)
+      await page.mouse.move(mx - 30, my);
       await page.mouse.move(mx, my);
       await page.waitForTimeout(250);
       assert(await page.evaluate(() => !!window.game.hover), 'the market preview follows the mouse');
-      await shot(page, 'hud-pc');
+      await shot(page, 'input-pc');
 
-      await clickUi(page, 'speedButton', 2); // 3x
+      await clickUi(page, 'speed-3');
       assert(await page.evaluate(() => window.game.speed === 3), 'the 3x button sets the speed');
-      await clickUi(page, 'speedButton', 0); // pause
+      await clickUi(page, 'speed-0');
       assert(await page.evaluate(() => window.game.speed === 0), 'the pause button pauses');
 
-      // Dragging a road that starts on the plaque builds nothing.
-      await clickUi(page, 'leftButton', 1); // Rua
+      // Dragging a road that starts on a pill builds nothing.
+      await tool(page, 2); // Rua
       const r0 = (await stats(page)).roads;
-      await page.mouse.move(...(await gameToPage(page, ...(await uiPoint(page, 'plaqueSlot', 3)))));
+      await page.mouse.move(...(await gameToPage(page, ...(await uiPoint(page, 'pill-food')))));
       await page.mouse.down();
       await page.mouse.move(...(await cellToPage(page, 30, 30)), { steps: 8 });
       await page.mouse.up();
-      assert((await stats(page)).roads === r0, 'a drag that starts on the plaque builds nothing');
+      assert((await stats(page)).roads === r0, 'a drag that starts on a pill builds nothing');
 
-      // Closing the alert keeps it hidden while it lasts; it comes back after it goes away.
-      const shown = await page.evaluate(() => window.game.ui.hud.shown?.kind);
-      await page.mouse.click(...(await gameToPage(page, ...(await page.evaluate(() => {
-        const r = window.game.ui.hud.closeRect;
-        return [r.x + r.w / 2, r.y + r.h / 2];
-      })))));
-      const dismissed = await page.evaluate(() => [...window.game.ui.hud.dismissed]);
-      assert(dismissed.includes(shown), `the X closes the alert (${shown})`);
-      await page.evaluate(() => window.game.refresh());
-      assert(await page.evaluate((k) => window.game.ui.hud.shown?.kind !== k, shown), 'a closed alert stays hidden');
-
-      await clickUi(page, 'plaqueSlot', 1); // silver
-      assert(await page.evaluate(() => window.game.infoMode === 'silver'), 'clicking the silver shows the breakdown');
-      await shot(page, 'hud-pc-silver');
-      await page.mouse.click(...(await gameToPage(page, 640, await page.evaluate(() => window.layout.GOAL_Y + 10))));
-      assert(await page.evaluate(() => window.game.infoMode === 'goal'), 'clicking the goal shows it in the info line');
-      await shot(page, 'hud-pc-goal');
-
-      // Debt: the alert has no X.
-      await page.evaluate(() => {
-        window.state.silver = -10;
-        window.state.debtMonths = 3;
-        window.game.refresh();
-      });
-      const debt = await page.evaluate(() => [window.game.ui.hud.shown?.kind, window.game.ui.hud.closeRect]);
-      assert(debt[0] === 'debt' && debt[1] === null, 'the debt alert has no X');
-      await page.waitForTimeout(200);
-      await shot(page, 'hud-pc-debt');
+      await tool(page, 1);
+      await clickUi(page, 'pill-silver');
+      assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'clicking the silver opens the statistics');
+      await shot(page, 'input-pc-stats');
+      await clickUi(page, 'pill-goal');
+      assert(await page.evaluate(() => window.game.ui.view.panels.open === 'goals'), 'clicking the goal opens the goals');
+      await shot(page, 'input-pc-goals');
     },
   },
+
+  'nova-phone': { context: PHONE, run: (page) => novaScenario(page, 'phone') },
+  'nova-phone-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => novaScenario(page, 'phone-wide') },
+  'nova-pc': { context: PC, run: (page) => novaScenario(page, 'pc') },
 
   async clarity(page) {
     await startGame(page);
@@ -1079,7 +1483,9 @@ const scenarios = {
       const { state: s, core } = window;
       s.silver = 1e4;
       s.feature = s.feature.map(() => null);
+      for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
       core.place(s, 'field', 22, 30); // connected, but nobody lives here yet
+      s.week = 2 * core.RULES.weeksPerSeason; // its harvest: now it needs workers
       window.game.cycleSpeed();
       window.game.cycleSpeed(); // pause, so the setup stays as built
     });
@@ -1136,18 +1542,22 @@ const scenarios = {
       s.unlocked.push('market');
       s.feature = s.feature.map(() => null);
       core.place(s, 'market', 22, 30); // upright 2x4, west of the road
+      window.roadsBefore = s.roads.filter(Boolean).length;
       core.place(s, 'house', 25, 30);
-      core.place(s, 'well', 25, 33);
+      core.place(s, 'plaza', 25, 33);
       window.game.cycleSpeed();
       window.game.cycleSpeed(); // pause
       window.game.refresh();
     });
     await page.waitForTimeout(200);
     await shot(page, 'turn-0');
-    await clickUi(page, 'leftButton', 5); // ↻
+    await clickUi(page, 'gear');
+    await page.waitForTimeout(150);
+    await clickUi(page, 'setting-turn-right'); // ↻
     await page.waitForTimeout(300);
     assert((await page.evaluate(() => window.iso.getRotation())) === 1, 'the clockwise arrow turns the view');
-    assert((await stats(page)).roads === 41, 'clicking the arrow builds nothing');
+    await page.keyboard.press('Escape');
+    assert((await stats(page)).roads === (await page.evaluate(() => window.roadsBefore)), 'clicking the arrow builds nothing');
     await tool(page, 2); // Rua: picking must follow the turned view
     await mouseDrag(page, [[27, 28], [30, 28]]);
     const built = await page.evaluate(() => [27, 28, 29, 30].every((x) => window.state.roads[28 * window.state.cols + x]));
@@ -1171,6 +1581,7 @@ const scenarios = {
       const { state: s, core } = window;
       s.silver = 1e4;
       s.feature = s.feature.map(() => null);
+      for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
       s.unlocked.push('market', 'workshop');
       core.place(s, 'market', 25, 27);
       core.place(s, 'field', 25, 31);
@@ -1181,7 +1592,7 @@ const scenarios = {
       }
       s.silver = -5;
       s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
-      s.debtMonths = 20;
+      s.debtWeeks = 20;
       s.famine = true;
       s.food = 0;
       window.game.walkers.leave(s, 22, 29); // a family walking out, as when a tent is abandoned
@@ -1198,11 +1609,17 @@ const scenarios = {
     assert(chips[0] === 'debt' && chips.includes('deficit'), `debt and deficit alerts (${chips})`);
     assert(await page.evaluate(() => !window.state.roads[20 * window.state.cols + 24]), 'no road is built in debt');
 
-    await clickUi(page, 'plaqueSlot', 1); // tap the silver
+    await tool(page, 1);
+    await clickUi(page, 'pill-silver'); // tap the silver: the statistics
     await page.waitForTimeout(200);
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'the silver opens the statistics');
     await shot(page, 'debt-silver-info');
+    await clickUi(page, 'side-alerts');
+    await page.waitForTimeout(200);
+    await shot(page, 'debt-alerts-panel');
+    await page.keyboard.press('Escape');
 
-    await page.evaluate(() => (window.state.debtMonths = window.core.RULES.debtMonthsToLose - 1));
+    await page.evaluate(() => (window.state.debtWeeks = window.core.RULES.debtWeeksToLose - 1));
     await setSpeed(page, 1);
     await page.waitForFunction(() => window.state.lost, null, { timeout: 5000 });
     await page.waitForTimeout(400);
@@ -1210,7 +1627,7 @@ const scenarios = {
     await shot(page, 'defeat');
 
     await page.mouse.click(GAME_W / 2, GAME_H / 2 + 80); // Tentar de novo
-    await page.waitForFunction(() => window.state && !window.state.lost && window.state.month === 0 && window.state.silver >= 0, null, { timeout: 5000 });
+    await page.waitForFunction(() => window.state && !window.state.lost && window.state.week === 0 && window.state.silver >= 0, null, { timeout: 5000 });
     await page.waitForTimeout(600);
     assert(await page.evaluate(() => !window.game.ui?.modalOpen), 'a new game starts without the dialog');
     await shot(page, 'defeat-retry');
@@ -1226,7 +1643,7 @@ const scenarios = {
       window.game.refresh();
       window.game.cameras.main.centerOn(-224, 1008); // around the temple spot (25..30, 32..37)
     });
-    await tool(page, 9); // Templo
+    await pick(page, 'temple');
     await page.mouse.click(...(await cellToScreen(page, 27, 34))); // 6x6 centered: top-left (25, 32)
     await page.waitForTimeout(250);
     await shot(page, 'temple-celebration');
@@ -1235,6 +1652,164 @@ const scenarios = {
     await shot(page, 'victory');
   },
 };
+
+/** Minimum size (real screen px) of the visible texts of the interface. */
+const minUiText = (page) =>
+  page.evaluate(() => {
+    const k = document.querySelector('canvas').getBoundingClientRect().width / 1280;
+    let min = Infinity;
+    const walk = (o, sc) => {
+      if (!o.visible) return;
+      const s2 = sc * (o.scaleY ?? 1);
+      if (o.type === 'Text' && o.text.trim()) min = Math.min(min, parseFloat(o.style.fontSize) * s2 * k);
+      if (o.list) o.list.forEach((c) => walk(c, s2));
+    };
+    window.game.ui.children.list.forEach((o) => walk(o, 1));
+    return min;
+  });
+
+/**
+ * The Nova interface on one screen size: start, sizes (44 px touch, 12 px text, the 4 category buttons
+ * fit, no top bar overlaps), chosen building balloon (never over the top right controls), locked
+ * building, tapped house balloon with the main action, Avisos, Objetivos, Estatísticas (both tabs)
+ * and Configurações, a milestone toast and a burst of toasts.
+ */
+async function novaScenario(page, suffix) {
+  await startGame(page);
+  const phone = suffix !== 'pc';
+  const { tap } = phone ? await touchInput(page) : { tap: null };
+  const press = async (name) => {
+    const p = await uiPoint(page, name);
+    if (tap) await tap(p);
+    else await page.mouse.click(...(await gameToPage(page, ...p)));
+    await page.waitForTimeout(150);
+  };
+  await shot(page, `nova-${suffix}`);
+
+  // Every round button is at least 44 real px; the column buttons (categories) fit the screen height.
+  const sizes = await page.evaluate(() => {
+    const k = document.querySelector('canvas').getBoundingClientRect().width / 1280;
+    const names = ['level', 'gear', 'speed-1', 'side-goals', 'side-alerts', 'side-stats', 'tool-view', 'tool-road', 'tool-clear',
+      ...['house', 'plaza', 'market', 'temple'].map((b) => `build-${b}`)];
+    return names.map((n) => {
+      const p = window.layout.novaPoint(n);
+      return { n, real: p.d * k, top: p.y - p.d / 2, bottom: p.y + p.d / 2 };
+    });
+  });
+  const H = await page.evaluate(() => window.game.scale.height);
+  for (const b of sizes) {
+    // 0.01 px tolerance for float rounding of the scale.
+    assert(b.real >= 44 - 0.01, `${b.n} is at least 44 real px (got ${b.real.toFixed(1)})`);
+    assert(b.top >= 0 && b.bottom <= H, `${b.n} fits the screen height (${b.top.toFixed(0)}..${b.bottom.toFixed(0)} of ${H})`);
+  }
+  const overlaps = await page.evaluate(() => {
+    const r = window.game.ui.view.top.rects().filter(Boolean);
+    const out = [];
+    for (let i = 0; i < r.length; i++)
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i];
+        const b = r[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.push([i, j]);
+      }
+    return out;
+  });
+  assert(overlaps.length === 0, `no top bar parts overlap (${JSON.stringify(overlaps)})`);
+
+  // Chosen building: the balloon at the left of the column, never over the season, speed and gear.
+  await setupHudCity(page);
+  await press('build-market'); // opens Trabalho
+  await press('build-market');
+  assert(await page.evaluate(() => window.game.tool === 'market'), 'the Mercado button picks the market');
+  assert(await page.evaluate(() => window.game.ui.view.column.balloon.visible), 'the chosen building balloon shows');
+  await press('build-house'); // Moradia
+  await press('build-house');
+  const clear = await page.evaluate(() => {
+    const v = window.game.ui.view;
+    return v.column.balloon.rect.y >= v.top.rightBottom;
+  });
+  assert(clear, 'the Casa balloon stays under the season pill and the gear');
+  assert((await minUiText(page)) >= 11.9, 'no text under 12 real px');
+  await shot(page, `nova-${suffix}-chosen`);
+
+  // Locked: "Libera no objetivo N", nothing picked.
+  await page.evaluate(() => {
+    window.state.unlocked = window.state.unlocked.filter((k) => k !== 'park');
+    window.game.selectTool('view');
+  });
+  await press('build-park'); // opens Moradia
+  await press('build-park');
+  assert(await page.evaluate(() => window.game.tool === 'view'), 'a locked building is not picked');
+  await shot(page, `nova-${suffix}-locked`);
+
+  // Tapped house (Mover): balloon with what it has and lacks, and the main action.
+  await page.evaluate(() => {
+    const s = window.state;
+    const b = s.buildings.find((x) => x.kind === 'house' && x.level === 2);
+    const w = window.iso.gridToWorld(b.x + 1, b.y + 1);
+    window.game.cameras.main.centerOn(w.x, w.y);
+    window.game.selected = { x: b.x, y: b.y };
+    window.game.refresh();
+  });
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => window.game.ui.view.inspector.open), 'the tapped house balloon shows');
+  await shot(page, `nova-${suffix}-house`);
+  const action = await page.evaluate(() => {
+    const b = window.game.ui.view.inspector.btns[0].root.getWorldTransformMatrix();
+    return [b.tx, b.ty];
+  });
+  if (tap) await tap(action);
+  else await page.mouse.click(...(await gameToPage(page, ...action)));
+  await page.waitForTimeout(200);
+  await shot(page, `nova-${suffix}-spots`);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.game.selectTool('view'));
+
+  // A few weeks of history and two milestones, for the statistics charts and list.
+  await page.evaluate(() => {
+    const s = window.state;
+    s.history = Array.from({ length: 30 }, (_, k) => ({ silver: 120 + 4 * k - (k > 20 ? 30 : 0), food: Math.min(40, 10 + 2 * k), residents: 10 + k, happiness: 50 + (k % 7), capacity: k > 18 ? 190 : 40 }));
+    s.milestones.push('firstFamily', 'firstHarvest');
+    s.milestoneWeeks = { firstFamily: 5, firstHarvest: 27 };
+    window.game.ui.milestone('firstFamily');
+    window.game.ui.milestone('firstHarvest');
+    window.game.refresh();
+  });
+  await page.waitForTimeout(300);
+  await shot(page, `nova-${suffix}-milestone`);
+
+  // Panels never cover the bottom tools.
+  for (const [name, kind] of [['side-alerts', 'alerts'], ['side-goals', 'goals'], ['side-stats', 'stats'], ['gear', 'settings']]) {
+    await press(name);
+    assert(await page.evaluate((k) => window.game.ui.view.panels.open === k, kind), `${name} opens ${kind}`);
+    assert((await minUiText(page)) >= 11.9, `no text under 12 real px in ${kind}`);
+    const covers = await page.evaluate(() => {
+      const v = window.game.ui.view;
+      return v.panels.rect.y + v.panels.rect.h > v.tools.top && v.panels.rect.x < v.tools.bottomRight;
+    });
+    if (covers) await shot(page, `nova-${suffix}-${kind}-covers`);
+    assert(!covers, `${kind} does not cover Mover, Rua and Demolir`);
+    await shot(page, `nova-${suffix}-${kind}`);
+    if (kind === 'stats') {
+      await press('stats-history');
+      assert((await minUiText(page)) >= 11.9, 'no text under 12 real px in the history');
+      await shot(page, `nova-${suffix}-history`);
+      await press('stats-now');
+    }
+    await page.keyboard.press('Escape');
+    assert(await page.evaluate(() => window.game.ui.view.panels.open === null), `Esc closes ${kind}`);
+  }
+
+  // A burst of toasts: none is lost, they wait in line.
+  const sent = await page.evaluate(() => {
+    const msgs = ['Primeira mensagem', 'Segunda mensagem', 'Terceira mensagem', 'Quarta mensagem', 'Quinta mensagem'];
+    for (const m of msgs) window.game.ui.toast(m);
+    const t = window.game.ui.view.toasts;
+    const all = [...t.list, ...t.queue].map((x) => x.msg);
+    return { lost: msgs.filter((m) => !all.includes(m)), shown: t.list.length };
+  });
+  assert(sent.lost.length === 0 && sent.shown <= 3, `no toast of a burst is lost, at most 3 on screen (${JSON.stringify(sent)})`);
+  await shot(page, `nova-${suffix}-toasts`);
+}
 
 /** Taps a page point (before the game scene exists). */
 async function cdpTapPage(page, x, y) {

@@ -28,7 +28,7 @@ export class Walkers {
   private tmp = new THREE.Object3D();
 
   constructor(private s: GameState, private ground: Terrain, count: number, shadows: boolean) {
-    this.rng = createRng(s.month * 31 + 7);
+    this.rng = createRng(s.week * 31 + 7);
     const robe = new THREE.CylinderGeometry(0.06, 0.11, 0.28, 6);
     robe.translate(0, 0.14, 0);
     const head = new THREE.IcosahedronGeometry(0.06, 0);

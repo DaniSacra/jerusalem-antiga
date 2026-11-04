@@ -8,13 +8,13 @@
  */
 import Phaser from 'phaser';
 import VISUAL from '../data/visual.json';
-import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type Mood, type Season, type WalkerType } from '../core';
+import { BUILDINGS, SEASONS, createRng, dimsOf, HOUSE_LEVELS, WALKERS, type BuildingKind, type Craft, type Feature, type Ground, type BalloonKind, type BuildableKind, type BuildingCategory, type Mood, type Season, type WalkerType } from '../core';
 import * as F from './fauna';
 import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
 import { mixColor, type TreeState } from './Seasons';
-import { drawFieldhand, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, residentSize } from './residents';
+import { drawFieldhand, drawHauler, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, HAULER_KINDS, HAULER_SIZE, residentSize, type HaulerKind } from './residents';
 
 type G = Phaser.GameObjects.Graphics;
 type P3 = [number, number, number?];
@@ -41,14 +41,15 @@ export const TEX = {
   scaffold: (w: number, h: number) => `scaffold-${w}x${h}`,
   feature: (f: Feature, v: number) => `${f}-${v}`,
   /**
-   * Houses have one texture per level and variant, fields one per crop and workshops one per craft,
+   * Houses have one texture per level and variant, fields one per crop, workshops one per craft and
+   * the granary one per stock level (its "variant", 0 empty to GRANARY_STOCKS - 1 full, chosen by the map),
    * all also drawn mirrored (so light and shadows keep their side); non-square buildings have their
    * own rotated drawing.
    */
   building: (kind: BuildingKind, level = 0, rotated = false, variant = 0, mirrored = false) =>
     kind === 'house'
       ? `house-${level}-${variant}${mirrored ? '-m' : ''}`
-      : kind === 'field' || kind === 'workshop'
+      : kind === 'field' || kind === 'workshop' || kind === 'granary'
         ? `${kind}-${variant}${mirrored ? '-m' : ''}`
         : rotated
           ? `${kind}-rotated`
@@ -69,6 +70,11 @@ export const TEX = {
   walker: (type: WalkerType, look: number, frame: number, craft: Craft | null = null) =>
     `walker-${type}-${look}-${frame}${craft ? `-${craft}` : ''}`,
   family: 'family',
+  /** A food worker (see Haulers.ts): grain carrier loaded or coming back, fisherman, fruit gatherer. */
+  hauler: (kind: HaulerKind, look: number, frame: number) => `hauler-${kind}-${look}-${frame}`,
+  /** A fly over spoiling food, and a four-pointed gold sparkle (milestones). */
+  fly: 'fly',
+  spark: 'spark',
   /** A farmer working inside a field, in one of FIELDHAND_LOOK_COUNT looks and a pose (see FIELDHAND_POSES). */
   fieldhand: (look: number, pose: number) => `fieldhand-${look}-${pose}`,
   /** `drought`: a strong sun over cracked earth (shown next to the season icon in a drought). */
@@ -79,8 +85,24 @@ export const TEX = {
   petal: 'petal',
   /** Face of a mood (plaque happiness slot). */
   mood: (m: Mood) => `mood-${m}`,
+  /** Small stone thrown out when something is demolished. */
+  pebble: 'pebble',
+  /**
+   * Round-button thumbnails (THUMB x THUMB, centered, clipped to a circle; see uiArt.ts): a building,
+   * a build-menu category, and their greyed locked versions.
+   */
+  thumb: (kind: BuildableKind) => `thumb-${kind}`,
+  thumbLocked: (kind: BuildableKind) => `thumb-${kind}-locked`,
+  categoryThumb: (c: BuildingCategory) => `thumb-cat-${c}`,
+  categoryThumbLocked: (c: BuildingCategory) => `thumb-cat-${c}-locked`,
+  /** Interface line icon (ICON x ICON, see uiArt.ts), drawn dark (for light buttons) or light (for dark ones). */
+  uiIcon: (name: UiIcon, tone: 'dark' | 'light' = 'dark') => `ui-${name}-${tone}`,
 };
+/** Line icons of the interface (see TEX.uiIcon). */
+export type UiIcon = 'hand' | 'handGrab' | 'road' | 'hammer' | 'flag' | 'alert' | 'stats' | 'gear' | 'pause' | 'play' | 'lock';
 export const VARIANTS = 4;
+/** Granary drawings by stock: empty, a third, two thirds and full. */
+export const GRANARY_STOCKS = 4;
 /** Skin and clothes combinations drawn for each walker type. */
 export const WALKER_LOOKS = 3;
 
@@ -694,7 +716,7 @@ function jar(p: Pen, x: number, y: number, z: number, r = 3, color = C.terracott
   p.ball(shade(color, 1.3), x - 0.02, y - 0.02, z + r * 1.3, r * 0.3);
 }
 
-/** Vertical cylinder (well head, kiln base), lit on the left like the south faces. */
+/** Vertical cylinder (silo drum, kiln base), lit on the left like the south faces. */
 function cylinder(p: Pen, x: number, y: number, r: number, z0: number, z1: number, color: number) {
   const top = p.p(x, y, z1);
   const bot = p.p(x, y, z0);
@@ -1285,7 +1307,7 @@ function tentAwning(p: Pen) {
   jar(p, 0.2, 0.3, 0, 3);
   const aw: P3[] = [[x0, yf, 12], [x1, yf, 12], [x1, ya, 11], [x0, ya, 11]];
   const n = 8;
-  for (let k = 0; k < n; k++) p.poly(k % 2 ? C.cream : 0x8a5d3b, subQuad(aw, k / n, (k + 1) / n, 0, 1), 0.95);
+  for (let k = 0; k < n; k++) p.poly(k % 2 ? C.cream : C.woodWarm, subQuad(aw, k / n, (k + 1) / n, 0, 1), 0.95);
   p.line(shade(C.cream, 0.7), 1, [x0, ya, 11], [x1, ya, 11]);
   for (const x of [x0 + 0.03, x1 - 0.03]) {
     p.line(C.wood, 2, [x, ya, 0], [x, ya, 12]);
@@ -1993,99 +2015,363 @@ function flax(g: G) {
   });
 }
 
-/** Well (2 x 2): a paved stone platform, a round well head with a pulley frame and a trough. */
-function well(p: Pen) {
-  const s = 0.78;
-  const plat = 4;
-  p.shadow(-s, -s, s, s, 10, 0.18);
-  p.box(-s, -s, s, s, 0, plat, C.stone, shade(C.stone, 0.88), shade(C.stone, 0.64));
-  for (let k = -s + 0.26; k < s; k += 0.26) {
-    p.line(shade(C.stone, 0.82), 1, [k, -s, plat], [k, s, plat], 0.7);
-    p.line(shade(C.stone, 0.82), 1, [-s, k, plat], [s, k, plat], 0.7);
-  }
-  // A small date palm leaning over the back corner.
-  const pc = p.p(-0.6, -0.6, plat);
-  p.g.lineStyle(4, C.palmTrunk);
-  p.g.lineBetween(pc.x, pc.y, pc.x - 2, pc.y - 30);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2;
-    p.g.fillStyle(k % 2 ? C.palm : C.palmDark);
-    p.g.fillTriangle(pc.x - 2, pc.y - 30, pc.x - 2 + Math.cos(a) * 18, pc.y - 26 + Math.sin(a) * 7, pc.x - 2 + Math.cos(a + 0.3) * 12, pc.y - 30 + Math.sin(a + 0.3) * 5);
-  }
-  // Well head with water inside.
-  const wx = 0;
-  const wy = -0.1;
-  const r = 0.36;
-  cylinder(p, wx, wy, r, plat, plat + 13, C.stone);
-  for (const z of [plat + 4.5, plat + 9]) {
-    const c = p.p(wx, wy, z);
-    p.g.lineStyle(1, shade(C.stone, 0.62), 0.6);
-    p.g.beginPath();
-    p.g.arc(c.x, c.y, r * SQRT2 * HW, 0.15, Math.PI - 0.15);
-    p.g.strokePath();
-  }
-  p.disc(C.waterDeep, wx, wy, plat + 13, r * 0.72);
-  p.disc(C.water, wx - 0.03, wy - 0.03, plat + 13, r * 0.5, 0.8);
-  p.disc(C.waterLight, wx - 0.1, wy - 0.06, plat + 13, 0.06, 0.8);
-  // Pulley frame across the well, drawn along the screen horizontal.
-  const ends: [number, number][] = [[wx - 0.42, wy + 0.42], [wx + 0.42, wy - 0.42]];
-  p.box(ends[1][0] - 0.035, ends[1][1] - 0.035, ends[1][0] + 0.035, ends[1][1] + 0.035, plat, plat + 38, C.wood);
-  p.line(C.woodDark, 3, [ends[0][0], ends[0][1], plat + 37], [ends[1][0], ends[1][1], plat + 37]);
-  const pul = p.p(wx, wy, plat + 34);
-  p.g.fillStyle(C.woodDark);
-  p.g.fillCircle(pul.x, pul.y, 4);
-  p.g.fillStyle(C.wood);
-  p.g.fillCircle(pul.x, pul.y, 2);
-  p.line(C.rope, 1, [wx, wy, plat + 33], [wx, wy, plat + 20]);
-  p.box(wx - 0.05, wy - 0.05, wx + 0.05, wy + 0.05, plat + 15, plat + 21, C.wood);
-  p.box(ends[0][0] - 0.035, ends[0][1] - 0.035, ends[0][0] + 0.035, ends[0][1] + 0.035, plat, plat + 38, C.wood);
-  // Stone trough with water, jars and a woman carrying a jar.
-  p.box(0.2, 0.36, 0.7, 0.58, plat, plat + 8, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.6));
-  p.rect(C.waterDeep, 0.25, 0.4, 0.65, 0.54, plat + 8);
-  p.rect(C.waterLight, 0.3, 0.44, 0.45, 0.48, plat + 8, 0.6);
-  jar(p, -0.6, 0.38, plat, 3.6);
-  jar(p, -0.45, 0.55, plat, 3);
-  person(p, -0.15, 0.55, plat, 4);
-  const head = p.p(-0.15, 0.55, plat + 19);
-  p.g.fillStyle(C.terracotta);
-  p.g.fillEllipse(head.x, head.y - 2, 7, 6);
-}
-
 /** A pen whose origin is moved to the local point (x, y), to reuse tree drawings inside a building. */
 const moved = (p: Pen, x: number, y: number) => {
   const c = p.p(x, y);
   return new Pen(p.g, c.x, c.y, p.mirror);
 };
 
-/** Garden (2 x 2): a lawn in a low stone border, paths to a small pool, flower beds, trees and a bench. */
-function garden(p: Pen) {
+/** Plaza (2 x 2): a square paved with light limestone slabs, a shade tree, a cloth awning and a stone bench. */
+function plaza(p: Pen) {
+  const s = 0.86;
+  const kerb = 2;
+  p.shadow(-s, -s, s, s, 6, 0.14);
+  p.box(-s, -s, s, s, 0, kerb, C.limestone, shade(C.limestone, 0.86), shade(C.limestone, 0.62));
+  // Slabs in staggered rows, each a slightly different tone, with mortar joints.
+  const r = createRng(77);
+  const n = 5;
+  const step = (2 * s) / n;
+  p.rect(shade(C.limestone, 0.76), -s, -s, s, s, kerb);
+  for (let j = 0; j < n; j++) {
+    const off = j % 2 ? step / 2 : 0;
+    for (let i = -1; i < n; i++) {
+      const x0 = Math.max(-s, -s + i * step + off);
+      const x1 = Math.min(s, -s + (i + 1) * step + off);
+      if (x1 - x0 < 0.02) continue;
+      const y0 = -s + j * step;
+      p.rect(shade(C.limestone, 0.88 + r() * 0.14), x0 + 0.02, y0 + 0.02, x1 - 0.02, y0 + step - 0.02, kerb);
+    }
+  }
+  // A shade tree in a square stone planter at the back corner.
+  p.box(-0.78, -0.78, -0.3, -0.3, kerb, kerb + 4, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.62));
+  p.rect(C.earthDark, -0.72, -0.72, -0.36, -0.36, kerb + 4);
+  olive(moved(p, -0.54, -0.54), 1);
+  // A plain linen awning on four poles at the back right, a mat and a jar under it.
+  const [ax0, ay0, ax1, ay1, az] = [0.12, -0.8, 0.8, -0.12, kerb];
+  p.rect(C.shadow, ax0 + 0.08, ay0 + 0.04, ax1 + 0.2, ay1, az, 0.16);
+  p.rect(C.woodWarm, ax0 + 0.12, ay0 + 0.14, ax1 - 0.14, ay1 - 0.12, az);
+  p.rect(shade(C.woodWarm, 1.2), ax0 + 0.18, ay0 + 0.2, ax1 - 0.2, ay0 + 0.26, az, 0.8);
+  jar(p, ax1 - 0.22, ay0 + 0.22, az, 3);
+  const posts: [number, number][] = [[ax0, ay0], [ax1, ay0], [ax0, ay1], [ax1, ay1]];
+  posts.forEach(([x, y]) => p.line(C.woodDark, 1.6, [x, y, az], [x, y, az + 20]));
+  // Dyed ochre linen, sagging a little between the posts, with a scalloped hem at the front.
+  const cloth = C.shadeCloth;
+  p.poly(shade(cloth, 0.92), [[ax0, ay0, az + 22], [ax1, ay0, az + 22], [ax1, ay1, az + 18], [ax0, ay1, az + 18]]);
+  p.poly(cloth, [[ax0 + 0.06, ay0 + 0.06, az + 21], [ax1 - 0.06, ay0 + 0.06, az + 21], [ax1 - 0.06, ay1 - 0.06, az + 18.5], [ax0 + 0.06, ay1 - 0.06, az + 18.5]]);
+  p.line(shade(cloth, 1.15), 2, [ax0 + 0.1, ay0 + 0.3, az + 21], [ax1 - 0.1, ay0 + 0.3, az + 21], 0.7);
+  const hem = 6;
+  for (let k = 0; k < hem; k++) {
+    const xa = ax0 + ((ax1 - ax0) * k) / hem;
+    const xb = ax0 + ((ax1 - ax0) * (k + 1)) / hem;
+    p.poly(shade(cloth, 0.72), [[xa, ay1, az + 18], [xb, ay1, az + 18], [(xa + xb) / 2, ay1, az + 14.5]]);
+  }
+  // A long stone bench on the left edge and two neighbours talking in the open middle.
+  p.shadow(-0.74, 0.0, -0.56, 0.72, 5, 0.18);
+  p.box(-0.74, 0.0, -0.56, 0.72, kerb, kerb + 5, C.stone, shade(C.stone, 0.86), shade(C.stone, 0.62));
+  person(p, 0.05, 0.25, kerb, 2);
+  person(p, 0.3, 0.42, kerb, 5);
+  jar(p, 0.62, 0.6, kerb, 3.4);
+}
+
+/** Park (2 x 2): a lawn in a low stone border with paths, flower beds, shade trees and benches. */
+function park(p: Pen) {
   const s = 0.86;
   const kerb = 2.5;
   p.box(-s, -s, s, s, 0, kerb, C.stone, shade(C.stone, 0.88), shade(C.stone, 0.64));
   p.rect(C.lawn, -s + 0.08, -s + 0.08, s - 0.08, s - 0.08, kerb);
   p.rect(shade(C.lawn, 1.1), -s + 0.08, -s + 0.08, -0.05, -0.05, kerb, 0.6);
-  // Cross-shaped paths from the pool to the middle of each side.
+  // Cross-shaped paths from a round flower bed to the middle of each side.
   p.rect(C.sand[0], -0.12, -s + 0.08, 0.12, s - 0.08, kerb);
   p.rect(C.sand[0], -s + 0.08, -0.12, s - 0.08, 0.12, kerb);
-  // Flower beds in the four lawn corners.
+  // Pools of shade under the trees, cast toward the east.
+  for (const [x, y] of [[-0.5, -0.5], [-0.5, 0.5], [0.5, -0.5]] as const) p.disc(shade(C.lawn, 0.72), ...p.away(x, y, 0.12), kerb, 0.34, 0.7);
   const flowers = [C.red, C.gold, 0x9a6ab0, C.cream];
-  ([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]] as const).forEach(([x, y], k) => {
-    p.disc(shade(C.lawn, 0.8), x, y, kerb, 0.2);
+  const bed = (x: number, y: number, r: number, k: number) => {
+    p.disc(shade(C.lawn, 0.8), x, y, kerb, r);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + k;
-      p.ball(flowers[(i + k) % flowers.length], x + Math.cos(a) * 0.12, y + Math.sin(a) * 0.12, kerb + 2, 1.8);
+      p.ball(flowers[(i + k) % flowers.length], x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, kerb + 2, 1.8);
     }
+  };
+  // Back and side trees, then the middle bed in a stone ring, a front bed and two benches.
+  olive(moved(p, -0.5, -0.5), 0);
+  palm(moved(p, 0.52, -0.52), 2);
+  olive(moved(p, -0.5, 0.5), 1);
+  cylinder(p, 0, 0, 0.24, kerb, kerb + 3, C.stone);
+  bed(0, 0, 0.19, 1);
+  bed(0.52, 0.52, 0.2, 2);
+  p.box(0.22, 0.24, 0.6, 0.32, kerb, kerb + 4, C.wood);
+  p.box(0.22, 0.32, 0.6, 0.36, kerb, kerb + 8, C.woodDark);
+  p.box(0.24, -0.6, 0.32, -0.22, kerb, kerb + 4, C.wood);
+  p.box(0.32, -0.6, 0.36, -0.22, kerb, kerb + 8, C.woodDark);
+}
+
+// ---------- food stores and gatherers ----------
+
+/** A bulging burlap sack of grain standing on the ground point (x, y, z), tied at the neck. */
+function grainSack(p: Pen, x: number, y: number, z: number, k = 1, tone = 1) {
+  const c = p.p(x, y, z);
+  const col = shade(C.sack, tone);
+  const g = p.g;
+  g.fillStyle(C.shadow, 0.22);
+  g.fillEllipse(c.x + 2.5 * k, c.y - 0.5 * k, 12 * k, 4.5 * k);
+  g.fillStyle(shade(col, 0.7));
+  g.fillEllipse(c.x + 0.8 * k, c.y - 5.2 * k, 10.5 * k, 10.5 * k);
+  g.fillStyle(col);
+  g.fillEllipse(c.x - 0.7 * k, c.y - 5.6 * k, 8.2 * k, 9.8 * k);
+  g.fillStyle(shade(col, 1.12));
+  g.fillEllipse(c.x - 2.2 * k, c.y - 6.8 * k, 3 * k, 4.6 * k);
+  // Gathered neck and the cord around it.
+  g.fillStyle(shade(col, 0.86));
+  g.fillTriangle(c.x - 2.6 * k, c.y - 9.6 * k, c.x + 2.8 * k, c.y - 9.6 * k, c.x + 0.4 * k, c.y - 13.6 * k);
+  g.lineStyle(1.3 * k, C.sackDark, 1);
+  g.lineBetween(c.x - 1.8 * k, c.y - 10.6 * k, c.x + 2 * k, c.y - 10.6 * k);
+  g.lineStyle(1, shade(col, 0.5), 0.6);
+  g.strokeEllipse(c.x + 0.3 * k, c.y - 5.3 * k, 10 * k, 10.2 * k);
+}
+
+/** A low wooden pallet that keeps the sacks off the ground. */
+function pallet(p: Pen, x0: number, y0: number, x1: number, y1: number) {
+  p.box(x0, y0, x1, y1, 0, 3, C.wood, shade(C.wood, 0.86), shade(C.woodDark, 0.9));
+  for (let x = x0 + 0.08; x < x1 - 0.02; x += 0.12) p.line(C.woodDark, 1, [x, y0 + 0.02, 3], [x, y1 - 0.02, 3], 0.6);
+}
+
+/** A heap of loose grain with a wooden shovel stuck in it. */
+function grainHeap(p: Pen, x: number, y: number, r: number) {
+  p.disc(C.shadow, ...p.away(x, y, 0.08), 0, r * 1.05, 0.2);
+  dome(p, x, y, 0, r, r * 30, C.grain);
+  const c = p.p(x, y, r * 24);
+  const r2 = createRng(19);
+  p.g.fillStyle(shade(C.grain, 1.2));
+  for (let k = 0; k < 9; k++) p.g.fillCircle(c.x - 6 + r2() * 10, c.y - 2 + r2() * 8, 0.9);
+  p.line(C.woodDark, 2, [x + r * 0.2, y - r * 0.1, r * 22], [x + r * 0.7, y - r * 0.6, r * 22 + 18]);
+  p.poly(C.wood, [[x + r * 0.05, y + r * 0.05, r * 18], [x + r * 0.35, y - r * 0.25, r * 18], [x + r * 0.3, y - r * 0.2, r * 26], [x, y, r * 26]]);
+}
+
+/** A domed mud-brick grain silo with a hatch on top (golden grain shows when the stores are full). */
+function silo(p: Pen, x: number, y: number, r: number, h: number, full: boolean) {
+  p.shadow(x - r, y - r, x + r, y + r, h + r * 34, 0.2);
+  cylinder(p, x, y, r, 0, h, C.mud);
+  // Plastered bands around the drum.
+  for (const z of [h * 0.35, h * 0.72]) {
+    const c = p.p(x, y, z);
+    p.g.lineStyle(1, shade(C.mud, 0.62), 0.55);
+    p.g.beginPath();
+    p.g.arc(c.x, c.y, r * SQRT2 * HW, 0.12, Math.PI - 0.12);
+    p.g.strokePath();
+  }
+  dome(p, x, y, h, r, r * 34, shade(C.mud, 1.04));
+  const top = h + r * 34 - 2;
+  cylinder(p, x, y, r * 0.3, top - 1, top + 2, shade(C.mud, 0.95));
+  p.disc(full ? C.grain : 0x3a2818, x, y, top + 2, r * 0.22);
+  if (full) p.disc(shade(C.grain, 1.2), x - 0.02, y - 0.02, top + 2, r * 0.1);
+}
+
+/** A ladder leaning against a south-facing wall at y, from the ground up to height h. */
+function ladder(p: Pen, x: number, y: number, h: number, foot = 0.22) {
+  for (const dx of [-0.07, 0.07]) p.line(C.woodDark, 1.6, [x + dx, y + foot, 0], [x + dx, y, h]);
+  for (let t = 0.12; t < 1; t += 0.16) p.line(C.wood, 1.2, [x - 0.07, y + foot * (1 - t), h * t], [x + 0.07, y + foot * (1 - t), h * t]);
+}
+
+/**
+ * Granary (3 x 3): a pale limestone storehouse along the back, two domed mud-brick silos on the
+ * east side and, under a reed awning, the yard where the stock shows: bare pallets when empty, then
+ * sacks and storage jars, and at full a heap of loose grain (`stock` 0 to GRANARY_STOCKS - 1).
+ */
+function granary(p: Pen, stock: number) {
+  const s = 1.44;
+  const wallH = 8;
+  p.rect(shade(C.sand[0], 0.86), -s, -s, s, s, 0, 0.9);
+  // Threshing floor of beaten earth in the yard.
+  p.disc(shade(C.sand[0], 0.78), -0.35, 0.45, 0, 0.62, 0.55);
+  rubble(p, -s, -s, s, -s + 0.14, 0, wallH, C.rock, 61, 4);
+  rubble(p, -s, -s + 0.14, -s + 0.14, s, 0, wallH, C.rock, 62, 4);
+  // Storehouse: limestone hall with a stone roof, a framed door and two slit windows.
+  const [hx0, hy0, hx1, hy1, hh] = [-1.28, -1.28, 0.36, -0.42, 32];
+  p.shadow(hx0, hy0, hx1, hy1, hh);
+  paleStone(p, hx0, hy0, hx1, hy1, 0, hh);
+  masonry(p, hx0, hy0, hx1, hy1, 0, hh, C.stone, 0.8);
+  roofTop(p, hx0, hy0, hx1, hy1, hh, C.stone);
+  p.southQuad(shade(C.stone, 0.7), hy1 + 0.002, -0.62, -0.26, 0, 22);
+  doorS(p, hy1, -0.58, -0.3, 19);
+  winS(p, hy1, -1.05, 20, 0.07, 7);
+  winS(p, hy1, 0.08, 20, 0.07, 7);
+  winE(p, hx1, -1.0, 20, 0.07, 7);
+  // Sacks waiting on the roof when the stores are full.
+  if (stock >= 3) for (const [x, y] of [[-1.0, -1.0], [-0.75, -0.95], [-0.88, -0.72]] as const) grainSack(p, x, y, hh, 0.9);
+  else jars(p, -1.0, -0.95, hh);
+  // Reed awning on poles in front of the door, over part of the stock.
+  const [ax0, ay0, ax1, ay1, az] = [-1.2, -0.42, 0.3, 0.2, 24];
+  const awning = () => {
+    for (const x of [ax0 + 0.04, ax1 - 0.04]) p.line(C.woodDark, 2, [x, ay1, 0], [x, ay1, az]);
+    p.box(ax0, ay0, ax1, ay1, az, az + 2, REED[0], REED[1], REED[2]);
+    for (let x = ax0 + 0.05; x < ax1; x += 0.07) p.line(0x9c7f45, 1, [x, ay0, az + 2], [x, ay1, az + 2], 0.7);
+  };
+
+  // The stock, sorted back to front with the silos: what stands under the awning goes before it.
+  const items: [number, () => void, boolean][] = [];
+  const add = (d: number, draw: () => void, x = 9, y = 9) => items.push([d, draw, x < ax1 && y < ay1]);
+  add(0.9 - 0.9, () => silo(p, 0.92, -0.92, 0.4, 20, stock >= 2));
+  add(0.95 + 0.12, () => silo(p, 0.95, 0.12, 0.36, 16, stock >= 3));
+  add(0.92 + 0.62, () => ladder(p, 0.95, 0.47, 18));
+  const pallets: [number, number, number, number][] = [[-1.1, -0.3, -0.42, 0.06], [-0.3, 0.3, 0.38, 0.66], [-1.1, 0.42, -0.5, 0.78]];
+  pallets.forEach(([x0, y0, x1, y1], k) => {
+    add(x0 + y0, () => pallet(p, x0, y0, x1, y1), x0, y0);
+    // Sacks per pallet: none when empty, then a row on the front one, then two rows, then a top layer.
+    const rows = stock === 0 ? 0 : stock === 1 ? (k === 1 ? 1 : 0) : stock === 2 ? (k < 2 ? 2 : 1) : 3;
+    const spots: P3[] = [];
+    const n = Math.round((x1 - x0) / 0.22);
+    for (let r = 0; r < Math.min(rows, 2); r++) for (let i = 0; i < n; i++) spots.push([x0 + 0.13 + i * 0.22, y0 + 0.1 + r * 0.17, 3]);
+    if (rows >= 3) for (let i = 0; i < n - 1; i++) spots.push([x0 + 0.24 + i * 0.22, y0 + 0.18, 12]);
+    spots.forEach(([x, y, z], i) => add(x + y + (z ?? 0) * 0.002, () => grainSack(p, x, y, z ?? 3, 1, 0.94 + ((i * 37) % 10) * 0.012), x, y));
   });
-  // Small round pool in the middle.
-  cylinder(p, 0, 0, 0.24, kerb, kerb + 4, C.stone);
-  p.disc(C.waterDeep, 0, 0, kerb + 4, 0.19);
-  p.disc(C.water, -0.02, -0.02, kerb + 4, 0.13, 0.85);
-  p.disc(C.waterLight, -0.07, -0.05, kerb + 4, 0.04, 0.8);
-  // Trees at the back, a bench in front.
-  olive(moved(p, -0.55, 0.45), 1);
-  palm(moved(p, 0.5, -0.55), 2);
-  p.box(0.3, 0.42, 0.7, 0.52, kerb, kerb + 4, C.wood);
-  p.box(0.3, 0.52, 0.7, 0.56, kerb, kerb + 8, C.woodDark);
+  // Tall storage jars along the hall, more as the stores fill.
+  const jarSpots: [number, number][] = [[0.66, 0.6], [0.5, 0.82], [0.5, 0.05], [0.12, 0.05], [0.15, -0.3], [0.32, -0.12]];
+  const nJars = [0, 2, 4, 6][stock];
+  jarSpots.slice(0, nJars).forEach(([x, y], i) => add(x + y, () => jar(p, x, y, 0, 4.4, i % 2 ? shade(C.terracotta, 1.1) : C.terracotta), x, y));
+  if (stock >= 3) add(-0.85 + 1.02, () => grainHeap(p, -0.85, 1.02, 0.26));
+  items.sort((a, b) => a[0] - b[0]);
+  for (const [, draw, under] of items) if (under) draw();
+  awning();
+  for (const [, draw, under] of items) if (!under) draw();
+  // Front and east walls, with a gate toward the road.
+  rubble(p, s - 0.14, -s + 0.14, s, s, 0, wallH, C.rock, 63, 4);
+  rubble(p, -s + 0.14, s - 0.14, -0.55, s, 0, wallH, C.rock, 64, 4);
+  rubble(p, 0.25, s - 0.14, s - 0.14, s, 0, wallH, C.rock, 65, 4);
+}
+
+/** A fishing net hung to dry along x = const, from y0 to y1, sagging between its poles. */
+function dryingNet(p: Pen, x: number, y0: number, y1: number, top: number) {
+  for (const y of [y0, y1]) p.line(C.woodDark, 2, [x, y, 0], [x, y, top + 3]);
+  p.line(C.rope, 1, [x, y0, top], [x, y1, top]);
+  const low = (t: number) => 5 + Math.sin(t * Math.PI) * 4;
+  const N = 9;
+  const pt = (t: number, f: number): P3 => [x + 0.01, y0 + (y1 - y0) * t, top - (top - low(t)) * f];
+  // A light mesh of cords: verticals and a few sagging rows.
+  p.poly(C.net, [pt(0, 0), pt(1, 0), pt(1, 1), pt(0.5, 1), pt(0, 1)], 0.28);
+  for (let i = 0; i <= N; i++) p.line(shade(C.net, 0.82), 1, pt(i / N, 0), pt(i / N, 1), 0.85);
+  for (const f of [0.25, 0.5, 0.75, 1]) for (let i = 0; i < N; i++) p.line(C.net, 1, pt(i / N, f), pt((i + 1) / N, f), 0.85);
+  // Cork floats along the top cord.
+  for (let i = 1; i < N; i += 2) p.ball(0xd9a85a, x, y0 + ((y1 - y0) * i) / N, top - 1, 1.6);
+}
+
+/** A small wooden boat pulled up on the ground, its bow along +y, tarred outside. */
+function boat(p: Pen, x: number, y0: number, y1: number) {
+  const N = 12;
+  const rimZ = 8;
+  const half = (t: number) => 0.2 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.15)), 0.6);
+  const at = (t: number, side: number, z: number, k = 1): P3 => [x + side * half(t) * k, y0 + (y1 - y0) * t, z];
+  const ts = Array.from({ length: N + 1 }, (_, i) => i / N);
+  p.shadow(x - 0.2, y0, x + 0.2, y1, 8, 0.2);
+  // Shaded east side of the hull, then the lit inside and the thwarts.
+  p.poly(shade(C.hull, 0.8), [...ts.map((t) => at(t, 1, rimZ)), ...ts.slice().reverse().map((t) => at(t, 1, 1, 0.55))]);
+  p.poly(shade(C.wood, 0.95), [...ts.map((t) => at(t, 1, rimZ, 0.92)), ...ts.slice().reverse().map((t) => at(t, -1, rimZ, 0.92))]);
+  p.poly(shade(C.wood, 0.75), [...ts.map((t) => at(t, 1, rimZ - 4, 0.5)), ...ts.slice().reverse().map((t) => at(t, -1, rimZ - 4, 0.5))]);
+  for (const t of [0.35, 0.65]) p.line(C.woodDark, 2, at(t, -1, rimZ - 1, 0.9), at(t, 1, rimZ - 1, 0.9));
+  for (const side of [-1, 1]) for (let i = 0; i < N; i++) p.line(side < 0 ? shade(C.hull, 1.2) : C.hull, 1.6, at(ts[i], side, rimZ), at(ts[i + 1], side, rimZ));
+  // Oars resting across it.
+  p.line(C.wood, 1.6, [x - 0.32, y0 + 0.25, 2], [x + 0.3, y0 + 0.45, rimZ + 2]);
+}
+
+/** A rack of fish drying on a cord between two posts along y. */
+function fishRack(p: Pen, x: number, y0: number, y1: number, top: number) {
+  for (const y of [y0, y1]) p.line(C.woodDark, 2, [x, y, 0], [x, y, top + 2]);
+  p.line(C.rope, 1, [x, y0, top], [x, y1, top]);
+  for (let t = 0.14; t < 0.95; t += 0.16) {
+    const c = p.p(x, y0 + (y1 - y0) * t, top);
+    p.g.fillStyle(shade(C.fish, 0.8));
+    p.g.fillEllipse(c.x + 0.5, c.y + 5, 3.6, 8.5);
+    p.g.fillStyle(C.fish);
+    p.g.fillEllipse(c.x, c.y + 4.6, 2.6, 7.6);
+    p.g.fillTriangle(c.x - 2, c.y + 10, c.x + 2, c.y + 10, c.x, c.y + 7.5);
+  }
+}
+
+/** A round wicker basket heaped with fruit (or fish) of the given colours. */
+function heapedBasket(p: Pen, x: number, y: number, r: number, fruit: number[], seed: number, size = 2.6) {
+  const h = 8;
+  p.disc(C.shadow, ...p.away(x, y, 0.06), 0, r * 1.05, 0.22);
+  cylinder(p, x, y, r, 0, h, C.wicker);
+  const c = p.p(x, y, h);
+  const rx = r * SQRT2 * HW;
+  for (const z of [2.5, 5.5]) {
+    const b = p.p(x, y, z);
+    p.g.lineStyle(1, shade(C.wicker, 0.6), 0.7);
+    p.g.beginPath();
+    p.g.arc(b.x, b.y, rx, 0.15, Math.PI - 0.15);
+    p.g.strokePath();
+  }
+  p.disc(shade(C.wicker, 0.7), x, y, h, r * 0.92);
+  const rng = createRng(seed);
+  // A mound of fruit: back ones first, each with a small highlight.
+  const n = Math.round(r * 64);
+  const pts = Array.from({ length: n }, () => {
+    const a = rng() * Math.PI * 2;
+    const d = Math.sqrt(rng()) * 0.8;
+    return { dx: Math.cos(a) * d * rx, dy: Math.sin(a) * d * rx * 0.5, col: fruit[Math.floor(rng() * fruit.length)] };
+  }).sort((a, b) => a.dy - b.dy);
+  for (const f of pts) {
+    const lift = (1 - Math.hypot(f.dx / rx, (f.dy * 2) / rx)) * 5;
+    p.g.fillStyle(shade(f.col, 0.8));
+    p.g.fillCircle(c.x + f.dx + 0.4, c.y + f.dy - lift + 0.4, size);
+    p.g.fillStyle(f.col);
+    p.g.fillCircle(c.x + f.dx, c.y + f.dy - lift, size * 0.85);
+    p.g.fillStyle(shade(f.col, 1.45));
+    p.g.fillCircle(c.x + f.dx - size * 0.35, c.y + f.dy - lift - size * 0.35, size * 0.3);
+  }
+}
+
+/**
+ * Fisher (2 x 2): a reed-roofed mud hut, a net drying between poles, a small boat pulled up on the
+ * ground with its oars, fish drying on a cord and a basket of the day's catch.
+ */
+function fisher(p: Pen) {
+  const s = 0.9;
+  p.rect(shade(C.bank, 0.92), -s, -s, s, s, 0, 0.85);
+  const r = createRng(71);
+  for (let k = 0; k < 14; k++) p.disc(shade(C.rock, 0.9 + r() * 0.2), -s + 0.1 + r() * 1.6, -s + 0.1 + r() * 1.6, 0, 0.03 + r() * 0.03, 0.8);
+  // The hut: low mud walls under a thick reed roof.
+  const [x0, y0, x1, y1, h] = [-0.84, -0.84, 0.1, -0.2, 18];
+  p.shadow(x0, y0, x1, y1, h + 6);
+  p.box(x0, y0, x1, y1, 0, h, shade(C.mud, 1.04), shade(C.mud, 0.94), shade(C.mud, 0.66));
+  bricks(p, x0, y0, x1, y1, 0, h, C.mud, 0.22);
+  p.box(x0 - 0.06, y0 - 0.06, x1 + 0.06, y1 + 0.08, h, h + 5, REED[0], REED[1], REED[2]);
+  for (let y = y0; y < y1 + 0.06; y += 0.06) p.line(0x9c7f45, 1, [x0 - 0.06, y, h + 5], [x1 + 0.06, y, h + 5], 0.7);
+  doorS(p, y1, -0.5, -0.28, 13);
+  winE(p, x1, -0.6, 9, 0.1, 4);
+  fishRack(p, -0.66, 0.0, 0.62, 16);
+  dryingNet(p, 0.6, -0.82, 0.12, 24);
+  boat(p, 0.02, 0.0, 0.84);
+  heapedBasket(p, 0.62, 0.5, 0.16, [C.fish, shade(C.fish, 1.1), 0x9fb0b6], 73, 2.2);
+}
+
+/**
+ * Gatherer (2 x 2): a small mud house with figs drying on a mat on its roof, a ladder for the
+ * trees, and big baskets of olives, figs and dates in the yard beside a drying mat.
+ */
+function gatherer(p: Pen) {
+  const s = 0.9;
+  p.rect(shade(C.sand[0], 0.9), -s, -s, s, s, 0, 0.85);
+  const [x0, y0, x1, y1, h] = [-0.84, -0.84, 0.12, -0.22, 24];
+  p.shadow(x0, y0, x1, y1, h);
+  mudBlock(p, x0, y0, x1, y1, h);
+  beamEnds(p, x0, x1, y1, h);
+  doorS(p, y1, -0.3, -0.1, 15);
+  winE(p, x1, -0.62, 14, 0.1, 5);
+  // Figs drying on a reed mat on the roof.
+  p.rect(REED[0], -0.72, -0.72, 0.0, -0.32, h + 0.5);
+  const r = createRng(83);
+  for (let k = 0; k < 14; k++) p.ball(k % 3 ? C.figFruit : C.dateFruit, -0.68 + r() * 0.64, -0.7 + r() * 0.34, h + 2, 1.5);
+  ladder(p, -0.62, y1, h, 0.26);
+  // Drying mat with figs on the ground.
+  p.rect(shade(REED[0], 0.95), -0.8, 0.12, -0.2, 0.74, 0.5);
+  for (let y = 0.16; y < 0.72; y += 0.07) p.line(REED[2], 1, [-0.78, y, 0.6], [-0.22, y, 0.6], 0.5);
+  for (let k = 0; k < 16; k++) p.ball(k % 4 ? C.figFruit : shade(C.figFruit, 1.3), -0.74 + r() * 0.48, 0.18 + r() * 0.5, 1.5, 1.7);
+  heapedBasket(p, 0.52, -0.5, 0.22, [C.oliveFruit, C.oliveGreen, shade(C.oliveFruit, 0.8)], 85);
+  heapedBasket(p, 0.0, 0.58, 0.2, [C.dateFruit, shade(C.dateFruit, 0.85), C.gold], 87);
+  heapedBasket(p, 0.55, 0.2, 0.22, [C.figFruit, shade(C.figFruit, 1.2), C.oliveGreen], 86);
+  // A long stick for beating the olive branches, leaning on the basket.
+  p.line(C.woodDark, 1.6, [0.82, -0.1, 0], [0.4, -0.75, 34]);
 }
 
 /** Market (2 x 4, or 4 x 2 when rotated): two rows of stalls with striped awnings along an aisle. */
@@ -2898,6 +3184,14 @@ function needIcon(g: G, k: BalloonKind) {
     g.fillPoints([{ x: 0, y: 14 }, { x: 4, y: 16 }, { x: 7, y: 13.5 }, { x: 3, y: 11.5 }], true);
     g.fillPoints([{ x: 9, y: 8.5 }, { x: 13, y: 10.5 }, { x: 16, y: 8 }, { x: 12, y: 6 }], true);
     noSign(g, 8, 11, 6.5);
+  } else if (k === 'noSource') {
+    // A fish over a wavy line, crossed out (no river or trees in reach).
+    g.fillStyle(C.water);
+    g.fillRect(1, 16, 14, 2);
+    g.fillStyle(shade(C.water, 0.6));
+    g.fillEllipse(7, 10, 9, 5);
+    g.fillTriangle(11, 10, 15, 7, 15, 13);
+    noSign(g, 8, 11, 7);
   } else if (k === 'workers') {
     // A worker crossed out.
     g.fillStyle(C.skin[0]);
@@ -2905,12 +3199,45 @@ function needIcon(g: G, k: BalloonKind) {
     g.fillStyle(C.clothes[1]);
     g.fillRoundedRect(4.5, 9, 7, 9, 2.5);
     noSign(g, 8, 11, 7);
-  } else if (k === 'well') {
-    g.fillStyle(C.need.well);
-    g.fillCircle(8, 11, 5);
-    g.fillTriangle(3.3, 9.5, 12.7, 9.5, 8, 2);
-    g.fillStyle(0xffffff, 0.8);
-    g.fillCircle(6.3, 11, 1.4);
+  } else if (k === 'plaza') {
+    // A paved square seen at an angle.
+    const d = [{ x: 8, y: 10 }, { x: 15.5, y: 14 }, { x: 8, y: 18 }, { x: 0.5, y: 14 }];
+    g.fillStyle(shade(C.need.plaza, 0.6));
+    g.fillPoints([d[3], d[2], d[1], { x: 15.5, y: 16 }, { x: 8, y: 20 }, { x: 0.5, y: 16 }], true);
+    g.fillStyle(shade(C.limestone, 0.92));
+    g.fillPoints(d, true);
+    g.lineStyle(1.2, shade(C.need.plaza, 0.8), 1);
+    g.lineBetween(4.25, 12, 11.75, 16);
+    g.lineBetween(11.75, 12, 4.25, 16);
+    // A stone bench at the front left and a slanted ochre shade cloth on posts at the right.
+    g.lineStyle(2.4, shade(C.stone, 0.62), 1);
+    g.lineBetween(2.5, 15.2, 6.5, 17.2);
+    g.lineStyle(1.6, C.stone, 1);
+    g.lineBetween(2.5, 14.2, 6.5, 16.2);
+    g.lineStyle(1.4, C.woodDark, 1);
+    g.lineBetween(7, 6.5, 7, 13.5);
+    g.lineBetween(14, 10, 14, 15.5);
+    const cloth = C.shadeCloth;
+    g.fillStyle(cloth);
+    g.fillPoints([{ x: 9.5, y: 2.5 }, { x: 15.8, y: 5.8 }, { x: 14, y: 10 }, { x: 7, y: 6.5 }], true);
+    g.fillStyle(shade(cloth, 0.66));
+    g.fillPoints([{ x: 7, y: 6.5 }, { x: 14, y: 10 }, { x: 14, y: 11.6 }, { x: 7, y: 8.1 }], true);
+  } else if (k === 'park') {
+    // Two round trees over a patch of lawn.
+    g.fillStyle(shade(C.need.park, 0.75));
+    g.fillEllipse(8, 17, 16, 6);
+    g.fillStyle(C.trunk);
+    g.fillRect(4, 10, 2, 7);
+    g.fillRect(10.5, 8, 2, 8);
+    g.fillStyle(shade(C.need.park, 0.75));
+    g.fillCircle(5, 9, 4.5);
+    g.fillCircle(11.5, 6.5, 5);
+    g.fillStyle(C.need.park);
+    g.fillCircle(4.4, 8.4, 3.6);
+    g.fillCircle(10.9, 5.9, 4);
+    g.fillStyle(shade(C.need.park, 1.3));
+    g.fillCircle(3.6, 7.4, 1.3);
+    g.fillCircle(10, 4.8, 1.5);
   } else if (k === 'market') {
     g.fillStyle(C.cream);
     g.fillRoundedRect(1, 3, 14, 12, 2);
@@ -2947,7 +3274,7 @@ function family(g: G) {
 
 function icons(scene: Phaser.Scene) {
   const icon = (name: Parameters<typeof TEX.icon>[0], draw: (g: G) => void) => makeFlat(scene, TEX.icon(name), 40, 40, draw);
-  // Seasons (in the month slot of the plaque): almond blossom, strong sun, falling leaf, snowflake.
+  // Seasons (in the week slot of the plaque): almond blossom, strong sun, falling leaf, snowflake.
   icon('spring', (g) => {
     g.lineStyle(3, C.woodDark, 1);
     g.lineBetween(8, 34, 22, 18);
@@ -3079,7 +3406,7 @@ function icons(scene: Phaser.Scene) {
     g.fillStyle(C.red);
     g.fillTriangle(11, 7, 34, 13, 11, 20);
   });
-  // Time of day, next to the month.
+  // Time of day, next to the week.
   icon('sun', (g) => {
     g.lineStyle(3, 0xe89a2c, 1);
     for (let k = 0; k < 8; k++) {
@@ -3159,9 +3486,12 @@ export function generateTextures(scene: Phaser.Scene): void {
     CROPS.forEach((_, v) => make(scene, TEX.building('field', 0, false, v, mirror), footCanvas(2, 2, 30), (p) => field(p, v), 26, mirror));
     BUILDINGS.workshop.crafts!.forEach((c, v) => make(scene, TEX.building('workshop', 0, false, v, mirror), footCanvas(3, 3, 50), CRAFT_ART[c], 50, mirror));
   }
+  for (let k = 0; k < GRANARY_STOCKS; k++) make(scene, TEX.building('granary', 0, false, k), footCanvas(3, 3, 60), (p) => granary(p, k), 50);
   const buildings: [BuildingKind, (p: Pen) => void, number, number][] = [
-    ['well', well, 48, 44],
-    ['garden', garden, 60, 40],
+    ['plaza', plaza, 48, 44],
+    ['fisher', fisher, 40, 32],
+    ['gatherer', gatherer, 44, 34],
+    ['park', park, 60, 40],
     ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],
     ['temple', temple, 136, 128],
@@ -3211,6 +3541,12 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.fillStyle(0x3e4a2a);
     for (const [x, y] of [[4, 4], [7, 3], [10, 4], [6, 5], [9, 5]]) g.fillCircle(x, y, 1.6);
   });
+  raw(TEX.pebble, 7, 6, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillPoints([{ x: 1, y: 3 }, { x: 3, y: 0.5 }, { x: 6, y: 1.5 }, { x: 6.5, y: 4 }, { x: 4, y: 5.5 }, { x: 1.5, y: 5 }], true);
+    g.fillStyle(0xbdbdbd);
+    g.fillPoints([{ x: 4, y: 5.5 }, { x: 6.5, y: 4 }, { x: 6, y: 2.5 }, { x: 3.5, y: 3.5 }], true);
+  });
   raw(TEX.petal, 6, 5, (g) => {
     g.fillStyle(0xffffff);
     g.fillEllipse(3, 2.5, 6, 4);
@@ -3222,7 +3558,8 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.strokeCircle(32, 32, 27);
   });
   raw(TEX.balloon, 28, 28, balloon);
-  (['road', 'well', 'market', 'sacred', 'workers', 'sad'] as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
+  const balloonKinds = { road: 0, plaza: 0, market: 0, park: 0, workers: 0, sad: 0, noSource: 0 } satisfies Record<BalloonKind, 0>;
+  (Object.keys(balloonKinds) as BalloonKind[]).forEach((k) => raw(TEX.need(k), 16, 22, (g) => needIcon(g, k)));
   for (const { type } of WALKERS) {
     const [w, h] = residentSize(type);
     const crafts: (Craft | null)[] = [null, ...(type === 'artisan' ? BUILDINGS.workshop.crafts! : [])];
@@ -3232,6 +3569,22 @@ export function generateTextures(scene: Phaser.Scene): void {
       }
     }
   }
+  for (const kind of HAULER_KINDS) {
+    for (let look = 0; look < WALKER_LOOKS; look++)
+      for (let frame = 0; frame < 2; frame++) raw(TEX.hauler(kind, look, frame), ...HAULER_SIZE, (g) => drawHauler(g, kind, look, frame));
+  }
+  raw(TEX.fly, 4, 4, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillCircle(2, 2, 1.4);
+  });
+  raw(TEX.spark, 16, 16, (g) => {
+    g.fillStyle(0xffffff);
+    g.fillTriangle(8, 0, 9.6, 8, 6.4, 8);
+    g.fillTriangle(8, 16, 9.6, 8, 6.4, 8);
+    g.fillTriangle(0, 8, 8, 6.4, 8, 9.6);
+    g.fillTriangle(16, 8, 8, 6.4, 8, 9.6);
+    g.fillCircle(8, 8, 2.2);
+  });
   raw(TEX.family, 30, 23, family);
   const fauna: [FaunaKind, number, (g: G, frame: number) => void][] = [
     ['goat', 2, F.goat],

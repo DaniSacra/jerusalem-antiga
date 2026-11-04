@@ -7,7 +7,7 @@ const H = RULES.happiness;
 export type Mood = 'happy' | 'neutral' | 'sad';
 /** One reason for a house's happiness, with its points (positive or negative). */
 export interface HappinessPart {
-  kind: 'sacred' | 'garden' | 'well' | 'market' | 'famine' | 'idle';
+  kind: 'sacred' | 'park' | 'plaza' | 'market' | 'famine' | 'idle';
   value: number;
 }
 export interface Happiness {
@@ -19,20 +19,20 @@ export interface Happiness {
 
 const covered = (s: GameState, b: Building, k: ServiceKind) => cellsOf(b).some((c) => s.coverage[k][indexOf(s, c.x, c.y)]);
 
-/** Happiness is shown and has effects only once the garden is unlocked. */
-export const happinessOn = (s: GameState) => s.unlocked.includes('garden');
+/** Happiness is shown and has effects only once the park is unlocked. */
+export const happinessOn = (s: GameState) => s.unlocked.includes('park');
 
 export const moodOf = (value: number): Mood => (value >= H.happy ? 'happy' : value < H.sad ? 'sad' : 'neutral');
 
 /**
- * Happiness of a house: 50, plus being near the altar or temple, a garden, a well and a market,
+ * Happiness of a house: 50, plus being near the altar or temple, a park, a plaza and a market,
  * minus famine and the share of the city's workers without a job (`idleShare`, 0..1).
  */
 export function houseHappiness(s: GameState, b: Building, idleShare: number): Happiness {
   const parts: HappinessPart[] = [];
-  // Happiness only counts once the garden (the way to raise it) is unlocked: content until then.
+  // Happiness only counts once the park (the way to raise it) is unlocked: content until then.
   if (!happinessOn(s)) return { value: H.base, mood: moodOf(H.base), parts };
-  for (const k of ['sacred', 'garden', 'well', 'market'] as const) if (covered(s, b, k)) parts.push({ kind: k, value: H[k] });
+  for (const k of ['sacred', 'park', 'plaza', 'market'] as const) if (covered(s, b, k)) parts.push({ kind: k, value: H[k] });
   if (s.famine) parts.push({ kind: 'famine', value: H.famine });
   const idle = Math.round(Math.min(H.idleMax, idleShare * H.idleScale));
   if (idle > 0) parts.push({ kind: 'idle', value: -idle });

@@ -1,4 +1,4 @@
-import { RULES, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type Rng } from '../src/core';
+import { HOUSE_LEVELS, RULES, campRoad, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type GoalDef, type Rng } from '../src/core';
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
@@ -8,10 +8,15 @@ import { RULES, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD
  */
 export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   const s = createGame(createRng(1));
+  // No caravan: only the altar, and a fixed food stock (tests of the caravan use createGame).
+  s.buildings = s.buildings.filter((b) => b.kind === 'altar');
+  s.grid = s.grid.map((b) => (b?.kind === 'altar' ? b : null));
+  for (const c of campRoad()) s.roads[indexOf(s, c.x, c.y)] = false; // no camp road without the caravan
+  s.food = 30;
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
-  s.unlocked = ['road', 'house', 'field', 'well', 'market', 'workshop', 'garden', 'temple'];
+  s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'park', 'temple'];
   s.goalIndex = RULES.upkeepStartsAfterGoal; // upkeep is charged (tests of the first goals set goalIndex)
   Object.assign(s, overrides);
   refreshCity(s);
@@ -49,3 +54,56 @@ export const ROADSIDE = ROAD_X - 2;
 export const westOf = (kind: BuildableKind) => ROAD_X - dimsOf(kind).w;
 /** Left column of any building touching the starting road on its east side. */
 export const EAST = ROAD_X + 1;
+
+/**
+ * Left column of a 2x2 building at rows y..y+1 that touches the river on its east side (the river
+ * runs east of the altar), with a road on row y from the starting road to it.
+ */
+export function besideRiver(s: GameState, y: number): number {
+  const riverAt = (row: number) => {
+    let x = ROAD_X + 2;
+    while (s.ground[indexOf(s, x, row)] !== 'river') x++;
+    return x;
+  };
+  const left = Math.min(riverAt(y), riverAt(y + 1)) - 2;
+  road(s, Array.from({ length: left - ROAD_X - 1 }, (_, k) => [ROAD_X + 1 + k, y] as [number, number]));
+  return left;
+}
+
+/** First spring: fields built in the first autumn harvest, so they are at work (and take workers). */
+export const FIRST_SPRING = 2 * RULES.weeksPerSeason;
+
+/** Moves to the first spring, when the fields built at the start take their workers. */
+export function atHarvest(s: GameState) {
+  s.week = FIRST_SPRING;
+}
+
+/**
+ * Meets a "residents" or "houses" goal with connected houses beside the starting road (west side,
+ * from row `y` down): big houses for residents, houses of the goal's level for houses.
+ */
+export function meetGoal(s: GameState, goal: GoalDef, y = 27) {
+  const top = HOUSE_LEVELS.length - 1;
+  let count: number;
+  let level: number;
+  if (goal.type === 'residents') {
+    level = top;
+    count = Math.ceil(goal.target / HOUSE_LEVELS[top].residents);
+  } else if (goal.type === 'houses') {
+    level = goal.level ?? 1;
+    count = goal.target;
+  } else throw new Error(`meetGoal: goal type ${goal.type} is not supported`);
+  for (let k = 0; k < count; k++) put(s, 'house', ROADSIDE, y + 2 * k, level);
+}
+
+/**
+ * Test oracle: whole weeks a food stock lasts from `week` with only houses eating (no production),
+ * `eat(w)` a week, rounded like the weekly step; `floor` is the reserve the food must stay above.
+ */
+export function weeksOfFood(food: number, week: number, eat: (w: number) => number, floor = 0): number {
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  for (let k = 0; ; k++) {
+    food = round2(food - round2(eat(week + k)));
+    if (food <= floor) return k;
+  }
+}

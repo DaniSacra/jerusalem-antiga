@@ -1,22 +1,38 @@
 export type Ground = 'sand' | 'grass' | 'river';
 export type Feature = 'rock' | 'palm' | 'olive';
-export type BuildingKind = 'house' | 'field' | 'well' | 'market' | 'workshop' | 'garden' | 'temple' | 'altar';
+export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 /** The four seasons, in order. */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export type BuildableKind = Exclude<BuildingKind, 'altar'>;
+/** Groups of the build menu (see menu.ts): housing, food, work, special. */
+export type BuildingCategory = 'home' | 'supply' | 'work' | 'special';
 /** Everything the player can place: buildings and road. */
 export type Placeable = BuildableKind | 'road';
-/** Area services; "sacred" is the radius of the altar or a temple. Gardens only add happiness. */
-export type ServiceKind = 'well' | 'market' | 'sacred' | 'garden';
-export type NeedKind = 'road' | ServiceKind;
+/** Area services; "sacred" is the radius of the altar or a temple (happiness only). */
+export type ServiceKind = 'plaza' | 'market' | 'sacred' | 'park';
+/** What a house level asks for: a road and the services around it (the altar is not one). */
+export type NeedKind = 'road' | Exclude<ServiceKind, 'sacred'>;
 /** What a building's balloon can point out: a missing need, a workplace with no workers or a sad house. */
-export type BalloonKind = NeedKind | 'workers' | 'sad';
+export type BalloonKind = NeedKind | 'workers' | 'sad' | 'noSource';
 
-export const SERVICE_KINDS: readonly ServiceKind[] = ['well', 'market', 'sacred', 'garden'];
+export const SERVICE_KINDS: readonly ServiceKind[] = ['plaza', 'market', 'sacred', 'park'];
 
 export type Rng = () => number;
+
+/** Moments celebrated once per game. */
+export type MilestoneId = 'firstFamily' | 'firstMud' | 'firstHarvest' | 'firstWinter' | 'firstStone' | 'yearWithoutFamine';
+
+/** One week of the city, for the statistics charts. */
+export interface WeekRecord {
+  silver: number;
+  food: number;
+  residents: number;
+  happiness: number;
+  /** Food the city could keep that week. */
+  capacity: number;
+}
 
 export type WalkerType =
   | 'waterCarrier'
@@ -66,20 +82,29 @@ export type Craft = 'pottery' | 'smithy' | 'carpentry' | 'weaving' | 'dyeing' | 
 
 export interface BuildingDef {
   name: string;
+  /** Build menu group; only buildings the player can place have one. */
+  category?: BuildingCategory;
   cost: number;
   jobs: number;
   /** Footprint width (x) and height (y) in cells; default 1x1, h defaults to w. */
   w?: number;
   h?: number;
   radius?: number;
-  /** Silver charged every month, connected or not; default 0. */
+  /** Silver charged every week, connected or not; default 0. */
   upkeep?: number;
   /** Number of drawn looks (variant 0..n-1); default 1. */
   variants?: number;
   /** Workshop trades, one per variant (the variant is the index of the craft). */
   crafts?: Craft[];
-  food?: number;
-  silver?: number;
+  /** Food a field makes in a year, all of it delivered over the spring weeks (see harvest.ts). */
+  harvest?: number;
+  /** Food gathered every week from the river or trees in a radius: min(max, cells × perCell). */
+  gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number };
+  /** Food this building lets the city keep (granary). */
+  storage?: number;
+  /** Workshop: each connected one adds this share to the fields' food, up to `fieldBonusMax` in all. */
+  fieldBonus?: number;
+  fieldBonusMax?: number;
   protected?: boolean;
 }
 
@@ -87,7 +112,7 @@ export interface HouseLevelDef {
   name: string;
   residents: number;
   tax: number;
-  /** Food eaten per resident per month. */
+  /** Food eaten per resident per week. */
   food: number;
   /** Number of drawn variants for this level. */
   variants: number;
@@ -95,7 +120,12 @@ export interface HouseLevelDef {
 }
 
 export interface GoalDef {
-  type: 'residents' | 'houses' | 'build';
+  /**
+   * residents: at least `target` residents; houses: houses of at least `level`; build: connected
+   * buildings of `kind`; foodUntilSpring: weeks the food lasts, up to the first spring (see
+   * goalTarget).
+   */
+  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring';
   target: number;
   /** Minimum house level, for type "houses". */
   level?: number;
@@ -104,41 +134,63 @@ export interface GoalDef {
   reward: number;
   unlock?: Placeable;
   victory?: boolean;
+  /** The goal can only be reached from this year on (1 = the first year). */
+  fromYear?: number;
   text: string;
 }
 
 export interface Rules {
   startSilver: number;
-  startFood: number;
   startUnlocked: Placeable[];
-  monthSeconds: number;
-  /** The guaranteed first families walk this many times faster. */
-  earlyFamilySpeedMultiplier: number;
+  weekSeconds: number;
   /** Upkeep is charged only once this many goals are done (the first goals are free of it). */
   upkeepStartsAfterGoal: number;
-  /** Months in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
-  monthsPerSeason: number;
+  /** Weeks in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
+  weeksPerSeason: number;
+  /** Season of the first week. */
+  startSeason: Season;
+  /** Up to this many buildings the build column lists them all; above it, it shows the categories. */
+  toolColumnMax: number;
+  /** Food the city keeps without a granary; the rest spoils. */
+  baseFoodStorage: number;
+  /** New families set out at most once every this many weeks. */
+  familyIntervalWeeks: number;
+  /** A new family comes only if the forecast food never drops below this many weeks of eating. */
+  familyFoodReserveWeeks: number;
+  /** In winter every resident eats `foodFactor` times more; tent dwellers `tentFoodFactor` instead. */
+  winter: { foodFactor: number; tentFoodFactor: number };
+  /** Chance per week, in winter during famine, that a tent is abandoned (instead of famineLeaveChance). */
+  winterFamineLeaveChance: number;
+  /** Last weeks of autumn that show the winter warning. */
+  winterWarningWeeks: number;
+  /** Weeks of history kept for the statistics. */
+  historyWeeks: number;
+  /** Dry years: chance rolled each winter, harvest factor of fields away from the river, first years that are never dry, never two in a row. */
+  drought: { chance: number; harvestFactor: number; safeYears: number; neverTwice: boolean };
+  /** The founding caravan: [min, max] families and weeks of food. */
+  caravan: { families: [number, number]; foodWeeks: [number, number] };
   workerShare: number;
   /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
   unemploymentAlert: number;
   familyChance: number;
-  /** The first plots get a family for sure (tents or better plus families on the way below this). */
-  guaranteedFamilies: number;
-  familyCellsPerMonth: number;
-  monthsToChange: number;
+  familyCellsPerWeek: number;
+  /** Weeks in a row with the next level's needs met before a house climbs one level. */
+  weeksToUpgrade: number;
+  /** Weeks in a row missing its own needs before a house drops one level. */
+  weeksToDowngrade: number;
   famineDropChance: number;
   treeClearCost: number;
-  /** Chance per month, during famine, that a tent is abandoned (back to an empty plot). */
+  /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */
   famineLeaveChance: number;
-  /** Consecutive months with negative silver that lose the game. */
-  debtMonthsToLose: number;
+  /** Consecutive weeks with negative silver that lose the game. */
+  debtWeeksToLose: number;
   roadCost: number;
   /** House happiness 0..100 (see happiness.ts): bonuses, penalties and what it changes. */
   happiness: {
     base: number;
     sacred: number;
-    garden: number;
-    well: number;
+    park: number;
+    plaza: number;
     market: number;
     famine: number;
     /** Penalty = share of workers without a job x idleScale, at most idleMax. */
@@ -159,11 +211,18 @@ export interface Rules {
     rows: number;
     altar: Cell;
     clearRadius: number;
-    rocks: number;
-    olives: number;
-    palms: number;
+    /** Counts drawn by the seed, [min, max]. */
+    rocks: [number, number];
+    olives: [number, number];
+    palms: [number, number];
     grassShare: number;
-    river: { minWidth: number; maxWidth: number };
+    /** River width, and the distance (cells, Chebyshev) from the altar's border to its nearest cell. */
+    river: { minWidth: number; maxWidth: number; distance: [number, number] };
+    /** At least `min` groves of `trees`+ trees in a square of `radius` around a center `distance` cells from the altar's border. */
+    /** `trees` (or `rocks`) is the least a group has; `extra` more are drawn in that range. */
+    denseGrove: { min: number; trees: number; extra: [number, number]; radius: number; distance: [number, number] };
+    /** At least `min` outcrops of `rocks`+ rocks (taken from `rocks`) in a square of `radius` around a center `distance` cells from the altar's border. */
+    rockOutcrop: { min: number; rocks: number; extra: [number, number]; radius: number; distance: [number, number] };
   };
 }
 
@@ -178,9 +237,9 @@ export interface Building {
   h: number;
   /** House level (0..4). Unused by other kinds. */
   level: number;
-  /** Consecutive months meeting the next level's needs. */
+  /** Consecutive weeks meeting the next level's needs. */
   upStreak: number;
-  /** Consecutive months missing a need of the current level. */
+  /** Consecutive weeks missing a need of the current level. */
   downStreak: number;
   /** Touches the road network connected to the altar. */
   connected: boolean;
@@ -188,6 +247,8 @@ export interface Building {
   variant: number;
   /** Drawn mirrored. */
   mirrored: boolean;
+  /** Week it was built (a field only harvests in a spring after an autumn it stood through). */
+  built: number;
 }
 
 /** A family walking from the city entrance to an empty plot. */
@@ -198,8 +259,6 @@ export interface Family {
   path: Cell[];
   /** Cells walked along the path. */
   step: number;
-  /** One of the guaranteed first families: walks faster so the start has no dead time. */
-  fast?: boolean;
 }
 
 export type Coverage = Record<ServiceKind, boolean[]>;
@@ -222,17 +281,37 @@ export interface GameState {
   entrance: Cell;
   silver: number;
   food: number;
-  /** Months elapsed. */
-  month: number;
+  /** Weeks elapsed. */
+  week: number;
   famine: boolean;
   goalIndex: number;
   unlocked: Placeable[];
   won: boolean;
-  /** Consecutive months ended with negative silver (0 when out of debt). */
-  debtMonths: number;
+  /** Consecutive weeks ended with negative silver (0 when out of debt). */
+  debtWeeks: number;
   /** Most residents the city ever had (shown on the defeat screen). */
   peakPopulation: number;
   lost: boolean;
+  /** This year's spring harvest is cut by a dry year (rolled at the start of winter). */
+  drought: boolean;
+  /** Last year was dry (with `neverTwice`, this one cannot be). */
+  lastDrought: boolean;
+  /** A house was abandoned or dropped by famine during this winter. */
+  winterLoss: boolean;
+  /** Week the last new family set out (families come at most every `familyIntervalWeeks`). */
+  lastFamilyWeek: number;
+  /** Food spoiled this week because the stores were full (0 when nothing spoiled). */
+  spoiled: number;
+  /** A week of famine happened since the last autumn began. */
+  famineThisYear: boolean;
+  /** Milestones already reached, in order. */
+  milestones: MilestoneId[];
+  /** Week each milestone was reached. */
+  milestoneWeeks: Partial<Record<MilestoneId, number>>;
+  /** Weekly snapshots, oldest first, at most `historyWeeks`. */
+  history: WeekRecord[];
+  /** The caravan that founded the city (shown in the opening sentence). */
+  start: { families: number; foodWeeks: number };
   nextId: number;
 }
 
@@ -242,7 +321,7 @@ export type GameEvent =
   | { type: 'famineStart' }
   | { type: 'famineEnd' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
-  | { type: 'victory'; month: number; residents: number }
+  | { type: 'victory'; week: number; residents: number }
   /** A family abandoned its tent during famine and walks out of the city from (x, y). */
   | { type: 'familyLeft'; x: number; y: number }
   /** Upkeep starts being charged (once, right after goal `upkeepStartsAfterGoal`). */
@@ -251,7 +330,14 @@ export type GameEvent =
   | { type: 'season'; season: Season }
   | { type: 'debtStart' }
   | { type: 'debtEnd' }
-  | { type: 'defeat'; month: number; peak: number };
+  | { type: 'defeat'; week: number; peak: number }
+  /** Food spoiled because the stores were full (once per stretch of spoiling weeks). */
+  | { type: 'spoilStart' }
+  /** The first week of a spring harvest (food came in from the fields). */
+  | { type: 'harvestStart'; amount: number }
+  /** Winter began and the coming spring will be dry. */
+  | { type: 'drought' }
+  | { type: 'milestone'; id: MilestoneId };
 
 export type FailReason = 'locked' | 'invalid' | 'silver' | 'debt' | 'noRoad' | 'protected';
 export type ActionResult = { ok: true } | { ok: false; reason: FailReason };

@@ -1,21 +1,40 @@
-import { computeEconomy, costliestUpkeep, unemploymentAlert } from './economy';
-import { RULES } from './data';
+import { computeEconomy, costliestUpkeep, unemploymentAlert, type Economy } from './economy';
+import { BUILDINGS, RULES } from './data';
+import { foodLastsToHarvest } from './forecast';
+import { fieldBonus, foodCapacity } from './harvest';
+import { seasonOf } from './seasons';
 import type { BuildingKind, GameState } from './types';
 
-/** Standing warnings, most urgent first (shown under the top bar; later in the stats panel). */
+/** Standing warnings, most urgent first (the Avisos button and the statistics). */
 export type Alert =
   /** `famine`: in debt and starving, the only way out is demolishing to afford a field. */
-  | { kind: 'debt'; monthsLeft: number; famine: boolean }
+  | { kind: 'debt'; weeksLeft: number; famine: boolean }
+  /** The food will not last until the next spring (in any season). */
+  | { kind: 'foodShort' }
+  /** The stores are full and food is spoiling; `locked`: the granary is not unlocked yet. */
+  | { kind: 'spoiling'; amount: number; capacity: number; locked: boolean }
+  /** End of autumn with families in tents: winter hurts them. */
+  | { kind: 'winterComing' }
+  /** The coming (or current) spring is dry. */
+  | { kind: 'drought' }
   | { kind: 'deficit'; balance: number; costliest: BuildingKind; upkeep: number }
-  | { kind: 'unemployed'; count: number };
+  /** `workshopsFull`: the workshops' field bonus is at its cap (another one only adds jobs). */
+  | { kind: 'unemployed'; count: number; workshopsFull: boolean };
 
-export function alerts(s: GameState): Alert[] {
+/** Last weeks of autumn that warn about the winter. */
+const lateAutumn = (week: number) => seasonOf(week) === 'autumn' && week % RULES.weeksPerSeason >= RULES.weeksPerSeason - RULES.winterWarningWeeks;
+
+export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] {
   const out: Alert[] = [];
-  if (s.silver < 0) out.push({ kind: 'debt', monthsLeft: RULES.debtMonthsToLose - s.debtMonths, famine: s.famine });
-  const eco = computeEconomy(s);
+  if (s.silver < 0) out.push({ kind: 'debt', weeksLeft: RULES.debtWeeksToLose - s.debtWeeks, famine: s.famine });
+  const season = seasonOf(s.week);
+  if (!foodLastsToHarvest(s, eco)) out.push({ kind: 'foodShort' });
+  if (s.spoiled > 0) out.push({ kind: 'spoiling', amount: s.spoiled, capacity: foodCapacity(s), locked: !s.unlocked.includes('granary') });
+  if (lateAutumn(s.week) && s.buildings.some((b) => b.kind === 'house' && b.level === 1)) out.push({ kind: 'winterComing' });
+  if (s.drought && (season === 'winter' || season === 'spring')) out.push({ kind: 'drought' });
   const top = costliestUpkeep(eco);
   if (eco.silverDelta < 0 && top) out.push({ kind: 'deficit', balance: eco.silverDelta, costliest: top.kind, upkeep: top.amount });
-  const idle = unemploymentAlert(s);
-  if (idle > 0) out.push({ kind: 'unemployed', count: idle });
+  const idle = unemploymentAlert(s, eco);
+  if (idle > 0) out.push({ kind: 'unemployed', count: idle, workshopsFull: fieldBonus(s) >= (BUILDINGS.workshop.fieldBonusMax ?? 0) });
   return out;
 }

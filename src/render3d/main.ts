@@ -9,18 +9,18 @@ import { SKIRT, Terrain, Water } from './terrain';
 
 /**
  * Proof of concept: the city of the real simulation drawn in 3D with Three.js.
- * URL options: ?seed=3&months=100&bot=eficiente&quality=high|low&models=<pack manifest url>
+ * URL options: ?seed=3&weeks=156&bot=eficiente&quality=high|low&models=<pack manifest url>
  */
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get('seed') ?? 3);
-const months = Number(params.get('months') ?? 100);
+const weeks = Number(params.get('weeks') ?? 156);
 const low = params.get('quality') === 'low';
 const shadows = params.get('shadows') !== 'off';
 
 const HAZE = 0xe9cfa6;
 
 async function start() {
-  const s = buildCity(seed, months, params.get('bot') ?? 'eficiente');
+  const s = buildCity(seed, weeks, params.get('bot') ?? 'eficiente').state;
   const models = params.get('models') ? await loadModelPack(params.get('models')!, codeModels()) : codeModels();
 
   const renderer = new THREE.WebGLRenderer({ antialias: !low, powerPreference: 'high-performance' });
@@ -87,7 +87,7 @@ async function start() {
     const x = -SKIRT + hash(k, 1) * (s.cols + SKIRT * 2);
     const z = -SKIRT + hash(k, 2) * (s.rows + SKIRT * 2);
     if (x > -1 && z > -1 && x < s.cols + 1 && z < s.rows + 1) continue;
-    if (x > s.cols - 6 && x < s.cols + 3) continue; // the river runs on
+    if (ground.isRiver(x, z)) continue; // the river runs on
     const kind: ModelKey = hash(k, 3) < 0.45 ? 'olive' : hash(k, 3) < 0.6 ? 'palm' : hash(k, 3) < 0.75 ? 'rock' : 'shrub';
     inst.add(kind, x, ground.height(x, z), z, hash(k, 4) * 6.28, 0.8 + hash(k, 5) * 0.5);
   }

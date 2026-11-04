@@ -23,9 +23,9 @@
       <a href="./">Jogo 2D</a>
     </div>
     <div class="bar" id="bottom">
-      <a data-q="months=30">~40 construções</a>
-      <a data-q="months=100">~100</a>
-      <a data-q="months=200">~150</a>
+      <a data-q="weeks=60">~40 construções</a>
+      <a data-q="weeks=156">~100</a>
+      <a data-q="weeks=400">~150</a>
       <a data-q="quality=low">Qualidade baixa</a>
       <a data-q="shadows=off">Sem sombras</a>
       <span id="help">Arraste para mover · pinça ou roda: zoom · dois dedos girando ou botão direito: girar e inclinar</span>
@@ -35,10 +35,10 @@
       const now = new URLSearchParams(location.search);
       for (const a of document.querySelectorAll('[data-q]')) {
         const [k, v] = a.dataset.q.split('=');
-        const on = now.get(k) === v || (k === 'months' && !now.has('months') && v === '100');
+        const on = now.get(k) === v || (k === "weeks" && !now.has("weeks") && v === "156");
         a.classList.toggle('on', on);
         const next = new URLSearchParams(now);
-        if (on && k !== 'months') next.delete(k);
+        if (on && k !== "weeks") next.delete(k);
         else next.set(k, v);
         a.href = `?${next}`;
       }

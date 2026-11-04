@@ -22,14 +22,15 @@ export interface Prototype {
 export type ModelKey =
   | 'house-0' | 'house-1' | 'house-2' | 'house-3' | 'house-4'
   | 'field-0' | 'field-1' | 'field-2' | 'field-3'
-  | 'well' | 'market' | 'workshop' | 'garden' | 'altar' | 'temple'
+  | 'plaza' | 'park' | 'fisher' | 'gatherer' | 'granary' | 'market' | 'workshop' | 'altar' | 'temple'
   | 'olive' | 'palm' | 'rock' | 'shrub' | 'road';
 
 /** Footprint (cells) of each model key, used to fit .glb models. */
 export const FOOTPRINT: Record<ModelKey, [number, number]> = {
   'house-0': [2, 2], 'house-1': [2, 2], 'house-2': [2, 2], 'house-3': [2, 2], 'house-4': [2, 2],
   'field-0': [2, 2], 'field-1': [2, 2], 'field-2': [2, 2], 'field-3': [2, 2],
-  well: [2, 2], market: [2, 4], workshop: [3, 3], garden: [2, 2], altar: [4, 4], temple: [6, 6],
+  plaza: [2, 2], park: [2, 2], fisher: [2, 2], gatherer: [2, 2], granary: [3, 3],
+  market: [2, 4], workshop: [3, 3], altar: [4, 4], temple: [6, 6],
   olive: [1, 1], palm: [1, 1], rock: [1, 1], shrub: [1, 1], road: [1, 1],
 };
 
@@ -216,7 +217,8 @@ function field(crop: number): Piece[] {
   return rows;
 }
 
-function well(): Piece[] {
+/** Plaza: a paved square with a well in the middle (the old well model). */
+function plaza(): Piece[] {
   return [
     box(1.7, 0.05, 1.7, 0, 0, 0, COLORS.limestoneDark),
     cyl(0.45, 0.5, 0.45, 10, 0, 0.05, 0, COLORS.limestone),
@@ -266,7 +268,8 @@ function workshop(): Piece[] {
   ];
 }
 
-function garden(): Piece[] {
+/** Park: a walled green with a fountain and trees (the old garden model). */
+function park(): Piece[] {
   return [
     box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.grass),
     ...walls(1.9, 1.9, 0.22, 0.14, COLORS.hedge, 0.05, 0.5),
@@ -341,6 +344,55 @@ function palm(): Piece[] {
   return out;
 }
 
+function fisher(): Piece[] {
+  // Reed hut, drying rack with fish and a boat pulled up on the bank.
+  return [
+    box(1.0, 0.7, 0.9, -0.35, 0, -0.35, COLORS.mud),
+    cone(0.8, 0.45, 4, -0.35, 0.7, -0.35, COLORS.roofMud, Math.PI / 4),
+    box(0.26, 0.45, 0.04, -0.35, 0, 0.11, COLORS.dark),
+    box(0.05, 0.6, 0.05, 0.35, 0, 0.1, COLORS.wood),
+    box(0.05, 0.6, 0.05, 0.85, 0, 0.1, COLORS.wood),
+    box(0.6, 0.04, 0.04, 0.6, 0.56, 0.1, COLORS.wood),
+    ...[0.42, 0.56, 0.7, 0.84].map((x) => box(0.05, 0.16, 0.03, x, 0.38, 0.1, COLORS.limestoneDark)),
+    (() => {
+      const g = new THREE.CylinderGeometry(0.2, 0.2, 1.2, 8, 1, false, 0, Math.PI);
+      g.rotateZ(Math.PI / 2);
+      g.rotateX(Math.PI);
+      g.translate(0.2, 0.2, 0.7);
+      return { geo: g, color: COLORS.wood };
+    })(),
+  ];
+}
+
+function gatherer(): Piece[] {
+  // Small hut, baskets of fruit and a ladder against a tree.
+  return [
+    box(0.9, 0.65, 0.8, -0.4, 0, -0.4, COLORS.mud),
+    box(1.0, 0.07, 0.9, -0.4, 0.65, -0.4, COLORS.roofMud),
+    box(0.24, 0.42, 0.04, -0.4, 0, 0.01, COLORS.dark),
+    cyl(0.16, 0.12, 0.2, 7, 0.2, 0, 0.45, COLORS.wood),
+    blob(0.12, 0.2, 0.22, 0.45, COLORS.leafDark, 0.6),
+    cyl(0.14, 0.11, 0.18, 7, 0.55, 0, 0.6, COLORS.wood),
+    blob(0.1, 0.55, 0.2, 0.6, COLORS.ochre, 0.6),
+    cyl(0.06, 0.09, 0.5, 5, 0.5, 0, -0.45, COLORS.trunk),
+    blob(0.34, 0.5, 0.7, -0.45, COLORS.leaf, 0.75),
+  ];
+}
+
+function granary(): Piece[] {
+  // Courtyard with three domed silos and a store house.
+  return [
+    box(2.9, 0.05, 2.9, 0, 0, 0, COLORS.limestoneDark),
+    ...walls(2.9, 2.9, 0.4, 0.12, COLORS.mud, 0.05, 0.8),
+    box(2.4, 1.1, 0.9, 0, 0.05, -0.85, COLORS.mud),
+    box(2.5, 0.07, 1.0, 0, 1.15, -0.85, COLORS.roofMud),
+    box(0.4, 0.6, 0.04, 0, 0.05, -0.39, COLORS.wood),
+    ...[-0.75, 0, 0.75].map((x) => cyl(0.32, 0.36, 0.7, 10, x, 0.05, 0.45, COLORS.mudDark)),
+    ...[-0.75, 0, 0.75].map((x) => blob(0.33, x, 0.75, 0.45, COLORS.roofMud, 0.7, 1)),
+    box(0.4, 0.25, 0.3, 1.0, 0.05, 1.05, COLORS.cloth),
+  ];
+}
+
 const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6)];
 const shrub = (): Piece[] => [blob(0.16, 0, 0.1, 0, COLORS.leafDark, 0.7)];
 const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
@@ -359,10 +411,13 @@ export function codeModels(): Record<ModelKey, Prototype> {
     'field-1': build(field(CROPS[1])),
     'field-2': build(field(CROPS[2])),
     'field-3': build(field(CROPS[3])),
-    well: build(well()),
+    plaza: build(plaza()),
+    park: build(park()),
+    fisher: build(fisher()),
+    gatherer: build(gatherer()),
+    granary: build(granary()),
     market: build(market()),
     workshop: build(workshop()),
-    garden: build(garden()),
     altar: build(altar()),
     temple: build(temple()),
     olive: build(olive()),

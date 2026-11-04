@@ -1,12 +1,12 @@
 {
-  "ghostLength": 6,
+  "minSpotFood": 1.2,
   "steps": [
-    { "id": "road", "tool": "road", "target": 4 },
-    { "id": "houses", "tool": "house", "target": 3 },
-    { "id": "family", "tool": null, "target": 1 },
+    { "id": "road", "tool": "road", "target": 1 },
+    { "id": "gather", "tool": "fisher", "alt": "gatherer", "target": 1 },
     { "id": "field", "tool": "field", "target": 1 },
-    { "id": "well", "tool": "well", "target": 1 },
-    { "id": "grow", "tool": null, "target": 1 }
+    { "id": "plaza", "tool": "plaza", "target": 1 },
+    { "id": "house", "tool": "house", "target": 1 },
+    { "id": "family", "tool": null, "target": 1 }
   ],
   "extras": [
     { "id": "upkeep", "tool": null, "target": 1 },

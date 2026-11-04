@@ -65,11 +65,14 @@ export class Terrain {
 
   /** Share of the four cells around a grid corner that are river (0..1). */
   private riverAt(x: number, z: number) {
-    // Past the far bank the country is dry land again.
-    if (x > this.s.cols + 1) return 0;
     let n = 0;
     for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) if (this.s.ground[this.cell(x + dx, z + dz)] === 'river') n++;
     return n / 4;
+  }
+
+  /** The river (or its bed) runs here. */
+  isRiver(x: number, z: number) {
+    return this.riverAt(x, z) > 0;
   }
 
   private flatAt(x: number, z: number) {
@@ -139,20 +142,20 @@ function rippleTexture(): THREE.DataTexture {
     }
   const t = new THREE.DataTexture(data, n, n);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(10, 40);
+  t.repeat.set(36, 36);
   t.needsUpdate = true;
   return t;
 }
 
-/** The river surface: a band along the east edge running on past the map; ripples drift downstream. */
+/** The river surface: one sheet over the map and the skirt; it only shows above the river bed. */
 export class Water {
   readonly mesh: THREE.Mesh;
   private normal = rippleTexture();
 
   constructor(s: GameState) {
-    const g = new THREE.PlaneGeometry(10, s.rows + SKIRT * 2);
+    const g = new THREE.PlaneGeometry(s.cols + SKIRT * 2, s.rows + SKIRT * 2);
     g.rotateX(-Math.PI / 2);
-    g.translate(s.cols - 3, WATER_Y, s.rows / 2);
+    g.translate(s.cols / 2, WATER_Y, s.rows / 2);
     const material = new THREE.MeshStandardMaterial({
       color: 0x3f8594,
       roughness: 0.12,

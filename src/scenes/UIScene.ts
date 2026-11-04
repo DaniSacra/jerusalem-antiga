@@ -1,39 +1,39 @@
 import Phaser from 'phaser';
-import type { Economy, GameState } from '../core';
-import { Hud, type Speed } from '../render/Hud';
-import type { Segment } from '../render/info';
-import { InfoLine } from '../render/InfoLine';
-import { Options } from '../render/Options';
+import type { BuildableKind, BuildingCategory, Building, Cell, CityReadout, GameState, MilestoneId, Placeable } from '../core';
 import { GAME_H, GAME_W } from '../render/layout';
+import { NovaUi, type ButtonSpot } from '../render/nova/NovaUi';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
-import { Toasts, type Tone } from '../render/Toasts';
-import { Toolbar } from '../render/Toolbar';
-import type { Tool } from '../render/tools';
-import { TutorialView, type TutorialTarget } from '../render/Tutorial';
+import type { ToastOptions, Tone } from '../render/Toasts';
+import type { Speed, Tool } from '../render/tools';
+import type { TutorialTarget } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';
 
 export interface UiHost {
   selectTool(tool: Tool): void;
   setSpeed(v: Speed): void;
   turnMap(dir: 1 | -1): void;
-  showBreakdown(mode: 'silver' | 'happiness'): void;
-  showGoal(): void;
   applySettings(): void;
   restart(): void;
   skipTutorial(): void;
   tutorialOk(): void;
   attachUi(ui: UIScene): void;
+  /** Screen point (UI coordinates) of the center of a grid footprint, and the camera zoom. */
+  cellScreen(x: number, y: number, w: number, h: number): { x: number; y: number; zoom: number };
+  /** Picks a building and highlights the free places whose reach covers `target` (Rua: just picks it). */
+  showSpots(kind: BuildableKind | 'road', target: Building): void;
+  /** Demolishes what is on a cell (the Demolir button of the tapped building's balloon). */
+  demolishAt(cell: Cell): void;
+  /** Closes the tapped building's balloon. */
+  deselect(): void;
 }
 
-/** Fixed overlay (not affected by the camera): plaque, banners, rails, info line, toasts and dialogs. */
+/**
+ * Fixed overlay (not affected by the camera): the interface (Nova), the famine tint and the
+ * victory/defeat dialogs.
+ */
 export class UIScene extends Phaser.Scene {
-  private hud!: Hud;
-  private toolbar!: Toolbar;
-  private info!: InfoLine;
-  private toasts!: Toasts;
-  private options!: Options;
-  private tutorial!: TutorialView;
+  private view!: NovaUi;
   private famineTint!: Phaser.GameObjects.Rectangle;
   private famine = false;
   private modal: Phaser.GameObjects.Container | null = null;
@@ -53,59 +53,91 @@ export class UIScene extends Phaser.Scene {
     this.modal = null;
     this.famineTint = this.add.rectangle(0, 0, GAME_W, GAME_H, C.famine, 1).setOrigin(0).setAlpha(0);
     this.host = host;
-    this.hud = new Hud(this, { onSpeed: (v) => host.setSpeed(v), onSilver: () => host.showBreakdown('silver'), onHappiness: () => host.showBreakdown('happiness'), onGoal: () => host.showGoal() });
-    this.toolbar = new Toolbar(this, (t) => host.selectTool(t), (dir) => host.turnMap(dir));
-    this.info = new InfoLine(this);
-    this.toasts = new Toasts(this);
-    this.options = new Options(this, () => host.applySettings());
-    this.tutorial = new TutorialView(this, () => host.skipTutorial(), () => host.tutorialOk());
+    this.view = new NovaUi(this, host);
     host.attachUi(this);
   }
 
-  /** `allowed`: the tools the tutorial leaves enabled (null: all). */
-  refresh(state: GameState, eco: Economy, speed: Speed, tool: Tool, allowed: ReadonlySet<Tool> | null = null) {
-    this.hud.refresh(state, eco, speed);
-    this.toolbar.refresh(state, tool, allowed);
+  update() {
+    this.view.update();
+  }
+
+  /** `tutorial`: the first-game steps are running; `selected`: the cell tapped with Mover. */
+  refresh(state: GameState, city: CityReadout, speed: Speed, tool: Tool, tutorial = false, selected: Cell | null = null) {
+    this.view.refresh(state, city, speed, tool, tutorial, selected);
     this.setFamine(state.famine);
   }
 
   /** The tutorial sentence (null hides it); `ok` adds the "Entendi" button. */
   setTutorial(sentence: string | null, ok = false) {
-    this.tutorial.set(sentence, ok);
+    this.view.setTutorial(sentence, ok);
   }
 
   pointTutorial(target: TutorialTarget | null) {
-    this.tutorial.point(target);
+    this.view.pointTutorial(target);
   }
 
-  /** Screen center of a tool's rail button. */
-  buttonOf(tool: Tool) {
-    return this.toolbar.buttonOf(tool);
+  /** Center of the map area the interface leaves free (the tutorial camera brings its place there). */
+  freeCenter(): { x: number; y: number } {
+    return this.view.freeCenter();
   }
 
-  /** Empty segments hide the info line. */
-  setInfo(segments: Segment[]) {
-    this.info.set(segments);
+  /** Screen center of a tool's button and the side the tutorial arrow comes from. */
+  buttonOf(tool: Tool): ButtonSpot | null {
+    return this.view.buttonOf(tool);
   }
 
-  /** True if a screen point is over the plaque, the banners, the rails, the speed or the info line. */
+  /** Tutorial arrow at the silver or the goal of the top bar. */
+  anchor(name: 'silver' | 'goal'): TutorialTarget {
+    return this.view.anchor(name);
+  }
+
+  /** A short message (toast). */
+  hint(msg: string, bad = false) {
+    this.view.toast(msg, bad ? 'bad' : 'info');
+  }
+
+  /** True if a screen point is over any part of the interface (the map ignores it). */
   isOverUi(x: number, y: number) {
-    return this.hud.contains(x, y) || this.toolbar.contains(x, y) || this.info.contains(x, y) || this.options.contains(x, y) || this.tutorial.contains(x, y);
+    return this.view.isOverUi(x, y);
   }
 
-  /** Sun, dusk or moon next to the month; `slow` greys out the miniature option. */
-  setDayPhase(icon: 'sun' | 'dusk' | 'moon', slow: boolean) {
-    this.hud.setPhase(icon);
-    this.options.setSlow(slow);
+  /** `slow`: the device is slow (the miniature option shows it is off). */
+  setSlow(slow: boolean) {
+    this.view.setSlow(slow);
   }
 
-  /** The drought mark on the plaque (looks only), from the season look's drought (0..1). */
+  /** The drought mark (looks only), from the season look's drought (0..1). */
   setDrought(d: number) {
-    this.hud.setDrought(d);
+    this.view.setDrought(d);
   }
 
-  toast(msg: string, tone: Tone = 'info') {
-    this.toasts.show(msg, tone);
+  toast(msg: string, tone: Tone = 'info', opt: ToastOptions = {}) {
+    this.view.toast(msg, tone, opt);
+  }
+
+  /** A milestone was reached this week: its sentence (the statistics read the week from the state). */
+  milestone(id: MilestoneId) {
+    this.view.milestone(id);
+  }
+
+  /** PC keys 3–6: shows the strip of a category of the build column. */
+  openCategory(c: BuildingCategory) {
+    this.view.openCategory(c);
+  }
+
+  /** A goal unlocked this building. */
+  unlocked(kind: Placeable) {
+    this.view.unlocked(kind);
+  }
+
+  /** The map cell under the pointer. */
+  setHover(cell: Cell | null) {
+    this.view.setHover(cell);
+  }
+
+  /** Esc: closes the open panel or balloon; false if nothing was open. */
+  closeTop() {
+    return this.view.closeTop();
   }
 
   private setFamine(on: boolean) {
@@ -114,16 +146,16 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: this.famineTint, alpha: on ? 0.22 : 0, duration: 600 });
   }
 
-  showVictory(months: number, residents: number) {
-    this.dialog(T.victoryTitle, T.victoryText(months, residents), T.keepBuilding, () => {
+  showVictory(weeks: number, residents: number) {
+    this.dialog(T.victoryTitle, T.victoryText(weeks, residents), T.keepBuilding, () => {
       this.modal?.destroy();
       this.modal = null;
     });
   }
 
   /** The game stays paused behind it; "Tentar de novo" starts a new map. */
-  showDefeat(months: number, peak: number) {
-    this.dialog(T.defeatTitle, T.defeatText(months, peak), T.retry, () => this.host.restart());
+  showDefeat(weeks: number, peak: number) {
+    this.dialog(T.defeatTitle, T.defeatText(weeks, peak), T.retry, () => this.host.restart());
   }
 
   /** Modal panel (pauses the game) with a title, a message and one button. */

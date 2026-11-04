@@ -1,5 +1,5 @@
 [
-  { "type": "waterCarrier", "to": ["well"],             "speed": 0.9, "pauseChance": 0.8 },
+  { "type": "waterCarrier", "to": ["plaza", "market"],  "speed": 0.9, "pauseChance": 0.8 },
   { "type": "farmer",       "to": ["field"],            "speed": 1.0, "pauseChance": 0.3 },
   { "type": "basketWoman",  "to": ["market"],           "speed": 0.9, "pauseChance": 0.8 },
   { "type": "porter",       "from": "field", "to": ["market"], "speed": 0.8, "pauseChance": 0.3 },

@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import {
+  type Economy,
+  isWorking,
   balloonNeed,
+  needLocked,
   BUILDINGS,
   checkClear,
   checkPlace,
@@ -11,6 +14,7 @@ import {
   roadMask,
   serviceOf,
   placeSpots,
+  plazaHouseSpots,
   servedHouses,
   type Building,
   type BuildingKind,
@@ -22,13 +26,15 @@ import {
   dimsOf,
   type Dims,
   type Rect,
+  byRiver,
+  foodCapacity,
 } from '../core';
 import { C, CSS, shade } from './palette';
 import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
+import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
 import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
@@ -48,9 +54,12 @@ interface BuildingView {
   /** Texture of the finished drawing without snow, and the house shade of mud or stone. */
   key: string;
   shade: number;
-  /** Wheat or barley: the crop changes with the year. */
+  /** Wheat or barley: the crop changes colour with the year (the other crops only grow and wither). */
   grain: boolean;
   wheat: Phaser.GameObjects.Image[];
+  /** Field stage shown, and whether the field touches the river (a drought does not thin it). */
+  stage?: CropStage;
+  byRiver?: boolean;
   /** Farmers working in a field. */
   crew?: FieldCrew;
   flame?: Phaser.GameObjects.Image;
@@ -66,6 +75,8 @@ interface Balloon {
   need: BalloonKind;
   root: Phaser.GameObjects.Container;
   icon: Phaser.GameObjects.Image;
+  /** Small lock over the icon while the need's building is still locked. */
+  lock: Phaser.GameObjects.Image;
   baseY: number;
   phase: number;
 }
@@ -101,6 +112,19 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
 }
 
 const SV = VISUAL.seasons;
+const MOMENTS = VISUAL.moments;
+
+/** Stages that tint every crop; the others (green, ripe, gold) only tint wheat and barley. */
+const ALL_CROPS: ReadonlySet<CropStage> = new Set<CropStage>(['plowed', 'sprout', 'young', 'straw', 'dry']);
+/** Stages a drought turns thin and yellow on fields away from the river. */
+const THIRSTY: ReadonlySet<CropStage> = new Set<CropStage>(['green', 'ripe', 'gold', 'straw']);
+
+/** Granary drawing for the share of the stores in use: empty, a third, two thirds or full. */
+export function granaryStock(s: GameState): number {
+  const f = s.food / Math.max(1, foodCapacity(s));
+  const k = MOMENTS.granaryStock.findIndex((t) => f < t);
+  return k < 0 ? GRANARY_STOCKS - 1 : k;
+}
 const WEATHER = SV.weather;
 const WET_TINT = Number(WEATHER.wetTint);
 const CROP_STAGES = Object.fromEntries(Object.entries(SV.crops.stages).map(([k, v]) => [k, { tint: Number(v.tint), scale: v.scale }])) as Record<CropStage, { tint: number; scale: number }>;
@@ -146,7 +170,7 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
-  /** "Atende N casas" above the preview of a well, market or garden. */
+  /** "Atende N casas" above the preview of a plaza, market or park. */
   private serves: Phaser.GameObjects.Text;
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
@@ -161,7 +185,13 @@ export class MapView {
   private tints = { road: 0xffffff, trees: 0xffffff, rock: 0xffffff, build: 0xffffff, sand: 0xffffff, water: 0xffffff, ripple: C.waterLight };
   private puddleAlpha = 0;
   private trees: Record<'almond' | 'fig', TreeState> = { almond: 'leaf', fig: 'leaf' };
+  /** Crop stage of the year for sown fields, and whether the drought thins the thirsty ones. */
   private crop: CropStage = 'gold';
+  private dry = false;
+  /** The state last synced (fields read their sowing week, the granary the stores). */
+  private state: GameState;
+  /** Granary drawing for the stores now (see granaryStock). */
+  private stock = 0;
   /** Snow on roofs and trees; `snowDirty` while some still have to swap their texture. */
   private snowy = false;
   private snowDirty = false;
@@ -177,17 +207,22 @@ export class MapView {
   private dust: Phaser.GameObjects.Particles.ParticleEmitter;
   /** Worn dirt paths between neighbouring houses (under everything but the ground). */
   private trails: Phaser.GameObjects.Graphics;
+  /** Building under the demolish tool (tinted red, pulsing), and the places that would solve a need. */
+  private demolishId: number | null = null;
+  private solve: Phaser.GameObjects.Graphics;
 
   constructor(
     private scene: Phaser.Scene,
     state: GameState,
     private wear: RoadWear,
   ) {
+    this.state = state;
     this.drawGround(state);
     this.water = scene.add.graphics().setDepth(DEPTH.groundFx);
     this.looseRoads = scene.add.graphics().setDepth(DEPTH.road + 0.5);
     this.trails = scene.add.graphics().setDepth(DEPTH.road - 0.5);
     this.overlay = scene.add.graphics().setDepth(DEPTH.overlay);
+    this.solve = scene.add.graphics().setDepth(DEPTH.overlay + 0.5).setVisible(false);
     this.preview = scene.add.image(0, 0, TEX.building('house')).setDepth(DEPTH.preview).setVisible(false);
     this.serves = text(scene, 0, 0, '', 18, CSS.light, true).setOrigin(0.5, 1).setStroke(CSS.ink, 5).setDepth(DEPTH.preview + 1).setVisible(false);
     this.lights = new Lights(scene);
@@ -226,7 +261,7 @@ export class MapView {
         } as Phaser.Types.GameObjects.Particles.EmitZoneData,
       })
       .setDepth(DEPTH.fx);
-    this.sync(state, computeEconomy(state).efficiency);
+    this.sync(state, computeEconomy(state));
     this.ready = true;
   }
 
@@ -266,14 +301,16 @@ export class MapView {
         if (g === 'river') this.riverCells.push({ x, y, tile });
       }
     }
-    // Light sandy bank where land meets the river.
+    // Light sandy bank where land meets the river (on both sides: there is land east of it too).
     const bank = sc.add.graphics().setDepth(DEPTH.ground);
     this.ground.push(bank);
+    bank.lineStyle(5, C.bank, 0.9);
     for (const { x, y } of this.riverCells) {
-      if (x > 0 && s.ground[indexOf(s, x - 1, y)] !== 'river') {
-        const a = gridToWorld(x, y);
-        const b = gridToWorld(x, y + 1);
-        bank.lineStyle(5, C.bank, 0.9);
+      for (const [dx, edge] of [[-1, x], [1, x + 1]]) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= s.cols || s.ground[indexOf(s, nx, y)] === 'river') continue;
+        const a = gridToWorld(edge, y);
+        const b = gridToWorld(edge, y + 1);
         bank.lineBetween(a.x, a.y, b.x, b.y);
       }
     }
@@ -288,14 +325,16 @@ export class MapView {
     this.smoke.destroy();
     for (const v of this.views.values()) this.destroyView(v);
     for (const b of this.balloons.values()) b.root.destroy();
-    [this.water, this.looseRoads, this.trails, this.overlay, this.preview, this.serves].forEach((o) => o.destroy());
+    [this.water, this.looseRoads, this.trails, this.overlay, this.solve, this.preview, this.serves].forEach((o) => o.destroy());
     this.lights.destroyAll();
     this.dust.destroy();
   }
 
   // ---------- sync with the simulation ----------
 
-  sync(s: GameState, efficiency: number) {
+  sync(s: GameState, eco: Economy) {
+    this.state = s;
+    this.stock = granaryStock(s);
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         this.syncFeature(s, x, y);
@@ -305,13 +344,15 @@ export class MapView {
     this.drawLooseRoads(s);
     this.drawTrails(s);
     const alive = new Set<number>();
-    // Farmers per field follow the share of jobs filled; none on a field without a road.
-    const farmers = Math.round(BUILDINGS.field.jobs * efficiency);
+    // Farmers per field follow the share of jobs filled; none on a field without a road or out of its harvest.
+    const farmers = Math.round(BUILDINGS.field.jobs * eco.efficiency);
     for (const b of s.buildings) {
       alive.add(b.id);
       this.syncBuilding(b);
-      this.views.get(b.id)!.crew?.setCount(b.connected ? farmers : 0);
-      this.syncBalloon(s, b);
+      const v = this.views.get(b.id)!;
+      v.crew?.setCount(b.connected && isWorking(b, s.week) ? farmers : 0);
+      if (v.kind === 'field') this.paintCrop(v);
+      this.syncBalloon(s, b, eco);
     }
     for (const [id, v] of this.views) {
       if (alive.has(id)) continue;
@@ -442,7 +483,7 @@ export class MapView {
       v = this.createView(b);
       this.views.set(b.id, v);
     }
-    const key = keyOf(b);
+    const key = this.keyFor(b);
     if (v.key !== key) {
       // A house going up a level shows the scaffold briefly, then its new drawing.
       if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
@@ -479,10 +520,15 @@ export class MapView {
     this.dust.explode(Math.min(14, 4 + cells), x, y);
   }
 
+  /** Texture of a standing building: the granary shows the stores. */
+  private keyFor(b: Building) {
+    return b.kind === 'granary' ? TEX.building('granary', 0, false, this.stock) : keyOf(b);
+  }
+
   private createView(b: Building): BuildingView {
     const sc = this.scene;
     const c = footCenter(b.x, b.y, b.w, b.h);
-    const key = keyOf(b);
+    const key = this.keyFor(b);
     const root = sc.add.container(c.x, c.y).setDepth(depthAt(b.x + b.w / 2, b.y + b.h / 2));
     const main = setTex(sc.add.image(0, 0, key), this.dress(key));
     root.add(main);
@@ -490,7 +536,8 @@ export class MapView {
     const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: b.level };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
-      if (grain) this.paintCrop(view);
+      view.byRiver = byRiver(this.state, b);
+      this.paintCrop(view);
       root.add(view.wheat);
       view.crew = new FieldCrew(sc, root, view.wheat, b.mirrored ?? false);
     }
@@ -532,8 +579,8 @@ export class MapView {
     v.root.destroy();
   }
 
-  private syncBalloon(s: GameState, b: Building) {
-    const need = balloonNeed(s, b);
+  private syncBalloon(s: GameState, b: Building, eco: Economy) {
+    const need = balloonNeed(s, b, eco);
     const cur = this.balloons.get(b.id);
     if (!need) {
       cur?.root.destroy();
@@ -548,13 +595,15 @@ export class MapView {
         cur.icon.setTexture(TEX.need(need));
         cur.need = need;
       }
+      cur.lock.setVisible(needLocked(s, need));
       return;
     }
     const sc = this.scene;
     const bg = sc.add.image(0, 0, TEX.balloon).setOrigin(0.5, 1);
     const icon = sc.add.image(0, -16, TEX.need(need)).setScale(0.8);
-    const root = sc.add.container(c.x + 6, baseY, [bg, icon]).setDepth(DEPTH.fx + 1);
-    this.balloons.set(b.id, { need, root, icon, baseY, phase: cellHash(b.x, b.y) % 100 });
+    const lock = sc.add.image(8, -9, TEX.uiIcon('lock')).setDisplaySize(12, 12).setVisible(needLocked(s, need));
+    const root = sc.add.container(c.x + 6, baseY, [bg, icon, lock]).setDepth(DEPTH.fx + 1);
+    this.balloons.set(b.id, { need, root, icon, lock, baseY, phase: cellHash(b.x, b.y) % 100 });
   }
 
   // ---------- feedback ----------
@@ -568,6 +617,71 @@ export class MapView {
     tweens.killTweensOf(v.root);
     v.root.setY(groundY).setScale(1);
     tweens.add({ targets: v.root, y: groundY - 10, scaleX: 0.92, scaleY: 1.08, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  /** Height of a building's drawing in px (effects above it). */
+  heightOf(b: Building) {
+    return HEIGHT[this.keyFor(b)] ?? 20;
+  }
+
+  /** A warm glow over a building's drawing (milestones): an additive gold copy that pulses a few times. */
+  shine(id: number) {
+    const v = this.views.get(id);
+    if (!v) return;
+    const m = v.main;
+    const img = this.scene.add.image(m.x, m.y, m.texture.key).setOrigin(m.originX, m.originY).setTint(C.milestone).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+    v.root.add(img);
+    const ms = VISUAL.moments.milestoneSeconds * 1000;
+    this.scene.tweens.add({ targets: img, alpha: 0.5, duration: ms / 6, yoyo: true, repeat: 2, ease: 'Sine.easeInOut', onComplete: () => img.destroy() });
+  }
+
+  /**
+   * Tints a building red (pulsing) to show it is the one the demolish tool would remove; null puts
+   * the last one back. Only the drawing is tinted: crops and fires keep their colours.
+   */
+  highlightDemolish(b: Building | null) {
+    const id = b?.id ?? null;
+    if (id === this.demolishId) return;
+    const old = this.demolishId !== null ? this.views.get(this.demolishId) : undefined;
+    if (old) old.main.setTint(mulColor(old.shade, this.tints.build));
+    this.demolishId = id;
+  }
+
+  /**
+   * Shows the places that would solve a need (e.g. where a market would reach a house): the union of
+   * these grid rectangles in a soft gold-green that pulses, with a light edge. Replaces the last ones.
+   */
+  showSpots(rects: readonly Rect[]) {
+    const g = this.solve;
+    g.clear();
+    const cells = new Set<number>();
+    for (const r of rects) for (const c of footprint(r.x, r.y, r.w, r.h)) cells.add(c.y * COLS + c.x);
+    const list = [...cells].map((i) => ({ x: i % COLS, y: Math.floor(i / COLS) }));
+    g.fillStyle(C.solve.fill, 0.42);
+    for (const c of list) g.fillPoints(rectCorners(c.x, c.y, 1, 1), true);
+    // The edge of the area: a wide soft line and a thin bright one.
+    const edges: [number, number, number, number, number, number][] = [
+      [0, -1, 0, 0, 1, 0],
+      [1, 0, 1, 0, 1, 1],
+      [0, 1, 0, 1, 1, 1],
+      [-1, 0, 0, 0, 0, 1],
+    ];
+    for (const [width, color, alpha] of [[6, C.solve.edge, 0.45], [2, C.solve.glow, 1]] as const) {
+      g.lineStyle(width, color, alpha);
+      for (const c of list) {
+        for (const [dx, dy, x0, y0, x1, y1] of edges) {
+          if (cells.has((c.y + dy) * COLS + c.x + dx) && c.x + dx >= 0 && c.x + dx < COLS) continue;
+          const a = gridToWorld(c.x + x0, c.y + y0);
+          const b = gridToWorld(c.x + x1, c.y + y1);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
+      }
+    }
+    g.setVisible(list.length > 0);
+  }
+
+  clearSpots() {
+    this.solve.clear().setVisible(false);
   }
 
   // ---------- tool overlay ----------
@@ -611,7 +725,9 @@ export class MapView {
   private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
     const seen = new Set<number>();
     const { w, h } = dimsOf(kind);
-    for (const o of placeSpots(s, kind)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
+    // The tutorial's house spots are the ones a plaza reaches (a tent there becomes a mud house).
+    const spots = kind === 'house' ? plazaHouseSpots(s) : placeSpots(s, kind);
+    for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
   }
 
@@ -660,7 +776,7 @@ export class MapView {
     }
 
     const service = isPlaceTool(tool) && tool !== 'road' ? serviceOf(tool) : null;
-    if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.sacred), C.gold, 0.14);
+    if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.plaza), C.need.plaza, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
     if (tool === 'temple') this.spots(this.spotsArea(s, 'temple'));
@@ -730,9 +846,14 @@ export class MapView {
       this.trees = { almond: look.almond, fig: look.fig };
       this.redress();
     }
-    if (look.crop !== this.crop) {
+    const dry = look.drought > 0.5;
+    if (look.crop !== this.crop || dry !== this.dry) {
       this.crop = look.crop;
-      for (const v of this.views.values()) if (v.grain) this.paintCrop(v);
+      this.dry = dry;
+      for (const b of this.state.buildings) {
+        const v = b.kind === 'field' ? this.views.get(b.id) : undefined;
+        if (v) this.paintCrop(v);
+      }
     }
     if (look !== prev || wetStep !== this.wetStep || ground) {
       this.wetStep = wetStep;
@@ -806,10 +927,21 @@ export class MapView {
     if (budget > 0) this.snowDirty = false;
   }
 
-  /** Wheat and barley: green and low after sowing, golden at the end of spring, low and dry in a drought. */
+  /**
+   * A field's crop for the year (looks only): it sprouts in autumn, is green in winter, golden in
+   * spring and stubble in summer. In a drought the crops away from the river turn thin and yellow.
+   */
+  private fieldStage(v: BuildingView): CropStage {
+    return this.dry && !v.byRiver && THIRSTY.has(this.crop) ? 'dry' : this.crop;
+  }
+
   private paintCrop(v: BuildingView) {
-    const st = CROP_STAGES[this.crop];
-    for (const w of v.wheat) w.setTint(st.tint).setScale(1, st.scale);
+    const stage = this.fieldStage(v);
+    if (stage === v.stage) return;
+    v.stage = stage;
+    const st = CROP_STAGES[stage];
+    const tint = v.grain || ALL_CROPS.has(stage) ? st.tint : 0xffffff;
+    for (const w of v.wheat) w.setTint(tint).setScale(1, st.scale);
   }
 
   /** Chimney smoke: a little all year, from every house in winter. */
@@ -846,6 +978,12 @@ export class MapView {
         v.flame?.setScale(k * (1 - f * 0.6), k * (1 + f));
         v.glow.setAlpha(0.45 + f);
       }
+    }
+    if (this.solve.visible) this.solve.setAlpha(0.65 + Math.sin(t * 3.2) * 0.35);
+    const doomed = this.demolishId !== null ? this.views.get(this.demolishId) : undefined;
+    if (doomed) {
+      const red = mixColor(C.demolish.soft, C.demolish.strong, 0.5 + Math.sin(t * 6) * 0.5);
+      doomed.main.setTint(mulColor(mulColor(doomed.shade, this.tints.build), red));
     }
     for (const b of this.balloons.values()) {
       b.root.y = b.baseY + Math.sin(t * 3 + b.phase) * 2;

@@ -28,6 +28,30 @@ export function panel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: n
   g.strokeRoundedRect(x, y, w, h, r);
 }
 
+/**
+ * Calls `tap` on release only when the press began on this object and stayed on it: a drag that
+ * ends over a button (a road pulled under the tutorial bubble) does nothing. `press` shows the
+ * pressed look.
+ */
+export function onTap(obj: Phaser.GameObjects.GameObject, tap: () => void, press?: (down: boolean) => void) {
+  let armed: number | null = null;
+  obj.on('pointerdown', (p: Phaser.Input.Pointer) => {
+    armed = p.id;
+    press?.(true);
+  });
+  obj.on('pointerout', () => {
+    armed = null;
+    press?.(false);
+  });
+  obj.on('pointerup', (p: Phaser.Input.Pointer) => {
+    const ok = armed === p.id;
+    armed = null;
+    press?.(false);
+    if (ok) tap();
+  });
+  return obj;
+}
+
 /** A rounded button with a centered label. Returns the container and its label. */
 export function button(scene: Phaser.Scene, x: number, y: number, w: number, h: number, label: string, size: number, onClick: () => void) {
   const g = scene.add.graphics();
@@ -43,26 +67,8 @@ export function button(scene: Phaser.Scene, x: number, y: number, w: number, h: 
   draw(false);
   const t = text(scene, 0, 0, label, size, CSS.ink, true).setOrigin(0.5);
   const c = scene.add.container(x, y, [g, t]).setSize(w, h).setInteractive({ useHandCursor: true });
-  c.on('pointerdown', () => draw(true));
-  c.on('pointerout', () => draw(false));
-  c.on('pointerup', () => {
-    draw(false);
-    onClick();
-  });
+  onTap(c, onClick, draw);
   return { container: c, label: t };
-}
-
-/** Light stone plaque with a gold inner trim (top bar plaque and side rails). */
-export function stonePanel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, r: number | Phaser.Types.GameObjects.Graphics.RoundedRectRadius = 12) {
-  g.fillStyle(C.shadow, 0.28);
-  g.fillRoundedRect(x + 2, y + 4, w, h, r);
-  g.fillStyle(C.ui.stone);
-  g.fillRoundedRect(x, y, w, h, r);
-  g.lineStyle(3, C.border, 1);
-  g.strokeRoundedRect(x, y, w, h, r);
-  g.lineStyle(1.5, C.gold, 1);
-  const inner = typeof r === 'number' ? Math.max(0, r - 3) : r;
-  g.strokeRoundedRect(x + 4, y + 4, w - 8, h - 8, inner);
 }
 
 export type ButtonLook = 'normal' | 'active' | 'disabled';
@@ -90,13 +96,8 @@ export class RailButton {
     this.root = scene.add.container(x, y, [this.bg, ...content]).setSize(w, h).setInteractive({ useHandCursor: true });
     drawRailButton(this.bg, w, h, this.look);
     // Tools react on press (instant); toggles like speed and turning react on release.
-    this.root.on('pointerdown', () => (onDown ? onPress() : drawRailButton(this.bg, w, h, this.look, true)));
-    this.root.on('pointerout', () => drawRailButton(this.bg, w, h, this.look));
-    if (!onDown)
-      this.root.on('pointerup', () => {
-        drawRailButton(this.bg, w, h, this.look);
-        onPress();
-      });
+    if (onDown) this.root.on('pointerdown', onPress);
+    else onTap(this.root, onPress, (down) => drawRailButton(this.bg, w, h, this.look, down));
   }
 
   setLook(look: ButtonLook) {

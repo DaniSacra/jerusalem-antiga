@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
+import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
   it('charges the cost and occupies every cell of the footprint', () => {
     const s = emptyGame({ silver: 100 });
-    expect(place(s, 'well', ROADSIDE, 30)).toEqual({ ok: true });
-    expect(s.silver).toBe(80);
+    expect(place(s, 'plaza', ROADSIDE, 30)).toEqual({ ok: true });
+    expect(s.silver).toBe(100 - BUILDINGS.plaza.cost);
     const w = s.grid[indexOf(s, ROADSIDE, 30)]!;
-    expect(w).toMatchObject({ kind: 'well', w: 2, h: 2, connected: true });
+    expect(w).toMatchObject({ kind: 'plaza', w: 2, h: 2, connected: true });
     expect(s.grid[indexOf(s, ROADSIDE + 1, 31)]).toBe(w);
     expect(s.grid[indexOf(s, ROADSIDE, 32)]).toBeNull();
   });
@@ -127,10 +127,10 @@ describe('placement spots', () => {
 describe('clearing', () => {
   it('removes buildings and roads without refund and cuts trees for silver', () => {
     const s = emptyGame({ silver: 7 });
-    put(s, 'well', ROADSIDE, 30);
+    put(s, 'plaza', ROADSIDE, 30);
     expect(clearCell(s, ROADSIDE + 1, 31)).toEqual({ ok: true }); // any cell of the footprint
     expect(s.grid[indexOf(s, ROADSIDE, 30)]).toBeNull();
-    expect(s.coverage.well.some(Boolean)).toBe(false);
+    expect(s.coverage.plaza.some(Boolean)).toBe(false);
     expect(clearCell(s, 24, 46)).toEqual({ ok: true });
     expect(s.roads[indexOf(s, 24, 46)]).toBe(false);
     expect(s.silver).toBe(7);
