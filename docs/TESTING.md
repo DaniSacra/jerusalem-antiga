@@ -218,7 +218,7 @@ npm run sim -- --set rules.workerShare=0.5 --set buildings.field.harvest=400 --d
 Jogadores (perfis em `PROFILES`; o rng do jogador é separado do rng do jogo):
 
 - **eficiente** — conhece as regras: planeja a comida com a previsão, planta no outono, olha
-  as vagas antes de construir, faz o celeiro cedo e põe poços onde atendem mais casas.
+  as vagas antes de construir, faz o celeiro cedo e põe praças onde atendem mais casas e um passo "Evolução" dá a praça, o mercado ou o parque às casas paradas.
 - **pescador** — como o eficiente, mas não planta campos: alimenta a cidade com pescadores e
   coletoras.
 - **comum** — reage ao que vê na tela com 3 semanas de atraso, fica parado 10% das vezes, não usa

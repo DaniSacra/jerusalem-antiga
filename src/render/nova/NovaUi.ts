@@ -253,9 +253,10 @@ export class NovaUi {
       const tree = !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
       if (tree) return { text: T.nova.cutTree, ...c, w: 1, h: 1, lift: px(40) };
       // A granary, or the road that links one: the food that would spoil.
+      const b = s.grid[i];
+      if (b ? !BUILDINGS[b.kind].storage : !s.roads[i]) return null;
       const lost = foodLostIfRemoved(s, c.x, c.y);
       if (lost <= 0) return null;
-      const b = s.grid[i];
       const foot = b ? { x: b.x, y: b.y, w: b.w, h: b.h } : { ...c, w: 1, h: 1 };
       return { text: T.nova.foodLost(lost), bad: true, ...foot, lift: (b ? (HEIGHT[TEX.building(b.kind)] ?? 40) : 20) + px(14) };
     }
