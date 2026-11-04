@@ -14,8 +14,8 @@
       "prompt": "House of ancient Jerusalem about 500 BC, lower walls of rough pale limestone blocks and upper walls of mud brick, one small square window, wooden door at the front, flat roof terrace with clay jars, a potted plant and a small outside stair along one wall, on a square base."
     },
     "house-4": {
-      "polycount": 7000,
-      "prompt": "Large Judean four-room house of ancient Jerusalem about 500 BC, simple boxy mass, two storeys, thick plain walls of pale limestone blocks below and ochre mud plaster above, built in a U shape around a small open inner courtyard with a row of three square stone pillars, flat roof terraces with clay jars and a laundry line, outside stone stair on one side, few tiny windows, one wooden door, no balconies, no railings, no porch, no arches, on a square base."
+      "polycount": 2000,
+      "prompt": "Tall two-storey Judean four-room house of ancient Jerusalem about 500 BC, a compact block almost a cube, as tall as it is wide, clearly two full storeys high, ground floor of thick pale cream limestone blocks, upper storey of light beige mud plaster, a small open square inner courtyard in the middle with stone pillars, flat roof terrace with a low parapet, clay jars and a laundry line, outside stone stair climbing one side wall, few tiny windows, one wooden door, no balconies, no railings, no arches, not orange, on a square base."
     },
     "plaza": {
       "polycount": 4000,
@@ -30,8 +30,8 @@
       "prompt": "Woodcutter's yard of ancient Judea, small cabin built of rough logs with a flat roof, a neat stack of cut logs, a tree stump chopping block with an axe stuck in it, scattered wood chips, on a square packed-earth base."
     },
     "quarry": {
-      "polycount": 5000,
-      "prompt": "Small limestone quarry of ancient Jerusalem, pale cream rock outcrop cut into stepped terraces with sharp straight cuts, several rectangular cut stone blocks stacked nearby, a small wooden lifting crane with rope, on a square base."
+      "polycount": 2000,
+      "prompt": "Limestone quarry of ancient Jerusalem about 500 BC. The main mass is a big solid hill of pale cream limestone rock filling most of the base, its front face cut away into three large stair-like steps with flat tops and sharp vertical cuts. On the ground in front, a few rectangular cut stone blocks stacked in a pile. Beside the hill a sturdy wooden crane of three thick log poles tied at the top as a tripod with a pulley, a short rope down to a block on the ground. Nothing floating, no pyramid, no thin pole, on a square packed-earth base."
     },
     "temple": {
       "polycount": 9000,

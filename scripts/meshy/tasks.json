@@ -7,7 +7,10 @@
     "refineId": "01a1a7cd-69c3-7456-9ddc-e7b397179aaf",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 2301288
+    "rawBytes": 2301288,
+    "remeshId": "01a1a7e0-3bf9-712a-8ac8-10e05a383fe7",
+    "remeshTarget": 2000,
+    "remeshCredits": 5
   },
   "market": {
     "prompt": "Long open-air market of ancient Jerusalem about 500 BC, a row of three wooden stalls with striped linen awnings in ochre, cream and faded red, woven baskets of grain and fruit, clay jars and amphorae, rolled cloth, on a rectangular packed-earth base twice as long as wide. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -17,7 +20,10 @@
     "refineId": "01a1a7cd-6a59-70d8-bbf0-93003db37983",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 3497276
+    "rawBytes": 3497276,
+    "remeshId": "01a1a7e0-3bfa-72c4-bdc9-e178ebc8629d",
+    "remeshTarget": 2500,
+    "remeshCredits": 5
   },
   "house-3": {
     "prompt": "House of ancient Jerusalem about 500 BC, lower walls of rough pale limestone blocks and upper walls of mud brick, one small square window, wooden door at the front, flat roof terrace with clay jars, a potted plant and a small outside stair along one wall, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -27,7 +33,10 @@
     "refineId": "01a1a7cd-93d4-77f4-add9-da9647dc1e39",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 2642008
+    "rawBytes": 2642008,
+    "remeshId": "01a1a7e0-3bf3-723f-8074-b46497ab5407",
+    "remeshTarget": 1800,
+    "remeshCredits": 5
   },
   "house-1": {
     "prompt": "Small nomad tent of dark brown and black woven goat-hair cloth, Judean hills about 500 BC, low sloped roof held by wooden poles and ropes tied to stakes, one side open, two clay water jars beside the entrance, on a square packed-earth base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -37,7 +46,10 @@
     "refineId": "01a1a7cd-9236-7234-bd2e-15d56146af30",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 3265832
+    "rawBytes": 3265832,
+    "remeshId": "01a1a7e0-3be9-74b0-9dd9-e45e9864a6c8",
+    "remeshTarget": 1800,
+    "remeshCredits": 5
   },
   "house-2": {
     "prompt": "Small one-room house of sun-dried mud brick, ancient Jerusalem about 500 BC, cube shape, flat roof of wooden beams and packed mud with a low parapet, one small wooden door at the front, one tiny window, plain plastered ochre walls, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -47,17 +59,10 @@
     "refineId": "01a1a7cd-940d-7019-a23c-4cc20d7e70aa",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 2916736
-  },
-  "quarry": {
-    "prompt": "Small limestone quarry of ancient Jerusalem, pale cream rock outcrop cut into stepped terraces with sharp straight cuts, several rectangular cut stone blocks stacked nearby, a small wooden lifting crane with rope, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
-    "polycount": 5000,
-    "previewId": "01a1a7cc-e51e-7174-9f7d-79b4c3b4a193",
-    "attempt": 1,
-    "refineId": "01a1a7cd-69a7-73cb-97a5-68f2977e9d1c",
-    "previewCredits": 5,
-    "refineCredits": 10,
-    "rawBytes": 2065548
+    "rawBytes": 2916736,
+    "remeshId": "01a1a7e0-3be9-74b2-9781-52d751b1cc9f",
+    "remeshTarget": 1800,
+    "remeshCredits": 5
   },
   "house-4@1": {
     "prompt": "Large two-storey Judean four-room house, Jerusalem about 500 BC, pale limestone ground floor and mud brick upper floor, small inner courtyard open to the sky with a stone pillar row, flat roof terraces with jars, a laundry line and an outside stair, few small windows, wooden door at the front, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -99,16 +104,6 @@
     "refineCredits": 10,
     "rawBytes": 2099468
   },
-  "olive": {
-    "prompt": "Old olive tree, short thick gnarled twisted grey-brown trunk, wide rounded canopy made of a few big solid rounded clumps of dull olive-green foliage, smooth chunky blobs, no thin leaves, on a small round patch of earth. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
-    "polycount": 2000,
-    "previewId": "01a1a7cf-5f3e-7680-89b8-1b73cceed271",
-    "attempt": 1,
-    "refineId": "01a1a7cf-e6aa-772c-9758-a6b471c14baf",
-    "previewCredits": 5,
-    "refineCredits": 10,
-    "rawBytes": 2331536
-  },
   "temple": {
     "prompt": "Second Temple of Jerusalem about 515 BC, complete and intact, simple and imposing, all pale cream limestone. A tall boxy sanctuary with a flat roof and a taller flat-topped entrance porch, two free-standing plain columns before the doorway. It stands in a square courtyard with a low wall lined inside by plain square pillars, a rough unhewn stone altar in front. No triangular pediment, not a Greek temple, no ruins, no statues, no carvings, no Babylonian or Egyptian ornaments, on a square stone platform base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
     "polycount": 9000,
@@ -117,17 +112,10 @@
     "refineId": "01a1a7cf-bc54-7470-949e-70d5eb3cf3a3",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 1842036
-  },
-  "house-4": {
-    "prompt": "Large Judean four-room house of ancient Jerusalem about 500 BC, simple boxy mass, two storeys, thick plain walls of pale limestone blocks below and ochre mud plaster above, built in a U shape around a small open inner courtyard with a row of three square stone pillars, flat roof terraces with clay jars and a laundry line, outside stone stair on one side, few tiny windows, one wooden door, no balconies, no railings, no porch, no arches, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
-    "polycount": 7000,
-    "previewId": "01a1a7cf-5f3d-744f-975a-0ff11a05f95d",
-    "attempt": 1,
-    "refineId": "01a1a7cf-e547-747e-b3d6-293ead98739f",
-    "previewCredits": 5,
-    "refineCredits": 10,
-    "rawBytes": 2859656
+    "rawBytes": 1842036,
+    "remeshId": "01a1a7e0-3c07-7185-bbb4-aa1afc90b39f",
+    "remeshTarget": 4000,
+    "remeshCredits": 5
   },
   "plaza": {
     "prompt": "Square town plaza of ancient Jerusalem, the whole square paved with large pale limestone slabs as a thick flat stone platform with a low curb, one long low stone bench along one edge, one small olive tree in a square stone planter in a corner, a square linen sun awning on four wooden poles over the bench, no well, no fountain. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -137,6 +125,82 @@
     "refineId": "01a1a7cf-e57e-726b-8cc9-b09bc3c26d37",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 3450732
+    "rawBytes": 3450732,
+    "remeshId": "01a1a7e0-3bf0-723d-8134-0a0a05e7eac6",
+    "remeshTarget": 2000,
+    "remeshCredits": 5
+  },
+  "house-4@2": {
+    "prompt": "Large Judean four-room house of ancient Jerusalem about 500 BC, simple boxy mass, two storeys, thick plain walls of pale limestone blocks below and ochre mud plaster above, built in a U shape around a small open inner courtyard with a row of three square stone pillars, flat roof terraces with clay jars and a laundry line, outside stone stair on one side, few tiny windows, one wooden door, no balconies, no railings, no porch, no arches, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 7000,
+    "previewId": "01a1a7cf-5f3d-744f-975a-0ff11a05f95d",
+    "attempt": 1,
+    "refineId": "01a1a7cf-e547-747e-b3d6-293ead98739f",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2859656
+  },
+  "quarry@1": {
+    "prompt": "Small limestone quarry of ancient Jerusalem, pale cream rock outcrop cut into stepped terraces with sharp straight cuts, several rectangular cut stone blocks stacked nearby, a small wooden lifting crane with rope, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 5000,
+    "previewId": "01a1a7cc-e51e-7174-9f7d-79b4c3b4a193",
+    "attempt": 1,
+    "refineId": "01a1a7cd-69a7-73cb-97a5-68f2977e9d1c",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2065548
+  },
+  "house-4": {
+    "prompt": "Tall two-storey Judean four-room house of ancient Jerusalem about 500 BC, a compact block almost a cube, as tall as it is wide, clearly two full storeys high, ground floor of thick pale cream limestone blocks, upper storey of light beige mud plaster, a small open square inner courtyard in the middle with stone pillars, flat roof terrace with a low parapet, clay jars and a laundry line, outside stone stair climbing one side wall, few tiny windows, one wooden door, no balconies, no railings, no arches, not orange, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 2000,
+    "previewId": "01a1a7e0-3bf1-7494-b289-d0183fd3730c",
+    "attempt": 1,
+    "refineId": "01a1a7e0-ebcd-74c2-9cc4-64ac389b681e",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2499704
+  },
+  "quarry@2": {
+    "prompt": "Limestone quarry of ancient Jerusalem about 500 BC, a low pale cream limestone rock outcrop cut into three wide stepped ledges with flat tops and sharp vertical cuts, rectangular cut stone blocks stacked on the ground in front, a sturdy wooden crane of three thick log poles tied as a tripod with a wooden pulley and a rope lifting one block, a hammer and chisels on a block, no pyramid, no thin pole, on a square packed-earth base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 2000,
+    "previewId": "01a1a7e0-3bf0-70c8-8cd8-951643768023",
+    "attempt": 1,
+    "refineId": "01a1a7e0-c1b2-7300-8805-0b3db0044db3",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 3067576
+  },
+  "quarry": {
+    "prompt": "Limestone quarry of ancient Jerusalem about 500 BC. The main mass is a big solid hill of pale cream limestone rock filling most of the base, its front face cut away into three large stair-like steps with flat tops and sharp vertical cuts. On the ground in front, a few rectangular cut stone blocks stacked in a pile. Beside the hill a sturdy wooden crane of three thick log poles tied at the top as a tripod with a pulley, a short rope down to a block on the ground. Nothing floating, no pyramid, no thin pole, on a square packed-earth base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 2000,
+    "previewId": "01a1a7e2-2d04-77e5-8b6c-c62fdbf393fd",
+    "attempt": 1,
+    "refineId": "01a1a7e2-8a12-732c-8ee8-7202e0dff3af",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2008528
+  },
+  "olive@3": {
+    "prompt": "Old olive tree, short thick gnarled twisted grey-brown trunk, wide rounded canopy made of a few big solid rounded clumps of dull olive-green foliage, smooth chunky blobs, no thin leaves, on a small round patch of earth. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 800,
+    "previewId": "01a1a7e9-b81f-7323-8adc-16b58edef7f1",
+    "attempt": 1,
+    "refineId": "01a1a7ea-1107-7400-91d0-9f6f60dd20e0",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 1502536
+  },
+  "olive": {
+    "prompt": "Old olive tree, short thick gnarled twisted grey-brown trunk, wide rounded canopy made of a few big solid rounded clumps of dull olive-green foliage, smooth chunky blobs, no thin leaves, on a small round patch of earth. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 2000,
+    "previewId": "01a1a7cf-5f3e-7680-89b8-1b73cceed271",
+    "attempt": 1,
+    "refineId": "01a1a7cf-e6aa-772c-9758-a6b471c14baf",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2331536,
+    "remeshId": "01a1a7de-aba9-704b-9ffa-8b2400bcb2fc",
+    "remeshTarget": 800,
+    "remeshCredits": 5
   }
 }
