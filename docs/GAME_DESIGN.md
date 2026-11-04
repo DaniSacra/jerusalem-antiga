@@ -74,7 +74,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Campo | 20 | 1/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
 | Praça | 25 | 1/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
 | Pescador | 20 | 1/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem | 2 | o ano todo |
-| Coletora | 20 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 4,5 comida/sem | 3 | o ano todo |
+| Coletora | 20 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem | 3 | o ano todo |
 | Celeiro | 40 | 1/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 1 |
 | Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
 | Oficina | 50 | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |

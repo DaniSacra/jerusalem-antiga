@@ -27,7 +27,7 @@ describe('fisher and gatherer data', () => {
       expect(RULES.startUnlocked).toContain(k);
     }
     expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.75, max: 4.5 });
-    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.3, max: 4.5 });
+    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.3, max: 3.5 });
   });
 });
 

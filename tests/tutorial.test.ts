@@ -186,12 +186,18 @@ describe('food spot and ghost road', () => {
     const fish = foodSpot(s)!;
     expect(fish.kind).toBe('fisher');
     expect(fish.food).toBe(BUILDINGS.fisher.gather!.max);
-    // A grove right by the ring brings as much with a shorter road.
+    // A grove right by the ring has a shorter road, but brings less than the river: the fisher stays.
     for (let y = 10; y < 22; y++) for (let x = 12; x < 20; x++) if (isFreeLand(s, x, y)) s.feature[indexOf(s, x, y)] = 'olive';
+    expect(BUILDINGS.gatherer.gather!.max).toBeLessThan(fish.food);
+    expect(foodSpot(s)).toEqual(fish);
+    // Without the river, the grove spot with the shortest road wins.
+    s.ground = s.ground.map(() => 'sand');
     const grove = foodSpot(s)!;
     expect(grove.kind).toBe('gatherer');
-    expect(grove.food).toBe(fish.food);
+    expect(grove.food).toBe(BUILDINGS.gatherer.gather!.max);
     expect(grove.road.length).toBeLessThan(fish.road.length);
+    for (let y = 2; y < 8; y++) for (let x = 2; x < 8; x++) s.feature[indexOf(s, x, y)] = 'olive'; // a farther grove as good
+    expect(foodSpot(s)).toEqual(grove);
   });
 
   it('is null when no spot brings enough food', () => {
