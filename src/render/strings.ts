@@ -52,7 +52,7 @@ export const T = {
   /** Why no new family comes (Avisos and the statistics problems). */
   familyBlock: {
     famine: 'Nenhuma família vem: falta comida. Pesque ou colete',
-    food: 'Nenhuma família vem: falta sobra de comida para mais uma família. Pesque ou colete',
+    food: 'Nenhuma família vem: pouca comida sobrando. Plante campos, pesque ou colete',
     storage: 'Nenhuma família vem: o estoque está cheio',
     wait: 'Uma nova família pode chegar em breve',
     noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
@@ -64,9 +64,9 @@ export const T = {
     return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
   },
   /** A family left its tent: famine, or the tent lost its road. */
-  familyLeft: { famine: 'Uma família foi embora: fome', road: 'Uma família foi embora: casa sem rua' } satisfies Record<LeaveReason, string>,
+  familyLeft: { famine: 'Uma família foi embora: fome', road: 'Uma família foi embora: tenda sem rua ligada ao altar' } satisfies Record<LeaveReason, string>,
   /** The temple was built before the goal the victory waits for (500 and 8 read from goals.json). */
-  templeEarly: `Templo erguido! A vitória vem com ${TEMPLE_GOAL.goal.target} moradores, a partir do Ano ${TEMPLE_GOAL.goal.fromYear}`,
+  templeEarly: `Templo erguido! Chegue a ${TEMPLE_GOAL.goal.target} moradores a partir do Ano ${TEMPLE_GOAL.goal.fromYear} para vencer`,
   famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
@@ -74,7 +74,7 @@ export const T = {
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
-  noTempleSpotRoad: 'Sem lugar pronto: o Templo cabe no amarelo, falta ligar à rua',
+  noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
   /** Preview of any building that fits but would not touch the road network. */
   needsRoad: 'Cabe aqui: falta ligar à rua',
   fail: {
@@ -140,7 +140,7 @@ export const T = {
     skip: 'Pular tutorial',
     ok: 'Entendi',
     again: 'Rever o tutorial',
-    done: 'Muito bem! Construa mais casas: cada uma recebe uma família',
+    done: 'Tutorial concluído! Construa mais casas para receber mais famílias',
   },
   mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
   happinessPart: {
@@ -236,7 +236,7 @@ export const T = {
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
-      temple: `Vence o jogo após o objetivo ${TEMPLE_GOAL.number}. Precisa encostar numa rua ligada ao altar.`,
+      temple: `Vence o jogo com o objetivo ${TEMPLE_GOAL.number} cumprido. Encoste numa rua ligada ao altar.`,
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {
