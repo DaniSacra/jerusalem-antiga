@@ -30,7 +30,7 @@ attribute vec4 aSeed;
 uniform float uTime; uniform vec3 uCenter; uniform vec3 uBox; uniform float uFloor;
 uniform float uFall; uniform float uDrift; uniform float uSway; uniform float uWind; uniform float uAmount;
 uniform vec2 uSize; uniform int uShape;
-varying vec2 vUv; varying float vSeed; varying float vLife;
+varying vec2 vUv; varying float vSeed; varying float vLife; varying float vNear;
 void main() {
   vUv = uv; vSeed = aSeed.w; vLife = 1.0;
   if (aSeed.w > uAmount) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -50,6 +50,8 @@ void main() {
     p.x += sin(uTime * 1.7 + aSeed.w * 40.0) * uSway;
     p.z += cos(uTime * 1.3 + aSeed.w * 30.0) * uSway;
   }
+  // Particles right in front of the lens would cover the screen: fade them out.
+  vNear = smoothstep(3.0, 9.0, distance(p, cameraPosition));
   vec3 corner = vec3((uv.x - 0.5) * uSize.x, (uv.y - 0.5) * uSize.y, 0.0);
   vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
   vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
@@ -74,7 +76,7 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform vec3 uColors[4]; uniform float uOpacity; uniform float uLight; uniform int uShape;
-varying vec2 vUv; varying float vSeed; varying float vLife;
+varying vec2 vUv; varying float vSeed; varying float vLife; varying float vNear;
 void main() {
   vec2 q = vUv - 0.5;
   float a;
@@ -84,7 +86,7 @@ void main() {
   else a = 1.0 - smoothstep(0.15, 0.5, length(q));
   int k = int(floor(fract(vSeed * 7.31) * 4.0));
   vec3 c = k == 0 ? uColors[0] : k == 1 ? uColors[1] : k == 2 ? uColors[2] : uColors[3];
-  gl_FragColor = vec4(c * uLight, a * uOpacity);
+  gl_FragColor = vec4(c * uLight, a * uOpacity * vNear);
   if (gl_FragColor.a < 0.01) discard;
   #include <colorspace_fragment>
 }`;

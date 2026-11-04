@@ -300,10 +300,12 @@ export class NightFires {
     this.objects = [this.flames, glow, pools];
   }
 
-  update(time: number, night: number, rain: number) {
+  /** `pixelRatio`: the glow size is in drawing-buffer pixels. */
+  update(time: number, night: number, rain: number, pixelRatio: number) {
     // The rain dampens the fires outside.
     const k = night * (1 - 0.5 * rain);
     this.glowMat.uniforms.uTime.value = time;
+    this.glowMat.uniforms.uScale.value = 450 * pixelRatio;
     this.glowMat.uniforms.uNight.value = k;
     this.poolMat.opacity = 0.55 * k;
     const show = k > 0.05;

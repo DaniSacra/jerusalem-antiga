@@ -198,7 +198,7 @@ async function start() {
     world.walkers.update(live, time);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
     world.smoke.update(time, Math.max(look.smoke, L.night * 0.35), w.wind, 0.26 * (1 - 0.5 * w.rain));
-    world.fires.update(time, L.night, w.rain);
+    world.fires.update(time, L.night, w.rain, renderer.getPixelRatio());
     world.altarFire?.update(time);
     // Puddles on bare roads only (none on the snow).
     const puddles = w.puddles * (1 - s3.snow);
@@ -235,7 +235,8 @@ async function start() {
   };
   let hudAt = 0;
   let bannerSeason = '';
-  let checkedAt = performance.now() + 1500;
+  let checkedAt = performance.now() + 4000;
+  let slow = 0;
 
   const clock = new THREE.Clock();
   const loop = () => {
@@ -248,10 +249,13 @@ async function start() {
     const now = performance.now();
     stamps.push(now);
     while (stamps.length && stamps[0] < now - 2000) stamps.shift();
-    // Automatic quality: one step down when the frame rate stays under 30.
-    if (qualityParam === 'auto' && level !== 'min' && now - checkedAt > 3000) {
+    // Automatic quality: one step down when the frame rate stays under 30 for two windows in a
+    // row (the first seconds, with shaders compiling, do not count).
+    if (qualityParam === 'auto' && level !== 'min' && now - checkedAt > 2500) {
       checkedAt = now;
-      if (fps() < 30) {
+      slow = fps() < 30 ? slow + 1 : 0;
+      if (slow >= 2) {
+        slow = 0;
         setLevel(level === 'high' ? 'low' : 'min');
         flash(hud.note, T3.lowered);
       }

@@ -502,6 +502,8 @@ function fromObject(root: THREE.Object3D, [w, h]: [number, number], entry: PackE
   const parts: Part[] = [];
   for (const [material, geos] of byMat) {
     for (const g of geos) g.applyMatrix4(fit);
+    // Bought models get the world effects too (snow, wetness, cloud shadows).
+    if (material instanceof THREE.MeshStandardMaterial) patch(material);
     const merged = mergeGeometries(geos);
     if (merged) parts.push({ geometry: merged, material });
     else for (const g of geos) parts.push({ geometry: g, material });

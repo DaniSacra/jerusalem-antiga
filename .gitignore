@@ -3,3 +3,4 @@ dist
 *.log
 screenshots
 dist-poc
+dist-2d-size
