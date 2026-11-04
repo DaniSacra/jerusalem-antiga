@@ -171,11 +171,11 @@ describe('houses by level', () => {
 describe('food made and eaten', () => {
   it('splits the food balance into production and consumption', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 2); // 6 residents eating 0.2 each
+    put(s, 'house', ROADSIDE, 27, 2); // 6 residents eating 0.15 each
     put(s, 'field', EAST, 27);
     s.week = 2 * RULES.weeksPerSeason; // first spring: the field built in autumn harvests
     const e = computeEconomy(s);
-    expect(e.foodEaten).toBeCloseTo(1.2);
+    expect(e.foodEaten).toBeCloseTo(0.9);
     expect(e.foodMade).toBeCloseTo(e.foodDelta + e.foodEaten);
     expect(e.foodMade).toBeGreaterThan(0);
   });

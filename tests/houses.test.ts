@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, clearCell, houseHappiness, houseInfo, idleShare, RULES, stepWeek } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
 const run = (s: Parameters<typeof stepWeek>[0], weeks: number, rng = never) => {
@@ -151,6 +151,9 @@ describe('house info and balloons', () => {
     const field = put(s, 'field', westOf('field'), 30);
     const well = put(s, 'well', ROADSIDE, 33);
     const plot = put(s, 'house', ROADSIDE, 35);
+    s.week = RULES.weeksPerSeason; // winter: a frozen field needs nobody
+    expect(balloonNeed(s, field)).toBeNull();
+    atHarvest(s);
     expect(balloonNeed(s, field)).toBe('workers');
     expect(balloonNeed(s, well)).toBeNull(); // no jobs
     expect(balloonNeed(s, plot)).toBeNull();

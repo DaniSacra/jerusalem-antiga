@@ -134,7 +134,7 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   if (!s.famine && wasFamine) events.push({ type: 'famineEnd' });
   store(s, events);
   if (eco.harvest > 0) {
-    if (s.week % RULES.weeksPerSeason === 0) events.push({ type: 'harvestStart', amount: round2(eco.harvest * RULES.weeksPerSeason) });
+    if (s.week % RULES.weeksPerSeason === 0 && seasonOf(s.week) === 'spring') events.push({ type: 'harvestStart', amount: round2(eco.harvest * RULES.weeksPerSeason) });
     s.harvested = round2(s.harvested + eco.harvest);
     reach(s, 'firstHarvest', events);
   }

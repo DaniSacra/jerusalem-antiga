@@ -1,5 +1,5 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
-import { fieldHarvest, gatherFood } from './harvest';
+import { fieldHarvest, gatherFood, isWorking } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import type { BuildingKind, GameState } from './types';
 
@@ -60,7 +60,7 @@ export function computeEconomy(s: GameState): Economy {
     }
     const def = BUILDINGS[b.kind];
     if (def.upkeep && charged) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
-    if (!b.connected) continue;
+    if (!b.connected || !isWorking(b, s.week)) continue;
     jobs += def.jobs;
     const h = fieldHarvest(s, b, s.week);
     harvest += h;

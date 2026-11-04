@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { advanceClock, RULES, stepWeek } from '../src/core';
-import { constRng, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, constRng, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
 
@@ -31,7 +31,8 @@ describe('stepWeek: field silver', () => {
   it('adds the field silver, scaled by efficiency, to the weekly balance', () => {
     const s = emptyGame({ silver: 0, food: 10 });
     put(s, 'house', ROADSIDE, 30, 1); // 3 residents -> 1 worker, 1 tax
-    put(s, 'field', westOf('field'), 32); // 2 jobs -> efficiency 0.5
+    put(s, 'field', westOf('field'), 32); // 2 jobs at harvest -> efficiency 0.5
+    atHarvest(s);
     stepWeek(s, never);
     expect(s.silver).toBeCloseTo(1 + 1 * 0.5 - 1); // tax + field silver - field upkeep
   });

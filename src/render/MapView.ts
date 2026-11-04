@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   type Economy,
+  isWorking,
   balloonNeed,
   BUILDINGS,
   checkClear,
@@ -25,11 +26,6 @@ import {
   type Rect,
   byRiver,
   foodCapacity,
-  harvestsIn,
-  RULES,
-  seasonCount,
-  SEASONS,
-  START_SEASON,
 } from '../core';
 import { C, CSS, shade } from './palette';
 import { T } from './strings';
@@ -118,15 +114,6 @@ const MOMENTS = VISUAL.moments;
 const ALL_CROPS: ReadonlySet<CropStage> = new Set<CropStage>(['plowed', 'sprout', 'young', 'straw', 'dry']);
 /** Stages a drought turns thin and yellow on fields away from the river. */
 const THIRSTY: ReadonlySet<CropStage> = new Set<CropStage>(['green', 'ripe', 'gold', 'straw']);
-const AUTUMN = SEASONS.indexOf('autumn');
-const SPRING = SEASONS.indexOf('spring');
-
-/** First week of the spring of the farming year (autumn to summer) that `week` falls in. */
-function yearSpring(week: number): number {
-  const k = seasonCount(week);
-  const spring = k - ((k - AUTUMN + 4) % 4) + ((SPRING - AUTUMN + 4) % 4);
-  return (spring - START_SEASON) * RULES.weeksPerSeason;
-}
 
 /** Granary drawing for the share of the stores in use: empty, a third, two thirds or full. */
 export function granaryStock(s: GameState): number {
@@ -353,14 +340,14 @@ export class MapView {
     this.drawLooseRoads(s);
     this.drawTrails(s);
     const alive = new Set<number>();
-    // Farmers per field follow the share of jobs filled; none on a field without a road.
+    // Farmers per field follow the share of jobs filled; none on a field without a road or out of its harvest.
     const farmers = Math.round(BUILDINGS.field.jobs * eco.efficiency);
     for (const b of s.buildings) {
       alive.add(b.id);
       this.syncBuilding(b);
       const v = this.views.get(b.id)!;
-      v.crew?.setCount(b.connected ? farmers : 0);
-      if (v.kind === 'field') this.paintCrop(v, b);
+      v.crew?.setCount(b.connected && isWorking(b, s.week) ? farmers : 0);
+      if (v.kind === 'field') this.paintCrop(v);
       this.syncBalloon(s, b, eco);
     }
     for (const [id, v] of this.views) {
@@ -546,7 +533,7 @@ export class MapView {
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       view.byRiver = byRiver(this.state, b);
-      this.paintCrop(view, b);
+      this.paintCrop(view);
       root.add(view.wheat);
       view.crew = new FieldCrew(sc, root, view.wheat, b.mirrored ?? false);
     }
@@ -857,7 +844,7 @@ export class MapView {
       this.dry = dry;
       for (const b of this.state.buildings) {
         const v = b.kind === 'field' ? this.views.get(b.id) : undefined;
-        if (v) this.paintCrop(v, b);
+        if (v) this.paintCrop(v);
       }
     }
     if (look !== prev || wetStep !== this.wetStep || ground) {
@@ -933,18 +920,15 @@ export class MapView {
   }
 
   /**
-   * A field's crop for the year, following the core: a field sown for this year's harvest sprouts
-   * in autumn, is green in winter, golden in spring (the harvest) and stubble in summer; one built
-   * after the autumn stays ploughed and empty until the next autumn. In a drought the crops away
-   * from the river turn thin and yellow.
+   * A field's crop for the year (looks only): it sprouts in autumn, is green in winter, golden in
+   * spring and stubble in summer. In a drought the crops away from the river turn thin and yellow.
    */
-  private fieldStage(v: BuildingView, b: Building): CropStage {
-    if (!harvestsIn(b, yearSpring(this.state.week))) return 'plowed';
+  private fieldStage(v: BuildingView): CropStage {
     return this.dry && !v.byRiver && THIRSTY.has(this.crop) ? 'dry' : this.crop;
   }
 
-  private paintCrop(v: BuildingView, b: Building) {
-    const stage = this.fieldStage(v, b);
+  private paintCrop(v: BuildingView) {
+    const stage = this.fieldStage(v);
     if (stage === v.stage) return;
     v.stage = stage;
     const st = CROP_STAGES[stage];

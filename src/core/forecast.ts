@@ -1,6 +1,6 @@
 import { BUILDINGS, RULES } from './data';
 import { computeEconomy, round2, type Economy } from './economy';
-import { byRiver, fieldHarvest, foodCapacity, gatherFood, weeksToHarvest } from './harvest';
+import { byRiver, fieldHarvest, foodCapacity, gatherFood, harvestsIn, weeksToHarvest } from './harvest';
 import { seasonCount, seasonOf, SEASONS, WEEKS_PER_YEAR } from './seasons';
 import type { GameState, Season } from './types';
 
@@ -22,13 +22,20 @@ function nextAutumn(week: number): number {
 export function foodForecast(s: GameState, eco: Economy = computeEconomy(s), horizon = WEEKS_PER_YEAR): { weeks: number; season: Season } | null {
   const steady = s.buildings.reduce((sum, b) => sum + gatherFood(s, b), 0);
   const fields = s.buildings.filter((b) => BUILDINGS[b.kind].harvest && b.connected).map((b) => ({ b, river: byRiver(s, b) }));
+  // Fields take no workers in winter, so the efficiency changes over the year.
+  const fieldJobs = (w: number) => (harvestsIn(w) ? fields.reduce((n, f) => n + BUILDINGS[f.b.kind].jobs, 0) : 0);
+  const otherJobs = eco.jobs - fieldJobs(s.week);
+  const efficiencyAt = (w: number) => {
+    const jobs = otherJobs + fieldJobs(w);
+    return jobs === 0 ? 1 : Math.min(1, eco.workers / jobs);
+  };
   const cap = foodCapacity(s);
   const dryUntil = s.drought ? nextAutumn(s.week) : -1;
   let food = s.food;
   for (let k = 0; k < horizon; k++) {
     const w = s.week + k;
     const harvest = fields.reduce((sum, f) => sum + fieldHarvest(s, f.b, w, w < dryUntil, f.river), 0);
-    const delta = (steady + harvest) * eco.efficiency - eco.foodEaten;
+    const delta = (steady + harvest) * efficiencyAt(w) - eco.foodEaten;
     food = round2(Math.min(cap, food + delta)); // rounded like the weekly step
     if (food <= 0 && delta < 0) return { weeks: k, season: seasonOf(w) };
   }

@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import {
   BUILDINGS,
-  calendar,
   dimsOf,
-  firstHarvestWeek,
+  fieldHarvest,
   gatherFood,
+  harvestsIn,
   indexOf,
   type BuildingCategory,
   type Building,
@@ -241,8 +241,8 @@ export class NovaUi {
     const o = originFor(t, c);
     const { w, h } = dimsOf(t);
     const lift = (HEIGHT[TEX.building(t)] ?? 40) + px(14);
-    if (def.harvest) return { text: T.nova.harvestYear(calendar(firstHarvestWeek(s.week)).year), ...o, w, h, lift };
     const ghost: Building = { id: -1, kind: t, ...o, w, h, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: s.week };
+    if (def.harvest) return { text: harvestsIn(s.week) ? T.nova.yields(fieldHarvest(s, ghost, s.week)) : T.nova.inspect.frozen, ...o, w, h, lift };
     return { text: T.nova.yields(gatherFood(s, ghost)), ...o, w, h, lift };
   }
 

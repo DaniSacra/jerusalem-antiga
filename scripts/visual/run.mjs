@@ -549,14 +549,14 @@ async function playTutorial(page, suffix) {
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
   assert(await page.evaluate(() => window.game.guide.allowed() === null), 'tools are free after step 6');
 
-  // Goal 2: the balance message, then the market.
+  // Goal 3: the balance message, then the market.
   await page.evaluate(() => {
     window.game.setSpeed(0);
     window.state.unlocked.push('market');
     window.game.handleEvents([{ type: 'upkeepStart' }]);
     window.game.refresh();
   });
-  assert((await tutorialStep(page)) === 'upkeep', 'goal 2 shows the balance message');
+  assert((await tutorialStep(page)) === 'upkeep', 'goal 3 shows the balance message');
   await shotStep('saldo');
   await clickTutorial(page, 'okBtn');
   assert((await tutorialStep(page)) === 'market', '"Entendi" moves on to the market');
@@ -935,6 +935,7 @@ const scenarios = {
       put('house', 15, 29).level = 4;
       put('house', 17, 29).level = 4;
       put('field', 16, 23); // no road: no farmers
+      s.week = 2 * core.RULES.weeksPerSeason; // the first spring: fields only take workers while they harvest
       window.game.cycleSpeed();
       window.game.cycleSpeed(); // pause
       core.refreshCity(s);
@@ -1144,6 +1145,7 @@ const scenarios = {
       s.feature = s.feature.map(() => null);
       for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
       core.place(s, 'field', 22, 30); // connected, but nobody lives here yet
+      s.week = 2 * core.RULES.weeksPerSeason; // its harvest: now it needs workers
       window.game.cycleSpeed();
       window.game.cycleSpeed(); // pause, so the setup stays as built
     });

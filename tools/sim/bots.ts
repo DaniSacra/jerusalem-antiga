@@ -9,6 +9,7 @@ import {
   BUILDINGS,
   HOUSE_LEVELS,
   RULES,
+  WEEKS_PER_YEAR,
   costOf,
   clearCell,
   computeEconomy,

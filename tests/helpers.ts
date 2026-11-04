@@ -68,3 +68,11 @@ export function besideRiver(s: GameState, y: number): number {
   road(s, Array.from({ length: left - ROAD_X - 1 }, (_, k) => [ROAD_X + 1 + k, y] as [number, number]));
   return left;
 }
+
+/** First spring: fields built in the first autumn harvest, so they are at work (and take workers). */
+export const FIRST_SPRING = 2 * RULES.weeksPerSeason;
+
+/** Moves to the first spring, when the fields built at the start take their workers. */
+export function atHarvest(s: GameState) {
+  s.week = FIRST_SPRING;
+}

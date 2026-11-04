@@ -2,14 +2,11 @@ import Phaser from 'phaser';
 import {
   BUILDINGS,
   byRiver,
-  calendar,
   craftOf,
   familyBlock,
-  firstHarvestWeek,
   gatherFood,
   harvestsIn,
   fieldHarvest,
-  weeksToHarvest,
   houseInfo,
   housesServed,
   indexOf,
@@ -141,8 +138,8 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
   const N = T.nova;
   const out: Line[] = [];
   if (def.harvest) {
-    if (b.connected && harvestsIn(b, s.week)) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * eco.efficiency), color: NOVA_CSS.good });
-    else out.push({ text: N.harvestYear(calendar(Math.max(firstHarvestWeek(b.built), s.week + weeksToHarvest(s.week))).year), color: NOVA_CSS.good });
+    if (!harvestsIn(s.week)) out.push({ text: N.inspect.frozen, color: NOVA_CSS.warn });
+    else if (b.connected) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * eco.efficiency), color: NOVA_CSS.good });
     if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, color: NOVA_CSS.good } : { text: N.inspect.droughtDry, color: NOVA_CSS.warn });
   }
   if (def.gather && b.connected) {

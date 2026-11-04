@@ -48,7 +48,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** (cerca de 6 construções).
 - **Caravana** (sorteada pela semente, `caravan` em `rules.json`): **2 a 4 famílias** já moram em
   tendas (casas comuns de nível 1, de graça) encostadas no anel do altar. A comida inicial vale
-  **10 a 20 semanas** do consumo delas, cortada no limite sem celeiro (40). Uma frase na abertura
+  **14 a 22 semanas** do consumo delas, cortada no limite sem celeiro (50). Uma frase na abertura
   mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas".
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
@@ -59,15 +59,15 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Construção | Custo | Manutenção | Tamanho | Vagas | Produção | Raio | Observações |
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
-| Casa | 20 | – | 2 x 2 | – | impostos | – | começa como terreno vazio |
-| Campo | 30 | 1/sem | 2 x 2 | 2 | 156 comida/ano na primavera (12/sem) e 1 prata/sem | – | 4 plantações (só aparência); ver Colheita |
-| Poço | 40 | 3/sem | 2 x 2 | – | – | 4 | |
-| Pescador | 25 | 1/sem | 2 x 2 | 1 | células de rio no raio × 0,25, máx. 1,5 comida/sem | 2 | o ano todo |
-| Coletora | 25 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,1, máx. 1,5 comida/sem | 3 | o ano todo |
-| Celeiro | 60 | 2/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 3 |
-| Mercado | 80 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 5; pode girar para 4 x 2 |
-| Oficina | 70 | 2/sem | 3 x 3 | 3 | 5 prata/sem | – | liberada pelo Objetivo 6; 6 ofícios (só aparência) |
-| Jardim | 50 | 1/sem | 2 x 2 | – | – | 3 | liberado pelo Objetivo 7; deixa as casas no raio mais felizes |
+| Casa | 15 | – | 2 x 2 | – | impostos | – | começa como terreno vazio |
+| Campo | 20 | 1/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem) e 1 prata/sem | – | 4 plantações (só aparência); ver Colheita |
+| Poço | 25 | 3/sem | 2 x 2 | – | – | 4 | |
+| Pescador | 20 | 1/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem | 2 | o ano todo |
+| Coletora | 20 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 4,5 comida/sem | 3 | o ano todo |
+| Celeiro | 40 | 2/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 3 |
+| Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 5; pode girar para 4 x 2 |
+| Oficina | 50 | 2/sem | 3 x 3 | 3 | 5 prata/sem | – | liberada pelo Objetivo 6; 6 ofícios (só aparência) |
+| Jardim | 35 | 1/sem | 2 x 2 | – | – | 3 | liberado pelo Objetivo 7; deixa as casas no raio mais felizes |
 | Templo | 800 | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 10; não pode ser demolido |
 | Altar | – | – | 4 x 4 | – | – | 3 | fixo no início |
 
@@ -77,13 +77,13 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   qualquer lugar; rendendo 0 mostram o balão "longe do rio" ou "sem árvores". A prévia mostra
   "Rende N comida/sem". Cortar árvores baixa a Coletora. Dois no mesmo recurso contam as mesmas
   células.
-- **Celeiro:** a cidade guarda **40** de comida sem celeiro (`baseFoodStorage`); cada celeiro
+- **Celeiro:** a cidade guarda **50** de comida sem celeiro (`baseFoodStorage`); cada celeiro
   **ligado** soma 150 (`storage`). A capacidade não depende da vaga preenchida. Comida acima do
   limite **estraga** no fim da semana, com o aviso "Comida estragando: construa um celeiro".
-- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 2**
+- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 3** (a primeira colheita)
   (`upkeepStartsAfterGoal` em `rules.json`). Antes disso nada é cobrado: o "+X/sem" não a desconta
   e não há aviso de saldo nem dívida por ela; os balões dizem "manutenção N/sem depois do
-  Objetivo 2". Ao cumprir o Objetivo 2 aparece, uma vez, "A partir de agora, as construções custam
+  Objetivo 3". Ao cumprir o Objetivo 3 aparece, uma vez, "A partir de agora, as construções custam
   prata por semana. Fique de olho no saldo." (passo do tutorial ou toast).
   A partir daí é cobrada toda semana de toda construção, **mesmo desconectada**, e também depois da
   vitória.
@@ -188,14 +188,15 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
 
 ## Colheita
 
-- O campo **semeia no outono, cresce no inverno e colhe na primavera**. Toda a comida do ano chega
-  nas 13 semanas da primavera: **156 por ano** (`harvest` em `buildings.json`), ou seja
-  **12 por semana × eficiência**. No verão, no outono e no inverno o campo não dá comida.
-- Um campo construído **no outono** colhe na primavera do mesmo ano; construído no inverno, na
-  primavera ou no verão, só colhe na primavera do ano seguinte (antes disso fica arado e vazio). A
-  prévia e o balão dizem "colhe na primavera do ano N".
-- O campo tem 2 vagas e dá 1 prata por semana **o ano todo** (o trabalho continua: semear, cuidar,
-  colher).
+- O campo dá comida **na primavera, no verão e no outono**, desde a semana em que é construído:
+  **468 por ano** (`harvest` em `buildings.json`) nas 39 semanas fora do inverno, ou seja
+  **12 por semana × eficiência**. **No inverno ele congela** (`harvestsIn`): não dá comida nem
+  prata e não ocupa trabalhadores (sem lavradores no desenho), que ficam livres para pescador e
+  coletora. O desafio é guardar comida para o inverno (estoque e celeiro).
+- A prévia mostra "Rende N comida/sem" (no inverno, "Congelado no inverno: volta na primavera"); o
+  balão do campo diz que ele dá comida na primavera, no verão e no outono.
+- O campo tem 2 vagas e dá 1 prata por semana fora do inverno. A colheita é anunciada uma vez por
+  ano, na primeira semana da primavera.
 - **Seca:** cada ano é seco ou não, sorteado pela semente do mapa (`drought` em `rules.json`):
   chance **25%**, nunca no Ano 1, nunca dois anos seguidos. Num ano seco a colheita é **× 0,4**,
   exceto nos campos **encostados no rio** (alguma célula vizinha, lado com lado, é rio), que colhem
@@ -221,15 +222,17 @@ primavera, a do ano seguinte, contando o que ainda vai ser colhido). Usada por:
 A cada semana, nesta ordem (`simulation.ts`):
 
 1. Recalcular rede de ruas, conexões e cobertura (poço, mercado, altar/templo).
-2. Moradores = soma das casas. Trabalhadores = 40% dos moradores (para baixo).
-   Vagas = soma das construções conectadas. Eficiência = trabalhadores / vagas, no máximo 100%
-   (100% se não houver vagas).
+2. Moradores = soma das casas. Trabalhadores = 50% dos moradores (para baixo; `workerShare`).
+   Vagas = soma das construções conectadas **que estão trabalhando**: o campo só tem vagas (e só
+   dá a prata dele) fora do inverno; no inverno os trabalhadores ficam livres para
+   pescador, coletora e o resto (`isWorking`). Eficiência = trabalhadores / vagas, no máximo 100%
+   (100% se não houver vagas). A previsão de comida segue essa eficiência semana a semana.
 3. Comida += colheita (só na primavera) + pesca + coleta − consumo. Cada morador come conforme o
-   nível da casa (`food` em `houses.json`): tenda 0,2, barro 0,2, pedra 0,25, casa grande 0,3. Se a
+   nível da casa (`food` em `houses.json`): tenda 0,2, barro 0,15, pedra 0,2, casa grande 0,22. Se a
    comida chega a 0 com saldo negativo: **fome**. A comida nunca fica negativa. Depois, o que
-   passa do estoque (40 + celeiros) **estraga**.
+   passa do estoque (50 + celeiros) **estraga**.
 4. Prata += impostos (cada casa com o fator da sua felicidade) + (oficinas × 5 + campos × 1) ×
-   eficiência − manutenção (só depois do Objetivo 2). A prata **pode ficar negativa** (dívida).
+   eficiência − manutenção (só depois do Objetivo 3; o campo paga manutenção o ano todo). A prata **pode ficar negativa** (dívida).
    Esse saldo é o "+X/sem" da pílula.
 5. Novas famílias (veja Famílias); depois todas andam (as novas já na mesma semana), e as que
    chegam transformam o terreno em tenda.
@@ -290,8 +293,8 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | # | Texto | Alvo | Prêmio | Libera |
 |---|---|---|---|---|
 | 1 | Prepare o primeiro inverno | comida até a primavera do Ano 1 | +20 | – |
-| 2 | Água para todas as casas | todas as casas no raio de um poço ligado, com 4 casas ou mais | +30 | (a manutenção começa) |
-| 3 | Primeira colheita | 12 de comida colhida (acumulada) | +30 | Celeiro |
+| 2 | Água para todas as casas | todas as casas no raio de um poço ligado, com 4 casas ou mais | +30 | – |
+| 3 | Primeira colheita | 12 de comida colhida (acumulada) | +30 | Celeiro (e a manutenção começa) |
 | 4 | Construa o celeiro | 1 celeiro ligado | +40 | – |
 | 5 | Tenha 6 casas de barro | 6 | +40 | Mercado |
 | 6 | Chegue a 50 moradores | 50 | +50 | Oficina |
@@ -412,7 +415,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
   depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
-  eficiência que a cidade teria; antes do Objetivo 2, sem manutenção). Fecha ao trocar de
+  eficiência que a cidade teria; antes do Objetivo 3, sem manutenção). Fecha ao trocar de
   ferramenta ou ao tocar no mapa para construir.
 - **Balão da construção tocada** (com Mover), ao lado dela com seta, seguindo a câmera; some ao
   tocar fora:
@@ -495,7 +498,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   sem prata), quadrado do raio e área já coberta pelo mesmo serviço. Poço, Mercado e Jardim
   contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia.
   Pescador e Coletora mostram "Rende N comida/sem" (com as células de rio ou árvores contadas
-  destacadas); Campo mostra "colhe na primavera do ano N". Com Casa, destaque dourado da
+  destacadas); Campo mostra que dá comida fora do inverno. Com Casa, destaque dourado da
   área do altar e do templo (onde casas grandes são possíveis). O Templo mostra as 6 x 6 células
   e destaca em verde todas as posições onde cabe (6 x 6 livre encostado em rua conectada, sem
   olhar a prata); se não houver nenhuma, toast "Sem espaço para o Templo: abra uma rua ao lado de
@@ -540,7 +543,7 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
      (`ghostLength`). Conclui com +4 ruas ligadas ao altar, em qualquer lugar.
   3. "Construa um pescador junto ao rio ou uma coletora perto das árvores": a prévia mostra
      "Rende N comida/sem". Conclui com 1 pescador ou coletora ligado.
-  4. "Construa um campo agora: ele colhe na primavera". Conclui com 1 campo ligado.
+  4. "Construa um campo: ele dá comida, menos no inverno". Conclui com 1 campo ligado.
   5. "Construa uma casa encostada na rua, perto do poço": os terrenos livres no raio do poço e
      encostados na rede ficam verdes. Conclui com 1 casa nova ligada.
   6. "Uma família está chegando!": a câmera acompanha a família por 2 s
@@ -552,7 +555,7 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   - No passo 3 a seta aponta o Pescador (na faixa de Água e comida: primeiro a categoria); a
     Coletora também vale.
 - Mini passos (só para quem não pulou), sem travar ferramentas:
-  - Ao cumprir o Objetivo 2: a seta aponta a prata e o balão traz a mensagem da manutenção com o
+  - Ao cumprir o Objetivo 3: a seta aponta a prata e o balão traz a mensagem da manutenção com o
     botão "Entendi".
   - Depois: "Casas de barro com mercado perto viram casas de pedra", com a seta no Mercado.
     Conclui com 1 mercado ligado.

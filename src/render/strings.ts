@@ -17,10 +17,10 @@ export const T = {
   season: { spring: 'primavera', summer: 'verão', autumn: 'outono', winter: 'inverno' } satisfies Record<Season, string>,
   /** Toast when a season begins. */
   seasonStart: {
-    spring: 'Chegou a primavera: tempo de colheita',
+    spring: 'Chegou a primavera: os campos voltam a dar comida',
     summer: 'Chegou o verão: dias quentes e secos',
     autumn: 'Chegou o outono: hora de plantar os campos',
-    winter: 'Chegou o inverno: frio e chuva',
+    winter: 'Chegou o inverno: os campos congelam',
   } satisfies Record<Season, string>,
   allGoals: 'Todos os objetivos cumpridos!',
   /** Opening sentence (big toast at the start of a game). */
@@ -104,7 +104,7 @@ export const T = {
       well: 'Construa um poço perto das tendas da caravana',
       road: 'Puxe uma rua até o rio ou o bosque, pelo caminho marcado',
       gather: 'Construa um pescador junto ao rio ou uma coletora perto das árvores',
-      field: 'Construa um campo agora: ele colhe na primavera',
+      field: 'Construa um campo: ele dá comida, menos no inverno',
       house: 'Construa uma casa encostada na rua, perto do poço',
       family: 'Uma família está chegando!',
       upkeep: 'Agora poços, campos e demais construções custam prata por semana',
@@ -189,7 +189,7 @@ export const T = {
     /** What each building is for, in one sentence. */
     effect: {
       house: 'Abriga uma família. Cresce com poço, mercado e altar perto.',
-      field: 'Semeia no outono e colhe na primavera. Dá trabalho. Arraste para fazer vários.',
+      field: 'Dá comida o ano todo, menos no inverno, quando congela. Arraste para fazer vários.',
       well: 'Tendas com poço por perto viram casas de barro.',
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
@@ -211,7 +211,7 @@ export const T = {
     gatherRule: (source: 'river' | 'tree', perCell: number, radius: number, max: number) =>
       `${fmt(perCell)} comida por ${source === 'river' ? 'trecho de rio' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
     /** Over a field preview and in its balloon. */
-    harvestYear: (year: number) => `Colhe na primavera do ano ${year}`,
+    fieldSeasons: 'Dá comida na primavera, no verão e no outono. No inverno congela.',
     stores: (n: number) => `Guarda ${n} de comida`,
     buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', settings: 'Configurações' },
     goals: {
@@ -274,6 +274,7 @@ export const T = {
       plotComing: 'Uma família está a caminho',
       plotWaiting: 'Esperando uma família',
       harvesting: (n: number) => `Colhendo: ${fmt(n)} comida/sem`,
+      frozen: 'Congelado no inverno: volta na primavera',
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
       droughtDry: 'Ano seco: longe do rio, colhe menos',
       noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada' },

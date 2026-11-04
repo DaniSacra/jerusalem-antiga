@@ -1,7 +1,7 @@
 import { GOALS, RULES } from './data';
 import { computeEconomy } from './economy';
 import { foodForecast } from './forecast';
-import { firstHarvestWeek } from './harvest';
+import { weeksToHarvest } from './harvest';
 import { countHousesAtLeast, needMet } from './houses';
 import type { GameEvent, GameState, GoalDef, Placeable } from './types';
 
@@ -39,7 +39,8 @@ export function checkGoal(s: GameState, events: GameEvent[]): void {
 }
 
 /** Weeks until the first spring of the game (0 once it began). */
-const weeksToFirstSpring = (s: GameState) => Math.max(0, firstHarvestWeek(0) - s.week);
+const FIRST_SPRING = weeksToHarvest(0);
+const weeksToFirstSpring = (s: GameState) => Math.max(0, FIRST_SPRING - s.week);
 
 /** Weeks the food lasts by the forecast, up to the weeks left until the first spring. */
 function foodWeeksUntilSpring(s: GameState): number {

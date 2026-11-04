@@ -2,7 +2,7 @@ import { BUILDINGS, HOUSE_LEVELS } from './data';
 import { computeEconomy, idleShare, type Economy } from './economy';
 import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
-import { gatherCells } from './harvest';
+import { gatherCells, isWorking } from './harvest';
 import type { BalloonKind, Building, GameState, NeedKind } from './types';
 
 /** Road: the building is connected. Services: any cell of its footprint is covered. */
@@ -50,7 +50,7 @@ const needVisible = (s: GameState, need: NeedKind) => need === 'road' || need ==
  */
 export function balloonNeed(s: GameState, b: Building, e: Economy = computeEconomy(s)): BalloonKind | null {
   if (!b.connected) return 'road';
-  if (BUILDINGS[b.kind].jobs > 0 && e.efficiency === 0) return 'workers';
+  if (BUILDINGS[b.kind].jobs > 0 && e.efficiency === 0 && isWorking(b, s.week)) return 'workers';
   if (BUILDINGS[b.kind].gather && gatherCells(s, b) === 0) return 'noSource';
   if (b.kind !== 'house' || b.level < 1) return null;
   const first = b.level < HOUSE_LEVELS.length - 1 ? missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0] : undefined;

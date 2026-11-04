@@ -9,7 +9,7 @@ import {
   createGame,
   createRng,
   fieldHarvest,
-  firstHarvestWeek,
+  gatherFood,
   foodCapacity,
   foodForecast,
   foodLastsToHarvest,
@@ -34,6 +34,8 @@ const WINTER = W;
 const SPRING = 2 * W;
 const SUMMER = 3 * W;
 const AUTUMN2 = YEAR;
+/** Food a field gives in a week out of winter, before the efficiency. */
+const WEEKLY = BUILDINGS.field.harvest! / (3 * W);
 const never = constRng(0.99);
 const always = constRng(0);
 
@@ -69,30 +71,28 @@ describe('caravan', () => {
     const s = createGame(createRng(3));
     expect(seasonOf(s.week)).toBe('autumn');
     expect(RULES.startSilver).toBe(180);
-    expect([BUILDINGS.house.cost, BUILDINGS.field.cost, BUILDINGS.well.cost, RULES.roadCost]).toEqual([20, 30, 40, 2]);
+    expect([BUILDINGS.house.cost, BUILDINGS.field.cost, BUILDINGS.well.cost, RULES.roadCost]).toEqual([15, 20, 25, 2]);
   });
 });
 
 describe('harvest', () => {
-  it('a field built in autumn harvests in the next spring only', () => {
-    expect(harvestsIn({ built: 0 }, 0)).toBe(false); // autumn
-    expect(harvestsIn({ built: 0 }, WINTER)).toBe(false);
-    expect(harvestsIn({ built: 0 }, SPRING)).toBe(true);
-    expect(harvestsIn({ built: 0 }, SPRING + W - 1)).toBe(true);
-    expect(harvestsIn({ built: 0 }, SUMMER)).toBe(false);
-    expect(harvestsIn({ built: W - 1 }, SPRING)).toBe(true); // last week of autumn still sows
+  it('a field works in spring, summer and autumn, and freezes in winter', () => {
+    expect(harvestsIn(0)).toBe(true); // autumn
+    expect(harvestsIn(W - 1)).toBe(true);
+    expect(harvestsIn(WINTER)).toBe(false);
+    expect(harvestsIn(SPRING - 1)).toBe(false);
+    expect(harvestsIn(SPRING)).toBe(true);
+    expect(harvestsIn(SUMMER)).toBe(true);
+    expect(harvestsIn(AUTUMN2 + WINTER)).toBe(false);
   });
 
-  it('a field built after the autumn waits for the spring of the next year', () => {
-    expect(harvestsIn({ built: WINTER }, SPRING)).toBe(false);
-    expect(harvestsIn({ built: WINTER }, SPRING + YEAR)).toBe(true);
-    expect(harvestsIn({ built: SPRING + 3 }, SPRING + YEAR)).toBe(true);
-    expect(firstHarvestWeek(0)).toBe(SPRING);
-    expect(firstHarvestWeek(WINTER)).toBe(SPRING + YEAR);
-    expect(firstHarvestWeek(SUMMER)).toBe(SPRING + YEAR);
+  it('a field gives food from the week it is built (out of winter)', () => {
+    const s = emptyGame();
+    const f = put(s, 'field', westOf('field'), 30);
+    expect(fieldHarvest(s, f, 0)).toBeGreaterThan(0);
   });
 
-  it('delivers the yearly harvest over the spring weeks, nothing in the other seasons', () => {
+  it('delivers the yearly harvest over the weeks out of winter, nothing in winter', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 4); // 16 residents: enough workers
     const f = put(s, 'field', westOf('field'), 30);
@@ -104,11 +104,13 @@ describe('harvest', () => {
       total += h;
     }
     expect(total).toBeCloseTo(BUILDINGS.field.harvest!);
-    expect(perSeason).toMatchObject({ autumn: 0, winter: 0, summer: 0 });
+    expect(perSeason.winter).toBe(0);
+    expect(perSeason.spring).toBeCloseTo(perSeason.summer);
+    expect(perSeason.autumn).toBeCloseTo(perSeason.spring);
   });
 
-  it('fields feed nobody outside spring, while the houses eat every week', () => {
-    const s = emptyGame({ food: 30 });
+  it('fields feed nobody in winter, while the houses eat every week', () => {
+    const s = emptyGame({ food: 30, week: WINTER });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'field', westOf('field'), 30);
     stepWeek(s, never);
@@ -139,27 +141,27 @@ describe('harvest', () => {
 });
 
 describe('stores and granary', () => {
-  it('keeps 40 without a granary and adds 150 per connected granary', () => {
+  it('keeps 50 without a granary and adds 150 per connected granary', () => {
     const s = emptyGame();
-    expect(foodCapacity(s)).toBe(40);
+    expect(foodCapacity(s)).toBe(50);
     put(s, 'granary', EAST, 30);
-    expect(foodCapacity(s)).toBe(190);
+    expect(foodCapacity(s)).toBe(200);
     put(s, 'granary', EAST, 34);
-    expect(foodCapacity(s)).toBe(340);
+    expect(foodCapacity(s)).toBe(350);
     put(s, 'granary', 2, 2); // not connected
-    expect(foodCapacity(s)).toBe(340);
-    expect(BUILDINGS.granary).toMatchObject({ cost: 60, upkeep: 2, w: 3, h: 3, jobs: 1, storage: 150, category: 'supply' });
+    expect(foodCapacity(s)).toBe(350);
+    expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 2, w: 3, h: 3, jobs: 1, storage: 150, category: 'supply' });
   });
 
   it('spoils the food above the stores, with one event per stretch and an alert', () => {
-    const s = emptyGame({ food: 39 });
+    const s = emptyGame({ food: RULES.baseFoodStorage - 1 });
     put(s, 'workshop', EAST, 30); // a place for the field workers
     put(s, 'house', ROADSIDE, 27, 4);
     put(s, 'field', westOf('field'), 30).built = 0;
     s.week = SPRING;
     const first = stepWeek(s, never);
     expect(first).toContainEqual({ type: 'spoilStart' });
-    expect(s.food).toBe(40);
+    expect(s.food).toBe(RULES.baseFoodStorage);
     expect(s.spoiled).toBeGreaterThan(0);
     expect(alerts(s).map((a) => a.kind)).toContain('spoiling');
     expect(stepWeek(s, never)).not.toContainEqual({ type: 'spoilStart' });
@@ -175,17 +177,14 @@ describe('forecast', () => {
     expect(foodForecast(s)).toEqual({ weeks: 49, season: 'summer' });
   });
 
-  it('counts the coming harvest and the store limit', () => {
+  it('counts the field food, the frozen winter and the store limit', () => {
     const s = emptyGame({ food: 20 });
     put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 2); // 9 residents
+    put(s, 'house', ROADSIDE, 29, 2); // 9 residents, 1.5 a week
+    expect(foodLastsToHarvest(s)).toBe(false); // 20 food for the 26 weeks to the spring
     put(s, 'field', westOf('field'), 31);
-    expect(foodLastsToHarvest(s)).toBe(false); // 1.8 a week for 26 weeks
-    s.food = 40;
-    put(s, 'granary', EAST, 30);
-    s.food = 60;
-    expect(foodLastsToHarvest(s)).toBe(true);
-    expect(foodForecast(s)).toBeNull(); // the spring harvest fills the granary for the rest of the year
+    expect(foodLastsToHarvest(s)).toBe(true); // the autumn fills the stores for the winter
+    expect(foodForecast(s)).toBeNull();
   });
 
   it('is null when nothing is eaten', () => {
@@ -289,8 +288,8 @@ describe('winter and drought', () => {
       put(s, 'field', westOf('field'), 30).built = 0;
       return computeEconomy(s).harvest;
     };
-    expect(run(false)).toBeCloseTo(BUILDINGS.field.harvest! / W);
-    expect(run(true)).toBeCloseTo((BUILDINGS.field.harvest! / W) * RULES.drought.harvestFactor);
+    expect(run(false)).toBeCloseTo(WEEKLY);
+    expect(run(true)).toBeCloseTo((WEEKLY) * RULES.drought.harvestFactor);
   });
 });
 
@@ -457,23 +456,20 @@ describe('survival goals', () => {
 });
 
 describe('harvest (simulation edges)', () => {
-  it('a field placed in winter stays empty in the coming spring and harvests in the next one', () => {
+  it('a field placed in winter gives nothing until the spring', () => {
     const s = emptyGame({ week: WINTER });
     put(s, 'house', ROADSIDE, 27, 4); // enough workers
-    const f = put(s, 'field', westOf('field'), 30);
-    expect(f.built).toBe(WINTER);
-    s.week = SPRING;
+    put(s, 'field', westOf('field'), 30);
     expect(computeEconomy(s).harvest).toBe(0);
-    s.week = SPRING + YEAR;
-    expect(computeEconomy(s).harvest).toBeCloseTo(BUILDINGS.field.harvest! / W);
+    s.week = SPRING;
+    expect(computeEconomy(s).harvest).toBeCloseTo(WEEKLY);
   });
 
-  it('a field placed in the last week of autumn harvests in the first spring', () => {
+  it('a field placed in the last week of autumn gives food at once', () => {
     const s = emptyGame({ week: W - 1 });
     put(s, 'house', ROADSIDE, 27, 4);
     put(s, 'field', westOf('field'), 30);
-    s.week = SPRING;
-    expect(computeEconomy(s).harvest).toBeCloseTo(BUILDINGS.field.harvest! / W);
+    expect(computeEconomy(s).harvest).toBeCloseTo(WEEKLY);
   });
 
   it('a disconnected field harvests nothing', () => {
@@ -490,29 +486,29 @@ describe('harvest (simulation edges)', () => {
     const s = emptyGame({ week: SPRING });
     put(s, 'house', ROADSIDE, 27, 1); // 1 worker for 2 jobs
     put(s, 'field', westOf('field'), 30).built = 0;
-    expect(computeEconomy(s).harvest).toBeCloseTo((BUILDINGS.field.harvest! / W) * 0.5);
+    expect(computeEconomy(s).harvest).toBeCloseTo((WEEKLY) * 0.5);
   });
 
-  it('announces the whole harvest of the season in its first week and adds up every week', () => {
+  it('announces the spring harvest in its first week and adds up every week, summer too', () => {
     const s = emptyGame({ week: SPRING, food: 0 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1); // 2 tents without a well stay tents: 2 workers for the 2 jobs
     put(s, 'field', westOf('field'), 31).built = 0;
     const weekly = computeEconomy(s).harvest;
-    expect(stepWeek(s, never)).toContainEqual({ type: 'harvestStart', amount: BUILDINGS.field.harvest });
+    expect(stepWeek(s, never)).toContainEqual({ type: 'harvestStart', amount: Math.round(weekly * W * 100) / 100 });
     for (let k = 1; k < W; k++) expect(stepWeek(s, never).some((e) => e.type === 'harvestStart')).toBe(false);
     expect(s.harvested).toBeCloseTo(weekly * W);
     expect(seasonOf(s.week)).toBe('summer');
-    stepWeek(s, never);
-    expect(s.harvested).toBeCloseTo(weekly * W); // nothing in summer
+    expect(stepWeek(s, never).some((e) => e.type === 'harvestStart')).toBe(false); // announced once a year
+    expect(s.harvested).toBeCloseTo(weekly * (W + 1)); // the summer gives food too
   });
 });
 
 describe('stores (edges)', () => {
   it('food exactly at the limit does not spoil', () => {
-    const s = emptyGame({ food: 40 });
+    const s = emptyGame({ food: RULES.baseFoodStorage });
     expect(stepWeek(s, never)).not.toContainEqual({ type: 'spoilStart' });
-    expect(s.food).toBe(40);
+    expect(s.food).toBe(RULES.baseFoodStorage);
     expect(s.spoiled).toBe(0);
   });
 
@@ -521,10 +517,10 @@ describe('stores (edges)', () => {
     put(s, 'granary', EAST, 30);
     s.food = 100;
     clearCell(s, EAST, 30);
-    expect(foodCapacity(s)).toBe(40);
+    expect(foodCapacity(s)).toBe(RULES.baseFoodStorage);
     expect(stepWeek(s, never)).toContainEqual({ type: 'spoilStart' });
-    expect(s.food).toBe(40);
-    expect(s.spoiled).toBe(60);
+    expect(s.food).toBe(RULES.baseFoodStorage);
+    expect(s.spoiled).toBe(100 - RULES.baseFoodStorage);
     put(s, 'house', ROADSIDE, 27, 1);
     stepWeek(s, never);
     expect(s.spoiled).toBe(0);
@@ -540,7 +536,7 @@ describe('stores (edges)', () => {
 });
 
 describe('forecast (edges)', () => {
-  /** Two big houses (9.6 a week) and one field, in the first week of the spring of year 2. */
+  /** Two big houses (7.04 a week) and one field (12 a week), in the first week of the spring of year 2. */
   const town = (drought: boolean) => {
     const s = emptyGame({ week: SPRING + YEAR, food: 40, drought });
     put(s, 'house', ROADSIDE, 27, 4);
@@ -550,8 +546,8 @@ describe('forecast (edges)', () => {
   };
 
   it('counts the dry harvest once the drought is announced', () => {
-    expect(foodForecast(town(false))).toEqual({ weeks: 17, season: 'summer' }); // full stores until the spring ends
-    expect(foodForecast(town(true))).toEqual({ weeks: 8, season: 'spring' }); // 12 × 0.4 = 4.8 a week
+    expect(foodForecast(town(false))).toEqual({ weeks: 46, season: 'winter' }); // 12 a week fills the stores, the winter empties them
+    expect(foodForecast(town(true))).toEqual({ weeks: 17, season: 'summer' }); // 12 × 0.4 = 4.8 a week for 7.04 eaten
   });
 
   it('in spring, "until the harvest" means the spring of the next year', () => {
@@ -677,5 +673,53 @@ describe('alerts (order)', () => {
     const s = emptyGame({ week: SPRING + W - 1, food: 40 });
     put(s, 'house', ROADSIDE, 27, 1);
     expect(alerts(s).map((a) => a.kind)).not.toContain('winterComing');
+  });
+});
+
+describe('fields take no workers in winter', () => {
+  /** Two tents (3 workers), three fields built in the first autumn and a fisher by the river. */
+  const opening = () => {
+    const s = emptyGame({ food: 20, week: WINTER });
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 29, 1);
+    for (const y of [31, 34, 37]) put(s, 'field', westOf('field'), y);
+    const fisher = put(s, 'fisher', besideRiver(s, 30), 30);
+    return { s, fisher };
+  };
+
+  it('in winter a field has no jobs and makes no silver, but still pays upkeep', () => {
+    const { s, fisher } = opening();
+    const e = computeEconomy(s);
+    expect(e.jobs).toBe(BUILDINGS.fisher.jobs); // only the fisher
+    expect(e.efficiency).toBe(1);
+    expect(e.production.field).toBeUndefined();
+    expect(e.foodMade).toBeGreaterThan(0);
+    expect(e.foodMade).toBeCloseTo(gatherFood(s, fisher)); // the fisher at full strength
+    s.goalIndex = RULES.upkeepStartsAfterGoal;
+    expect(computeEconomy(s).upkeep.field).toBe(3 * BUILDINGS.field.upkeep!);
+    expect(fisher.connected).toBe(true);
+  });
+
+  it('out of winter the field takes its workers, and the fisher shares them', () => {
+    const { s } = opening();
+    s.week = SPRING;
+    const e = computeEconomy(s);
+    expect(e.jobs).toBe(3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs);
+    expect(e.efficiency).toBeCloseTo(e.workers / e.jobs);
+    expect(e.production.field).toBeGreaterThan(0);
+  });
+
+
+  it('the forecast counts the fields taking their workers in the spring', () => {
+    const { s } = opening();
+    s.week = SPRING - 1; // the last week of winter: the next one is the harvest
+    s.food = 0.5;
+    const e = computeEconomy(s); // the fisher alone, at full strength
+    expect(e.efficiency).toBe(1);
+    // In the spring the fields take 6 of the 3 workers' jobs too: the fisher drops to 3 / 7.
+    const spring = structuredClone(s);
+    spring.week = SPRING;
+    expect(computeEconomy(spring).efficiency).toBeCloseTo(3 / 7);
+    expect(foodForecast(s, e)).toBeNull(); // the harvest comes in time and feeds the city
   });
 });

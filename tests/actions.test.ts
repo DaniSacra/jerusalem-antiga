@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
+import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
 import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
   it('charges the cost and occupies every cell of the footprint', () => {
     const s = emptyGame({ silver: 100 });
     expect(place(s, 'well', ROADSIDE, 30)).toEqual({ ok: true });
-    expect(s.silver).toBe(60);
+    expect(s.silver).toBe(100 - BUILDINGS.well.cost);
     const w = s.grid[indexOf(s, ROADSIDE, 30)]!;
     expect(w).toMatchObject({ kind: 'well', w: 2, h: 2, connected: true });
     expect(s.grid[indexOf(s, ROADSIDE + 1, 31)]).toBe(w);

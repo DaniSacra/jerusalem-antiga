@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepWeek, taxFactor } from '../src/core';
 import { foodCapacity } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
 const kinds = (h: { parts: { kind: string }[] }) => h.parts.map((p) => p.kind);
@@ -97,10 +97,11 @@ describe('happiness effects', () => {
   it('idle share counts workers without a job', () => {
     const s = emptyGame();
     expect(idleShare(s)).toBe(0);
-    put(s, 'house', ROADSIDE, 27, 3); // 4 workers
+    put(s, 'house', ROADSIDE, 27, 3); // 5 workers
     expect(idleShare(s)).toBe(1);
-    put(s, 'field', westOf('field'), 29); // 2 jobs
-    expect(idleShare(s)).toBe(0.5);
+    put(s, 'field', westOf('field'), 29); // 2 jobs at harvest
+    atHarvest(s);
+    expect(idleShare(s)).toBe(0.6);
   });
 
   it('a happy city draws families faster, a sad one slower', () => {

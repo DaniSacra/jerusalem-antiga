@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkGoal, currentGoal, goalProgress, goalTarget, GOALS, RULES, stepWeek, unlockingGoal, type GameEvent } from '../src/core';
+import { BUILDINGS, checkGoal, currentGoal, goalProgress, goalTarget, GOALS, RULES, stepWeek, unlockingGoal, type GameEvent } from '../src/core';
 import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const W = RULES.weeksPerSeason;
@@ -76,7 +76,7 @@ describe('goals', () => {
     expect(goalTarget(s, GOALS[1])).toBe(5); // every house
     put(s, 'well', EAST, 41);
     checkGoal(s, events);
-    expect(events).toEqual([{ type: 'goal', index: 1, reward: 30, unlock: undefined }, { type: 'upkeepStart' }]);
+    expect(events).toEqual([{ type: 'goal', index: 1, reward: 30, unlock: undefined }]);
     expect(s.silver).toBe(30);
   });
 
@@ -85,7 +85,7 @@ describe('goals', () => {
     s.goalIndex = 2;
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events).toEqual([{ type: 'goal', index: 2, reward: 30, unlock: 'granary' }]);
+    expect(events).toEqual([{ type: 'goal', index: 2, reward: 30, unlock: 'granary' }, { type: 'upkeepStart' }]);
     expect(s.unlocked).toContain('granary');
   });
 
@@ -94,7 +94,7 @@ describe('goals', () => {
     put(s, 'house', ROADSIDE, 27, 4); // enough workers
     put(s, 'field', westOf('field'), 30).built = 0;
     const events = stepWeek(s, constRng(0.99));
-    expect(s.harvested).toBeCloseTo(12);
+    expect(s.harvested).toBeCloseTo(BUILDINGS.field.harvest! / (3 * RULES.weeksPerSeason)); // one week of one field
     expect(events).toContainEqual({ type: 'goal', index: 2, reward: 30, unlock: 'granary' });
   });
 

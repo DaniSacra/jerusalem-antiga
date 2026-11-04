@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, buildMenu, calendar, costOf, firstHarvestWeek, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, buildMenu, costOf, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -157,7 +157,7 @@ export class BuildColumn {
       { text: head, color: NOVA_CSS.gold },
       { text: N.effect[kind], bold: false },
     ];
-    if (d.harvest) lines.push({ text: N.harvestYear(calendar(firstHarvestWeek(s.week)).year), color: NOVA_CSS.good });
+    if (d.harvest) lines.push({ text: N.fieldSeasons, color: NOVA_CSS.good });
     if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max), color: NOVA_CSS.muted, bold: false });
     if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
     if (!PHONE && d.radius) lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
