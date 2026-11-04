@@ -1,0 +1,45 @@
+{
+  "style": "Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+  "models": {
+    "house-1": {
+      "polycount": 3000,
+      "prompt": "Small nomad tent of dark brown and black woven goat-hair cloth, Judean hills about 500 BC, low sloped roof held by wooden poles and ropes tied to stakes, one side open, two clay water jars beside the entrance, on a square packed-earth base."
+    },
+    "house-2": {
+      "polycount": 4000,
+      "prompt": "Small one-room house of sun-dried mud brick, ancient Jerusalem about 500 BC, cube shape, flat roof of wooden beams and packed mud with a low parapet, one small wooden door at the front, one tiny window, plain plastered ochre walls, on a square base."
+    },
+    "house-3": {
+      "polycount": 5000,
+      "prompt": "House of ancient Jerusalem about 500 BC, lower walls of rough pale limestone blocks and upper walls of mud brick, one small square window, wooden door at the front, flat roof terrace with clay jars, a potted plant and a small outside stair along one wall, on a square base."
+    },
+    "house-4": {
+      "polycount": 7000,
+      "prompt": "Large Judean four-room house of ancient Jerusalem about 500 BC, simple boxy mass, two storeys, thick plain walls of pale limestone blocks below and ochre mud plaster above, built in a U shape around a small open inner courtyard with a row of three square stone pillars, flat roof terraces with clay jars and a laundry line, outside stone stair on one side, few tiny windows, one wooden door, no balconies, no railings, no porch, no arches, on a square base."
+    },
+    "plaza": {
+      "polycount": 4000,
+      "prompt": "Square town plaza of ancient Jerusalem, the whole square paved with large pale limestone slabs as a thick flat stone platform with a low curb, one long low stone bench along one edge, one small olive tree in a square stone planter in a corner, a square linen sun awning on four wooden poles over the bench, no well, no fountain."
+    },
+    "market": {
+      "polycount": 7000,
+      "prompt": "Long open-air market of ancient Jerusalem about 500 BC, a row of three wooden stalls with striped linen awnings in ochre, cream and faded red, woven baskets of grain and fruit, clay jars and amphorae, rolled cloth, on a rectangular packed-earth base twice as long as wide."
+    },
+    "lumber": {
+      "polycount": 4000,
+      "prompt": "Woodcutter's yard of ancient Judea, small cabin built of rough logs with a flat roof, a neat stack of cut logs, a tree stump chopping block with an axe stuck in it, scattered wood chips, on a square packed-earth base."
+    },
+    "quarry": {
+      "polycount": 5000,
+      "prompt": "Small limestone quarry of ancient Jerusalem, pale cream rock outcrop cut into stepped terraces with sharp straight cuts, several rectangular cut stone blocks stacked nearby, a small wooden lifting crane with rope, on a square base."
+    },
+    "temple": {
+      "polycount": 9000,
+      "prompt": "Second Temple of Jerusalem about 515 BC, complete and intact, simple and imposing, all pale cream limestone. A tall boxy sanctuary with a flat roof and a taller flat-topped entrance porch, two free-standing plain columns before the doorway. It stands in a square courtyard with a low wall lined inside by plain square pillars, a rough unhewn stone altar in front. No triangular pediment, not a Greek temple, no ruins, no statues, no carvings, no Babylonian or Egyptian ornaments, on a square stone platform base."
+    },
+    "olive": {
+      "polycount": 2000,
+      "prompt": "Old olive tree, short thick gnarled twisted grey-brown trunk, wide rounded canopy made of a few big solid rounded clumps of dull olive-green foliage, smooth chunky blobs, no thin leaves, on a small round patch of earth."
+    }
+  }
+}

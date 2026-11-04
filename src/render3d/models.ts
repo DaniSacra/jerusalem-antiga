@@ -468,6 +468,11 @@ export async function loadModelPack(manifestUrl: string, base: Record<ModelKey, 
   const loader = new GLTFLoader();
   const out = { ...base };
   for (const [key, entry] of Object.entries(manifest) as [ModelKey, PackEntry][]) {
+    // A model for a building the proof does not draw yet (e.g. a newer pack) is kept for later.
+    if (!FOOTPRINT[key]) {
+      console.warn(`model pack: unknown key "${key}" skipped`);
+      continue;
+    }
     const url = new URL(entry.file, new URL(manifestUrl, location.href)).href;
     const gltf = await loader.loadAsync(url);
     out[key] = fromObject(gltf.scene, FOOTPRINT[key], entry);
@@ -492,11 +497,16 @@ function fromObject(root: THREE.Object3D, [w, h]: [number, number], entry: PackE
     bounds.union(g.boundingBox!);
   }
   const size = bounds.getSize(new THREE.Vector3());
-  const k = entry.scale ?? Math.min(w / Math.max(size.x, 1e-6), h / Math.max(size.z, 1e-6)) * 0.95;
+  // The turn comes first, so the fit uses the model's extent once turned (a long market turned 90°).
+  const turn = ((entry.rotationDeg ?? 0) * Math.PI) / 180;
+  const [c, sn] = [Math.abs(Math.cos(turn)), Math.abs(Math.sin(turn))];
+  const sx = c * size.x + sn * size.z;
+  const sz = sn * size.x + c * size.z;
+  const k = entry.scale ?? Math.min(w / Math.max(sx, 1e-6), h / Math.max(sz, 1e-6)) * 0.95;
   const centre = bounds.getCenter(new THREE.Vector3());
   const fit = new THREE.Matrix4()
     .makeTranslation(0, entry.yOffset ?? 0, 0)
-    .multiply(new THREE.Matrix4().makeRotationY(((entry.rotationDeg ?? 0) * Math.PI) / 180))
+    .multiply(new THREE.Matrix4().makeRotationY(turn))
     .multiply(new THREE.Matrix4().makeScale(k, k, k))
     .multiply(new THREE.Matrix4().makeTranslation(-centre.x, -bounds.min.y, -centre.z));
   const parts: Part[] = [];
