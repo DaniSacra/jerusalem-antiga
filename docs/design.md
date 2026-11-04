@@ -67,13 +67,32 @@ obra**. Resumo:
 - Topo: uma pílula Materiais entre Comida e Moradores (pedra só depois do objetivo 2), vermelha
   quando há casa esperando. Materiais fora da porta das famílias. O inverno não consome material
   (lenha é o P4)
-- Antes da linha de base: ajustes do P2 que as revisões confirmarem (`familyFoodReserveWeeks` 2 → 1
-  para a fome no inverno; templo sem lugar)
+- Linha de base: o main com as "P2 correções" (abaixo), e não mais da5a8bb
+- Alavancas novas, depois das da seção 9, uma por rodada: objetivo 8 6 → 12 casas grandes (se J3 > 250
+  ou objetivos 7 e 8 a < 13 sem); prêmio do objetivo 9 200 → 400 (se do 9 à vitória > 100 sem);
+  Coletora `perCell` 0,3 → 0,2 (se a Coletora > 16% da comida)
+- Também no P3: toasts que cobrem o balão da ferramenta no celular (ui-designer)
+
+## Agora: "P2 correções" (escopo 2026-11-04, no main antes do merge do P3)
+Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecânica nova.
+- Templo: `upkeep` 10 → 0; dica "Vence o jogo após o objetivo 9…"; toast ao erguer antes do 9
+- Objetivo 1 exige moradores (família a caminho não basta)
+- Ao escolher o Templo: áreas 6x6 verdes (prontas) e amarelas (a ≤ `templeSpotRoadGap` 1 da rede);
+  prévia amarela "Cabe aqui: falta ligar à rua" em toda construção quando só falta rua
+- Tutorial: seta do passo da família segue o motivo da porta (`storage` → celeiro, `food` → campo);
+  o passo termina em `familyStepMaxWeeks` 8
+- Celular: Demolir em construção com perda de comida abre o balão em vez de demolir
+- Textos: Templo "+10 de Alegria em N casas"; "Uma família foi embora: casa sem rua"
+- Testes visuais estáveis; bots sem tabela copiada; Eficiente reserva o terreno do templo
+- Medição em 3 rodadas: R0 correções; R1 `drought.harvestFactor` 0,4 → 0,25; R2
+  `familyFoodReserveWeeks` 2 → 1 (fica só se passar). M2 redefinido: 6x6 livre a ≤ 1 célula da rede,
+  ≥ 95% no Comum
 
 ## Feito: Pacote 2 "Água sai e mapa" (no main: f9dfc4c..da5a8bb)
 Especificação: `docs/revisoes/2026-11-04/plano-p2.md`. Medido (sim-tester, d901a12): Comum 46% de
 vitórias em ~27 min, 0 derrotas, prata parada 3/100. Abertos: fome no inverno ~11% (alvo 25–60%) e
-templo sem lugar ao ser liberado (M2 ~26%, parece o bot). Revisões do P2 em andamento.
+templo sem lugar ao ser liberado (M2 ~26%; existe 6x6 a ≤ 1 célula da rede em 99%). Revisões
+terminadas; o que entra está em "P2 correções".
 Nenhuma regra nova: a Praça troca o Poço, o Parque troca o Jardim e o raio do altar. Resumo (atual →
 novo):
 - Poço sai (dados, código, arte e textos). Sai a porta `water` e o objetivo `water`. Não há saves a
@@ -654,6 +673,20 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04: o templo fica sem manutenção (10 → 0) e o texto deixa de prometer a vitória antes do
+  objetivo 9. Motivo: 15 de 25 Distraídos erguiam o templo cedo e 10 entravam em dívida esperando. A
+  liberação no objetivo 8 (decisão do usuário) continua.
+- 2026-11-04: o M2 passa a ser "6x6 livre a ≤ 1 célula da rede" (≥ 95% no Comum). O jogo mostra as
+  áreas em amarelo. A rua fantasma fica para DEPOIS. Motivo: o lugar existe em 99% das partidas; o
+  que falta é o jogo mostrar onde. Templo 5x5, liberar antes e mexer no mapa não resolvem.
+- 2026-11-04: fome no inverno em duas rodadas. Primeiro a seca, `harvestFactor` 0,25 (já medida:
+  C2 28%, vitória 49%). Depois a reserva da porta, 2 → 1, para o Ano 1. Motivo: uma mudança de número
+  por vez; a seca faz a camada do Ano 3 morder, a reserva mira o primeiro inverno.
+- 2026-11-04: aceitas as quedas do Eficiente e do Pescador e a subida do Distraído (23%, metade do
+  Comum, 0 derrotas cedo). Motivo: Pescador é perfil de teste; o Eficiente cai por causa do bot,
+  que é corrigido para reservar o templo. Se mesmo assim ficar abaixo do Comum, eu reabro no P3.
+- 2026-11-04: objetivo 8 → 12 e prêmio do 9 → 400 viram alavancas do P3. `treeClearCost` 10 fica
+  NÃO, casa grande 3,5 vai para o P9 e "poucos trabalhadores" fica para DEPOIS.
 - 2026-11-04 — P3: madeira e pedra num estoque da cidade sem limite e sem depósito. Motivo: um
   limite pediria uma construção nova (segunda mecânica); o freio é o teto da produção e o bosque
   que encolhe. Limite só no P4, se o material parado falhar (W4).
