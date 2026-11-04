@@ -59,9 +59,9 @@ Jardim e o raio do altar. Resumo (atual → novo):
   migrar (só `tutorialDone` e configurações)
 - Casas: barro = rua + **praça**; pedra = + mercado; casa grande = + **parque** (o altar sai da
   evolução, decisão do usuário: "não do altar"). Altar e templo continuam únicos e dão Alegria +10
-- Praça (nova, liberada no início): 25 de prata, manutenção 2, 2 x 2, raio 4, Alegria +5
-- Jardim → Parque: custo 35 → 40, manutenção 1 → 2, raio 3 → 4, Alegria +20, liberado no
-  objetivo 5 (igual)
+- Praça (nova, liberada no início): 25 de prata, manutenção 1 (calibrada; plano: 2), 2 x 2, raio 4, Alegria +5
+- Jardim → Parque: custo 35 → 60, manutenção 1, raio 3 → 4, Alegria +20, liberado no
+  objetivo 5 (igual). Calibração do P2 também: Casa 30 → 40, Coletora máx. 4,5 → 3,5
 - Tutorial: o passo do poço vira o da praça, no mesmo lugar (perto das tendas)
 - Mapa: rochas [35, 65] → [70, 100], oliveiras [45, 75] → [80, 110], palmeiras [35, 65] → [50, 80],
   bosques densos 1 → 2 com 18 → 24 árvores, afloramento de rochas garantido (novo `rockOutcrop`:

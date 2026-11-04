@@ -97,8 +97,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 4** (3 casas de pedra)
   (`upkeepStartsAfterGoal` em `rules.json`). Antes disso nada é cobrado: o "+X/sem" não a desconta
   e não há aviso de saldo nem dívida por ela; os balões dizem "manutenção N/sem depois do
-  Objetivo 4". Ao cumprir o Objetivo 4 aparece, uma vez, "Agora praças, campos e demais construções
-  custam prata por semana" (passo do tutorial ou toast).
+  Objetivo 4". Ao cumprir o Objetivo 4 aparece, uma vez, "Começou a manutenção: tudo, menos casas e
+  ruas, custa prata por semana" (passo do tutorial ou toast).
   A partir daí é cobrada toda semana de toda construção, **mesmo desconectada**, e também depois da
   vitória.
 
@@ -369,7 +369,7 @@ com a água no Pacote 2).
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
 
-Ao liberar a Oficina aparece também o aviso "Oficina liberada: 3 vagas e +10% de comida aos campos,
+Ao liberar a Oficina aparece também o aviso "Oficina liberada: 3 vagas e +10% de comida dos campos,
 até +30%" (números lidos de `buildings.json`); ao liberar o Parque, "Parque liberado: casas de
 pedra perto dele viram casas grandes".
 O balão da Oficina escolhida diz o total: "+10% de comida dos campos (total 20%, teto 30%)" ("no
@@ -597,8 +597,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   começar no verão) e a chegada de cada estação ("Chegou o verão: dias quentes e secos";
   inverno: "Inverno: só pescador e coletora dão comida").
 - Durante a fome, leve tom avermelhado sobre o mapa.
-- Tela inicial com 3 passos numerados (comida para o inverno: pesque, colete e plante no outono;
-  "Praças perto das tendas fazem casas de barro. Sem celeiro, só cabem 50 de comida."; objetivos, Templo e não
+- Tela inicial com 3 passos numerados ("Guarde comida para o inverno: pesque, colete e plante campos.";
+  "Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem 50 de comida."; objetivos, Templo e não
   ficar em dívida),
   uma linha de controles e o
   botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
@@ -655,12 +655,13 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   uma construção única (pescador, coletora, praça) aponta onde o dedo vai: a mira fica 90 px acima do
   dedo, então tocar na ponta da seta constrói no lugar marcado.
 - Uma rua arrastada que passa por cima de um botão ou painel para ali; ao soltar, o toast "A rua
-  parou sob um botão: mova o mapa e continue de onde parou" explica.
+  parou sob um botão: mova o mapa e continue" explica.
 - O passo da manutenção aponta a prata pelo lado direito da pílula e sempre mostra o seu texto.
 - Mini passos (só para quem não pulou), sem travar ferramentas:
   - Ao cumprir o Objetivo 4: a seta aponta a prata e o balão traz a mensagem da manutenção com o
     botão "Entendi".
-  - Depois: "Casas de barro com mercado perto viram casas de pedra", com a seta no Mercado.
+  - Depois: "Construa um mercado perto das casas de barro: elas viram casas de pedra", com a
+    seta no Mercado.
     Conclui com 1 mercado ligado.
 - Quem pula (ou já viu o tutorial) recebe a mensagem da manutenção como toast.
 

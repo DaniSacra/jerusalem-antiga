@@ -1,8 +1,11 @@
 import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
-/** What a workshop does for the fields ("+10% de comida aos campos, até +30%"). */
-const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100)}% de comida aos campos, até +${Math.round((BUILDINGS.workshop.fieldBonusMax ?? 0) * 100)}%`;
+/** Upkeep begins (toast, or the tutorial step for who did not skip it). */
+const UPKEEP_START = 'Começou a manutenção: tudo, menos casas e ruas, custa prata por semana';
+
+/** What a workshop does for the fields ("+10% de comida dos campos, até +30%"). */
+const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100)}% de comida dos campos, até +${Math.round((BUILDINGS.workshop.fieldBonusMax ?? 0) * 100)}%`;
 
 export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
@@ -10,8 +13,8 @@ export const T = {
   title: 'Jerusalém Antiga',
   start: 'Começar',
   howTo: [
-    'Comida para o inverno: pesque, colete e plante campos no outono.',
-    `Praças perto das tendas fazem casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
+    'Guarde comida para o inverno: pesque, colete e plante campos.',
+    `Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -64,7 +67,7 @@ export const T = {
   famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
-  roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue de onde parou',
+  roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue',
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   fail: {
@@ -110,7 +113,7 @@ export const T = {
     nothing: 'Nada para demolir aqui',
     rockClear: 'Rochas não podem ser removidas',
   },
-  upkeepStart: 'Agora praças, campos e demais construções custam prata por semana',
+  upkeepStart: UPKEEP_START,
   /** Preview of a plaza, market or park: houses with a family inside its radius. */
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
@@ -121,8 +124,8 @@ export const T = {
       plaza: 'Construa uma praça perto das tendas da caravana',
       house: 'Construa uma casa encostada na rua, perto da praça',
       family: 'Uma família está chegando!',
-      upkeep: 'Agora praças, campos e demais construções custam prata por semana',
-      market: 'Casas de barro com mercado perto viram casas de pedra',
+      upkeep: UPKEEP_START,
+      market: 'Construa um mercado perto das casas de barro: elas viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
     pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
     skip: 'Pular tutorial',
@@ -155,7 +158,7 @@ export const T = {
   defeatText: (weeksPlayed: number, peak: number) =>
     `A cidade ficou ${weeks(RULES.debtWeeksToLose)} em dívida. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores.`,
   retry: 'Tentar de novo',
-  lockedHint: (kind: Placeable) => `${toolName(kind)}: ${FEMININE.has(kind) ? 'liberada' : 'liberado'} ao cumprir o Objetivo ${unlockingGoal(kind)}.`,
+  lockedHint: (kind: Placeable) => `${toolName(kind)}: libera no objetivo ${unlockingGoal(kind)}`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
@@ -286,7 +289,7 @@ export const T = {
       efficiency: 'Eficiência',
       houses: 'Casas',
       happiness: 'Alegria',
-      why: 'Parque, praça e altar alegram; fome e desemprego entristecem.',
+      why: 'Altar, praça, mercado e parque alegram; fome e desemprego entristecem.',
     },
     settings: {
       turn: 'Girar a visão',
@@ -338,9 +341,6 @@ export const T = {
     },
   },
 };
-
-/** Tools with a feminine name (for "liberada"). */
-const FEMININE: ReadonlySet<Placeable> = new Set<Placeable>(['road', 'house', 'workshop']);
 
 const weeks = (n: number) => `${n} ${n === 1 ? 'semana' : 'semanas'}`;
 /** A play time in years and weeks ("2 anos e 5 semanas"; just the weeks under a year). */
