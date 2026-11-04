@@ -25,6 +25,7 @@
   "famineLeaveChance": 0.2,
   "debtWeeksToLose": 24,
   "treeClearCost": 5,
+  "templeSpotRoadGap": 1,
   "roadCost": 2,
   "happiness": {
     "base": 50,

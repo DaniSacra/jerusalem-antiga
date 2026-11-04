@@ -18,6 +18,7 @@ import {
   RULES,
   seasonOf,
   stepWeek,
+  WEEKS_PER_YEAR,
 } from '../../src/core';
 import { applyOverrides } from './overrides';
 import { PROFILES, run, SurvivalBot, type Result } from './survival';
@@ -35,8 +36,16 @@ if (ov.length) console.log('overrides', ov.join(' '));
 const all: Result[] = [];
 /** J1: weeks between goal 5 and goal 6 (NaN when goal 6 was not reached). */
 const gap56 = (r: Result) => (r.goalWeeks[5] ?? NaN) - (r.goalWeeks[4] ?? NaN);
-/** J2: most goals done in one year. */
-const perYear = (r: Result) => { const c: Record<number, number> = {}; for (const w of r.goalWeeks) if (w !== null) c[Math.floor((w - 1) / 52)] = (c[Math.floor((w - 1) / 52)] ?? 0) + 1; return Math.max(0, ...Object.values(c)); };
+/** J2: most goals done in one year (a goal done in week w belongs to the year of week w - 1). */
+const perYear = (r: Result) => {
+  const count: Record<number, number> = {};
+  for (const w of r.goalWeeks) {
+    if (w === null) continue;
+    const year = Math.floor((w - 1) / WEEKS_PER_YEAR);
+    count[year] = (count[year] ?? 0) + 1;
+  }
+  return Math.max(0, ...Object.values(count));
+};
 for (const name of bots) {
   const rs: Result[] = [];
   for (let k = 1; k <= seeds; k++) rs.push(run(PROFILES[name], k, maxWeeks));
@@ -47,7 +56,7 @@ for (const name of bots) {
     const won = rs.filter((r) => r.won);
     const g = (i: number) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)));
     const pc = (k: number) => `${f((100 * k) / n)}%`;
-    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeRoom).length)}/${rs.filter((r) => r.templeRoom !== null).length} (≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
+    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeGap).length)}/${rs.filter((r) => r.templeGap !== null).length} (ready ${rs.filter((r) => r.templeRoom).length}, ≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
     continue;
   }
   const won = rs.filter((r) => r.won);

@@ -1,5 +1,5 @@
 import { BUILDINGS, dimsOf, RULES } from './data';
-import { cellsOf, footprint, inBounds, indexOf } from './grid';
+import { borderCells, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
 import { rollLook } from './looks';
@@ -47,6 +47,76 @@ export function placeSpots(s: GameState, kind: BuildableKind, rotated = false): 
 
 /** Top-left cells where the temple fits. */
 export const templeSpots = (s: GameState) => placeSpots(s, 'temple');
+
+/**
+ * Placing here is held back only by the road: the footprint is free, the silver is there, but it
+ * would not touch the network (the temple cannot be built; the others would stand cut off).
+ */
+export function onlyNeedsRoad(s: GameState, kind: Placeable, x: number, y: number, rotated = false): boolean {
+  if (kind === 'road' || !s.unlocked.includes(kind)) return false;
+  const d = placeSize(kind, rotated);
+  return isFreeRect(s, x, y, d) && !touchesNetwork(s, { x, y, ...d }) && s.silver >= costOf(kind);
+}
+
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+/** Road steps over free land from the connected network (0 on it), with the previous cell of each. */
+export function roadDistances(s: GameState): { dist: Int32Array; prev: Int32Array } {
+  const dist = new Int32Array(s.cols * s.rows).fill(-1);
+  const prev = new Int32Array(s.cols * s.rows).fill(-1);
+  const queue: number[] = [];
+  s.network.forEach((on, i) => {
+    if (on && s.roads[i]) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  });
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q];
+    const x = i % s.cols;
+    const y = Math.floor(i / s.cols);
+    for (const [dx, dy] of DIRS) {
+      if (!isFreeLand(s, x + dx, y + dy)) continue;
+      const j = indexOf(s, x + dx, y + dy);
+      if (dist[j] >= 0) continue;
+      dist[j] = dist[i] + 1;
+      prev[j] = i;
+      queue.push(j);
+    }
+  }
+  return { dist, prev };
+}
+
+/** A place where the temple fits: `ready` touches the network; otherwise a short road links it. */
+export interface TempleSpot extends Cell {
+  ready: boolean;
+}
+
+/**
+ * Top-left cells where the temple fits on free land, touching the network (`ready`) or at most
+ * `templeSpotRoadGap` free cells away from it (a road that long links it). Nearest the altar first
+ * (Manhattan distance between the centers).
+ */
+export function templeSpotsNear(s: GameState): TempleSpot[] {
+  const d = dimsOf('temple');
+  const { dist } = roadDistances(s);
+  const out: (TempleSpot & { far: number })[] = [];
+  const a = { x: s.altar.x + dimsOf('altar').w / 2, y: s.altar.y + dimsOf('altar').h / 2 };
+  for (let y = 0; y + d.h <= s.rows; y++) {
+    for (let x = 0; x + d.w <= s.cols; x++) {
+      if (!isFreeRect(s, x, y, d)) continue;
+      const rect = { x, y, ...d };
+      const ready = touchesNetwork(s, rect);
+      const near = (c: Cell) => {
+        const k = dist[indexOf(s, c.x, c.y)];
+        return k > 0 && k <= RULES.templeSpotRoadGap;
+      };
+      if (!ready && !borderCells(s, rect).some(near)) continue;
+      out.push({ x, y, ready, far: Math.abs(x + d.w / 2 - a.x) + Math.abs(y + d.h / 2 - a.y) });
+    }
+  }
+  return out.sort((p, q) => p.far - q.far).map(({ far: _far, ...spot }) => spot);
+}
 
 /** Builds a road or building. `rng` draws the look of houses (seeded from the id if not given). */
 export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false, rng?: Rng): ActionResult {

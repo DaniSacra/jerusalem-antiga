@@ -11,6 +11,6 @@
   "workshop": { "name": "Oficina", "category": "work", "cost": 50, "upkeep": 2,  "w": 3, "h": 3, "jobs": 3, "fieldBonus": 0.1, "fieldBonusMax": 0.3,
                 "crafts": ["pottery", "smithy", "carpentry", "weaving", "dyeing", "tannery"] },
   "park":     { "name": "Parque", "category": "home",  "cost": 60,  "upkeep": 1,  "w": 2, "h": 2, "jobs": 0, "radius": 4 },
-  "temple":   { "name": "Templo", "category": "special",  "cost": 800, "upkeep": 10, "w": 6, "h": 6, "jobs": 2, "radius": 12, "protected": true },
+  "temple":   { "name": "Templo", "category": "special",  "cost": 800, "upkeep": 0, "w": 6, "h": 6, "jobs": 2, "radius": 12, "protected": true },
   "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "radius": 4, "protected": true }
 }

@@ -73,7 +73,7 @@ obra**. Resumo:
   Coletora `perCell` 0,3 → 0,2 (se a Coletora > 16% da comida)
 - Também no P3: toasts que cobrem o balão da ferramenta no celular (ui-designer)
 
-## Agora: "P2 correções" (escopo 2026-11-04, no main antes do merge do P3)
+## Agora: "P2 correções" (escopo 2026-11-04, no main antes do merge do P3; implementado, falta medir R0–R2)
 Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecânica nova.
 - Templo: `upkeep` 10 → 0; dica "Vence o jogo após o objetivo 9…"; toast ao erguer antes do 9
 - Objetivo 1 exige moradores (família a caminho não basta)

@@ -1,8 +1,9 @@
 import TUTORIAL from '../data/tutorial.json';
-import { isFreeLand, placeSpots } from './actions';
+import { isFreeLand, placeSpots, roadDistances } from './actions';
 import { BUILDINGS, dimsOf, RULES } from './data';
 import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { isGatherSource } from './harvest';
+import type { FamilyBlock } from './families';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
 export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
@@ -25,13 +26,15 @@ export interface TutorialMark {
   houses: number;
   /** The suggested road when the step started. */
   ghost: Cell[];
+  /** Week the step started (the family step ends by itself after `familyStepMaxWeeks`). */
+  week: number;
 }
 
 const networkRoads = (s: GameState) => s.network.filter(Boolean).length;
 const connected = (s: GameState, kind: BuildableKind, minLevel = 0) =>
   s.buildings.filter((b) => b.kind === kind && b.connected && b.level >= minLevel).length;
 
-export const markTutorial = (s: GameState): TutorialMark => ({ roads: networkRoads(s), houses: connected(s, 'house'), ghost: ghostRoad(s) });
+export const markTutorial = (s: GameState): TutorialMark => ({ roads: networkRoads(s), houses: connected(s, 'house'), ghost: ghostRoad(s), week: s.week });
 
 /** Progress of a step toward its target; the step is done once it reaches it. */
 export function tutorialProgress(s: GameState, step: TutorialStep, mark: TutorialMark): number {
@@ -46,7 +49,8 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
     case 'house':
       return connected(s, 'house') - mark.houses;
     case 'family':
-      return s.milestones.includes('firstFamily') ? 1 : 0;
+      // The first new family, or enough weeks waiting (the reason stays in Avisos).
+      return s.milestones.includes('firstFamily') || s.week - mark.week >= TUTORIAL.familyStepMaxWeeks ? 1 : 0;
     case 'field':
     case 'plaza':
     case 'market':
@@ -55,6 +59,10 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
       return 0; // done by a tap on the screen
   }
 }
+
+/** The tool that solves why no family comes, for the family step's arrow (null: the arrow stays). */
+export const reasonTool = (block: FamilyBlock | null): Placeable | null =>
+  (block && (TUTORIAL.reasonTools as Partial<Record<FamilyBlock, Placeable>>)[block]) || null;
 
 /** The clock stands still on a build step (the player reads and builds without hurry); it runs on a step that waits on the city. */
 export const tutorialHoldsClock = (step: TutorialStep | null) => !!step?.tool;
@@ -71,35 +79,6 @@ export interface FoodSpot {
   food: number;
   /** Road cells to build, from the network to the cell beside the building (empty when it already touches it). */
   road: Cell[];
-}
-
-const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
-
-/** Road steps over free land from the connected network (0 on it), with the previous cell of each. */
-function roadDistances(s: GameState): { dist: Int32Array; prev: Int32Array } {
-  const dist = new Int32Array(s.cols * s.rows).fill(-1);
-  const prev = new Int32Array(s.cols * s.rows).fill(-1);
-  const queue: number[] = [];
-  s.network.forEach((on, i) => {
-    if (on && s.roads[i]) {
-      dist[i] = 0;
-      queue.push(i);
-    }
-  });
-  for (let q = 0; q < queue.length; q++) {
-    const i = queue[q];
-    const x = i % s.cols;
-    const y = Math.floor(i / s.cols);
-    for (const [dx, dy] of DIRS) {
-      if (!isFreeLand(s, x + dx, y + dy)) continue;
-      const j = indexOf(s, x + dx, y + dy);
-      if (dist[j] >= 0) continue;
-      dist[j] = dist[i] + 1;
-      prev[j] = i;
-      queue.push(j);
-    }
-  }
-  return { dist, prev };
 }
 
 /**

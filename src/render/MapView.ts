@@ -13,8 +13,9 @@ import {
   placeSize,
   roadMask,
   serviceOf,
-  placeSpots,
+  onlyNeedsRoad,
   plazaHouseSpots,
+  type TempleSpot,
   servedHouses,
   type Building,
   type BuildingKind,
@@ -170,8 +171,10 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
-  /** "Atende N casas" above the preview of a plaza, market or park. */
+  /** Above the preview: "Atende N casas" (a plaza, market or park), the temple's Alegria, "Cabe aqui: falta ligar à rua". */
   private serves: Phaser.GameObjects.Text;
+  /** Where the temple fits (green) or a road is missing (yellow), drawn while it is chosen. */
+  private templeAreas: readonly TempleSpot[] = [];
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
@@ -693,11 +696,11 @@ export class MapView {
   }
 
   /**
-   * Free spots in green with a light dotted outline around the area, so they read over the
-   * green grass of winter and spring as well as over sand and dry grass.
+   * Free spots in green (or `color`) with a light dotted outline around the area, so they read over
+   * the green grass of winter and spring as well as over sand and dry grass.
    */
-  private spots(cells: Cell[]) {
-    this.fillCells(cells, C.fits, 0.45);
+  private spots(cells: Cell[], color: number = C.fits) {
+    this.fillCells(cells, color, 0.45);
     const inside = new Set(cells.map((c) => c.y * COLS + c.x));
     const g = this.overlay;
     g.lineStyle(2, C.cream, 0.95);
@@ -721,14 +724,17 @@ export class MapView {
     }
   }
 
-  /** Cells covered by every spot where a building of this kind fits next to the network. */
-  private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
+  /** Cells covered by every house spot of the tutorial: next to the network and near a plaza (a tent there becomes a mud house). */
+  private houseSpotsArea(s: GameState): Cell[] {
     const seen = new Set<number>();
-    const { w, h } = dimsOf(kind);
-    // The tutorial's house spots are the ones a plaza reaches (a tent there becomes a mud house).
-    const spots = kind === 'house' ? plazaHouseSpots(s) : placeSpots(s, kind);
-    for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
+    const { w, h } = dimsOf('house');
+    for (const o of plazaHouseSpots(s)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
+  }
+
+  /** The temple areas shown while the temple is chosen (set by the scene on picking it and on each refresh). */
+  setTempleAreas(areas: readonly TempleSpot[]) {
+    this.templeAreas = areas;
   }
 
   private coverageCells(s: GameState, covered: boolean[]): Cell[] {
@@ -779,12 +785,18 @@ export class MapView {
     if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.plaza), C.need.plaza, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
-    if (tool === 'temple') this.spots(this.spotsArea(s, 'temple'));
-    if (tool === 'house' && guide?.houseSpots) this.spots(this.spotsArea(s, 'house'));
+    // Temple: each area on its own, green where it can be built now, yellow where a road is missing.
+    if (tool === 'temple') {
+      const { w, h } = dimsOf('temple');
+      for (const a of this.templeAreas) this.spots(footprint(a.x, a.y, w, h), a.ready ? C.fits : C.needsRoad);
+    }
+    if (tool === 'house' && guide?.houseSpots) this.spots(this.houseSpotsArea(s));
 
     if (!hover) return;
     const o = originFor(tool, hover, rotated);
     const { w, h } = toolDims(tool, rotated);
+    /** Lines above the preview: the houses a service reaches, and "falta ligar à rua". */
+    const label: string[] = [];
     if (service && isPlaceTool(tool) && tool !== 'road') {
       const r = BUILDINGS[tool].radius ?? 0;
       const x0 = Math.max(0, o.x - r);
@@ -796,18 +808,17 @@ export class MapView {
       g.fillPoints(area, true);
       g.lineStyle(3, C.need[service], 0.9);
       g.strokePoints(area, true, true);
-      // The houses it would serve, outlined, and how many above the preview.
+      // The houses it would serve, outlined (how many goes above the preview).
       const served = servedHouses(s, tool, o.x, o.y, rotated);
       g.lineStyle(3, C.need[service], 1);
       for (const b of served) g.strokePoints(rectCorners(b.x, b.y, b.w, b.h), true, true);
-      const top = footCenter(o.x, o.y, w, h);
-      this.serves
-        .setText(T.serves(served.length))
-        .setPosition(top.x, top.y - (HEIGHT[keyOf({ kind: tool, ...o, w, h })] ?? 40) - 6)
-        .setVisible(true);
+      label.push(tool === 'temple' ? T.templeServes(served.length) : T.serves(served.length));
     }
-    const ok = (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
-    const color = ok ? 0xfff3b0 : C.famine;
+    // Yellow: it fits and only the road is missing; red: something is in the way (or no silver).
+    const roadOnly = isPlaceTool(tool) && onlyNeedsRoad(s, tool, o.x, o.y, rotated);
+    const ok = !roadOnly && (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
+    if (roadOnly) label.push(T.needsRoad);
+    const color = roadOnly ? C.needsRoad : ok ? 0xfff3b0 : C.famine;
     this.fillCells(footprint(o.x, o.y, w, h), color, 0.3);
     g.lineStyle(2, color, 0.9);
     g.strokePoints(rectCorners(o.x, o.y, w, h), true, true);
@@ -816,7 +827,8 @@ export class MapView {
     const c = footCenter(o.x, o.y, w, h);
     setTex(this.preview, key).setPosition(c.x, c.y).setAlpha(0.7).setVisible(true);
     if (ok) this.preview.clearTint();
-    else this.preview.setTint(0xff6a5a);
+    else this.preview.setTint(roadOnly ? C.needsRoad : 0xff6a5a);
+    if (label.length) this.serves.setText(label.join('\n')).setPosition(c.x, c.y - (HEIGHT[key] ?? 40) - 6).setVisible(true);
   }
 
   /**

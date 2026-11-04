@@ -1,5 +1,7 @@
 {
   "minSpotFood": 1.2,
+  "familyStepMaxWeeks": 8,
+  "reasonTools": { "storage": "granary", "food": "field" },
   "steps": [
     { "id": "road", "tool": "road", "target": 1 },
     { "id": "gather", "tool": "fisher", "alt": "gatherer", "target": 1 },

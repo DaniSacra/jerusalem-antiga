@@ -145,6 +145,9 @@
     "milestoneCrowd": 6,
     "spoilSeconds": 3
   },
+  "temple": {
+    "maxTempleSpots": 6
+  },
   "tutorial": {
     "followSeconds": 2,
     "arrowScale": 1,

@@ -180,6 +180,8 @@ export interface Rules {
   weeksToDowngrade: number;
   famineDropChance: number;
   treeClearCost: number;
+  /** The temple's areas also show where it fits this many free cells away from the network (a road there links it). */
+  templeSpotRoadGap: number;
   /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */
   famineLeaveChance: number;
   /** Consecutive weeks with negative silver that lose the game. */
@@ -322,8 +324,8 @@ export type GameEvent =
   | { type: 'famineEnd' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
   | { type: 'victory'; week: number; residents: number }
-  /** A family abandoned its tent during famine and walks out of the city from (x, y). */
-  | { type: 'familyLeft'; x: number; y: number }
+  /** A family abandoned its tent (during famine, or because it lost its road) and walks out of the city from (x, y). */
+  | { type: 'familyLeft'; x: number; y: number; reason: LeaveReason }
   /** Upkeep starts being charged (once, right after goal `upkeepStartsAfterGoal`). */
   | { type: 'upkeepStart' }
   /** A new season began (looks only for now). */
@@ -338,6 +340,9 @@ export type GameEvent =
   /** Winter began and the coming spring will be dry. */
   | { type: 'drought' }
   | { type: 'milestone'; id: MilestoneId };
+
+/** Why a family left its tent: famine, or the tent lost its road (it dropped back to a plot). */
+export type LeaveReason = 'famine' | 'road';
 
 export type FailReason = 'locked' | 'invalid' | 'silver' | 'debt' | 'noRoad' | 'protected';
 export type ActionResult = { ok: true } | { ok: false; reason: FailReason };

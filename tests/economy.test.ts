@@ -91,11 +91,12 @@ describe('economy', () => {
       market: 4,
       workshop: 2,
       park: 1,
-      temple: 10,
     });
-    expect(e.upkeep).toEqual({ plaza: 1, field: 1, market: 4, workshop: 2, temple: 10 });
-    expect(costliestUpkeep(e)).toEqual({ kind: 'temple', amount: 10 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes - 18); // the balance shown as +X/sem
+    // The temple has no upkeep: built early, it never drains the city (plano-p2-correcoes 2.1).
+    expect(BUILDINGS.temple.upkeep).toBe(0);
+    expect(e.upkeep).toEqual({ plaza: 1, field: 1, market: 4, workshop: 2 });
+    expect(costliestUpkeep(e)).toEqual({ kind: 'market', amount: 4 });
+    expect(e.silverDelta).toBeCloseTo(e.taxes - 8); // the balance shown as +X/sem
   });
 
   it('eats food per resident according to the house level', () => {

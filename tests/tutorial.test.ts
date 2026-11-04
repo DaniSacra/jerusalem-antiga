@@ -15,6 +15,7 @@ import {
   needMet,
   placeSpots,
   refreshCity,
+  reasonTool,
   RULES,
   servedHouses,
   TUTORIAL_EXTRAS,
@@ -62,7 +63,7 @@ describe('tutorial steps', () => {
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29);
     put(s, 'house', 1, 1); // not connected
-    expect(markTutorial(s)).toEqual({ roads, houses: 2, ghost: ghostRoad(s) });
+    expect(markTutorial(s)).toEqual({ roads, houses: 2, ghost: ghostRoad(s), week: s.week });
   });
 
   it('road: done once the suggested road is built, or as many new joined road cells elsewhere', () => {
@@ -122,7 +123,28 @@ describe('tutorial steps', () => {
     put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27);
     for (let k = 0; k < 8 && !tutorialStepDone(s, step('family'), mark); k++) stepWeek(s, constRng(0));
+    expect(s.milestones).toContain('firstFamily');
+    expect(s.week - mark.week).toBeLessThan(TUTORIAL.familyStepMaxWeeks);
     expect(tutorialStepDone(s, step('family'), mark)).toBe(true);
+  });
+
+  it(`family: ends by itself after familyStepMaxWeeks (${TUTORIAL.familyStepMaxWeeks}) weeks with no family`, () => {
+    expect(TUTORIAL.familyStepMaxWeeks).toBe(8);
+    const s = emptyGame({ week: 3 });
+    const mark = markTutorial(s);
+    expect(mark.week).toBe(3);
+    s.week = 3 + TUTORIAL.familyStepMaxWeeks - 1;
+    expect(tutorialStepDone(s, step('family'), mark)).toBe(false);
+    s.week++;
+    expect(tutorialStepDone(s, step('family'), mark)).toBe(true);
+    expect(s.milestones).not.toContain('firstFamily');
+  });
+
+  it('the family step points at the tool that solves why no family comes', () => {
+    expect(TUTORIAL.reasonTools).toEqual({ storage: 'granary', food: 'field' });
+    expect(reasonTool('storage')).toBe('granary');
+    expect(reasonTool('food')).toBe('field');
+    for (const b of ['famine', 'wait', 'noPlot', null] as const) expect(reasonTool(b)).toBeNull();
   });
 
   it('field, plaza and market: done by one connected building of the kind', () => {

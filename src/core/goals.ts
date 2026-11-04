@@ -27,9 +27,20 @@ export const yearOf = (week: number) => Math.floor(week / WEEKS_PER_YEAR) + 1;
 /** The goal waits for its `fromYear`: it cannot be reached before that year begins. */
 export const goalOpen = (s: GameState, goal: GoalDef) => yearOf(s.week) >= (goal.fromYear ?? 1);
 
+/** Index of the victory goal ("Construa o Templo"). */
+const VICTORY = GOALS.findIndex((g) => g.victory);
+
+/**
+ * Completes the current goal if it is met: one goal per check (the next waits for the next week),
+ * except the victory, which follows at once when the temple already stands.
+ */
 export function checkGoal(s: GameState, events: GameEvent[]): void {
+  if (completeGoal(s, events) && s.goalIndex === VICTORY) completeGoal(s, events);
+}
+
+function completeGoal(s: GameState, events: GameEvent[]): boolean {
   const goal = currentGoal(s);
-  if (!goal || !goalOpen(s, goal) || goalProgress(s, goal) < goalTarget(s, goal)) return;
+  if (!goal || !goalOpen(s, goal) || goalProgress(s, goal) < goalTarget(s, goal)) return false;
   const index = s.goalIndex;
   s.goalIndex++;
   s.silver += goal.reward;
@@ -41,7 +52,20 @@ export function checkGoal(s: GameState, events: GameEvent[]): void {
     events.push({ type: 'goal', index, reward: goal.reward, unlock: goal.unlock });
   }
   if (s.goalIndex === RULES.upkeepStartsAfterGoal) events.push({ type: 'upkeepStart' });
+  return true;
 }
+
+const WAITS = GOALS.findIndex((g) => g.fromYear);
+
+/**
+ * The goal a temple built early waits for (the one with `fromYear`), with its 1-based number. Once it
+ * is met, the victory comes in the same week.
+ */
+export const TEMPLE_GOAL = { number: WAITS + 1, goal: GOALS[WAITS] };
+
+/** A temple stands but goals before the victory are still open: the win waits for them. */
+export const templeWaitsForGoal = (s: GameState) =>
+  !s.won && s.goalIndex < VICTORY && s.buildings.some((b) => b.kind === 'temple' && b.connected);
 
 /** Weeks until the first spring of the game (0 once it began). */
 const FIRST_SPRING = weeksToHarvest(0);
@@ -50,11 +74,11 @@ const weeksToFirstSpring = (s: GameState) => Math.max(0, FIRST_SPRING - s.week);
 /**
  * Weeks the food lasts by the forecast (every house at its planned level), up to the weeks left
  * until the first spring. Once the spring came, 1 unless the city is starving (then the goal
- * waits for the food to come back). An empty city (nobody living or on the way) has nothing to feed:
- * 0, so the goal is not met by everyone leaving.
+ * waits for the food to come back). A city with nobody living in it has nothing to feed: 0, even
+ * with a family on the way, so the goal is not met by everyone leaving.
  */
 function foodWeeksUntilSpring(s: GameState): number {
-  if (computeEconomy(s).residents === 0 && s.families.length === 0) return 0;
+  if (computeEconomy(s).residents === 0) return 0;
   const left = weeksToFirstSpring(s);
   if (left === 0) return s.famine ? 0 : 1;
   const out = foodForecast(s, computeEconomy(s), left);

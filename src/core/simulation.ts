@@ -29,7 +29,10 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   if (b.level === 0) return;
   if (!hasNeeds(s, b, HOUSE_LEVELS[b.level].needs)) {
     b.upStreak = 0;
-    if (++b.downStreak >= RULES.weeksToDowngrade) changeLevel(s, b, -1, false, rng, events);
+    if (++b.downStreak < RULES.weeksToDowngrade) return;
+    changeLevel(s, b, -1, false, rng, events);
+    // A tent missing its needs lost its road: the family walks out and the plot waits for another.
+    if (b.level === 0) events.push({ type: 'familyLeft', x: b.x, y: b.y, reason: 'road' });
     return;
   }
   b.downStreak = 0;
@@ -45,7 +48,7 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
       if (winter) s.winterLoss = true;
       // The family abandons its tent and walks out of the city; the plot waits for a new family.
       changeLevel(s, b, -1, true, rng, events);
-      events.push({ type: 'familyLeft', x: b.x, y: b.y });
+      events.push({ type: 'familyLeft', x: b.x, y: b.y, reason: 'famine' });
     }
     return;
   }

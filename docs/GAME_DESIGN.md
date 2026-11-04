@@ -79,7 +79,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
 | Oficina | 50 | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |
 | Parque | 60 | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 5; casas de pedra no raio viram casas grandes; dá Alegria |
-| Templo | 800 | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido; o raio só dá Alegria |
+| Templo | 800 | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); sem manutenção (construir cedo é escolha, não dívida); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador e Coletora** (`gather` em `buildings.json`, uma regra só): produção por semana =
@@ -133,6 +133,9 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   uma rua que ficou fora da rede, aparece "Esta rua não está ligada ao altar".
 - Construir longe da rua é permitido (o jogador aprende pelo balão). **Exceção:** o Templo só pode
   ser colocado encostado numa rua conectada.
+- Uma casa que perde a rua cai um nível a cada `weeksToDowngrade` semanas; quando a tenda vira
+  terreno, a família vai embora (evento `familyLeft` com `reason: 'road'`, toast "Uma família foi
+  embora: casa sem rua"; na fome, `reason: 'famine'` e "Uma família foi embora: fome").
 - Casas desconectadas continuam contando moradores e impostos até regredirem.
 
 ## Casas
@@ -361,11 +364,15 @@ com a água no Pacote 2).
   unidade ("12/26 sem"); na primavera, sem semanas a contar, a pílula não mostra número (nada de
   "0/1"). Cumpre quando a previsão chega lá (uma caravana que vai passar fome não
   cumpre na semana 1). Na primavera, cumpre se a cidade não está com fome; com fome, espera a
-  comida voltar. O alvo nunca é 0. Uma cidade vazia (ninguém morando nem a caminho) tem progresso 0:
-  o objetivo não se cumpre com todos indo embora.
+  comida voltar. O alvo nunca é 0. Uma cidade sem moradores tem progresso 0, mesmo com uma família
+  a caminho: o objetivo só se cumpre com alguém morando (nunca com todos indo embora).
 - **`fromYear`:** o objetivo só se cumpre a partir desse ano (`goalOpen`); o texto mostra "a partir
   do Ano N" na pílula e na lista. O Templo libera no Objetivo 8, para o jogador juntar prata e
   construí-lo antes; a vitória vem quando os objetivos 9 (500 moradores) e 10 (o Templo) se cumprem.
+  Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na mesma semana do
+  Objetivo 9 (`checkGoal`). Erguido antes do 9 (`templeWaitsForGoal`), toast "Templo erguido! A
+  vitória vem com 500 moradores, a partir do Ano 8" (números de `goals.json`); a dica do Templo diz
+  "Vence o jogo após o objetivo 9" (o número é a posição do objetivo com `fromYear`).
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
 
@@ -524,6 +531,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     no mapa);
   - Demolir no balão da construção tocada pede confirmação: o primeiro toque vira "Certeza?" por
     2,5 s, o segundo demole;
+  - no celular, a ferramenta Demolir num celeiro (ou na rua que liga um) com perda de comida não
+    demole ao soltar: abre o balão dele ("Perde N de comida" e o Demolir com segundo toque). O
+    mouse não muda;
   - tocar em terreno livre ou no rio fecha o balão da construção tocada; ruas, árvores e rochas
     mostram uma linha;
   - "Onde pôr uma praça/um mercado/um parque" (só se a construção já estiver liberada) escolhe a
@@ -582,13 +592,19 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   afastado os balões crescem (escala máx(1, 1,2 / zoom)) para continuar legíveis.
 - **Com ferramenta de construção:** linhas da grade, prévia translúcida (vermelha se inválida ou
   sem prata), quadrado do raio e área já coberta pelo mesmo serviço. Praça, Mercado e Parque
-  contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia.
+  contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia; o
+  Templo mostra "+10 de Alegria em N casas" (o 10 é `happiness.sacred`). Quando a construção cabe
+  e só falta rua (`onlyNeedsRoad`: terreno livre, prata, mas sem encostar na rede), a prévia fica
+  **amarela** com "Cabe aqui: falta ligar à rua" (ocupado ou sem prata continua vermelho).
   Pescador e Coletora mostram "Rende N comida/sem" (com as células de rio ou árvores contadas
   destacadas); Campo mostra que dá comida fora do inverno. Com Casa, destaque da área coberta
   pelas praças (onde a tenda pode virar casa de barro). O Templo mostra as 6 x 6 células
-  e destaca em verde todas as posições onde cabe (6 x 6 livre encostado em rua conectada, sem
-  olhar a prata); se não houver nenhuma, toast "Sem espaço para o Templo: abra uma rua ao lado de
-  um terreno livre 6 x 6".
+  e contorna até `maxTempleSpots` (6, em `visual.json`) áreas onde cabe, sem sobrepor, as mais
+  perto do altar (`templeSpotsNear` no core, recalculado ao escolher e a cada atualização, nunca
+  por quadro): **verde** se já encosta na rede, **amarela** se um 6 x 6 livre fica a no máximo
+  `templeSpotRoadGap` (1, em `rules.json`) célula livre da rede. Sem área verde, toast "Sem lugar
+  pronto: o Templo cabe no amarelo, falta ligar à rua"; sem nenhuma, "Sem espaço para o Templo:
+  abra uma rua ao lado de um terreno livre 6 x 6".
 - **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima):
   prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local
   inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, objetivo cumprido,
@@ -649,7 +665,11 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   6. "Uma família está chegando!": a câmera acompanha a família por 2 s
      (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
      Construa mais casas: cada uma recebe uma família". Se a porta das famílias estiver fechada e nenhuma
-     família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo).
+     família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo) e a
+     seta aponta a ferramenta que resolve o motivo (`reasonTools` em `tutorial.json`: `storage` →
+     Celeiro, `food` → Campo, se liberada; os outros motivos não mudam a seta). O passo também
+     termina sozinho depois de `familyStepMaxWeeks` (8) semanas, com o mesmo toast final; o motivo
+     continua em Avisos.
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,
   praça, casa) com a ponta **acima da construção**, para não cobrir a prévia. No celular, a seta de
   uma construção única (pescador, coletora, praça) aponta onde o dedo vai: a mira fica 90 px acima do

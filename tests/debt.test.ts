@@ -86,19 +86,20 @@ describe('alerts', () => {
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: -U, costliest: 'market', upkeep: U },
     ]);
-    s.unlocked.push('workshop', 'temple');
-    put(s, 'temple', EAST, 34); // upkeep 10, 2 jobs
+    s.unlocked.push('workshop');
+    const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs
     for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents, 15 workers
     const tax = 5 * HOUSE_LEVELS[2].tax;
+    expect(tax).toBeLessThan(2 * U);
     // (30 residents and no food buildings: the food warning shows too, tested in survival.test.ts)
     expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
-      { kind: 'deficit', balance: tax - 10 - U, costliest: 'temple', upkeep: 10 }, // taxes - temple - market
-      { kind: 'unemployed', count: 10, workshopsFull: false },
+      { kind: 'deficit', balance: tax - 2 * U, costliest: 'market', upkeep: 2 * U }, // taxes - two markets
+      { kind: 'unemployed', count: 9, workshopsFull: false },
     ]);
     s.silver = 0;
     s.debtWeeks = 0;
-    s.buildings = s.buildings.filter((b) => b.kind !== 'temple');
+    s.buildings = s.buildings.filter((b) => b !== second);
     expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12, workshopsFull: false }]); // balance tax - U > 0, 15 workers for 3 jobs
   });
 

@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Upkeep begins (toast, or the tutorial step for who did not skip it). */
@@ -63,13 +63,20 @@ export const T = {
     const granary = s.unlocked.includes('granary') ? 'Construa o celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
     return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
   },
-  familyLeft: 'Uma família foi embora: fome',
+  /** A family left its tent: famine, or the tent lost its road. */
+  familyLeft: { famine: 'Uma família foi embora: fome', road: 'Uma família foi embora: casa sem rua' } satisfies Record<LeaveReason, string>,
+  /** The temple was built before the goal the victory waits for (500 and 8 read from goals.json). */
+  templeEarly: `Templo erguido! A vitória vem com ${TEMPLE_GOAL.goal.target} moradores, a partir do Ano ${TEMPLE_GOAL.goal.fromYear}`,
   famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
   roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue',
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
+  /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
+  noTempleSpotRoad: 'Sem lugar pronto: o Templo cabe no amarelo, falta ligar à rua',
+  /** Preview of any building that fits but would not touch the road network. */
+  needsRoad: 'Cabe aqui: falta ligar à rua',
   fail: {
     silver: 'Prata insuficiente',
     debt: 'Em dívida: não dá para construir',
@@ -116,6 +123,8 @@ export const T = {
   upkeepStart: UPKEEP_START,
   /** Preview of a plaza, market or park: houses with a family inside its radius. */
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
+  /** Preview of the temple: it only gives Alegria (it never makes a house climb). */
+  templeServes: (n: number) => `+${RULES.happiness.sacred} de Alegria em ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
     step: {
       road: 'Puxe uma rua pelo caminho marcado, até onde há comida',
@@ -227,7 +236,7 @@ export const T = {
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
-      temple: 'Vence o jogo. Precisa encostar numa rua ligada ao altar.',
+      temple: `Vence o jogo após o objetivo ${TEMPLE_GOAL.number}. Precisa encostar numa rua ligada ao altar.`,
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {

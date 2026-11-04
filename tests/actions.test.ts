@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, place, placeSpots, RULES, templeSpots } from '../src/core';
-import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, onlyNeedsRoad, place, placeSpots, RULES, templeSpots, templeSpotsNear } from '../src/core';
+import { EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
   it('charges the cost and occupies every cell of the footprint', () => {
@@ -91,6 +91,44 @@ describe('temple placement', () => {
     const s = emptyGame();
     s.feature = s.feature.map(() => 'rock');
     expect(templeSpots(s)).toEqual([]);
+  });
+
+  it('templeSpotsNear: touching the network is ready, one free cell away needs a road, two away is left out', () => {
+    expect(RULES.templeSpotRoadGap).toBe(1);
+    const s = emptyGame({ silver: 0 });
+    const at = (x: number, y: number) => templeSpotsNear(s).find((o) => o.x === x && o.y === y);
+    expect(at(EAST, 30)).toEqual({ x: EAST, y: 30, ready: true });
+    expect(at(EAST + 1, 30)).toEqual({ x: EAST + 1, y: 30, ready: false }); // a 1-cell road at x = EAST links it
+    expect(at(EAST + 2, 30)).toBeUndefined();
+    road(s, [[EAST, 30]]);
+    expect(at(EAST + 1, 30)).toEqual({ x: EAST + 1, y: 30, ready: true });
+    // Every ready spot is a place the temple can be built; the others are not (yet).
+    s.silver = 1e6;
+    for (const o of templeSpotsNear(s)) expect(checkPlace(s, 'temple', o.x, o.y).ok, `${o.x},${o.y}`).toBe(o.ready);
+    expect(templeSpotsNear(s).filter((o) => o.ready).length).toBe(templeSpots(s).length);
+  });
+
+  it('templeSpotsNear lists the spots nearest the altar first, and none over rocks', () => {
+    const s = emptyGame();
+    const a = { x: s.altar.x + 2, y: s.altar.y + 2 };
+    const far = templeSpotsNear(s).map((o) => Math.abs(o.x + 3 - a.x) + Math.abs(o.y + 3 - a.y));
+    expect(far).toEqual([...far].sort((p, q) => p - q));
+    s.feature = s.feature.map(() => 'rock');
+    expect(templeSpotsNear(s)).toEqual([]);
+  });
+
+  it('onlyNeedsRoad: free and paid for, but away from the network', () => {
+    const s = emptyGame({ silver: 1000 });
+    expect(onlyNeedsRoad(s, 'temple', EAST + 1, 30)).toBe(true);
+    expect(onlyNeedsRoad(s, 'temple', EAST, 30)).toBe(false); // touches the road: it can be built
+    expect(onlyNeedsRoad(s, 'house', ROADSIDE - 1, 30)).toBe(true); // it could be built, cut off
+    expect(onlyNeedsRoad(s, 'house', ROADSIDE, 30)).toBe(false);
+    expect(onlyNeedsRoad(s, 'house', ROADSIDE + 1, 30)).toBe(false); // over the road: taken, not "needs a road"
+    expect(onlyNeedsRoad(s, 'road', 2, 2)).toBe(false);
+    s.silver = BUILDINGS.temple.cost - 1;
+    expect(onlyNeedsRoad(s, 'temple', EAST + 1, 30)).toBe(false); // the silver is missing too
+    s.unlocked = s.unlocked.filter((k) => k !== 'house');
+    expect(onlyNeedsRoad(s, 'house', ROADSIDE - 1, 30)).toBe(false);
   });
 
   it('lists house spots (tutorial) only on free land touching the connected network', () => {

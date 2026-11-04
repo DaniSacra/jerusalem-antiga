@@ -10,11 +10,13 @@
  * Scenarios use the dev-only hooks window.game, window.state and window.core
  * (exposed by GameScene in dev builds) to read state and set up situations quickly.
  */
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
 const OUT = 'screenshots';
+/** Tutorial numbers (familyStepMaxWeeks, reasonTools). */
+const TUTORIAL = JSON.parse(await readFile('src/data/tutorial.json', 'utf8'));
 const PORT = 5199;
 /** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
 const SEED = 5;
@@ -91,6 +93,17 @@ async function setSpeed(page, speed) {
   throw new Error(`setSpeed: could not reach ${speed}x`);
 }
 
+/**
+ * Waits for a started game: the dev hooks come with a dynamic import and the interface with its own
+ * scene, so wait for all of them (window.layout and a laid-out UIScene too), with room for a loaded machine.
+ */
+const gameReady = (page) =>
+  page.waitForFunction(
+    () => window.game?.ui?.view && window.game.cameras?.main && window.state && window.core && window.iso && window.layout?.novaPoint('tool-road'),
+    null,
+    { timeout: 60000 },
+  );
+
 /** Opens the game, leaves the title screen and waits for the UI to be attached. The first-game
  * tutorial is skipped (marked as seen) unless `tutorial` is set. */
 async function startGame(page, { tutorial = false } = {}) {
@@ -99,7 +112,7 @@ async function startGame(page, { tutorial = false } = {}) {
   await page.waitForFunction(() => document.querySelector('canvas'));
   await page.waitForTimeout(800);
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.game?.ui && window.state && window.core && window.iso, null, { timeout: 15000 });
+  await gameReady(page);
   // Software rendering is slow: keep the image finish on so screenshots do not depend on the frame rate.
   await page.evaluate(() => (window.game.dayNight.fpsGuard = false));
   await page.waitForTimeout(300);
@@ -622,6 +635,97 @@ async function p2Interface(page, suffix) {
   await shot(page, `column-park${suffix}`);
 }
 
+/**
+ * P2 fixes: choosing the Temple shows where it fits (green: ready, yellow: a road is missing), its
+ * preview says "+10 de Alegria em N casas", and any building that fits away from the road previews in
+ * yellow with "Cabe aqui: falta ligar à rua".
+ */
+async function templeAreas(page, suffix) {
+  await startGame(page);
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 30000 }); // the opening sentence goes away
+  const areas = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.setSpeed(0);
+    s.silver = 1e4;
+    s.unlocked.push('temple');
+    // A grown city: the land along the roads near the altar is taken (here by plots in the middle of
+    // the nearest ready areas), so some of the nearest areas need a road.
+    game.selectTool('temple');
+    for (let k = 0; k < 40 && !game.templeAreas.some((a) => !a.ready); k++) {
+      const a = game.templeAreas.find((o) => o.ready);
+      if (!a || !core.place(s, 'house', a.x + 2, a.y + 2).ok) break;
+      game.refresh();
+    }
+    return game.templeAreas.map((a) => ({ ...a }));
+  });
+  const apart = areas.every((a, i) => areas.every((b, j) => i === j || Math.abs(a.x - b.x) >= 6 || Math.abs(a.y - b.y) >= 6));
+  assert(areas.length > 0 && areas.length <= 6 && apart, `at most 6 temple areas that do not overlap (${JSON.stringify(areas)})`);
+  assert(areas.some((a) => a.ready) && areas.some((a) => !a.ready), `green and yellow temple areas (${JSON.stringify(areas)})`);
+  const yellow = areas.find((a) => !a.ready);
+  await centerOnBuilding(page, { ...yellow, w: 6, h: 6 }, 0.8);
+  await page.waitForTimeout(300);
+  await shot(page, `temple-areas${suffix}`);
+
+  // The preview over a yellow area: yellow, with the Alegria it gives and "falta ligar à rua".
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [yellow.x + 2, yellow.y + 2]);
+  await page.waitForTimeout(200);
+  const label = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
+  assert(label && /^\+10 de Alegria em \d+ casas?\nCabe aqui: falta ligar à rua$/.test(label), `the temple preview says its Alegria and the missing road (${label})`);
+  await shot(page, `temple-preview-yellow${suffix}`);
+
+  // Any building: a house away from the road previews yellow with "Cabe aqui: falta ligar à rua".
+  const far = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.selectTool('house');
+    for (let y = 2; y < s.rows - 2; y++)
+      for (let x = 2; x < s.cols - 2; x++) if (core.onlyNeedsRoad(s, 'house', x, y)) return { x, y };
+    return null;
+  });
+  assert(far, 'a free house spot away from the road');
+  await centerOnBuilding(page, { ...far, w: 2, h: 2 });
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [far.x, far.y]);
+  await page.waitForTimeout(200);
+  const houseLabel = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
+  assert(houseLabel === 'Cabe aqui: falta ligar à rua', `the house preview away from the road (${houseLabel})`);
+  await shot(page, `preview-needs-road${suffix}`);
+}
+
+/**
+ * Demolir on a full granary: on the phone the touch opens the balloon ("Perde N de comida" and its own
+ * Demolir), it never demolishes at once; with the mouse a click still demolishes.
+ */
+async function demolishLoss(page, suffix) {
+  await startGame(page);
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 30000 });
+  const granary = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    game.setSpeed(0);
+    s.silver = 1e4;
+    s.unlocked.push('granary');
+    const to = core.RULES.map.altar;
+    const spot = core.placeSpots(s, 'granary').sort((a, b) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y)))[0];
+    core.place(s, 'granary', spot.x, spot.y);
+    s.food = core.foodCapacity(s);
+    game.refresh();
+    const g = s.grid[spot.y * s.cols + spot.x];
+    return { id: g.id, x: g.x, y: g.y, w: g.w, h: g.h };
+  });
+  await centerOnBuilding(page, granary);
+  await page.evaluate(() => window.game.selectTool('clear'));
+  await page.waitForTimeout(200);
+  const at = await cellToScreen(page, granary.x + 1, granary.y + 1);
+  await press(page, ...at);
+  await page.waitForTimeout(300);
+  const after = await page.evaluate((id) => ({ standing: window.state.buildings.some((b) => b.id === id), lines: window.game.ui.view.inspector.card?.lines.map((l) => l.text) ?? [] }), granary.id);
+  if (suffix === '-pc') {
+    assert(!after.standing, 'with the mouse, Demolir removes the granary at once');
+  } else {
+    assert(after.standing, 'on the phone, Demolir does not remove a granary that would spoil food');
+    assert(after.lines.some((l) => l.includes('Perde')), `the granary balloon opens with the food lost (${after.lines})`);
+  }
+  await shot(page, `demolish-loss${suffix}`);
+}
+
 /** Plays the whole tutorial as a new player would, with a screenshot of each step. */
 async function playTutorial(page, suffix) {
   await startGame(page, { tutorial: true });
@@ -722,13 +826,15 @@ async function playTutorial(page, suffix) {
   await placeNear(page, 'house');
   assert((await tutorialStep(page)) === 'family', 'a house ends step 5');
 
-  // 6. A family arrives; the camera follows it. If nothing blocks the families, it comes.
-  await openFamilyDoor(page);
+  // 6. The family step: a family comes, or the step ends by itself after familyStepMaxWeeks weeks
+  // (no help from the test: the door stays as the city left it).
+  const famStart = await page.evaluate(() => window.state.week);
   await page.evaluate(() => window.game.setSpeed(3));
-  await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 30000 });
   await page.waitForTimeout(700);
   await shotStep('step-6');
-  await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 90000 });
+  const famWeeks = await page.evaluate((w) => window.state.week - w, famStart);
+  assert(famWeeks <= TUTORIAL.familyStepMaxWeeks + 1, `the family step ends within familyStepMaxWeeks (${famWeeks} weeks)`);
   assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after step 6');
   const end = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
   assert(end.some((m) => m.includes('Construa mais casas')), `the last tutorial toast asks for more houses (${end})`);
@@ -769,7 +875,25 @@ async function tutorialBlocked(page) {
   const why = await page.evaluate(() => [window.core.familyBlock(window.state), window.game.guide.holdsClock, window.game.ui.view.toasts.list.map((t) => t.msg)]);
   assert(why[0] === 'food' && why[1] === false, `blocked families, and the clock runs (${JSON.stringify(why)})`);
   assert(!why[2].some((m) => m.startsWith('Nenhuma família')), `no family toast during the tutorial (${why[2]})`);
+  // The arrow points at the tool that solves the reason (food → Campo), not at nothing.
+  await page.waitForTimeout(300);
+  const arrow = await page.evaluate((tool) => {
+    const g = window.game;
+    const a = g.ui.view.tutorial.arrow;
+    const b = g.ui.buttonOf(tool);
+    return { visible: a.visible, x: Math.round(a.x), y: Math.round(a.y), button: b && { x: Math.round(b.x), y: Math.round(b.y), w: b.w } };
+  }, TUTORIAL.reasonTools.food);
+  assert(arrow.visible && arrow.button && Math.abs(arrow.y - arrow.button.y) < 2 && Math.abs(arrow.x - arrow.button.x) <= arrow.button.w, `the family step's arrow points at the ${TUTORIAL.reasonTools.food} button (${JSON.stringify(arrow)})`);
   await shot(page, 'tutorial-family-blocked');
+  // Still blocked: the step ends by itself after familyStepMaxWeeks, with the usual last toast.
+  const week = await page.evaluate(() => window.state.week);
+  await page.evaluate(() => window.game.setSpeed(3));
+  await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 90000 });
+  const end = await page.evaluate((w) => ({ weeks: window.state.week - w, family: window.state.milestones.includes('firstFamily'), toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg) }), week);
+  assert(!end.family && end.weeks >= TUTORIAL.familyStepMaxWeeks && end.weeks <= TUTORIAL.familyStepMaxWeeks + 1, `the blocked family step ends after ${TUTORIAL.familyStepMaxWeeks} weeks (${JSON.stringify(end)})`);
+  assert(end.toasts.some((m) => m.includes('Construa mais casas')), `the usual last tutorial toast (${end.toasts})`);
+  await page.evaluate(() => window.game.setSpeed(0));
+  await shot(page, 'tutorial-family-timeout');
 }
 
 /**
@@ -960,6 +1084,11 @@ const scenarios = {
   /** Pacote 2: lock on the house balloon, toasts held by the tapped balloon, Demolir on a granary, Praça and Parque. */
   'p2-ui': { context: PHONE, run: (page) => p2Interface(page, '') },
   'p2-ui-pc': { context: PC, run: (page) => p2Interface(page, '-pc') },
+  /** P2 fixes: temple areas (green and yellow), the yellow preview, Demolir with a food loss (phone and PC). */
+  'temple-areas': { context: PHONE, run: (page) => templeAreas(page, '') },
+  'temple-areas-pc': { context: PC, run: (page) => templeAreas(page, '-pc') },
+  'demolish-loss': { context: PHONE, run: (page) => demolishLoss(page, '') },
+  'demolish-loss-pc': { context: PC, run: (page) => demolishLoss(page, '-pc') },
   /** A drag that ends over a button does not press it (phone and PC). */
   'drag-release-on-button': { context: PHONE, run: (page) => dragReleaseOnButton(page, '') },
   'drag-release-on-button-pc': { context: PC, run: (page) => dragReleaseOnButton(page, '-pc') },
@@ -1340,7 +1469,7 @@ const scenarios = {
       // was seen); the game is not running yet, so map by hand.
       const scale = 390 / phoneH;
       await cdpTapPage(page, (844 - GAME_W * scale) / 2 + (640 - 160) * scale, ((phoneH - 520) / 2 + 520 - 62) * scale);
-      await page.waitForFunction(() => window.game?.ui && window.state && window.layout, null, { timeout: 15000 });
+      await gameReady(page);
       await page.waitForTimeout(500);
 
       await tap(await uiPoint(page, 'tool-road')); // Rua

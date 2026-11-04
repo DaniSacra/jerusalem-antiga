@@ -14,13 +14,15 @@ import {
   indexOf,
   RULES,
   stepWeek,
+  TEMPLE_GOAL,
+  templeWaitsForGoal,
   unlockingGoal,
   WEEKS_PER_YEAR,
   yearOf,
   type GameEvent,
   type GameState,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, put, ROAD_X, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const SPRING = 2 * W;
@@ -120,6 +122,21 @@ describe('goals', () => {
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events).toEqual([]);
+  });
+
+  it('goal 1 is not met with nobody living in the city, even with a family on the way', () => {
+    const s = emptyGame({ goalIndex: 0, food: 40, week: W + 1, unlocked: [...RULES.startUnlocked] }); // winter
+    const plot = put(s, 'house', ROADSIDE, 27);
+    s.families.push({ id: 999, houseId: plot.id, path: [{ x: ROAD_X, y: 27 }, { x: ROADSIDE, y: 27 }], step: 0 });
+    expect(computeEconomy(s).residents).toBe(0);
+    expect(goalProgress(s, GOALS[0])).toBe(0);
+    const events: GameEvent[] = [];
+    checkGoal(s, events);
+    expect(events).toEqual([]);
+    // The family arrives this week, and 40 food lasts its tent past the spring: the goal is met.
+    const week = stepWeek(s, constRng(0.99));
+    expect(plot.level).toBe(1);
+    expect(week).toContainEqual(goalEvent(0));
   });
 
   it('goal 1 also counts the fisher food', () => {
@@ -235,6 +252,29 @@ describe('goals that wait for their year (fromYear)', () => {
     expect(stepWeek(s, never).some((e) => e.type === 'goal')).toBe(false); // to the last week of Year 7
     expect(stepWeek(s, never)).toContainEqual(goalEvent(i)); // to the first week of Year 8
     expect(yearOf(s.week)).toBe(goal.fromYear);
+  });
+
+  it('a temple built before goal 9 wins the week goal 9 is met (and says what it waits for)', () => {
+    expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal });
+    expect(i + 1).toBe(GOALS.length - 1); // the goal right before the victory
+    const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house', 'temple'], week: opens - 2, food: 1000 });
+    expect(templeWaitsForGoal(s)).toBe(false); // no temple yet
+    put(s, 'temple', EAST, 30);
+    expect(templeWaitsForGoal(s)).toBe(true);
+    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
+    const never = constRng(0.99);
+    expect(stepWeek(s, never).some((e) => e.type === 'goal' || e.type === 'victory')).toBe(false); // Year 7
+    const events = stepWeek(s, never); // the Year 8 begins
+    expect(events).toContainEqual(goalEvent(i));
+    expect(events).toContainEqual(expect.objectContaining({ type: 'victory', week: opens }));
+    expect(s.won).toBe(true);
+    expect(templeWaitsForGoal(s)).toBe(false);
+  });
+
+  it('the temple does not wait once only the victory goal is left', () => {
+    const s = emptyGame({ goalIndex: GOALS.length - 1 });
+    put(s, 'temple', EAST, 30);
+    expect(templeWaitsForGoal(s)).toBe(false);
   });
 
   it('goals without fromYear are open from the first week', () => {

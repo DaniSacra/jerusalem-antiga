@@ -217,7 +217,7 @@ describe('winter and drought', () => {
     stepWeek(autumn, between);
     expect(a.level).toBe(1);
     const [winter, w] = tent(WINTER + 2);
-    expect(stepWeek(winter, between)).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27 });
+    expect(stepWeek(winter, between)).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27, reason: 'famine' });
     expect(w.level).toBe(0);
   });
 
@@ -647,7 +647,7 @@ describe('winter (edges)', () => {
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 2); // stays (the roll is above the drop chance)
     const events = stepWeek(s, constRng(RULES.winterFamineLeaveChance - 0.01));
-    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27 });
+    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27, reason: 'famine' });
     expect(s.winterLoss).toBe(true);
     expect(events).not.toContainEqual({ type: 'milestone', id: 'firstWinter' });
   });
@@ -666,7 +666,7 @@ describe('winter (edges)', () => {
     const s = emptyGame({ food: 0, famine: true, week: SUMMER + 2 });
     put(s, 'plaza', EAST, 27);
     put(s, 'house', ROADSIDE, 27, 1);
-    expect(stepWeek(s, constRng(RULES.famineLeaveChance - 0.01))).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27 });
+    expect(stepWeek(s, constRng(RULES.famineLeaveChance - 0.01))).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 27, reason: 'famine' });
     expect(s.winterLoss).toBe(false);
   });
 

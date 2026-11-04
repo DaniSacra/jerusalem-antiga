@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
-import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, refreshCity, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
+import { atHarvest, constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = RULES.weeksToUpgrade;
@@ -209,7 +209,32 @@ describe('house evolution', () => {
     const events = run(s, 1, constRng(chance - 0.01), true);
     expect(tent.level).toBe(0);
     expect(events).toContainEqual({ type: 'houseDown', x: ROADSIDE, y: 32, level: 0, delta: -gain(1), famine: true });
-    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 32 });
+    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 32, reason: 'famine' });
+  });
+
+  it('a tent that loses its road drops to a plot and its family leaves (reason road)', () => {
+    const s = emptyGame({ food: 1000 });
+    const tent = put(s, 'house', ROADSIDE - 1, 30, 1);
+    road(s, [[ROADSIDE + 1, 30]]);
+    expect(tent.connected).toBe(true);
+    s.roads[indexOf(s, ROADSIDE + 1, 30)] = false;
+    refreshCity(s);
+    const events = run(s, DOWN);
+    expect(tent.level).toBe(0);
+    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE - 1, y: 30, reason: 'road' });
+    expect(events.filter((e) => e.type === 'familyLeft')).toHaveLength(1);
+  });
+
+  it('a stone house that loses its road only sends its family away when it reaches a plot', () => {
+    const s = emptyGame({ food: 1000 });
+    const house = put(s, 'house', ROADSIDE - 1, 30, 3);
+    road(s, [[ROADSIDE + 1, 30]]);
+    s.roads[indexOf(s, ROADSIDE + 1, 30)] = false;
+    refreshCity(s);
+    const drops = run(s, 2 * DOWN);
+    expect(house.level).toBe(1);
+    expect(drops.some((e) => e.type === 'familyLeft')).toBe(false);
+    expect(run(s, DOWN)).toContainEqual({ type: 'familyLeft', x: ROADSIDE - 1, y: 30, reason: 'road' });
   });
 
   it('without famine tents are never abandoned', () => {

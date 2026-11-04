@@ -154,7 +154,8 @@ export class NovaUi {
     this.toasts.prune();
     this.tools.refresh(tool, this.list, this.panels.open);
     this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });
-    this.inspector.refresh(s, city, tool === 'view' ? selected : null);
+    // Demolir on touch opens the balloon of a building that would spoil food (see GameScene.apply).
+    this.inspector.refresh(s, city, tool === 'view' || tool === 'clear' ? selected : null);
     this.tagKey = '';
   }
 
@@ -172,7 +173,7 @@ export class NovaUi {
    */
   freeCenter(): { x: number; y: number } {
     const top = this.top.bottom + S.gap;
-    const bottom = Math.min(this.tutorial.top ?? this.tools.top, this.tools.top, this.toasts.top ?? H) - S.gap;
+    const bottom = Math.min(this.tutorial.top ?? H, this.tools.top, this.toasts.top ?? H) - S.gap;
     const left = this.tools.sideRight + S.gap;
     const right = this.column.rect.x - S.gap;
     return { x: (left + right) / 2, y: (top + bottom) / 2 };

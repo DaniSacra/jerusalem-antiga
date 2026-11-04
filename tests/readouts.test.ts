@@ -123,7 +123,7 @@ describe('balance after building', () => {
     const s = emptyGame();
     const now = computeEconomy(s).silverDelta;
     expect(balanceAfter(s, 'plaza')).toBeCloseTo(now - BUILDINGS.plaza.upkeep!);
-    expect(balanceAfter(s, 'temple')).toBeCloseTo(now - 10);
+    expect(balanceAfter(s, 'temple')).toBe(now); // the temple has no upkeep
   });
 
   it('counts no upkeep before upkeep is charged', () => {

@@ -22,7 +22,10 @@ import {
   RULES,
   spotsServing,
   stepWeek,
-  templeSpots,
+  templeSpotsNear,
+  templeWaitsForGoal,
+  reasonTool,
+  type TempleSpot,
   type ActionResult,
   type BuildableKind,
   type BuildingCategory,
@@ -31,6 +34,7 @@ import {
   type Economy,
   type GameEvent,
   type GameState,
+  type Placeable,
   type Rng,
 } from '../core';
 import { Ambient } from '../render/Ambient';
@@ -151,6 +155,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Inside a drag step: builds wait and the city refreshes once at the end. */
   private batching = false;
   private pending = false;
+  /** Where the temple fits while it is chosen (see updateTempleAreas). */
+  private templeAreas: TempleSpot[] = [];
   /** "Onde pôr um mercado": the places where this kind would reach the target are highlighted. */
   private spots: { kind: BuildableKind; target: Building } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
@@ -273,6 +279,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private refresh() {
     this.city = readCity(this.state);
+    this.updateTempleAreas();
     this.map.sync(this.state, this.eco);
     this.ambient.sync(this.state);
     this.haulers.sync(this.state);
@@ -312,7 +319,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'familyLeft':
           this.walkers.leave(this.state, e.x, e.y);
-          this.ui?.toast(T.familyLeft, 'bad');
+          this.ui?.toast(T.familyLeft[e.reason], 'bad');
           break;
         case 'debtStart':
           this.ui?.toast(T.debtStart, 'bad');
@@ -371,8 +378,26 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.selected = null;
     this.spots = null;
     this.drawSpots();
-    if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.hint(T.noTempleSpot, true);
     this.refresh();
+    if (tool === 'temple' && !this.templeAreas.some((a) => a.ready)) this.ui?.hint(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, true);
+  }
+
+  /**
+   * While the temple is chosen: where it fits (nearest the altar first), at most
+   * `maxTempleSpots` areas that do not overlap. Redone on each refresh, never per frame.
+   */
+  private updateTempleAreas() {
+    const areas: TempleSpot[] = [];
+    if (this.tool === 'temple') {
+      const { w, h } = dimsOf('temple');
+      const apart = (a: Cell, b: Cell) => Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h;
+      for (const a of templeSpotsNear(this.state)) {
+        if (areas.length >= VISUAL.temple.maxTempleSpots) break;
+        if (areas.every((b) => apart(a, b))) areas.push(a);
+      }
+    }
+    this.templeAreas = areas;
+    this.map.setTempleAreas(areas);
   }
 
   /** Screen point of the center of a grid footprint (UI coordinates) and the camera zoom. */
@@ -403,19 +428,34 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   /** Demolishes what is on a cell (Demolir in the tapped building's balloon). */
   demolishAt(cell: Cell) {
-    const s = this.state;
-    const b = s.grid[indexOf(s, cell.x, cell.y)];
-    const lost = foodLostIfRemoved(s, cell.x, cell.y);
-    const r = clearCell(s, cell.x, cell.y);
+    const r = this.demolish(cell);
     if (!r.ok) {
       this.ui?.toast(T.fail[r.reason], 'bad');
       return;
     }
-    const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(cell.x, cell.y);
-    this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
-    if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
     this.selected = null;
     this.refresh();
+  }
+
+  /**
+   * Removes what is on a cell (a building, a road or a tree) with its dust, and floats what it cost:
+   * the silver of a tree or the food that spoils (a granary, or the road to one). No refresh.
+   */
+  private demolish(cell: Cell): ActionResult {
+    const s = this.state;
+    if (!inBounds(s, cell.x, cell.y)) return clearCell(s, cell.x, cell.y);
+    const i = indexOf(s, cell.x, cell.y);
+    // Read before it is gone: what is removed (the size of the dust) and the food that spoils.
+    const b = s.grid[i];
+    const tree = !b && !s.roads[i] && !!s.feature[i];
+    const lost = foodLostIfRemoved(s, cell.x, cell.y);
+    const r = clearCell(s, cell.x, cell.y);
+    if (!r.ok) return r;
+    const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(cell.x, cell.y);
+    this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
+    if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
+    else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
+    return r;
   }
 
   /** Closes the tapped building's balloon. */
@@ -603,8 +643,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private tutorialTarget(): TutorialTarget | null {
     const step = this.guide!.step!;
     if (step.id === 'upkeep') return this.ui?.anchor('silver') ?? null;
-    if (step.tool && this.tool !== step.tool && this.tool !== step.alt) {
-      const b = this.ui?.buttonOf(step.tool);
+    const tool = step.id === 'family' ? this.familyStepTool() : step.tool;
+    if (tool && this.tool !== tool && this.tool !== step.alt) {
+      const b = this.ui?.buttonOf(tool);
       if (!b) return null;
       if (b.side === 'bottom') return { x: b.x, y: b.y - b.w / 2 - 4, dir: 'down' };
       return b.side === 'right' ? { x: b.x - b.w / 2 + 4, y: b.y, dir: 'right' } : { x: b.x + b.w / 2 - 4, y: b.y, dir: 'left' };
@@ -627,6 +668,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.input.activePointer.wasTouch && !DRAG_TOOLS.has(this.tool)) return { x: at.x, y: at.y + TOUCH_LIFT, dir: 'down' };
     const top = (HEIGHT[TEX.building(this.tool)] ?? 20) * this.cameras.main.zoom;
     return { x: at.x, y: at.y - top, dir: 'down' };
+  }
+
+  /** Family step: the unlocked tool that solves why no family comes (granary, field), while none is on the way. */
+  private familyStepTool(): Placeable | null {
+    const tool = this.state.families.length ? null : reasonTool(this.city.block);
+    return tool && this.state.unlocked.includes(tool) ? tool : null;
   }
 
   private toScreen(wx: number, wy: number) {
@@ -772,8 +819,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
       if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
         this.batching = true;
-        if (!g.applied && g.start) this.apply(g.start, true);
-        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false);
+        if (!g.applied && g.start) this.apply(g.start, true, g.touch);
+        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false, g.touch);
         this.batching = false;
         if (this.pending) {
           this.pending = false;
@@ -806,7 +853,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
         // Releasing a single building over the UI cancels it.
         const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
-        if (cell) this.apply(cell, true);
+        if (cell) this.apply(cell, true, g.touch);
       }
       this.warnLooseRoads(g.roads);
       if (g.cutByUi && this.tool === 'road') this.ui?.toast(T.roadUnderUi, 'bad');
@@ -829,31 +876,40 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
-  private apply(cell: Cell, first: boolean) {
+  /** Uses the current tool on a cell; `first` for the first cell of a gesture, `touch` when a finger did it. */
+  private apply(cell: Cell, first: boolean, touch = false) {
     if (this.tool === 'view') return;
     const s = this.state;
     const o = originFor(this.tool, cell, this.rotated);
     // Continuing a road from an existing one: nothing to build there, and nothing wrong either.
     if (this.tool === 'road' && s.roads[indexOf(s, o.x, o.y)]) return;
-    // What is demolished (for the size of the dust): read before it is gone.
-    const removed = this.tool === 'clear' ? s.grid[indexOf(s, o.x, o.y)] : null;
-    const tree = this.tool === 'clear' && inBounds(s, o.x, o.y) && !removed && !s.roads[indexOf(s, o.x, o.y)] && !!s.feature[indexOf(s, o.x, o.y)];
-    // Food that spoils because a granary (or the road to one) goes: said where it happens.
-    const lost = this.tool === 'clear' && inBounds(s, o.x, o.y) ? foodLostIfRemoved(s, o.x, o.y) : 0;
-    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated, this.rng) : clearCell(s, o.x, o.y);
+    if (this.tool === 'clear') {
+      // On touch, Demolir never removes what would spoil food at once: the first touch opens the
+      // building's balloon ("Perde N de comida" and its own Demolir, with a second tap).
+      if (touch && inBounds(s, o.x, o.y) && foodLostIfRemoved(s, o.x, o.y) > 0) {
+        if (first) this.select(o);
+        return;
+      }
+      // Any other touch or click with Demolir closes a balloon it opened.
+      if (first && this.selected) {
+        this.selected = null;
+        this.refresh();
+      }
+    }
+    const r: ActionResult = this.tool === 'clear' ? this.demolish(o) : place(s, this.tool, o.x, o.y, this.rotated, this.rng);
     if (r.ok) {
       if (this.tool === 'road') {
         if (this.gesture) this.gesture.roads.push(o);
         else this.warnLooseRoads([o]); // a tap ends the gesture before placing
       }
-      const b = removed ?? s.grid[indexOf(s, o.x, o.y)];
-      const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
-      if (this.tool === 'clear') this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
-      // Cutting a tree costs silver: the price floats up from it.
-      if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
-      else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
-      else if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
-      else this.fx.ring(c.x, c.y);
+      if (this.tool !== 'clear') {
+        const b = s.grid[indexOf(s, o.x, o.y)];
+        const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
+        if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
+        else this.fx.ring(c.x, c.y);
+      }
+      // A temple built before goal 9: the victory waits for it (and says what it is).
+      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.ui?.toast(T.templeEarly, 'good');
       if (this.spots && this.tool !== 'road') {
         this.spots = null;
         this.drawSpots();
