@@ -15,7 +15,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
 const OUT = process.env.VISUAL_OUT ?? 'screenshots';
-/** Tutorial numbers (familyStepMaxWeeks, reasonTools). */
+/** Tutorial numbers (weddingStepMaxWeeks). */
 const TUTORIAL = JSON.parse(await readFile('src/data/tutorial.json', 'utf8'));
 const PORT = Number(process.env.VISUAL_PORT ?? 5199);
 /** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
@@ -171,7 +171,6 @@ async function setupHudCity(page) {
     core.place(s, 'field', 25, 27);
     for (let k = 0; k < 12 && core.computeEconomy(s).silverDelta >= 0; k++) core.place(s, 'plaza', 4 + 3 * k, 4); // off the road
     s.silver = 180;
-    s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
     window.game.setSpeed(0);
     core.refreshCity(s);
     window.game.refresh();
@@ -478,23 +477,6 @@ async function dragCells(page, cells) {
   }
   await touch('touchEnd', []);
   await page.waitForTimeout(200);
-}
-
-/** Opens the families' door: two granaries and food to reach the harvest (new families only come when the food lasts). */
-async function openFamilyDoor(page) {
-  await page.evaluate(() => {
-    window.state.silver = 1e4;
-    window.state.unlocked.push('granary');
-  });
-  await placeNear(page, 'granary');
-  await placeNear(page, 'granary');
-  await page.evaluate(() => {
-    const s = window.state;
-    s.food = 300;
-    window.game.refresh();
-  });
-  const block = await page.evaluate(() => window.core.familyBlock(window.state));
-  assert(block !== 'food' && block !== 'famine', `the food lets families come before the family step (${block})`);
 }
 
 /**
@@ -870,32 +852,30 @@ async function playTutorial(page, suffix) {
   assert(hintNear, 'the arrow points at a house spot near the plaza');
   await shotStep('step-5');
   await placeNear(page, 'house');
-  assert((await tutorialStep(page)) === 'family', 'a house ends step 5');
+  assert((await tutorialStep(page)) === 'wedding', 'a house ends step 5');
 
-  // 6. The family step: a family comes, or the step ends by itself after familyStepMaxWeeks weeks
-  // (no help from the test: the door stays as the city left it).
-  const famStart = await page.evaluate(() => window.state.week);
+  // 6. The wedding step: the opening couple walks to the new house and marries there, or the step
+  // ends by itself after weddingStepMaxWeeks weeks (no help from the test).
+  const wedStart = await page.evaluate(() => window.state.week);
   await page.evaluate(() => window.game.setSpeed(3));
   await page.waitForTimeout(700);
   await shotStep('step-6');
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 90000 });
-  const famWeeks = await page.evaluate((w) => window.state.week - w, famStart);
-  assert(famWeeks <= TUTORIAL.familyStepMaxWeeks + 1, `the family step ends within familyStepMaxWeeks (${famWeeks} weeks)`);
+  const wed = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding') }), wedStart);
+  assert(wed.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step ends within weddingStepMaxWeeks (${JSON.stringify(wed)})`);
+  assert(wed.wedding, `the opening couple married in the new house (${JSON.stringify(wed)})`);
   assert(await page.evaluate(() => !window.game.guide.running), 'the main steps end after step 6');
   const end = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
-  assert(end.some((m) => m.includes('Construa mais casas')), `the last tutorial toast asks for more houses (${end})`);
+  assert(end.some((m) => m.includes('Casais novos precisam de casa')), `the last tutorial toast says couples need houses (${end})`);
 
-  // Goal 3: the balance message, then the market.
+  // The goal that unlocks the market brings its short step.
   await page.evaluate(() => {
     window.game.setSpeed(0);
     window.state.unlocked.push('market');
-    window.game.handleEvents([{ type: 'upkeepStart' }]);
+    window.game.guide.marketUnlocked();
     window.game.refresh();
   });
-  assert((await tutorialStep(page)) === 'upkeep', 'goal 3 shows the balance message');
-  await shotStep('saldo');
-  await clickTutorial(page, 'okBtn');
-  assert((await tutorialStep(page)) === 'market', '"Entendi" moves on to the market');
+  assert((await tutorialStep(page)) === 'market', 'unlocking the market starts its step');
   await shotStep('market');
   await page.evaluate(() => (window.state.silver = 500));
   await placeNear(page, 'market');
@@ -903,43 +883,27 @@ async function playTutorial(page, suffix) {
   assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
 }
 
-/** The family step never traps the player: with the families blocked, the bubble says why, no toast repeats it and the clock runs. */
+/** The wedding step never traps the player: with no free house the clock runs and the step ends by itself. */
 async function tutorialBlocked(page) {
   await startGame(page, { tutorial: true });
   await page.evaluate(() => {
-    const { state: s, core } = window;
     window.game.setSpeed(0);
-    s.silver = 1e4;
-    // Jump to the family step with an empty store (the "food" block).
+    // Jump to the wedding step with no free house for the couple.
     const g = window.game.guide;
-    while (g.step && g.step.id !== 'family') g.k++;
-    const spot = core.placeSpots(s, 'house').at(-1);
-    core.place(s, 'house', spot.x, spot.y);
-    s.food = 0;
+    while (g.step && g.step.id !== 'wedding') g.k++;
     window.game.refresh();
   });
-  const why = await page.evaluate(() => [window.core.familyBlock(window.state), window.game.guide.holdsClock, window.game.ui.view.toasts.list.map((t) => t.msg)]);
-  assert(why[0] === 'food' && why[1] === false, `blocked families, and the clock runs (${JSON.stringify(why)})`);
-  assert(!why[2].some((m) => m.startsWith('Nenhuma família')), `no family toast during the tutorial (${why[2]})`);
-  // The arrow points at the tool that solves the reason (food → Campo), not at nothing.
-  await page.waitForTimeout(300);
-  const arrow = await page.evaluate((tool) => {
-    const g = window.game;
-    const a = g.ui.view.tutorial.arrow;
-    const b = g.ui.buttonOf(tool);
-    return { visible: a.visible, x: Math.round(a.x), y: Math.round(a.y), button: b && { x: Math.round(b.x), y: Math.round(b.y), w: b.w } };
-  }, TUTORIAL.reasonTools.food);
-  assert(arrow.visible && arrow.button && Math.abs(arrow.y - arrow.button.y) < 2 && Math.abs(arrow.x - arrow.button.x) <= arrow.button.w, `the family step's arrow points at the ${TUTORIAL.reasonTools.food} button (${JSON.stringify(arrow)})`);
-  await shot(page, 'tutorial-family-blocked');
-  // Still blocked: the step ends by itself after familyStepMaxWeeks, with the usual last toast.
+  const why = await page.evaluate(() => [window.game.guide.step?.id, window.game.guide.holdsClock]);
+  assert(why[0] === 'wedding' && why[1] === false, `the wedding step lets the clock run (${JSON.stringify(why)})`);
+  await shot(page, 'tutorial-wedding-waiting');
   const week = await page.evaluate(() => window.state.week);
   await page.evaluate(() => window.game.setSpeed(3));
   await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 90000 });
-  const end = await page.evaluate((w) => ({ weeks: window.state.week - w, family: window.state.milestones.includes('firstFamily'), toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg) }), week);
-  assert(!end.family && end.weeks >= TUTORIAL.familyStepMaxWeeks && end.weeks <= TUTORIAL.familyStepMaxWeeks + 1, `the blocked family step ends after ${TUTORIAL.familyStepMaxWeeks} weeks (${JSON.stringify(end)})`);
-  assert(end.toasts.some((m) => m.includes('Construa mais casas')), `the usual last tutorial toast (${end.toasts})`);
+  const end = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding'), toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg) }), week);
+  assert(!end.wedding && end.weeks >= TUTORIAL.weddingStepMaxWeeks && end.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step with no house ends after ${TUTORIAL.weddingStepMaxWeeks} weeks (${JSON.stringify(end)})`);
+  assert(end.toasts.some((m) => m.includes('Casais novos precisam de casa')), `the usual last tutorial toast (${end.toasts})`);
   await page.evaluate(() => window.game.setSpeed(0));
-  await shot(page, 'tutorial-family-timeout');
+  await shot(page, 'tutorial-wedding-timeout');
 }
 
 /**
@@ -1093,10 +1057,10 @@ const scenarios = {
     assert(await page.evaluate(() => window.__installPrompted === true), 'the Instalar app button opens the install prompt');
   },
 
-  /** First game on a phone: the six tutorial steps, then the balance and the market. */
+  /** First game on a phone: the six tutorial steps, then the market. */
   tutorial: { context: PHONE, run: (page) => playTutorial(page, '') },
   'tutorial-pc': { context: PC, run: (page) => playTutorial(page, '-pc') },
-  /** The family step with the families blocked: the reason shows and the tools are free (never stuck). */
+  /** The wedding step with no free house: the clock runs and the step ends by itself (never stuck). */
   'tutorial-blocked': { context: PC, run: tutorialBlocked },
   /** "Comida depois" on the food preview, and on the balloon of a workplace that takes workers. */
   'preview-food-after': { context: PHONE, run: (page) => previewFoodAfter(page, '') },
@@ -1219,13 +1183,13 @@ const scenarios = {
     await page.evaluate(() => (window.state.silver = 1e4));
     await tool(page, 3); // Casa
     await mouseDrag(page, [[22, 28], [22, 36]]);
-    await openFamilyDoor(page);
     await setSpeed(page, 3);
     await tool(page, 1);
+    // The opening couple walks to one of the new houses and marries there.
     await page.waitForFunction(() => window.state.families.length > 0, null, { timeout: 20000 });
     await page.waitForTimeout(400);
     await shot(page, 'families-walking');
-    await page.waitForFunction(() => window.state.milestones.includes('firstFamily'), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.state.milestones.includes('firstWedding'), null, { timeout: 30000 });
     await page.waitForTimeout(1500);
     await shot(page, 'families-arrived');
   },
@@ -1766,7 +1730,6 @@ const scenarios = {
         s.grid[y * s.cols + 22].level = 1;
       }
       s.silver = -5;
-      s.goalIndex = core.RULES.upkeepStartsAfterGoal; // upkeep is charged from goal 2 on
       s.debtWeeks = 20;
       s.famine = true;
       s.food = 0;
@@ -1943,9 +1906,9 @@ async function novaScenario(page, suffix) {
   await page.evaluate(() => {
     const s = window.state;
     s.history = Array.from({ length: 30 }, (_, k) => ({ silver: 120 + 4 * k - (k > 20 ? 30 : 0), food: Math.min(40, 10 + 2 * k), residents: 10 + k, happiness: 50 + (k % 7), capacity: k > 18 ? 190 : 40 }));
-    s.milestones.push('firstFamily', 'firstHarvest');
-    s.milestoneWeeks = { firstFamily: 5, firstHarvest: 27 };
-    window.game.ui.milestone('firstFamily');
+    s.milestones.push('firstWedding', 'firstHarvest');
+    s.milestoneWeeks = { firstWedding: 5, firstHarvest: 27 };
+    window.game.ui.milestone('firstWedding');
     window.game.ui.milestone('firstHarvest');
     window.game.refresh();
   });

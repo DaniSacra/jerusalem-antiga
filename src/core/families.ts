@@ -1,71 +1,53 @@
-import { HOUSE_LEVELS, RULES } from './data';
-import { computeEconomy, type Economy } from './economy';
-import { foodLastsToHarvest } from './forecast';
-import { familyFactor } from './happiness';
+import { RULES } from './data';
+import { reach } from './goals';
 import { indexOf } from './grid';
 import { rollLook } from './looks';
 import { doorsOf, findPath } from './network';
+import { rollUpWeeks } from './houses';
+import { capacityOf, depart, vacate, wed } from './people';
 import type { Building, Cell, GameEvent, GameState, Rng } from './types';
 
-/** Families start at the city entrance; if it was cut off, at a road next to the altar. */
-function startCell(s: GameState): Cell | null {
+/** Caravans start at the city entrance; if it was cut off, at a road next to the altar. */
+export function startCell(s: GameState): Cell | null {
   if (s.network[indexOf(s, s.entrance.x, s.entrance.y)]) return s.entrance;
   const altar = s.buildings.find((b) => b.kind === 'altar');
   return (altar && doorsOf(s, altar)[0]) ?? null;
 }
 
-function pathTo(s: GameState, from: Cell | null, house: Building): Cell[] | null {
+/** Road path from a cell to a house, ending on the house cell (null when there is none). */
+export function pathTo(s: GameState, from: Cell | null | undefined, house: Building): Cell[] | null {
   if (!from) return null;
   const path = findPath(s, from, doorsOf(s, house));
   return path && [...path, { x: house.x, y: house.y }];
 }
 
-const awaitsFamily = (s: GameState, b: Building) => s.families.some((f) => f.houseId === b.id);
+/** Someone is already walking to this house. */
+export const awaited = (s: GameState, b: Building) => s.families.some((f) => f.houseId === b.id);
 
-/** Why no new family can set out now, or null when one can. */
-export type FamilyBlock = 'famine' | 'food' | 'storage' | 'wait' | 'noPlot';
+/** An empty house people can move into: connected, and nobody walking to it. */
+export const freeHouse = (s: GameState, b: Building) => b.kind === 'house' && b.level === 0 && b.connected && !awaited(s, b);
 
 /**
- * New families only come to a city where the food lasts
- * until the next harvest with a reserve of `familyFoodReserveWeeks` weeks of eating (counting
- * every house at its planned level, the families on the way and the new one), at most one every
- * `familyIntervalWeeks`, and only to a connected empty plot.
- * An empty city (no residents, nobody on the way) skips the food check, so it can
- * always start again. The checks go in this order, so the reason shown is the most important one.
- * `storage` means the food would last but the store cannot hold it.
+ * Empty houses people can move into, best first: the highest kept level (`emptyLevel`), then the
+ * nearest to `near` (Manhattan distance between top-left cells), then the oldest.
  */
-export function familyBlock(s: GameState, eco: Economy = computeEconomy(s)): FamilyBlock | null {
-  if (s.famine) return 'famine';
-  const empty = eco.residents === 0 && s.families.length === 0;
-  if (!empty) {
-    const opts = { extraTents: s.families.length + 1, reserveWeeks: RULES.familyFoodReserveWeeks };
-    if (!foodLastsToHarvest(s, eco, opts)) {
-      return foodLastsToHarvest(s, eco, { ...opts, unlimited: true }) ? 'storage' : 'food';
-    }
-  }
-  if (s.week - s.lastFamilyWeek < RULES.familyIntervalWeeks) return 'wait';
-  if (!s.buildings.some((b) => openPlot(s, b))) return 'noPlot';
-  return null;
+export function freeHouses(s: GameState, near: Cell): Building[] {
+  const d = (b: Building) => Math.abs(b.x - near.x) + Math.abs(b.y - near.y);
+  return s.buildings.filter((b) => freeHouse(s, b)).sort((a, b) => b.emptyLevel - a.emptyLevel || d(a) - d(b) || a.id - b.id);
 }
 
-const openPlot = (s: GameState, b: Building) => b.kind === 'house' && b.level === 0 && b.connected && !awaitsFamily(s, b);
-
 /**
- * When nothing blocks it, one family may set out for an empty plot: the chance is scaled by the
- * average happiness (a happy city draws families faster).
+ * Sends people walking from a cell to a house (the first of `houses` with a road path). Returns
+ * the house, or null when none can be reached.
  */
-export function dispatchFamilies(s: GameState, rng: Rng): void {
-  const eco = computeEconomy(s);
-  if (familyBlock(s, eco)) return;
-  if (rng() >= RULES.familyChance * familyFactor(eco.happiness)) return;
-  for (const b of s.buildings) {
-    if (!openPlot(s, b)) continue;
-    const path = pathTo(s, startCell(s), b);
+export function sendWalking(s: GameState, from: Cell | null | undefined, houses: Building[], members: number[]): Building | null {
+  for (const house of houses) {
+    const path = pathTo(s, from, house);
     if (!path) continue;
-    s.families.push({ id: s.nextId++, houseId: b.id, path, step: 0 });
-    s.lastFamilyWeek = s.week;
-    return;
+    s.families.push({ id: s.nextId++, houseId: house.id, members, path, step: 0 });
+    return house;
   }
+  return null;
 }
 
 /** Cells a family walks per week. */
@@ -76,25 +58,81 @@ function routeIntact(s: GameState, path: Cell[], from: number): boolean {
   return path.slice(from, -1).every((c) => s.network[indexOf(s, c.x, c.y)]);
 }
 
-/** Moves families along the roads; arrivals turn the plot into a tent. Broken routes are recalculated. */
-export function moveFamilies(s: GameState, events: GameEvent[], rng: Rng): void {
-  s.families = s.families.filter((f) => {
-    const house = s.buildings.find((b) => b.id === f.houseId);
-    if (!house || house.level !== 0 || !house.connected) return false;
-    const here = Math.floor(f.step);
-    if (!routeIntact(s, f.path, here)) {
-      const path = pathTo(s, f.path[Math.min(here, f.path.length - 2)], house);
-      if (!path) return false;
-      f.path = path;
-      f.step = 0;
-    }
-    f.step += familySpeed();
-    if (f.step < f.path.length - 1) return true;
-    house.level = 1;
+/**
+ * A walk that cannot go on: people of a caravan (no house yet) leave the city; the others stay
+ * where they live (a couple waits again for a house, an elder stays home).
+ */
+function giveUp(s: GameState, members: number[]) {
+  for (const id of members) {
+    const p = s.people.find((o) => o.id === id);
+    if (p && p.houseId === null) depart(s, p, 'noHouse');
+  }
+}
+
+/** Marries an engaged couple (man a, woman b) in their house: counted for the year, an event and the first-wedding milestone. */
+export function celebrateWedding(s: GameState, a: number, b: number, house: Building, events: GameEvent[]) {
+  const man = s.people.find((p) => p.id === a);
+  const woman = s.people.find((p) => p.id === b);
+  if (!man || !woman) return;
+  wed(man, woman);
+  s.yearStats.weddings++;
+  events.push({ type: 'wedding', a, b, x: house.x, y: house.y });
+  reach(s, 'firstWedding', events);
+}
+
+/** Moves people into a house: an empty one opens at its kept level (a tent at least). Their old houses may stand empty. */
+export function moveIn(s: GameState, house: Building, members: number[], rng: Rng, events: GameEvent[]) {
+  const old = new Set<number>();
+  for (const id of members) {
+    const p = s.people.find((o) => o.id === id);
+    if (!p) continue;
+    if (p.houseId !== null && p.houseId !== house.id) old.add(p.houseId);
+    p.houseId = house.id;
+  }
+  if (house.level === 0) {
+    house.level = Math.max(1, house.emptyLevel);
+    house.emptyLevel = 0;
     house.upStreak = 0;
     house.downStreak = 0;
+    rollUpWeeks(house, rng);
     rollLook(s, house, rng);
-    events.push({ type: 'houseUp', x: house.x, y: house.y, level: 1, delta: HOUSE_LEVELS[1].residents });
-    return false;
-  });
+    events.push({ type: 'houseUp', x: house.x, y: house.y, level: house.level, delta: members.length });
+  }
+  for (const id of old) vacate(s, id);
 }
+
+/**
+ * Moves the walking people along the roads; at the house they move in (an engaged couple marries
+ * there). Broken routes are recalculated; a walk with no way left, or whose house is gone, ends.
+ */
+export function moveFamilies(s: GameState, events: GameEvent[], rng: Rng): void {
+  for (const f of [...s.families]) {
+    const house = s.buildings.find((b) => b.id === f.houseId);
+    const here = Math.floor(f.step);
+    let ok = !!house && house.connected;
+    if (ok && !routeIntact(s, f.path, here)) {
+      const path = pathTo(s, f.path[Math.min(here, f.path.length - 2)], house!);
+      if (path) {
+        f.path = path;
+        f.step = 0;
+      } else ok = false;
+    }
+    if (!ok) {
+      s.families = s.families.filter((o) => o !== f);
+      giveUp(s, f.members);
+      continue;
+    }
+    f.step += familySpeed();
+    if (f.step < f.path.length - 1) continue;
+    s.families = s.families.filter((o) => o !== f);
+    moveIn(s, house!, f.members, rng, events);
+    const [a, b] = f.members.map((id) => s.people.find((p) => p.id === id));
+    if (a && b && f.members.length === 2 && a.engaged !== null && a.spouseId === b.id) {
+      const man = a.sex === 'm' ? a : b;
+      celebrateWedding(s, man.id, man === a ? b.id : a.id, house!, events);
+    }
+  }
+}
+
+/** Room left in a house (capacity of its level minus the people living there). */
+export const roomIn = (s: GameState, b: Building) => capacityOf(b) - s.people.filter((p) => p.houseId === b.id).length;

@@ -51,14 +51,17 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - As junções das ruas são desenhadas só com ruas vizinhas; o altar não conta, então o anel aparece
   como um contorno com cantos e um T onde a rua sul encontra o anel.
 - O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** (cerca de 6 construções).
-- **Caravana** (sorteada pela semente, `caravan` em `rules.json`): **2 a 4 famílias** já moram em
-  tendas (casas comuns de nível 1, de graça) num **bloco compacto 2 x 2 ao norte do anel**, dos
-  dois lados de uma rua curta (`campRoad`, 4 células) que sai do anel; a fila encostada no anel
+- **Caravana fundadora** (sorteada pela semente, `caravans.start` em `rules.json`): **2 a 4
+  famílias** de pessoas com nome (veja Pessoas) já moram em tendas (casas comuns de nível 1, de
+  graça, uma família por tenda, no máximo 3 pessoas) num **bloco compacto 2 x 2 ao norte do anel**,
+  dos dois lados de uma rua curta (`campRoad`, 4 células) que sai do anel; a fila encostada no anel
   enche primeiro. Ao lado, a leste, fica um lugar 2 x 2 livre (`campPlazaSpot`) onde **uma praça
-  alcança todas as tendas**. A comida inicial vale
-  **14 a 22 semanas** do consumo delas, cortada no limite sem celeiro (50). Uma frase na abertura
-  mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas" (as
-  semanas da previsão, as mesmas da pílula de comida e do Objetivo 1).
+  alcança todas as tendas**. As duas primeiras famílias trazem um filho e uma filha de 18 ou 19
+  anos **noivos** (`people.couple`, `start.couple`): o primeiro casamento espera só uma casa vazia.
+  Os outros filhos alternam filho e filha entre as famílias. A comida inicial vale **14 a 22
+  semanas** do consumo das pessoas, cortada no limite sem celeiro (100). Frases na abertura:
+  "A caravana chegou com 3 famílias e comida para 14 semanas" (as semanas da previsão) e, fora do
+  tutorial, "Zebadias e Tamar querem se casar".
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
 - Liberados: Mover, Rua, Casa, Campo, Praça, Pescador, Coletora e Demolir.
@@ -71,36 +74,39 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
-| Campo | 20 | 1/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
-| Praça | 25 | 1/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
-| Pescador | 20 | 1/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem | 2 | o ano todo |
-| Coletora | 20 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem | 3 | o ano todo |
-| Celeiro | 40 | 1/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 1 |
-| Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
-| Oficina | 50 | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |
-| Parque | 60 | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 5; casas de pedra no raio viram casas grandes; dá Alegria |
-| Templo | 800 | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); sem manutenção (construir cedo é escolha, não dívida); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido; o raio só dá Alegria |
+| Campo | 20 | 0,5/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
+| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
+| Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
+| Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
+| Celeiro | 40 | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 2; melhora (veja Níveis) |
+| Mercado | 60 | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 4; pode girar para 4 x 2; melhora |
+| Oficina | 50 | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
+| Parque | 60 | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 7; casas de pedra no raio viram casas grandes; dá Alegria |
+| Templo | 800 | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 12 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 14 (150 moradores); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador e Coletora** (`gather` em `buildings.json`, uma regra só): produção por semana =
-  mín(`max`, células do recurso no raio × `perCell`) × eficiência. Recurso: rio (Pescador) ou
+  mín(`max`, células do recurso no raio × `perCell`) × eficiência, **× 0,3 no inverno**
+  (`gather.winterFactor`; também na previsão). Recurso: rio (Pescador) ou
   árvore (Coletora; oliveira, amendoeira, figueira e palmeira contam). Podem ser construídos em
   qualquer lugar; rendendo 0 mostram o balão "longe do rio" ou "sem árvores". A prévia mostra
   "Rende N comida/sem". Cortar árvores baixa a Coletora. Dois no mesmo recurso contam as mesmas
   células.
-- **Celeiro:** a cidade guarda **50** de comida sem celeiro (`baseFoodStorage`); cada celeiro
-  **ligado** soma 150 (`storage`). A capacidade não depende da vaga preenchida. Comida acima do
-  limite **estraga** no fim da semana, com o aviso "Comida estragando: construa um celeiro".
-- **Oficina:** cada oficina **ligada** soma 10% à comida de todos os campos (`fieldBonus`), até
-  +30% (`fieldBonusMax`; a 4ª oficina só dá vagas). Vale também na previsão; não vale para pescador
-  e coletora. Nenhuma construção dá prata: a prata vem só de impostos e prêmios.
-- **Manutenção** (`upkeep` em `buildings.json`) só começa **depois do Objetivo 4** (3 casas de pedra)
-  (`upkeepStartsAfterGoal` em `rules.json`). Antes disso nada é cobrado: o "+X/sem" não a desconta
-  e não há aviso de saldo nem dívida por ela; os balões dizem "manutenção N/sem depois do
-  Objetivo 4". Ao cumprir o Objetivo 4 aparece, uma vez, "Começou a manutenção: tudo, menos casas e
-  ruas, custa prata por semana" (passo do tutorial ou toast).
-  A partir daí é cobrada toda semana de toda construção, **mesmo desconectada**, e também depois da
-  vitória.
+- **Celeiro:** a cidade guarda **100** de comida sem celeiro (`baseFoodStorage`); cada celeiro
+  **ligado** soma o `storage` do seu nível (300 / 600 / 1000). A capacidade não depende da vaga
+  preenchida. Comida acima do limite **estraga** no fim da semana, com o aviso "Comida estragando:
+  construa um celeiro".
+- **Oficina:** cada oficina **ligada** soma o `fieldBonus` do seu nível (10% / 20% / 30%) à comida de
+  todos os campos, até +30% no total (`fieldBonusMax`). Vale também na previsão; não vale para
+  pescador e coletora. Nenhuma construção dá prata: a prata vem só de impostos e prêmios.
+- **Níveis das construções** (`levels` em `buildings.json`; a definição é o nível 1, `statOf` lê o
+  valor do nível): Celeiro, Mercado e Oficina sobem até o nível 3 com a ação **Melhorar** do
+  balão (`upgradeBuilding`): paga o custo do nível (Celeiro 60 / 100, Mercado 60 / 90, Oficina 50 /
+  80) e passa a pagar a manutenção dele (Celeiro 2 / 4, Mercado 3 / 5, Oficina 2 / 3). Não dá em
+  dívida, sem prata ou no topo. Toast "Celeiro subiu para o nível 2".
+- **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
+  toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
+  coluna mostra custo e manutenção.
 
 - Tamanho é largura (x) por altura (y) em células. O **Mercado** é o único que gira: tocar de novo
   no botão Mercado (ou a tecla R no PC) alterna entre 2 x 4 e 4 x 2; a escolha vale para as
@@ -135,38 +141,42 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - Construir longe da rua é permitido (o jogador aprende pelo balão). **Exceção:** o Templo só pode
   ser colocado encostado numa rua conectada.
 - Uma casa que perde a rua cai um nível a cada `weeksToDowngrade` semanas; quando a tenda vira
-  terreno, a família vai embora (evento `familyLeft` com `reason: 'road'`, toast "Uma família foi
-  embora: casa sem rua"; na fome, `reason: 'famine'` e "Uma família foi embora: fome").
+  terreno, as pessoas vão embora (evento `familyLeft` com `reason: 'road'` e o nome do mais velho,
+  toast "A família de Abias foi embora: tenda sem rua ligada ao altar"; na fome, `reason:
+  'famine'` e "… foi embora: fome").
 - Casas desconectadas continuam contando moradores e impostos até regredirem.
 
 ## Casas
 
-| Nível | Nome | Moradores | Imposto/sem | Exige |
+| Nível | Nome | Cabem | Imposto/sem | Exige |
 |---|---|---|---|---|
 | 0 | Terreno | 0 | 0 | – |
-| 1 | Tenda | 4 | 1,25 | rua |
-| 2 | Casa de barro | 6 | 1,5 | rua, praça |
-| 3 | Casa de pedra | 10 | 2,5 | rua, praça, mercado |
-| 4 | Casa grande | 20 | 2,5 | rua, praça, mercado, parque |
+| 1 | Tenda | 3 | 1,25 | rua |
+| 2 | Casa de barro | 4 | 1,75 | rua, praça |
+| 3 | Casa de pedra | 6 | 2,5 | rua, praça, mercado |
+| 4 | Casa grande | 8 | 3,25 | rua, praça, mercado, parque |
 
 As exigências são serviços com raio (`needs` em `houses.json`): a casa é atendida se alguma
 célula dela estiver no raio de uma praça, mercado ou parque **ligado**. O altar e o templo não
 fazem parte da evolução (só dão Alegria).
 
-Cada morador come 0,2 por semana em todos os níveis (mais no inverno, veja Simulação). Futuro
-(Pacote Evoluções): casa senhorial com 30 moradores.
+**Moradores são pessoas** (veja Pessoas): `capacity` é quantas cabem; uma casa subir de nível não
+traz ninguém, só dá lugar para filhos e parentes. **Uma casa tem nível 1 ou mais exatamente
+quando mora alguém nela.** Quando a última pessoa sai, a casa vira terreno (nível 0) e guarda o
+nível que tinha (`emptyLevel`; a tenda guarda 0): quem chegar depois entra direto nesse nível.
+O imposto é por casa (com o fator da Alegria), não por pessoa.
 
-**Evolução lenta:** uma casa sobe **um nível por estação**: precisa de **13 semanas seguidas**
-(`weeksToUpgrade`) com as exigências do próximo nível. Cair continua rápido: **3 semanas**
-(`weeksToDowngrade`) sem uma exigência do nível atual. O balão da casa mostra a contagem
-("Casa de barro em N sem", `weeksToNextLevel`). Uma exigência que ainda está bloqueada também
-aparece, com o objetivo que a libera ("✗ Mercado (libera no objetivo 3)", "✗ Parque (libera no objetivo 5)"), e o balão
-sobre a casa mostra o ícone dela com um cadeado.
+**Evolução lenta:** cada casa sorteia ao ser construída, e a cada nível, quantas semanas leva para
+subir: **11 a 15** (`weeksToUpgrade`, `upWeeks`). Ela sobe depois de `upWeeks` semanas seguidas
+com as exigências do próximo nível. Cair continua rápido: **3 semanas** (`weeksToDowngrade`) sem uma
+exigência do nível atual. O balão da casa mostra a contagem ("Casa de barro em N sem",
+`weeksToNextLevel`) e "N/M moradores". Uma exigência que ainda está bloqueada também aparece, com
+o objetivo que a libera, e o balão sobre a casa mostra o ícone dela com um cadeado.
 
 ## Felicidade
 
-A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 5, `happinessOn`). Antes disso toda casa fica
-contente (50, sem motivos), o imposto e a chance de família não mudam, a carinha não aparece na
+A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 7, `happinessOn`). Antes disso toda casa fica
+contente (50, sem motivos), o imposto e a chance de nascer não mudam, a carinha não aparece na
 placa e não há balão de casa triste.
 
 Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json`, código em
@@ -187,39 +197,64 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
 - **Humor:** feliz com 65 ou mais; triste abaixo de 35; contente no meio.
 - **Imposto:** contente paga o imposto normal; feliz paga mais, subindo em linha reta até
   +20% com 100; triste paga menos, até −20% com 0.
-- **Famílias:** a felicidade da cidade é a média das casas com família (50 sem nenhuma). Ela
-  multiplica a chance de chegar família do mesmo jeito: 1 enquanto contente, até 1,5x feliz e
-  até 0,5x triste.
-- Casa triste **não** é abandonada nem cai de nível por isso (por enquanto só paga menos e atrai
-  menos famílias).
+- **Nascimentos:** a felicidade da cidade é a média das casas com família (50 sem nenhuma). Ela
+  multiplica a chance de nascer criança (`birthFactor`): 1 enquanto contente, até 1,5x feliz
+  (`birthMax`) e até 0,5x triste (`birthMin`).
+- Casa triste **não** é abandonada nem cai de nível por isso (por enquanto só paga menos e tem
+  menos filhos).
 - A oficina ainda não incomoda as casas vizinhas (fica para depois, a pedido).
 
-## Famílias
+## Pessoas
 
-- **Porta das famílias:** uma família nova só é enviada quando a **comida** deixa: a previsão
-  (veja Previsão de comida) diz que a comida dura até a próxima primavera **sem cair abaixo de 2
-  semanas de consumo** (`familyFoodReserveWeeks`), contando cada casa no nível planejado, **1 tenda
-  por família a caminho** e mais 1 tenda para a família nova. A água não conta (saiu no Pacote 2).
-- **Cidade vazia nunca trava:** com 0 moradores e nenhuma família a caminho, a porta ignora a
-  comida (o intervalo e a chance continuam valendo).
-- A porta é conferida **depois** de a semana avançar (`dispatchFamilies` e `moveFamilies` rodam
-  depois de `s.week++`), na mesma semana que a tela mostra.
-- Com a porta aberta, um terreno vazio conectado e sem família a caminho, e pelo menos
-  **6 semanas** desde a última família enviada (`familyIntervalWeeks`), chega uma família com
-  chance **0,35 por semana** (`familyChance`, vezes o fator da alegria). No máximo uma por vez.
-  Não há mais famílias garantidas: a caravana é o começo.
-- **Quando ninguém vem**, o aviso diz o motivo, nesta ordem: "Nenhuma família vem: falta sobra de comida para mais uma família.
-  Pesque ou colete", "Nenhuma família vem: o estoque só guarda N. O celeiro libera no objetivo 1" (ou
-  "Construa o celeiro"; motivo `storage`: a comida chegaria, mas o estoque corta), "Nenhuma
-  família vem: não há casa vazia. Construa uma ao lado da rua" (sem terreno livre ligado). Com
-  fome: "Nenhuma família vem: falta comida. Pesque ou colete". Durante o tutorial o motivo aparece
-  no balão do tutorial, sem toast.
-- A família sai da **entrada da cidade** e anda pelas ruas (caminho por busca em largura) até a
-  casa, **6 células por semana** (`familyCellsPerWeek`). Ao chegar, o terreno vira tenda.
-- Se a rua do caminho for cortada, a família recalcula a rota; se não houver rota, ou a casa for
-  demolida ou desconectada, a família desiste.
-- Se a entrada for desligada da rede, as famílias passam a sair do altar (para a cidade nunca
-  travar sem explicação).
+Cada morador é uma **pessoa** com nome (`names.json`; o sobrenome é o do clã do pai), sexo, semana
+de nascimento, casa (`houseId`; null enquanto anda), cônjuge e caravana de origem (0 a fundadora,
+1… as seguintes, null nascido na cidade). Quem sai ou morre vai para `departed` com a semana e o
+motivo. Código em `people.ts`, `life.ts`, `families.ts` e `caravans.ts`; números em
+`rules.json` (`people`).
+
+- **Idade:** 1 estação (13 semanas, `weeksPerLifeYear`) = 1 ano de vida. Criança até 13 anos,
+  adulto de 14 a 49 (`adultAge`), idoso de 50 (`elderAge`). Comida por semana: criança 0,25,
+  adulto 0,2, idoso 0,15 (`people.food`), × o fator do inverno (tenda 1,75, outras casas 1,4).
+  **Trabalhadores são os adultos** que moram na cidade.
+- **Morte:** no aniversário, chance pela idade (`death`: 2% aos 50, 6% aos 60, 15% aos 70, 35% aos
+  80, todos aos 90). Toast "Morreu Abias, aos 72 anos".
+- **Idosos:** um idoso que mora sozinho vai morar com um filho que tenha lugar (a casa de nível
+  mais alto, depois a mais perto), andando pelas ruas.
+- **Noivado:** cada semana, cada homem solteiro de 18 a 40 anos (`marriageAges`) noiva com chance
+  **5%** (`marriageChance`) se houver uma mulher solteira na idade, de outra casa, sem pai ou mãe em
+  comum e com no máximo 15 anos de diferença (`maxAgeGap`): a de idade mais perto.
+- **Casamento:** os noivos procuram casa, do noivado mais antigo para o mais novo. Se um deles
+  mora sozinho, o outro se muda para lá na mesma semana. Senão, andam da casa dele até a melhor
+  casa vazia (`freeHouses`: maior `emptyLevel`, depois a mais perto) e **casam ao chegar**
+  ("Zebadias e Tamar se casaram!", marco Primeiro casamento). Sem casa vazia esperam; o aviso
+  "Casal esperando casa: construa uma casa" fica na lista e, nas últimas 13 semanas
+  (`coupleWarnWeeks`), "Zebadias e Tamar vão embora em N sem: falta casa". Depois de **52
+  semanas** (`coupleWaitWeeks`) o casal vai embora ("… foram embora: não havia casa").
+- **Nascimento:** só quando a cidade deixa (`birthBlock`): sem fome e com a comida durando até a
+  próxima colheita com **2 semanas de reserva** (`birthFoodReserveWeeks`); motivo `storage` quando
+  duraria, mas o estoque corta. Então cada casal que mora junto, com a mãe de 18 a 40 anos
+  (`fertileAges`), lugar na casa e o último filho há 26 semanas ou mais (`birthGapWeeks`), tem
+  um filho com chance **3%** por semana (`birthChance`) × o fator da Alegria. Toast "Nasceu Ana,
+  filha de Abias e Sara". Com um casal em casa e nascimentos bloqueados, o aviso diz por quê
+  ("Sem nascimentos: …").
+- **Saídas:** fome ou falta de rua esvaziam a casa inteira (a família vai embora andando,
+  "A família de Abias foi embora: fome"); demolir uma casa com gente também.
+- **Andar:** as famílias andam pelas ruas (caminho por busca em largura), **6 células por semana**
+  (`familyCellsPerWeek`), da casa delas ou da **entrada da cidade**. Se a rua do caminho for
+  cortada, recalculam a rota; sem rota, ou com a casa demolida, desligada ou ocupada, desistem
+  (quem vinha de fora vai embora). Se a entrada for desligada da rede, saem do altar.
+
+## Caravanas
+
+Além da fundadora, cada partida sorteia no início (`rollCaravans`, `caravans.later`) as caravanas
+seguintes: uma entre as semanas 78 e 155 (2 a 3 famílias), uma entre 208 e 311 (2 a 4) e, em
+metade das partidas, uma entre 312 e 415 (2 a 3). Cada uma é **anunciada 4 a 8 semanas antes**
+(`warnWeeks`): toast "Uma caravana de 3 famílias chega no inverno" e o aviso "Caravana com 3
+famílias em N sem: falta 1 casa vazia". Ao chegar, cada família (de um dos modelos `templates`:
+pai, mãe e filho; ou um casal; ou com o avô) toma uma casa vazia (`freeHouses`) e entra pela
+entrada da cidade; as que não acham casa seguem viagem (não ficam registradas). Quem fica traz
+**4 a 8 semanas** da sua comida, cortada pelo estoque. Marco Primeira caravana (só se alguém
+ficar).
 
 ## Tempo
 
@@ -251,19 +286,19 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
 
 Uma função pura (`foodForecast`), calculada uma vez por atualização da tela (junto com a
 economia, em `readCity`) e repassada à barra, aos painéis, aos avisos, ao inspetor e à cena,
-simula semana a semana a partir de agora: o consumo (com o fator do inverno) com **cada casa no
-nível planejado: o que alcança com os serviços de hoje, no máximo um nível acima do atual**
-(`plannedEating`: uma praça nova já mostra as casas de barro que vêm, comendo e trabalhando mais), pesca e coleta, os campos (com a seca, se já anunciada) e o limite do estoque
-(o que passa estraga). Ela responde em quantas semanas a comida
-acaba e se chega ao **começo da próxima colheita** (a próxima semana 1 da primavera; durante a
-primavera, a do ano seguinte, contando o que ainda vai ser colhido). Usada por:
+simula semana a semana a partir de agora: o consumo **das pessoas que moram na cidade hoje** (cada
+uma pela sua idade, com o fator do inverno da sua casa; quem está andando não conta), pesca e
+coleta (× 0,3 no inverno), os campos (com a seca, se já anunciada) e o limite do estoque (o que
+passa estraga). Ela responde em quantas semanas a comida acaba e se chega ao **começo da próxima
+colheita** (a próxima semana 1 da primavera; durante a primavera, a do ano seguinte, contando o
+que ainda vai ser colhido). Usada por:
 
-- **porta das famílias** (veja Famílias);
+- **nascimentos** (veja Pessoas);
 - **pílula de comida:** "até a primavera" quando chega (nada quando a cidade não tem moradores); senão "acaba no <estação>" (a estação em
   que acaba);
 - **aviso** "A comida não dura até a primavera: pesque, colete ou plante campos" (em qualquer
   estação, na lista de Avisos enquanto valer; toast só se começar no verão);
-- **Objetivo 1.**
+- **Objetivo 2.**
 
 ## Simulação
 
@@ -271,29 +306,30 @@ A cada semana, nesta ordem (`simulation.ts`):
 
 1. Recalcular rede de ruas, conexões e cobertura (praça, mercado, parque e, para a Alegria,
    altar/templo).
-2. Moradores = soma das casas. Trabalhadores = 50% dos moradores (para baixo; `workerShare`).
+2. Moradores = pessoas que moram em casas. Trabalhadores = os adultos entre elas.
    Vagas = soma das construções conectadas **que estão trabalhando**: o campo só tem vagas fora
    do inverno; no inverno os trabalhadores ficam livres para
    pescador, coletora e o resto (`isWorking`). Eficiência = trabalhadores / vagas, no máximo 100%
    (100% se não houver vagas). A previsão de comida segue essa eficiência semana a semana.
-3. Comida += colheita (fora do inverno, com o bônus das oficinas) + pesca + coleta − consumo. Cada
-   morador come 0,2 por semana (`food` em `houses.json`); **no inverno come × 1,4**
+3. Comida += colheita (fora do inverno, com o bônus das oficinas) + pesca + coleta (× 0,3 no
+   inverno) − consumo. Cada pessoa come pela idade (veja Pessoas); **no inverno come × 1,4**
    (`winter.foodFactor`) e quem mora em **tenda come × 1,75** (`winter.tentFoodFactor`). Se a
    comida chega a 0 com saldo negativo: **fome**. A comida nunca fica negativa. Depois, o que
-   passa do estoque (50 + celeiros) **estraga**.
-4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (só depois do Objetivo 4; o campo paga manutenção o ano todo). A prata **pode ficar negativa** (dívida).
-   Esse saldo é o "+X/sem" da pílula.
-5. Novas famílias (veja Famílias); depois todas andam (as novas já na mesma semana), e as que
-   chegam transformam o terreno em tenda.
+   passa do estoque (100 + celeiros) **estraga**.
+4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (sempre; o campo paga o
+   ano todo). A prata **pode ficar negativa** (dívida). Esse saldo é o "+X/sem" da pílula.
+5. Pessoas (`stepPeople`): aniversários e mortes, idosos que se mudam, noivados, casamentos e
+   nascimentos; depois as caravanas (anúncio e chegada, `stepCaravans`); depois todas as famílias
+   andam, e as que chegam entram na casa (o terreno vira o nível guardado, no mínimo tenda).
 6. Para cada casa de nível 1 ou mais:
    - se falta uma exigência do nível atual: após 3 semanas seguidas, cai um nível (e a contagem
      de subida zera);
    - com fome: a contagem de subida **pausa** (não zera); casas acima de tenda têm 12% de chance de cair um nível (nunca vão
      embora); cada tenda tem **20%** de chance (`famineLeaveChance`) de ser **abandonada**, e
-     **35% no inverno** (`winterFamineLeaveChance`): vira terreno vazio e a família vai embora
-     andando até a entrada (só aparência);
-   - se tem as exigências do próximo nível: após **13 semanas** seguidas, sobe de nível; se perde
-     uma delas, a contagem zera.
+     **35% no inverno** (`winterFamineLeaveChance`): vira terreno vazio e as pessoas vão embora
+     andando até a entrada;
+   - se tem as exigências do próximo nível: após `upWeeks` (11 a 15) semanas seguidas, sobe de
+     nível e sorteia um novo `upWeeks`; se perde uma delas, a contagem zera.
 7. Guardar a maior população (`peakPopulation`), o histórico, os marcos e verificar o objetivo
    atual.
 8. **Dívida:** se a prata terminou a semana negativa, conta mais uma semana em dívida; com prata
@@ -307,7 +343,11 @@ na lista das Estatísticas com o ano e a semana.
 
 | Marco | Quando |
 |---|---|
-| Primeira família | a primeira família nova (não da caravana) chega à casa |
+| Primeiro casamento | o primeiro casal casa (entra junto numa casa) |
+| Primeiro nascimento | nasce a primeira criança na cidade |
+| Primeira caravana | uma caravana depois da fundadora deixa alguém na cidade |
+| Uma criança da cidade virou adulta | alguém nascido na cidade faz 14 anos |
+| Terceira geração | nasce uma criança com pai ou mãe nascido na cidade |
 | Primeira casa de barro | a primeira casa chega ao nível 2 |
 | Primeira colheita | a primeira semana em que algum campo colhe mais que 0 |
 | Primeiro inverno vencido | o primeiro inverno que termina (semana 1 da primavera) sem fome e sem nenhuma casa abandonada ou caída por fome durante ele |
@@ -334,47 +374,49 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
   nesta ordem: dívida ("Em dívida: N semanas para a cidade ser abandonada. Reduza a manutenção"; com fome ao
   mesmo tempo: "Dívida e fome: demolir serviços corta a manutenção · N semanas"); fome; "A comida
   não dura até a primavera…" (qualquer estação); "Comida estragando: construa um celeiro" (com o
-  celeiro ainda bloqueado: "Estoque cheio (50): o excesso estraga. O celeiro libera no objetivo
-  1"); "O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida" (nas últimas 3
+  celeiro ainda bloqueado: "Estoque cheio (100): o excesso estraga. O celeiro libera no objetivo
+  2"); "O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida" (nas últimas 3
   semanas do outono, `winterWarningWeeks`, se houver tendas); "Ano seco: campos longe do rio
   colhem 25%. Construa pescador ou coletora" (do inverno ao fim da primavera de um ano seco);
-  "Nenhuma família vem: …"; saldo negativo ("Saldo −X/sem · maior custo: Tipo (N/sem) ·
+  caravana anunciada ("Caravana com N famílias em N sem: falta 1 casa vazia"); casais esperando
+  casa; casal que vai embora logo; "Sem nascimentos: …" (com um casal em casa); saldo negativo ("Saldo −X/sem · maior custo: Tipo (N/sem) ·
   use Demolir em serviços que atendem poucas casas"); desemprego.
 
 ## Objetivos (em sequência)
 
 | # | Texto | Alvo | Prêmio | Libera |
 |---|---|---|---|---|
-| 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
-| 2 | Tenha 3 casas de barro | 3 | +40 | – |
-| 3 | Chegue a 60 moradores | 60 | +50 | Mercado |
-| 4 | Tenha 3 casas de pedra | 3 | +60 | Oficina (e a manutenção começa) |
-| 5 | Chegue a 150 moradores | 150 | +80 | Parque (e a Alegria) |
-| 6 | Tenha 2 casas grandes | 2 | +100 | – |
-| 7 | Chegue a 250 moradores | 250 | +120 | – |
-| 8 | Tenha 6 casas grandes | 6 | +150 | Templo |
-| 9 | Chegue a 500 moradores a partir do Ano 8 | 500, só do Ano 8 em diante (`fromYear`) | +200 | – |
-| 10 | Construa o Templo | 1 | vitória | – |
+| 1 | Primeiro casamento | marco | +20 | – |
+| 2 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
+| 3 | Primeiro nascimento | marco | +30 | – |
+| 4 | Tenha 3 casas de barro | 3 | +40 | Mercado |
+| 5 | Chegue a 30 moradores | 30 | +50 | – |
+| 6 | Receba a primeira caravana | marco | +50 | Oficina |
+| 7 | Tenha 3 casas de pedra | 3 | +60 | Parque (e a Alegria) |
+| 8 | Chegue a 60 moradores | 60 | +80 | – |
+| 9 | Uma criança da cidade virou adulta | marco | +80 | – |
+| 10 | Tenha 2 casas grandes | 2 | +100 | – |
+| 11 | Terceira geração | marco | +100 | – |
+| 12 | Chegue a 100 moradores | 100 | +120 | Templo |
+| 13 | Tenha 5 casas grandes | 5 | +150 | – |
+| 14 | Chegue a 150 moradores | 150 | +200 | – |
+| 15 | Construa o Templo | 1 | vitória | – |
 
-Um ou dois objetivos por ano, por cerca de 10 anos. "Primeira colheita" continua só como marco.
-Tipos de objetivo no core: `foodUntilSpring`, `houses`, `residents` e `build` (o tipo `water` saiu
-com a água no Pacote 2).
+Tipos de objetivo no core: `milestone` (cumpre quando o marco foi alcançado, mesmo antes de o
+objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
 
-- **Objetivo 1** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão, com as
-  casas no nível planejado), até as semanas que faltam para a primavera do Ano 1; a pílula mostra a
-  unidade ("12/26 sem"); na primavera, sem semanas a contar, a pílula não mostra número (nada de
-  "0/1"). Cumpre quando a previsão chega lá (uma caravana que vai passar fome não
-  cumpre na semana 1). Na primavera, cumpre se a cidade não está com fome; com fome, espera a
-  comida voltar. O alvo nunca é 0. Uma cidade sem moradores tem progresso 0, mesmo com uma família
-  a caminho: o objetivo só se cumpre com alguém morando (nunca com todos indo embora).
-- **`fromYear`:** o objetivo só se cumpre a partir desse ano (`goalOpen`); o texto mostra "a partir
-  do Ano N" na pílula e na lista. O Templo libera no Objetivo 8, para o jogador juntar prata e
-  construí-lo antes (do Templo liberado até erguido, a pílula do objetivo termina com "· Templo 312/800"
-  e a lista de objetivos com "Junte 800 para o Templo: 312/800", verde quando chega; `templeSavings`); a vitória vem quando os objetivos 9 (500 moradores) e 10 (o Templo) se cumprem.
-  Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na mesma semana do
-  Objetivo 9 (`checkGoal`). Erguido antes do 9 (`templeWaitsForGoal`), toast "Templo erguido! A
-  vitória vem com 500 moradores, a partir do Ano 8" (números de `goals.json`); a dica do Templo diz
-  "Vence o jogo após o objetivo 9" (o número é a posição do objetivo com `fromYear`).
+- **Objetivo 2** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão), até as
+  semanas que faltam para a primavera do Ano 1; a pílula mostra a unidade ("12/26 sem"); na
+  primavera, sem semanas a contar, a pílula não mostra número. Cumpre quando a previsão chega lá.
+  Na primavera, cumpre se a cidade não está com fome; com fome, espera a comida voltar. O alvo
+  nunca é 0. Uma cidade sem moradores tem progresso 0, mesmo com uma família a caminho.
+- **`fromYear`** (opcional, nenhum objetivo usa agora): o objetivo só se cumpre a partir desse ano
+  (`goalOpen`). O Templo libera no Objetivo 12, para o jogador juntar prata e construí-lo antes (a
+  pílula do objetivo termina com "· Templo 312/800" e a lista de objetivos com "Junte 800 para o
+  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 14 (150 moradores) e 15 (o
+  Templo) se cumprem. Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na
+  mesma semana do Objetivo 14 (`checkGoal`, `TEMPLE_GOAL` = o objetivo antes da vitória). Erguido
+  antes (`templeWaitsForGoal`), um toast diz o que falta.
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
 
@@ -454,7 +496,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     a comida está estragando. Cores de alerta: prata laranja com saldo negativo e
     vermelha piscando em dívida. Tocar numa pílula abre as
     Estatísticas;
-  - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 10", texto, barra e "3/5".
+  - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 15", texto, barra e "3/5".
     Tocar abre a lista de Objetivos.
 - **Topo direito:** pílula "Outono · Ano 1 · Semana 5 · inverno em 9 sem" (semana 1–13; ícone da
   estação; num ano seco anunciado, o ícone da seca no lugar e "· Seca" em laranja). A contagem é
@@ -489,22 +531,23 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   "preço · manutenção por semana" e uma frase do efeito; no PC também vagas, alcance e "Saldo
   depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
-  eficiência que a cidade teria; antes do Objetivo 4, sem manutenção). Num local de trabalho que
+  eficiência que a cidade teria). Num local de trabalho que
   não dá comida (mercado, oficina, templo…), quando as vagas dele tiram trabalhadores dos que dão
   comida, também "Comida depois: ±X/sem" (`foodAfter`; vermelho se negativo), no celular também.
   Fecha ao trocar de ferramenta ou ao tocar no mapa para construir.
 - **Balão da construção tocada** (com Mover), ao lado dela com seta, seguindo a câmera; some ao
   tocar fora:
   - casas: "nível atual → próximo", o que já tem (verde) e o que falta (vermelho, incluindo "sem
-    rua"; um serviço ainda bloqueado diz "✗ Mercado (libera no objetivo 3)"), quadro "Ao evoluir"
-    com os ganhos (moradores, imposto com até duas casas decimais, como a linha do imposto atual, e
-    quanto a casa passa a comer por semana **com o inverno**, `foodPerResident`), alegria com os
-    motivos;
-    terreno vazio diz se há família a caminho;
+    rua"; um serviço ainda bloqueado diz "✗ Mercado (libera no objetivo 4)"), "N/M moradores",
+    quadro "Ao evoluir" com os ganhos (`upgradeGain`: lugares a mais e imposto, com até duas casas
+    decimais), alegria com os motivos;
+    terreno vazio diz se há família a caminho ou que espera um casal ou caravana;
+  - celeiro, mercado e oficina: o nível e a ação **Melhorar** (custo do próximo nível; "Nível
+    máximo" no topo);
   - outras construções: o que faz, quantas casas atende (serviços), vagas, produção, manutenção
     por semana e conexão (desconectada: "não funciona, mas paga manutenção"); campo: "colhe na
     primavera do ano N" e, num ano seco, se está junto ao rio; pescador e coletora: "rende N
-    comida/sem"; celeiro: "guarda 150"; celeiro (ou rua que liga um) com comida que estragaria ao
+    comida/sem"; celeiro: "guarda 300" (pelo nível); celeiro (ou rua que liga um) com comida que estragaria ao
     demolir: "✗ Perde N de comida" (`foodLostIfRemoved`), e o mesmo sobe em vermelho ao demolir;
   - ruas, árvores e terreno: uma linha só;
   - botões redondos: **ação principal** dourada quando há algo a fazer (casa sem o próximo serviço:
@@ -573,13 +616,13 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     comida/sem" (com a eficiência que a cidade terá com as vagas dela) e "Comida depois: ±X/sem"
     (o saldo de comida da cidade com ela; a pílula fica vermelha se negativo); campo no inverno:
     "Congelado no inverno: volta em N sem". O balão da construção escolhida diz a regra (por
-    célula, alcance e teto) ou "Guarda 150 de comida";
+    célula, alcance e teto) ou "Guarda 300 de comida";
   - no inspetor de pescador, coletora e campo trabalhando com menos de 100% de trabalhadores:
     "Faltam trabalhadores: rende 67%" em laranja;
   - Estatísticas em duas abas: **Agora** (números e problemas) e **Histórico** (gráficos e marcos);
     a semana de cada marco é guardada pela interface quando ele chega;
-  - o terreno vazio tocado diz por que nenhuma família vem (o mesmo motivo dos Avisos); "Nenhuma
-    família vem: construa casas" só aparece nos Avisos (sem toast) e some enquanto uma família anda.
+  - os avisos de casais e de nascimentos ("Casal esperando casa", "Sem nascimentos: …") não viram
+    toast enquanto o tutorial roda (o balão do tutorial já fala do casal).
 - **Tamanhos de teste:** 844 x 390, 915 x 412 e 1366 x 768.
 
 ### Mapa e mensagens
@@ -645,7 +688,7 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
 - **As ferramentas nunca travam:** o tutorial só destaca (seta e caminho marcado). Câmera, girar
   e velocidade continuam livres.
 - **O relógio fica parado nos passos de construir** (1 a 5: `tutorialHoldsClock`), para a
-  primeira cidade ser feita sem pressa, e volta a andar no passo 6 (a família chegando). A
+  primeira cidade ser feita sem pressa, e volta a andar no passo 6 (o casal andando). A
   velocidade escolhida fica guardada.
 - A cada passo a câmera desliza até o lugar dele (a rua marcada, o lugar do pescador ou da
   coletora, o lugar livre de campo ligado mais perto do altar (`fieldHint`), o lugar da praça junto
@@ -665,33 +708,24 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   3. "Construa um campo: ele dá comida já, até o inverno congelar". Conclui com 1 campo ligado.
   4. "Construa uma praça perto das tendas da caravana": a prévia mostra o raio e "Atende N casas";
      no lugar `campPlazaSpot` ela alcança todas as tendas. Conclui com 1 praça ligada.
-  5. "Construa uma casa encostada na rua, perto da praça": os terrenos livres perto de uma praça
+  5. "Um casal quer se casar: construa uma casa perto da praça": os terrenos livres perto de uma praça
      (alguma célula no raio de uma praça ligada, `plazaHouseSpots`) e encostados na rede ficam
      verdes, e a seta aponta o mais perto do altar (`houseHint`). Conclui com 1 casa nova ligada.
-  6. "Uma família está chegando!" (sem família andando, o motivo da porta; com o motivo `wait`,
-     "Uma nova família pode chegar em breve"): a câmera acompanha a família por 2 s
-     (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
-     Construa mais casas: cada uma recebe uma família". Se a porta das famílias estiver fechada e nenhuma
-     família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo) e a
-     seta aponta a ferramenta que resolve o motivo (`reasonTools` em `tutorial.json`: `storage` →
-     Celeiro, `food` → Campo, se liberada; no inverno o campo não rende, então `winterReasonTools`
-     manda `food` → Pescador; os outros motivos não mudam a seta). O passo também
-     termina sozinho depois de `familyStepMaxWeeks` (8) semanas, com o mesmo toast final; o motivo
-     continua em Avisos.
+  6. "O casal vai para a casa nova!": os noivos da caravana (`start.couple`) andam até a casa
+     vazia e casam ao chegar. Conclui com o marco Primeiro casamento; aparece "Muito bem! Casais
+     novos precisam de casa; casas melhores cabem mais filhos". O passo também termina sozinho
+     depois de `weddingStepMaxWeeks` (6) semanas (por exemplo, sem casa vazia), com o mesmo toast.
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,
   praça, casa) com a ponta **acima da construção**, para não cobrir a prévia. No celular, a seta de
   uma construção única (pescador, coletora, praça) aponta onde o dedo vai: a mira fica 90 px acima do
   dedo, então tocar na ponta da seta constrói no lugar marcado.
 - Uma rua arrastada que passa por cima de um botão ou painel para ali; ao soltar, o toast "A rua
   parou sob um botão: mova o mapa e continue" explica.
-- O passo da manutenção aponta a prata pelo lado direito da pílula e sempre mostra o seu texto.
-- Mini passos (só para quem não pulou), sem travar ferramentas:
-  - Ao cumprir o Objetivo 4: a seta aponta a prata e o balão traz a mensagem da manutenção com o
-    botão "Entendi".
-  - Depois: "Construa um mercado perto das casas de barro: elas viram casas de pedra", com a
-    seta no Mercado.
-    Conclui com 1 mercado ligado.
-- Quem pula (ou já viu o tutorial) recebe a mensagem da manutenção como toast.
+- Mini passo (só para quem não pulou), sem travar ferramentas: ao cumprir o objetivo que libera o
+  Mercado (Objetivo 4; depois dos passos principais, ou logo ao fim deles), "Construa um mercado
+  perto das casas de barro: elas viram casas de pedra", com a seta no Mercado. Conclui com 1
+  mercado ligado.
+- Na abertura, fora do tutorial, um toast nomeia o casal: "Zebadias e Tamar querem se casar".
 
 ## Estações e clima
 
@@ -818,8 +852,9 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   clarão.
 - Marco (sem pausar, `Effects.milestone`): a construção ligada ao marco brilha dourada algumas
   vezes, halo e anéis dourados, faíscas douradas subindo e até 6 moradores vêm de perto, pulam de
-  alegria por uns segundos e voltam (`visual.json` > `moments`). Onde: a casa que subiu (primeira
-  família, barro, pedra), o primeiro campo que colhe, ou o altar (primeiro inverno, ano sem fome).
+  alegria por uns segundos e voltam (`visual.json` > `moments`). Onde: a casa do marco (primeiro
+  casamento, barro, pedra), o primeiro campo que colhe, ou o altar (primeiro inverno, ano sem fome
+  e os marcos de pessoas e caravana).
 - Comida estragando (`spoilStart`): moscas e uma fumacinha verde curta no celeiro ligado (ou no
   altar sem celeiro). Começo da colheita: anel dourado em cada campo que colhe.
 

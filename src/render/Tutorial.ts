@@ -26,8 +26,8 @@ function saveSeen() {
 }
 
 /**
- * Where the tutorial is: the six main steps (the clock stands still on the build steps), then waiting for goal 2,
- * then the short steps (balance, market), then off.
+ * Where the tutorial is: the six main steps (the clock stands still on the build steps), then waiting for
+ * the market to unlock, then its short step, then off.
  */
 type Phase = 'steps' | 'wait' | 'extras' | 'off';
 
@@ -36,8 +36,8 @@ export class TutorialGuide {
   private phase: Phase = 'steps';
   private k = 0;
   private mark: TutorialMark;
-  /** Goal 2 came while the main steps were still running: the balance step follows them. */
-  private upkeepPending = false;
+  /** The market unlocked while the main steps were still running: its step follows them. */
+  private extrasPending = false;
 
   constructor(s: GameState) {
     this.mark = markTutorial(s);
@@ -66,25 +66,16 @@ export class TutorialGuide {
     return out;
   }
 
-  /** "Entendi" on the balance step. */
-  tap(s: GameState) {
-    if (this.step?.id === 'upkeep') this.advance(s);
-  }
-
-  /** Goal 2 reached: true if the tutorial shows the balance message (otherwise it is a toast). */
-  upkeepStarted(): boolean {
-    if (this.phase === 'steps') this.upkeepPending = true;
+  /** The market was unlocked: its short step follows the main steps (or starts now). */
+  marketUnlocked() {
+    if (this.phase === 'steps') this.extrasPending = true;
     else if (this.phase === 'wait') this.start('extras');
-    else return false;
-    return true;
   }
 
-  /** Ends the tutorial for good; true if the balance message was still waiting to be shown. */
-  skip(): boolean {
+  /** Ends the tutorial for good. */
+  skip() {
     saveSeen();
-    const pending = this.upkeepPending || this.step?.id === 'upkeep';
     this.phase = 'off';
-    return pending;
   }
 
   private start(phase: Phase) {
@@ -97,7 +88,7 @@ export class TutorialGuide {
     this.mark = markTutorial(s);
     if (this.phase === 'steps' && this.k >= TUTORIAL_STEPS.length) {
       saveSeen();
-      this.start(this.upkeepPending ? 'extras' : 'wait');
+      this.start(this.extrasPending ? 'extras' : 'wait');
       return 'done';
     }
     if (this.phase === 'extras' && this.k >= TUTORIAL_EXTRAS.length) this.phase = 'off';

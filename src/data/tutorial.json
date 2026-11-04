@@ -1,18 +1,15 @@
 {
   "minSpotFood": 1.2,
-  "familyStepMaxWeeks": 8,
-  "reasonTools": { "storage": "granary", "food": "field" },
-  "winterReasonTools": { "food": "fisher" },
+  "weddingStepMaxWeeks": 6,
   "steps": [
     { "id": "road", "tool": "road", "target": 1 },
     { "id": "gather", "tool": "fisher", "alt": "gatherer", "target": 1 },
     { "id": "field", "tool": "field", "target": 1 },
     { "id": "plaza", "tool": "plaza", "target": 1 },
     { "id": "house", "tool": "house", "target": 1 },
-    { "id": "family", "tool": null, "target": 1 }
+    { "id": "wedding", "tool": null, "target": 1 }
   ],
   "extras": [
-    { "id": "upkeep", "tool": null, "target": 1 },
     { "id": "market", "tool": "market", "target": 1 }
   ]
 }

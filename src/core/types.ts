@@ -22,7 +22,63 @@ export const SERVICE_KINDS: readonly ServiceKind[] = ['plaza', 'market', 'sacred
 export type Rng = () => number;
 
 /** Moments celebrated once per game. */
-export type MilestoneId = 'firstFamily' | 'firstMud' | 'firstHarvest' | 'firstWinter' | 'firstStone' | 'yearWithoutFamine';
+export type MilestoneId =
+  | 'firstWedding'
+  | 'firstBirth'
+  | 'firstCaravan'
+  | 'firstGrownUp'
+  | 'thirdGeneration'
+  | 'firstMud'
+  | 'firstHarvest'
+  | 'firstWinter'
+  | 'firstStone'
+  | 'yearWithoutFamine';
+
+export type Sex = 'm' | 'f';
+export type AgeBand = 'child' | 'adult' | 'elder';
+/** Why a person left the city: died of age, left with the family (famine, no road, demolished house) or found no house. */
+export type EndCause = 'age' | 'famine' | 'road' | 'demolished' | 'noHouse';
+
+/**
+ * A person of the city. Children are not stored (see `childrenOf`), nor the job (see `jobsOf`);
+ * a family is everyone with the same `houseId`.
+ */
+export interface Person {
+  /** From the same counter as buildings (`nextId`). */
+  id: number;
+  /** Given name (names.json). */
+  name: string;
+  sex: Sex;
+  /** Index in names.json > clans: the family name, from the father. */
+  clan: number;
+  /** May be negative (born before the game). */
+  birthWeek: number;
+  /** null: on the way with a caravan (neither counts nor eats). */
+  houseId: number | null;
+  fatherId: number | null;
+  motherId: number | null;
+  /** Betrothed or spouse (alive or not); null: never married. */
+  spouseId: number | null;
+  /** Week of the engagement; null once married (or never engaged). */
+  engaged: number | null;
+  /** 0 = the founding caravan, 1.. = later caravans, null = born in the city. */
+  caravan: number | null;
+  /** Only in `departed`: when and why the person left. */
+  end?: { week: number; cause: EndCause };
+}
+
+/** A later caravan, rolled when the game is created (see `rollCaravans`). */
+export interface CaravanPlan {
+  /** Week it arrives. */
+  week: number;
+  families: number;
+  /** Weeks before arriving that it is announced. */
+  warn: number;
+  status: 'planned' | 'announced' | 'arrived' | 'skipped';
+  /** Families that found a house, and families that went on (no house). */
+  housed: number;
+  left: number;
+}
 
 /** One week of the city, for the statistics charts. */
 export interface WeekRecord {
@@ -90,8 +146,13 @@ export interface BuildingDef {
   w?: number;
   h?: number;
   radius?: number;
-  /** Silver charged every week, connected or not; default 0. */
+  /** Silver charged every week, connected or not, from the week it is built; default 0. */
   upkeep?: number;
+  /**
+   * Levels after the first (the definition itself is level 1): the silver to climb to it and what
+   * changes there (see `statOf`).
+   */
+  levels?: BuildingLevelDef[];
   /** Number of drawn looks (variant 0..n-1); default 1. */
   variants?: number;
   /** Workshop trades, one per variant (the variant is the index of the craft). */
@@ -99,7 +160,7 @@ export interface BuildingDef {
   /** Food a field makes in a year, all of it delivered over the spring weeks (see harvest.ts). */
   harvest?: number;
   /** Food gathered every week from the river or trees in a radius: min(max, cells × perCell). */
-  gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number };
+  gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number; winterFactor: number };
   /** Food this building lets the city keep (granary). */
   storage?: number;
   /** Workshop: each connected one adds this share to the fields' food, up to `fieldBonusMax` in all. */
@@ -108,12 +169,24 @@ export interface BuildingDef {
   protected?: boolean;
 }
 
+/** What a service building's next level costs and changes. */
+export interface BuildingLevelDef {
+  cost: number;
+  upkeep?: number;
+  storage?: number;
+  radius?: number;
+  fieldBonus?: number;
+}
+
+/** Stats of a building that change with its level (see `statOf`). */
+export type LevelStat = 'upkeep' | 'storage' | 'radius' | 'fieldBonus' | 'jobs';
+
 export interface HouseLevelDef {
   name: string;
-  residents: number;
+  /** Most people living in a house of this level (births stop when it is full). */
+  capacity: number;
+  /** Silver a week per house with people (scaled by happiness). */
   tax: number;
-  /** Food eaten per resident per week. */
-  food: number;
   /** Number of drawn variants for this level. */
   variants: number;
   needs: NeedKind[];
@@ -123,9 +196,11 @@ export interface GoalDef {
   /**
    * residents: at least `target` residents; houses: houses of at least `level`; build: connected
    * buildings of `kind`; foodUntilSpring: weeks the food lasts, up to the first spring (see
-   * goalTarget).
+   * goalTarget); milestone: the `milestone` was reached (even before the goal came up).
    */
-  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring';
+  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'milestone';
+  /** For type "milestone". */
+  milestone?: MilestoneId;
   target: number;
   /** Minimum house level, for type "houses". */
   level?: number;
@@ -143,8 +218,6 @@ export interface Rules {
   startSilver: number;
   startUnlocked: Placeable[];
   weekSeconds: number;
-  /** Upkeep is charged only once this many goals are done (the first goals are free of it). */
-  upkeepStartsAfterGoal: number;
   /** Weeks in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
   weeksPerSeason: number;
   /** Season of the first week. */
@@ -153,10 +226,6 @@ export interface Rules {
   toolColumnMax: number;
   /** Food the city keeps without a granary; the rest spoils. */
   baseFoodStorage: number;
-  /** New families set out at most once every this many weeks. */
-  familyIntervalWeeks: number;
-  /** A new family comes only if the forecast food never drops below this many weeks of eating. */
-  familyFoodReserveWeeks: number;
   /** In winter every resident eats `foodFactor` times more; tent dwellers `tentFoodFactor` instead. */
   winter: { foodFactor: number; tentFoodFactor: number };
   /** Chance per week, in winter during famine, that a tent is abandoned (instead of famineLeaveChance). */
@@ -167,15 +236,21 @@ export interface Rules {
   historyWeeks: number;
   /** Dry years: chance rolled each winter, harvest factor of fields away from the river, first years that are never dry, never two in a row. */
   drought: { chance: number; harvestFactor: number; safeYears: number; neverTwice: boolean };
-  /** The founding caravan: [min, max] families and weeks of food. */
-  caravan: { families: [number, number]; foodWeeks: [number, number] };
-  workerShare: number;
+  /** People: ages, eating, deaths, marriages and births (see people.ts). */
+  people: PeopleRules;
+  /** The founding caravan and the later ones (see caravans.ts). */
+  caravans: {
+    start: { families: [number, number]; foodWeeks: [number, number] };
+    later: { weeks: [number, number]; families: [number, number]; chance: number }[];
+    warnWeeks: [number, number];
+    /** Weeks of the newcomers' eating a later caravan brings. */
+    foodWeeks: [number, number];
+  };
   /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
   unemploymentAlert: number;
-  familyChance: number;
   familyCellsPerWeek: number;
-  /** Weeks in a row with the next level's needs met before a house climbs one level. */
-  weeksToUpgrade: number;
+  /** Weeks in a row with the next level's needs met before a house climbs one level: drawn per house in [min, max]. */
+  weeksToUpgrade: [number, number];
   /** Weeks in a row missing its own needs before a house drops one level. */
   weeksToDowngrade: number;
   famineDropChance: number;
@@ -204,9 +279,9 @@ export interface Rules {
     /** Tax multiplier at happiness 0 and 100 (1 at 50). */
     taxMin: number;
     taxMax: number;
-    /** Family arrival chance multiplier at city happiness 0 and 100 (1 at 50). */
-    familyMin: number;
-    familyMax: number;
+    /** Birth chance multiplier at city happiness 0 and 100 (1 at 50). */
+    birthMin: number;
+    birthMax: number;
   };
   map: {
     cols: number;
@@ -228,6 +303,44 @@ export interface Rules {
   };
 }
 
+/** A member of a caravan family template: father, mother, their child, or a grandparent (the father's parent). */
+export interface TemplateMember {
+  role: 'father' | 'mother' | 'child' | 'grandparent';
+  age: [number, number];
+}
+
+export interface PeopleRules {
+  /** Weeks of the game per year of life (13: one season is one year). */
+  weeksPerLifeYear: number;
+  /** Ages where adults (who work) and elders begin. */
+  adultAge: number;
+  elderAge: number;
+  /** Food eaten per week by each age band (times the winter factor of the house). */
+  food: Record<AgeBand, number>;
+  /** [age, chance]: chance of dying at each birthday from that age on (the last row that applies). */
+  death: [number, number][];
+  /** Ages a never-married adult can get engaged. */
+  marriageAges: [number, number];
+  /** Chance per week that a man who can get engaged does, when a woman can. */
+  marriageChance: number;
+  maxAgeGap: number;
+  /** An engaged couple without a house leaves after these weeks, warned in the last `coupleWarnWeeks`. */
+  coupleWaitWeeks: number;
+  coupleWarnWeeks: number;
+  /** Ages a mother can have a child. */
+  fertileAges: [number, number];
+  /** Weeks between two children of the same mother. */
+  birthGapWeeks: number;
+  /** Chance per week of a child for a couple that can have one (times the happiness factor). */
+  birthChance: number;
+  /** Children are born only if the forecast food stays above this many weeks of eating until the spring. */
+  birthFoodReserveWeeks: number;
+  /** Families of the caravans, drawn by weight. */
+  templates: { weight: number; members: TemplateMember[] }[];
+  /** The founding caravan's first two families use this template, with a child of these ages: the engaged couple. */
+  couple: { template: number; age: [number, number] };
+}
+
 export interface Building {
   id: number;
   kind: BuildingKind;
@@ -237,8 +350,12 @@ export interface Building {
   /** Footprint in cells (x by y). */
   w: number;
   h: number;
-  /** House level (0..4). Unused by other kinds. */
+  /** House level (0..4, 0 = empty); level of a service building (1..); 1 for the rest. */
   level: number;
+  /** Houses: weeks with the next level's needs met it takes to climb (drawn at every level). */
+  upWeeks: number;
+  /** Houses: the level kept while it stands empty (a tent leaves none); 0 for the rest. */
+  emptyLevel: number;
   /** Consecutive weeks meeting the next level's needs. */
   upStreak: number;
   /** Consecutive weeks missing a need of the current level. */
@@ -253,10 +370,13 @@ export interface Building {
   built: number;
 }
 
-/** A family walking from the city entrance to an empty plot. */
+/** People walking along the roads to a house: a caravan family, a married couple or an elder moving in with a child. */
 export interface Family {
   id: number;
+  /** House they walk to. */
   houseId: number;
+  /** Ids of the people walking. */
+  members: number[];
   /** Road cells followed by the house cell. */
   path: Cell[];
   /** Cells walked along the path. */
@@ -300,8 +420,6 @@ export interface GameState {
   lastDrought: boolean;
   /** A house was abandoned or dropped by famine during this winter. */
   winterLoss: boolean;
-  /** Week the last new family set out (families come at most every `familyIntervalWeeks`). */
-  lastFamilyWeek: number;
   /** Food spoiled this week because the stores were full (0 when nothing spoiled). */
   spoiled: number;
   /** A week of famine happened since the last autumn began. */
@@ -312,8 +430,16 @@ export interface GameState {
   milestoneWeeks: Partial<Record<MilestoneId, number>>;
   /** Weekly snapshots, oldest first, at most `historyWeeks`. */
   history: WeekRecord[];
-  /** The caravan that founded the city (shown in the opening sentence). */
-  start: { families: number; foodWeeks: number };
+  /** The caravan that founded the city (shown in the opening sentence) and its engaged couple (man, woman). */
+  start: { families: number; foodWeeks: number; couple: [number, number] };
+  /** People alive: in the city or on the way. */
+  people: Person[];
+  /** People who died or left, with `end`. */
+  departed: Person[];
+  /** Later caravans, rolled at the start. */
+  caravans: CaravanPlan[];
+  /** Births, deaths and weddings since the last autumn began. */
+  yearStats: { births: number; deaths: number; weddings: number };
   nextId: number;
 }
 
@@ -324,10 +450,20 @@ export type GameEvent =
   | { type: 'famineEnd' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
   | { type: 'victory'; week: number; residents: number }
-  /** A family abandoned its tent (during famine, or because it lost its road) and walks out of the city from (x, y). */
-  | { type: 'familyLeft'; x: number; y: number; reason: LeaveReason }
-  /** Upkeep starts being charged (once, right after goal `upkeepStartsAfterGoal`). */
-  | { type: 'upkeepStart' }
+  /** A family abandoned its tent (during famine, or because it lost its road) and walks out of the city from (x, y); `name` is its family name. */
+  | { type: 'familyLeft'; x: number; y: number; reason: LeaveReason; name: string }
+  /** An engaged couple (man a, woman b) moved into their own house at (x, y). */
+  | { type: 'wedding'; a: number; b: number; x: number; y: number }
+  | { type: 'birth'; id: number; x: number; y: number }
+  | { type: 'death'; id: number; age: number; x: number; y: number }
+  /** An engaged couple gave up waiting for a house and left the city. */
+  | { type: 'coupleLeft'; a: number; b: number }
+  /** A later caravan will arrive at `week`. */
+  | { type: 'caravanAnnounced'; families: number; week: number }
+  /** A later caravan came to the entrance (x, y): families that found a house and families that went on. */
+  | { type: 'caravanArrived'; housed: number; left: number; x: number; y: number }
+  /** A service building climbed a level. */
+  | { type: 'buildingUp'; x: number; y: number; level: number }
   /** A new season began (looks only for now). */
   | { type: 'season'; season: Season }
   | { type: 'debtStart' }

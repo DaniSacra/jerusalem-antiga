@@ -1,29 +1,41 @@
 import { HOUSE_LEVELS, RULES } from './data';
 import { computeEconomy, round2, type Economy } from './economy';
 import { foodCapacity } from './harvest';
-import { dispatchFamilies, moveFamilies } from './families';
-import { checkGoal } from './goals';
-import { hasNeeds } from './houses';
+import { stepCaravans } from './caravans';
+import { moveFamilies } from './families';
+import { checkGoal, reach } from './goals';
+import { hasNeeds, rollUpWeeks } from './houses';
+import { stepPeople } from './life';
+import { clanName } from './names';
+import { leaveHouse } from './people';
 import { rollLook } from './looks';
 import { refreshCity } from './refresh';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
-import type { Building, GameEvent, GameState, MilestoneId, Rng } from './types';
+import type { Building, GameEvent, GameState, LeaveReason, Rng } from './types';
 
 function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rng: Rng, events: GameEvent[]) {
-  const before = HOUSE_LEVELS[b.level].residents;
+  const before = HOUSE_LEVELS[b.level].capacity;
   b.level += dir;
   b.upStreak = 0;
   b.downStreak = 0;
   rollLook(s, b, rng);
-  const delta = HOUSE_LEVELS[b.level].residents - before;
+  rollUpWeeks(b, rng);
+  const delta = HOUSE_LEVELS[b.level].capacity - before;
   const { x, y } = b;
   events.push(dir > 0 ? { type: 'houseUp', x, y, level: b.level, delta } : { type: 'houseDown', x, y, level: b.level, delta, famine });
 }
 
+/** Everyone in a tent leaves the city and the tent goes with them: the plot stands empty. */
+function abandon(s: GameState, b: Building, reason: LeaveReason, events: GameEvent[]) {
+  const clan = leaveHouse(s, b.id, reason);
+  b.emptyLevel = 0;
+  events.push({ type: 'familyLeft', x: b.x, y: b.y, reason, name: clan === null ? '' : clanName(clan) });
+}
+
 /**
- * A house climbs one level after `weeksToUpgrade` weeks in a row with the next level's needs met
+ * A house climbs one level after its `upWeeks` weeks in a row with the next level's needs met
  * and drops one after `weeksToDowngrade` weeks missing its own. Famine pauses the climb and may
- * drop the house or send the tent's family away. Plots (level 0) are filled by arriving families.
+ * drop the house or send the tent's family away. Empty houses (level 0) neither climb nor drop.
  */
 function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   if (b.level === 0) return;
@@ -32,7 +44,7 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
     if (++b.downStreak < RULES.weeksToDowngrade) return;
     changeLevel(s, b, -1, false, rng, events);
     // A tent missing its needs lost its road: the family walks out and the plot waits for another.
-    if (b.level === 0) events.push({ type: 'familyLeft', x: b.x, y: b.y, reason: 'road' });
+    if (b.level === 0) abandon(s, b, 'road', events);
     return;
   }
   b.downStreak = 0;
@@ -48,13 +60,13 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
       if (winter) s.winterLoss = true;
       // The family abandons its tent and walks out of the city; the plot waits for a new family.
       changeLevel(s, b, -1, true, rng, events);
-      events.push({ type: 'familyLeft', x: b.x, y: b.y, reason: 'famine' });
+      abandon(s, b, 'famine', events);
     }
     return;
   }
   const next = HOUSE_LEVELS[b.level + 1];
   if (next && hasNeeds(s, b, next.needs)) {
-    if (++b.upStreak >= RULES.weeksToUpgrade) changeLevel(s, b, 1, false, rng, events);
+    if (++b.upStreak >= b.upWeeks) changeLevel(s, b, 1, false, rng, events);
   } else {
     b.upStreak = 0;
   }
@@ -100,22 +112,14 @@ function newSeason(s: GameState, rng: Rng, events: GameEvent[]) {
     s.drought = false;
     if (!s.famineThisYear) reach(s, 'yearWithoutFamine', events);
     s.famineThisYear = false;
+    s.yearStats = { births: 0, deaths: 0, weddings: 0 };
   }
   if (season === 'spring' && !s.winterLoss && computeEconomy(s).residents > 0) reach(s, 'firstWinter', events);
 }
 
-/** Records a milestone the first time only. */
-function reach(s: GameState, id: MilestoneId, events: GameEvent[]) {
-  if (s.milestones.includes(id)) return;
-  s.milestones.push(id);
-  s.milestoneWeeks[id] = s.week;
-  events.push({ type: 'milestone', id });
-}
-
-/** Milestones of the houses: a new family (not the caravan), the first mud-brick and stone houses. */
+/** Milestones of the houses: the first mud-brick and stone houses. */
 function houseMilestones(s: GameState, events: GameEvent[]) {
   const ups = events.filter((e) => e.type === 'houseUp').map((e) => e.level);
-  if (ups.includes(1)) reach(s, 'firstFamily', events);
   if (ups.includes(2)) reach(s, 'firstMud', events);
   if (ups.includes(3)) reach(s, 'firstStone', events);
 }
@@ -153,8 +157,9 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
 
   s.week++;
   if (seasonStarts(s.week)) newSeason(s, rng, events);
-  // New families set out and walk in the new week, the one the screen shows (same gate as the UI).
-  dispatchFamilies(s, rng);
+  // The people live the new week, the one the screen shows: then the caravans and the walkers.
+  stepPeople(s, rng, events);
+  stepCaravans(s, rng, events);
   moveFamilies(s, events, rng);
   houseMilestones(s, events);
   const after = computeEconomy(s);

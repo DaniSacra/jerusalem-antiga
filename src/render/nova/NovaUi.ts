@@ -82,7 +82,7 @@ export class NovaUi {
     });
     this.inspector = new Inspector(scene, {
       cellScreen: (x, y, w, h) => host.cellScreen(x, y, w, h),
-      act: (a) => host.showSpots(a.kind, a.target),
+      act: (a) => (a.kind === 'upgrade' ? host.upgradeAt(a.target) : host.showSpots(a.kind, a.target)),
       demolish: (c) => host.demolishAt(c),
       close: () => host.deselect(),
       limits: () => ({ top: this.top.bottom, toolsRight: this.tools.bottomRight + S.gap, toolsTop: this.tools.top }),
@@ -146,11 +146,10 @@ export class NovaUi {
     this.tool = tool;
     this.top.refresh(s, city, speed);
     this.column.refresh(s, tool);
-    this.list = notices(s, city);
-    // During the tutorial the bubble already says why no family comes: no toast for it.
+    this.list = notices(s, city, tutorial);
     // A warning toast waiting in line (or on screen) goes away once its problem is gone.
     for (const n of this.tools.newAlerts(this.list))
-      if (n.toast && !(tutorial && n.family)) this.toasts.show(n.text, n.bad ? 'bad' : 'info', { valid: () => this.list.some((o) => o.key === n.key) });
+      if (n.toast) this.toasts.show(n.text, n.bad ? 'bad' : 'info', { valid: () => this.list.some((o) => o.key === n.key) });
     this.toasts.prune();
     this.tools.refresh(tool, this.list, this.panels.open);
     this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });

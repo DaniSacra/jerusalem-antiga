@@ -12,7 +12,8 @@ import {
   indexOf,
   upgradeGain,
   unlockingGoal,
-  upkeepCharged,
+  nextLevelOf,
+  statOf,
   weeksToNextLevel,
   fieldBonus,
   foodLostIfRemoved,
@@ -36,7 +37,7 @@ import { H, S, W } from './metrics';
 import { icon, nameTag, ntext, RoundButton } from './widgets';
 
 /** What the main (gold) button does: pick a building and show where it would solve the need, or pick Rua. */
-export type Action = { label: string; kind: BuildableKind | 'road'; target: Building };
+export type Action = { label: string; kind: BuildableKind | 'road' | 'upgrade'; target: Building };
 
 interface Card {
   lines: Line[];
@@ -60,7 +61,7 @@ export interface InspectorHost {
 const ok = (yes: boolean, label: string): Line => ({ text: `${yes ? '✓' : '✗'} ${label}`, color: yes ? NOVA_CSS.good : NOVA_CSS.bad });
 
 /** The card of a tapped cell; null for plain land and the river (a tap there closes the balloon). */
-function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
+function card(s: GameState, c: Cell, { eco }: CityReadout): Card | null {
   const N = T.nova.inspect;
   const i = indexOf(s, c.x, c.y);
   const b = s.grid[i];
@@ -87,14 +88,11 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
         lines.push({ text: N.plotNoRoad, color: NOVA_CSS.bad });
         action = { label: N.where.road, kind: 'road', target: b };
       } else if (s.families.some((f) => f.houseId === b.id)) lines.push({ text: N.plotComing, color: NOVA_CSS.good });
-      else {
-        // Waiting: and why no family comes yet, if something blocks them.
-        lines.push({ text: N.plotWaiting }, ...(block && block !== 'wait' ? [{ text: T.familyBlockText(block, s), color: NOVA_CSS.bad }] : []));
-      }
+      else lines.push({ text: N.plotWaiting });
       return { lines, foot, building: b, action, demolish: true };
     }
     lines.push({ text: h.next ? N.next(h.name, h.next.name) : `${h.name} · ${N.top}`, size: S.num });
-    lines.push({ text: N.residents(h.residents, h.tax), color: NOVA_CSS.muted, bold: false });
+    lines.push({ text: N.residents(h.residents, h.capacity, h.tax), color: NOVA_CSS.muted, bold: false });
     if (h.happiness) {
       const { value, mood, parts } = h.happiness;
       const why = parts.map((p) => `${T.happinessPart[p.kind]} ${p.value > 0 ? '+' : '−'}${Math.abs(p.value)}`).join(', ');
@@ -113,8 +111,8 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
       const left = weeksToNextLevel(s, b);
       if (s.famine) lines.push({ text: N.famine, color: NOVA_CSS.bad });
       else if (left !== null) lines.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
-      const gain = upgradeGain(h.level, s.week);
-      if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.residents, gain.tax, gain.food)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
+      const gain = upgradeGain(h.level);
+      if (gain) lines.push({ text: `${N.evolve}: ${N.gain(gain.capacity, gain.tax)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
       // Main action: the first missing need the player can build now.
       const miss = h.next.needs.find((n) => !n.ok);
       if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
@@ -141,7 +139,11 @@ function card(s: GameState, c: Cell, { eco, block }: CityReadout): Card | null {
     if (def.jobs && eco.efficiency === 0) lines.push({ text: N.noWorkers, color: NOVA_CSS.bad });
   }
   lines.push(...foodLines(s, b, eco));
-  if (def.upkeep) lines.push({ text: N.upkeep(def.upkeep, upkeepCharged(s)), color: NOVA_CSS.gold });
+  const upkeep = statOf(b, 'upkeep');
+  if (upkeep) lines.push({ text: N.upkeep(upkeep), color: NOVA_CSS.gold });
+  const next = nextLevelOf(b);
+  if (def.levels) lines.push({ text: next ? N.upgrade(next.cost, b.level + 1) : N.topLevel, color: NOVA_CSS.muted, bold: false });
+  if (next && !action) action = { label: N.upgrade(next.cost, b.level + 1), kind: 'upgrade', target: b };
   if (!def.protected) lines.push(...lossLine(s, c));
   return { lines, foot, building: b, action, demolish: !def.protected };
 }
@@ -225,7 +227,8 @@ export class Inspector {
     const list: [Phaser.GameObjects.GameObject[], string, () => void, 'gold' | 'parchment'][] = [];
     if (c.action) {
       const a = c.action;
-      const content = a.kind === 'road' ? [icon(this.scene, 'road', d * 0.56)] : [this.scene.add.image(0, 0, TEX.thumb(a.kind)).setDisplaySize(d - px(8), d - px(8))];
+      const kind = a.kind === 'upgrade' ? (a.target.kind as BuildableKind) : a.kind;
+      const content = kind === 'road' ? [icon(this.scene, 'road', d * 0.56)] : [this.scene.add.image(0, 0, TEX.thumb(kind)).setDisplaySize(d - px(8), d - px(8))];
       list.push([content, a.label, () => this.host.act(a), 'gold']);
     }
     if (c.demolish) list.push([[icon(this.scene, 'hammer', d * 0.56)], T.nova.inspect.demolish, () => this.demolishTap(), 'parchment']);

@@ -3,11 +3,9 @@ import { isFreeLand, placeSpots, roadDistances } from './actions';
 import { BUILDINGS, dimsOf, RULES } from './data';
 import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { isGatherSource } from './harvest';
-import { seasonOf } from './seasons';
-import type { FamilyBlock } from './families';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
-export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
+export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'wedding' | 'market';
 export interface TutorialStep {
   id: TutorialStepId;
   /** The tool the step points at (null: just watch, or tap). Every tool stays usable. */
@@ -17,7 +15,7 @@ export interface TutorialStep {
   target: number;
 }
 
-/** The six steps of the first game (food first: road, fisher or gatherer, field; then plaza, house, family), then the two short ones (balance at goal 2, then the market). */
+/** The six steps of the first game (food first: road, fisher or gatherer, field; then plaza, house, wedding), then the short market one. */
 export const TUTORIAL_STEPS = TUTORIAL.steps as TutorialStep[];
 export const TUTORIAL_EXTRAS = TUTORIAL.extras as TutorialStep[];
 
@@ -27,7 +25,7 @@ export interface TutorialMark {
   houses: number;
   /** The suggested road when the step started. */
   ghost: Cell[];
-  /** Week the step started (the family step ends by itself after `familyStepMaxWeeks`). */
+  /** Week the step started (the wedding step ends by itself after `weddingStepMaxWeeks`). */
   week: number;
 }
 
@@ -49,29 +47,15 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
       return connected(s, 'fisher') + connected(s, 'gatherer');
     case 'house':
       return connected(s, 'house') - mark.houses;
-    case 'family':
-      // The first new family, or enough weeks waiting (the reason stays in Avisos).
-      return s.milestones.includes('firstFamily') || s.week - mark.week >= TUTORIAL.familyStepMaxWeeks ? 1 : 0;
+    case 'wedding':
+      // The first couple moves into its house, or enough weeks waiting.
+      return s.milestones.includes('firstWedding') || s.week - mark.week >= TUTORIAL.weddingStepMaxWeeks ? 1 : 0;
     case 'field':
     case 'plaza':
     case 'market':
       return connected(s, step.id);
-    case 'upkeep':
-      return 0; // done by a tap on the screen
   }
 }
-
-type ReasonTools = Partial<Record<FamilyBlock, Placeable>>;
-
-/**
- * The tool that solves why no family comes, for the family step's arrow (null: the arrow stays).
- * In winter a field gives no food, so `winterReasonTools` takes over where it names a tool.
- */
-export const reasonTool = (block: FamilyBlock | null, week: number): Placeable | null =>
-  (block &&
-    ((seasonOf(week) === 'winter' && (TUTORIAL.winterReasonTools as ReasonTools)[block]) ||
-      (TUTORIAL.reasonTools as ReasonTools)[block])) ||
-  null;
 
 /** The clock stands still on a build step (the player reads and builds without hurry); it runs on a step that waits on the city. */
 export const tutorialHoldsClock = (step: TutorialStep | null) => !!step?.tool;

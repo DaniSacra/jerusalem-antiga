@@ -1,0 +1,14 @@
+{
+  "male": ["Abias", "Adaías", "Amarias", "Asaías", "Azarias", "Baruque", "Benaia", "Berequias",
+    "Daniel", "Eliasibe", "Eliézer", "Elnatã", "Ezequias", "Gedalias", "Hananias", "Hasabias",
+    "Hatus", "Hilquias", "Jaziel", "Jedaías", "Joel", "Joiada", "Jônatas", "Maaseias", "Malquias",
+    "Matanias", "Meremote", "Mesulão", "Micaías", "Natã", "Obadias", "Pedaías", "Refaías", "Salum",
+    "Selemias", "Semaías", "Sefatias", "Uziel", "Zacarias", "Zebadias"],
+  "female": ["Abigail", "Abital", "Ada", "Ana", "Azuba", "Basemate", "Débora", "Diná", "Ester",
+    "Hagite", "Hamutal", "Hulda", "Jedida", "Jemima", "Jerusa", "Joquebede", "Judite", "Lia",
+    "Maaca", "Merabe", "Mical", "Miriã", "Naamá", "Noemi", "Quézia", "Raquel", "Rebeca", "Rute",
+    "Sara", "Séfora", "Selomite", "Tamar", "Zeruia", "Zilpa"],
+  "clans": ["Parós", "Sefatias", "Ara", "Paate-Moabe", "Elão", "Zatu", "Zacai", "Bani", "Bebai",
+    "Azgade", "Adonicão", "Bigvai", "Adim", "Ater", "Besai", "Jora", "Hasum", "Gibar", "Harim",
+    "Imer", "Pasur", "Jedaías"]
+}

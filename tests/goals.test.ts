@@ -4,8 +4,9 @@ import {
   computeEconomy,
   createGame,
   createRng,
+  foodCapacity,
   currentGoal,
-  foodPerResident,
+  foodOf,
   goalOpen,
   goalProgress,
   goalTarget,
@@ -22,11 +23,13 @@ import {
   type GameEvent,
   type GameState,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, put, ROAD_X, ROADSIDE } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, person, put, ROAD_X, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const SPRING = 2 * W;
 const TOP = HOUSE_LEVELS.length - 1;
+/** Index of the food-until-spring goal (goal 2). */
+const FOOD = GOALS.findIndex((g) => g.type === 'foodUntilSpring');
 const goalEvent = (index: number) => ({ type: 'goal', index, reward: GOALS[index].reward, unlock: GOALS[index].unlock });
 
 /** `n` more big houses on free cells north-west of the altar (they count as residents even unconnected). */
@@ -42,21 +45,27 @@ function bigHouses(s: GameState, n: number) {
 }
 
 describe('goals', () => {
-  it('has the configured targets, rewards, unlocks and years in order', () => {
-    expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? null, g.reward, g.unlock ?? null, g.fromYear ?? null])).toEqual([
-      ['foodUntilSpring', 1, null, 30, 'granary', null],
-      ['houses', 3, 2, 40, null, null],
-      ['residents', 60, null, 50, 'market', null],
-      ['houses', 3, 3, 60, 'workshop', null],
-      ['residents', 150, null, 80, 'park', null],
-      ['houses', 2, 4, 100, null, null],
-      ['residents', 250, null, 120, null, null],
-      ['houses', 6, 4, 150, 'temple', null],
-      ['residents', 500, null, 200, null, 8],
-      ['build', 1, 'temple', 0, null, null],
+  it('has the configured targets, rewards, unlocks and milestones in order', () => {
+    expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? g.milestone ?? null, g.reward, g.unlock ?? null])).toEqual([
+      ['milestone', 1, 'firstWedding', 20, null],
+      ['foodUntilSpring', 1, null, 30, 'granary'],
+      ['milestone', 1, 'firstBirth', 30, null],
+      ['houses', 3, 2, 40, 'market'],
+      ['residents', 30, null, 50, null],
+      ['milestone', 1, 'firstCaravan', 50, 'workshop'],
+      ['houses', 3, 3, 60, 'park'],
+      ['residents', 60, null, 80, null],
+      ['milestone', 1, 'firstGrownUp', 80, null],
+      ['houses', 2, 4, 100, null],
+      ['milestone', 1, 'thirdGeneration', 100, null],
+      ['residents', 100, null, 120, 'temple'],
+      ['houses', 5, 4, 150, null],
+      ['residents', 150, null, 200, null],
+      ['build', 1, 'temple', 0, null],
     ]);
     expect(GOALS.at(-1)!.victory).toBe(true);
     expect(GOALS.filter((g) => g.victory)).toHaveLength(1);
+    expect(GOALS.some((g) => g.fromYear)).toBe(false); // no goal waits for a year any more
   });
 
   it('the goals file uses no harvest or water goal any more', () => {
@@ -65,37 +74,37 @@ describe('goals', () => {
   });
 
   it('knows which goal unlocks each placeable', () => {
-    expect(unlockingGoal('granary')).toBe(1);
-    expect(unlockingGoal('market')).toBe(3);
-    expect(unlockingGoal('workshop')).toBe(4);
-    expect(unlockingGoal('park')).toBe(5);
-    expect(unlockingGoal('temple')).toBe(8); // built before the 500 residents; the victory still asks for them
+    expect(unlockingGoal('granary')).toBe(2);
+    expect(unlockingGoal('market')).toBe(4);
+    expect(unlockingGoal('workshop')).toBe(6);
+    expect(unlockingGoal('park')).toBe(7);
+    expect(unlockingGoal('temple')).toBe(12); // built before the 150 residents; the victory still asks for them
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
     });
   });
 
-  it('the plaza is unlocked from the start; goal 5 (150 residents) unlocks the park', () => {
+  it('the plaza is unlocked from the start; goal 7 (3 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
-    const goal = GOALS[4];
-    expect(goal).toMatchObject({ type: 'residents', target: 150, unlock: 'park' });
-    const s = emptyGame({ goalIndex: 4, silver: 0, unlocked: [...RULES.startUnlocked] });
-    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
+    const goal = GOALS[6];
+    expect(goal).toMatchObject({ type: 'houses', target: 3, level: 3, unlock: 'park' });
+    const s = emptyGame({ goalIndex: 6, silver: 0, unlocked: [...RULES.startUnlocked] });
+    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 3);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events[0]).toEqual({ type: 'goal', index: 4, reward: goal.reward, unlock: 'park' });
+    expect(events[0]).toEqual({ type: 'goal', index: 6, reward: goal.reward, unlock: 'park' });
     expect(s.unlocked).toContain('park');
   });
 
-  it('goal 1: food that lasts until the first spring, rewards and unlocks the granary', () => {
-    const s = emptyGame({ silver: 0, goalIndex: 0, food: 10, unlocked: [...RULES.startUnlocked] });
+  it('goal 2: food that lasts until the first spring, rewards and unlocks the granary', () => {
+    const s = emptyGame({ silver: 0, goalIndex: FOOD, food: 10, unlocked: [...RULES.startUnlocked] });
     put(s, 'house', ROADSIDE, 27, 1);
-    const eat = (w: number) => HOUSE_LEVELS[1].residents * foodPerResident(1, w);
+    const eat = (w: number) => HOUSE_LEVELS[1].capacity * foodOf('adult', 1, w);
     let left = 10;
     let weeks = 0;
     while ((left = Math.round((left - eat(weeks)) * 100) / 100) > 0) weeks++;
@@ -103,49 +112,78 @@ describe('goals', () => {
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events).toEqual([]);
-    expect(goalProgress(s, GOALS[0])).toBe(weeks);
-    expect(goalTarget(s, GOALS[0])).toBe(SPRING);
+    expect(goalProgress(s, GOALS[FOOD])).toBe(weeks);
+    expect(goalTarget(s, GOALS[FOOD])).toBe(SPRING);
     let need = 0;
     for (let w = 0; w < SPRING; w++) need += eat(w); // the winter weeks eat more
     s.food = Math.ceil(need) + 1;
     checkGoal(s, events);
-    expect(events).toEqual([goalEvent(0)]);
-    expect(GOALS[0].unlock).toBe('granary');
+    expect(events).toEqual([goalEvent(FOOD)]);
+    expect(GOALS[FOOD].unlock).toBe('granary');
     expect(s.unlocked).toContain('granary');
-    expect(s.silver).toBe(GOALS[0].reward);
-    expect(currentGoal(s)).toBe(GOALS[1]);
+    expect(s.silver).toBe(GOALS[FOOD].reward);
+    expect(currentGoal(s)).toBe(GOALS[FOOD + 1]);
   });
 
-  it('goal 1 is not met by an empty city (everyone left)', () => {
-    const s = emptyGame({ goalIndex: 0, food: 40, unlocked: [...RULES.startUnlocked] });
-    expect(goalProgress(s, GOALS[0])).toBe(0);
+  it('goal 2 is not met by an empty city (everyone left)', () => {
+    const s = emptyGame({ goalIndex: FOOD, food: 40, unlocked: [...RULES.startUnlocked] });
+    expect(goalProgress(s, GOALS[FOOD])).toBe(0);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events).toEqual([]);
   });
 
-  it('goal 1 is not met with nobody living in the city, even with a family on the way', () => {
-    const s = emptyGame({ goalIndex: 0, food: 40, week: W + 1, unlocked: [...RULES.startUnlocked] }); // winter
+  it('goal 2 is not met with nobody living in the city, even with a family on the way', () => {
+    const s = emptyGame({ goalIndex: FOOD, food: 40, week: W + 1, unlocked: [...RULES.startUnlocked] }); // winter
     const plot = put(s, 'house', ROADSIDE, 27);
-    s.families.push({ id: 999, houseId: plot.id, path: [{ x: ROAD_X, y: 27 }, { x: ROADSIDE, y: 27 }], step: 0 });
+    const man = person(s, { houseId: null, sex: 'm', age: 30, caravan: 1 });
+    const woman = person(s, { houseId: null, sex: 'f', age: 30, caravan: 1 });
+    s.families.push({ id: 999, houseId: plot.id, members: [man.id, woman.id], path: [{ x: ROAD_X, y: 27 }, { x: ROADSIDE, y: 27 }], step: 0 });
     expect(computeEconomy(s).residents).toBe(0);
-    expect(goalProgress(s, GOALS[0])).toBe(0);
+    expect(goalProgress(s, GOALS[FOOD])).toBe(0);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events).toEqual([]);
     // The family arrives this week, and 40 food lasts its tent past the spring: the goal is met.
     const week = stepWeek(s, constRng(0.99));
     expect(plot.level).toBe(1);
-    expect(week).toContainEqual(goalEvent(0));
+    expect(week).toContainEqual(goalEvent(FOOD));
   });
 
-  it('goal 1 also counts the fisher food', () => {
-    const s = emptyGame({ goalIndex: 0, food: 10 });
+  it('goal 2 also counts the fisher food', () => {
+    const s = emptyGame({ goalIndex: FOOD, food: 10 });
     put(s, 'house', ROADSIDE, 27, 2);
-    const before = goalProgress(s, GOALS[0]);
+    const before = goalProgress(s, GOALS[FOOD]);
     const f = put(s, 'fisher', besideRiver(s, 30), 30);
     expect(f.connected).toBe(true);
-    expect(goalProgress(s, GOALS[0])).toBeGreaterThan(before);
+    expect(goalProgress(s, GOALS[FOOD])).toBeGreaterThan(before);
+  });
+
+  it('every "milestone" goal is done once its milestone is reached, also when it was reached before', () => {
+    GOALS.forEach((goal, i) => {
+      if (goal.type !== 'milestone') return;
+      const s = emptyGame({ goalIndex: i, silver: 0 });
+      expect(goalProgress(s, goal)).toBe(0);
+      const events: GameEvent[] = [];
+      checkGoal(s, events);
+      expect(events, `goal ${i + 1}`).toEqual([]);
+      s.milestones.push(goal.milestone!);
+      expect(goalProgress(s, goal)).toBe(1);
+      checkGoal(s, events);
+      expect(events, `goal ${i + 1}`).toEqual([goalEvent(i)]);
+      expect(s.silver).toBe(goal.reward);
+      if (goal.unlock) expect(s.unlocked).toContain(goal.unlock);
+    });
+    // A milestone reached long before its goal comes (a birth while goal 1 is open) is done at once.
+    const s = emptyGame({ goalIndex: 1, food: 1000 });
+    put(s, 'granary', EAST, 36);
+    s.food = foodCapacity(s);
+    put(s, 'house', ROADSIDE, 27, 1);
+    s.milestones.push('firstBirth');
+    const events: GameEvent[] = [];
+    checkGoal(s, events); // goal 2: food until spring
+    checkGoal(s, events); // goal 3: first birth, already reached
+    expect(events.map((e) => e.type === 'goal' && e.index)).toEqual([1, 2]);
   });
 
   it('every "houses" goal counts connected houses of its level or better', () => {
@@ -168,12 +206,11 @@ describe('goals', () => {
     });
   });
 
-  it('every "residents" goal needs its target of residents (from its year on)', () => {
+  it('every "residents" goal needs its target of people living in the city', () => {
     GOALS.forEach((goal, i) => {
       if (goal.type !== 'residents') return;
-      const week = ((goal.fromYear ?? 1) - 1) * WEEKS_PER_YEAR;
-      const s = emptyGame({ goalIndex: i, silver: 0, week, unlocked: ['road', 'house'] });
-      const n = Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents);
+      const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house'] });
+      const n = Math.ceil(goal.target / HOUSE_LEVELS[TOP].capacity);
       bigHouses(s, n - 1);
       expect(computeEconomy(s).residents).toBeLessThan(goal.target);
       const events: GameEvent[] = [];
@@ -192,31 +229,27 @@ describe('goals', () => {
     put(s, 'house', ROADSIDE, 27, TOP);
     expect(stepWeek(s, constRng(0.99))).not.toContainEqual(expect.objectContaining({ type: 'victory' }));
     put(s, 'temple', EAST, 30);
-    expect(stepWeek(s, constRng(0.99))).toContainEqual({ type: 'victory', week: 43, residents: HOUSE_LEVELS[TOP].residents });
+    expect(stepWeek(s, constRng(0.99))).toContainEqual({ type: 'victory', week: 43, residents: HOUSE_LEVELS[TOP].capacity });
     expect(s.won).toBe(true);
     expect(currentGoal(s)).toBeUndefined();
   });
 
   it('completes one goal per check, even when the next one is already met', () => {
-    // Three big houses meet "3 mud-brick houses", "60 residents" and "3 stone houses" at once.
-    const s = emptyGame({ goalIndex: 1 });
-    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, TOP);
+    // Four big houses meet "3 mud-brick houses" and "30 residents" at once.
+    const s = emptyGame({ goalIndex: 3 });
+    for (const y of [27, 29, 31, 33]) put(s, 'house', ROADSIDE, y, TOP);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(2);
-    checkGoal(s, events);
-    expect(s.goalIndex).toBe(3);
-    checkGoal(s, events);
     expect(s.goalIndex).toBe(4);
-    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([1, 2, 3]);
+    checkGoal(s, events);
+    expect(s.goalIndex).toBe(5);
+    checkGoal(s, events); // the first caravan has not come
+    expect(s.goalIndex).toBe(5);
+    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([3, 4]);
   });
 });
 
-describe('goals that wait for their year (fromYear)', () => {
-  const i = GOALS.findIndex((g) => g.fromYear);
-  const goal = GOALS[i];
-  const opens = (goal.fromYear! - 1) * WEEKS_PER_YEAR; // first week of that year
-
+describe('years and the temple goal', () => {
   it('yearOf counts years from 1, one every WEEKS_PER_YEAR weeks', () => {
     expect(yearOf(0)).toBe(1);
     expect(yearOf(WEEKS_PER_YEAR - 1)).toBe(1);
@@ -224,49 +257,35 @@ describe('goals that wait for their year (fromYear)', () => {
     expect(yearOf(7 * WEEKS_PER_YEAR)).toBe(8);
   });
 
-  it('goal 9 (500 residents) waits for the Year 8, even with the residents long reached', () => {
-    expect(goal.unlock).toBeUndefined();
-    expect(goal.fromYear).toBe(8);
-    const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house'], week: 0 });
-    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
-    expect(goalProgress(s, goal)).toBeGreaterThanOrEqual(goalTarget(s, goal));
-    const events: GameEvent[] = [];
-    for (const week of [0, WEEKS_PER_YEAR, opens - 1]) {
-      s.week = week;
-      expect(goalOpen(s, goal), `week ${week}`).toBe(false);
-      checkGoal(s, events);
-    }
-    expect(events).toEqual([]);
-    expect(s.goalIndex).toBe(i);
-    s.week = opens;
-    expect(goalOpen(s, goal)).toBe(true);
-    checkGoal(s, events);
-    expect(events).toEqual([goalEvent(i)]);
-    expect(s.goalIndex).toBe(i + 1);
+  it('a goal with fromYear waits for that year; goals without it are open from the first week', () => {
+    const s = emptyGame({ week: 0 });
+    for (const g of GOALS) expect(goalOpen(s, g)).toBe(true);
+    const later = { ...GOALS[4], fromYear: 3 };
+    s.week = 2 * WEEKS_PER_YEAR - 1;
+    expect(goalOpen(s, later)).toBe(false);
+    s.week++;
+    expect(goalOpen(s, later)).toBe(true);
   });
 
-  it('in stepWeek the goal is done the week the Year 8 begins', () => {
-    const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house'], week: opens - 2, food: 1000 });
-    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
-    const never = constRng(0.99);
-    expect(stepWeek(s, never).some((e) => e.type === 'goal')).toBe(false); // to the last week of Year 7
-    expect(stepWeek(s, never)).toContainEqual(goalEvent(i)); // to the first week of Year 8
-    expect(yearOf(s.week)).toBe(goal.fromYear);
+  it('the temple goal is the one right before the victory (150 residents)', () => {
+    const i = GOALS.length - 2;
+    expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal: GOALS[i] });
+    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 150 });
   });
 
-  it('a temple built before goal 9 wins the week goal 9 is met (and says what it waits for)', () => {
-    expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal });
-    expect(i + 1).toBe(GOALS.length - 1); // the goal right before the victory
-    const s = emptyGame({ goalIndex: i, silver: 0, unlocked: ['road', 'house', 'temple'], week: opens - 2, food: 1000 });
+  it('a temple built before the last goal wins the week it is met (and says what it waits for)', () => {
+    const i = GOALS.length - 2;
+    const goal = GOALS[i];
+    const s = emptyGame({ goalIndex: i, silver: 0, food: 100, unlocked: ['road', 'house', 'temple'] });
     expect(templeWaitsForGoal(s)).toBe(false); // no temple yet
     put(s, 'temple', EAST, 30);
     expect(templeWaitsForGoal(s)).toBe(true);
-    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].residents));
     const never = constRng(0.99);
-    expect(stepWeek(s, never).some((e) => e.type === 'goal' || e.type === 'victory')).toBe(false); // Year 7
-    const events = stepWeek(s, never); // the Year 8 begins
+    expect(stepWeek(s, never).some((e) => e.type === 'goal' || e.type === 'victory')).toBe(false);
+    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].capacity));
+    const events = stepWeek(s, never);
     expect(events).toContainEqual(goalEvent(i));
-    expect(events).toContainEqual(expect.objectContaining({ type: 'victory', week: opens }));
+    expect(events).toContainEqual(expect.objectContaining({ type: 'victory', week: 2 })); // the second week
     expect(s.won).toBe(true);
     expect(templeWaitsForGoal(s)).toBe(false);
   });
@@ -275,10 +294,5 @@ describe('goals that wait for their year (fromYear)', () => {
     const s = emptyGame({ goalIndex: GOALS.length - 1 });
     put(s, 'temple', EAST, 30);
     expect(templeWaitsForGoal(s)).toBe(false);
-  });
-
-  it('goals without fromYear are open from the first week', () => {
-    const s = emptyGame({ week: 0 });
-    for (const g of GOALS) if (!g.fromYear) expect(goalOpen(s, g)).toBe(true);
   });
 });

@@ -24,6 +24,8 @@ export interface UiHost {
   showSpots(kind: BuildableKind | 'road', target: Building): void;
   /** Demolishes what is on a cell (the Demolir button of the tapped building's balloon). */
   demolishAt(cell: Cell): void;
+  /** Raises the building on a cell one level (Melhorar in its balloon). */
+  upgradeAt(cell: Cell): void;
   /** Closes the tapped building's balloon. */
   deselect(): void;
 }

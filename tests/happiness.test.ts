@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, happinessOn, computeEconomy, familyFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, stepWeek, taxFactor } from '../src/core';
-import { foodCapacity, GOALS, unlockingGoal } from '../src/core';
-import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { balloonNeed, happinessOn, computeEconomy, birthFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, taxFactor } from '../src/core';
+import { GOALS, unlockingGoal } from '../src/core';
+import { atHarvest, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
 const kinds = (h: { parts: { kind: string }[] }) => h.parts.map((p) => p.kind);
@@ -73,16 +73,16 @@ describe('house happiness', () => {
 });
 
 describe('happiness effects', () => {
-  it('taxes and family chance are plain while content and scale toward the extremes', () => {
-    for (const f of [taxFactor, familyFactor]) {
+  it('taxes and birth chance are plain while content and scale toward the extremes', () => {
+    for (const f of [taxFactor, birthFactor]) {
       expect(f(H.sad)).toBe(1);
       expect(f(50)).toBe(1);
       expect(f(H.happy - 1)).toBe(1);
     }
     expect(taxFactor(100)).toBeCloseTo(H.taxMax);
     expect(taxFactor(0)).toBeCloseTo(H.taxMin);
-    expect(familyFactor(100)).toBeCloseTo(H.familyMax);
-    expect(familyFactor(0)).toBeCloseTo(H.familyMin);
+    expect(birthFactor(100)).toBeCloseTo(H.birthMax);
+    expect(birthFactor(0)).toBeCloseTo(H.birthMin);
     expect(taxFactor(H.happy)).toBe(1);
     expect(taxFactor((H.happy + 100) / 2)).toBeCloseTo((1 + H.taxMax) / 2);
   });
@@ -121,36 +121,11 @@ describe('happiness effects', () => {
   it('idle share counts workers without a job', () => {
     const s = emptyGame();
     expect(idleShare(s)).toBe(0);
-    put(s, 'house', ROADSIDE, 27, 3); // 5 workers
+    put(s, 'house', ROADSIDE, 27, 3, false, 5); // 5 workers
     expect(idleShare(s)).toBe(1);
     put(s, 'field', westOf('field'), 29); // 2 jobs at harvest
     atHarvest(s);
     expect(idleShare(s)).toBe(0.6);
-  });
-
-  it('a happy city draws families faster, a sad one slower', () => {
-    const chance = RULES.familyChance;
-    const town = (happy: boolean) => {
-      const s = emptyGame();
-      for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 1);
-      put(s, 'plaza', EAST, 27); // a plaza for the 3 houses
-      put(s, 'workshop', EAST, 36);
-      if (happy) for (const y of [29, 32]) put(s, 'park', EAST, y + 1);
-      put(s, 'granary', EAST, 40);
-      s.food = foodCapacity(s);
-      put(s, 'house', ROADSIDE, 40);
-      put(s, 'plaza', ROADSIDE, 42); // a plaza for the plot too
-      return s;
-    };
-    const happy = town(true);
-    const f = familyFactor(computeEconomy(happy).happiness);
-    expect(f).toBeGreaterThan(1);
-    stepWeek(happy, constRng(chance * f - 0.01));
-    expect(happy.families).toHaveLength(1);
-
-    const plain = town(false);
-    stepWeek(plain, constRng(chance + 0.01));
-    expect(plain.families).toHaveLength(0);
   });
 
   it('counts the houses in each mood', () => {
@@ -158,6 +133,7 @@ describe('happiness effects', () => {
     put(s, 'house', ROADSIDE, 27, 1); // sacred + park: happy
     put(s, 'park', EAST, 27);
     put(s, 'workshop', EAST, 30); // jobs for all
+    put(s, 'workshop', EAST, 33);
     put(s, 'house', ROADSIDE, 40, 1); // nothing: content
     put(s, 'house', ROADSIDE, 34); // empty plot: not counted
     expect(computeEconomy(s).moods).toEqual({ happy: 1, neutral: 1, sad: 0 });
@@ -196,7 +172,7 @@ describe('happiness on screen (core data)', () => {
 });
 
 describe('happiness before the park', () => {
-  it('is off until the park is unlocked: content, no reasons, plain tax and families', () => {
+  it('is off until the park is unlocked: content, no reasons, plain tax and births', () => {
     const s = emptyGame({ famine: true });
     s.unlocked = s.unlocked.filter((k) => k !== 'park');
     expect(happinessOn(s)).toBe(false);
@@ -204,21 +180,22 @@ describe('happiness before the park', () => {
     expect(houseHappiness(s, b, 1)).toEqual({ value: H.base, mood: 'neutral', parts: [] });
     const e = computeEconomy(s);
     expect(e.taxes).toBe(HOUSE_LEVELS[1].tax);
-    expect(familyFactor(e.happiness)).toBe(1);
+    expect(birthFactor(e.happiness)).toBe(1);
     expect(balloonNeed(s, b)).not.toBe('sad');
     s.unlocked.push('park');
     expect(happinessOn(s)).toBe(true);
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 5), not before', () => {
-    expect(unlockingGoal('park')).toBe(5);
+  it('turns on with the goal that unlocks the park (goal 7), not before', () => {
+    const n = unlockingGoal('park')!;
+    expect(n).toBe(7);
     expect(RULES.startUnlocked).not.toContain('park');
     const s = emptyGame();
     s.unlocked = [...RULES.startUnlocked];
-    for (const g of GOALS.slice(0, 4)) if (g.unlock) s.unlocked.push(g.unlock);
+    for (const g of GOALS.slice(0, n - 1)) if (g.unlock) s.unlocked.push(g.unlock);
     expect(happinessOn(s)).toBe(false);
-    s.unlocked.push(GOALS[4].unlock!);
+    s.unlocked.push(GOALS[n - 1].unlock!);
     expect(happinessOn(s)).toBe(true);
   });
 });

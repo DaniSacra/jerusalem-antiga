@@ -71,10 +71,11 @@ describe('upkeep and debt', () => {
     const s = emptyGame({ food: 1000 });
     const b = put(s, 'house', ROADSIDE, 27, 3);
     run(s, 1);
-    expect(s.peakPopulation).toBe(10);
-    b.level = 1;
+    expect(s.peakPopulation).toBe(6);
+    s.people.splice(0, 3); // three leave
     run(s, 1);
-    expect(s.peakPopulation).toBe(10);
+    expect(s.peakPopulation).toBe(6);
+    void b;
   });
 });
 
@@ -88,19 +89,19 @@ describe('alerts', () => {
     ]);
     s.unlocked.push('workshop');
     const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs
-    for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents, 15 workers
-    const tax = 5 * HOUSE_LEVELS[2].tax;
+    for (let k = 0; k < 2; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2, false, 9); // crowded: 18 adults
+    const tax = 2 * HOUSE_LEVELS[2].tax;
     expect(tax).toBeLessThan(2 * U);
-    // (30 residents and no food buildings: the food warning shows too, tested in survival.test.ts)
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([
+    // (18 residents and no food buildings: the food and births warnings show too, tested elsewhere)
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: tax - 2 * U, costliest: 'market', upkeep: 2 * U }, // taxes - two markets
-      { kind: 'unemployed', count: 9, workshopsFull: false },
+      { kind: 'unemployed', count: 12, workshopsFull: false },
     ]);
     s.silver = 0;
     s.debtWeeks = 0;
     s.buildings = s.buildings.filter((b) => b !== second);
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12, workshopsFull: false }]); // balance tax - U > 0, 15 workers for 3 jobs
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([{ kind: 'unemployed', count: 15, workshopsFull: false }]); // balance tax - U > 0, 18 workers for 3 jobs
   });
 
   it('the unemployment alert says when the workshops already give their whole field bonus', () => {

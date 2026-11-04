@@ -1,10 +1,12 @@
-import { BUILDINGS, dimsOf, RULES } from './data';
+import { BUILDINGS, dimsOf, newBuilding, nextLevelOf, RULES } from './data';
+import { rollUpWeeks } from './houses';
+import { leaveHouse } from './people';
 import { borderCells, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
-import type { ActionResult, BuildableKind, Building, Cell, Dims, FailReason, GameState, Placeable, Rng } from './types';
+import type { ActionResult, BuildableKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -158,10 +160,12 @@ export function place(s: GameState, kind: Placeable, x: number, y: number, rotat
     s.roads[indexOf(s, x, y)] = true;
   } else {
     const id = s.nextId++;
-    const b: Building = { id, kind, x, y, ...placeSize(kind, rotated), level: 0, upStreak: 0, downStreak: 0, connected: false, variant: 0, mirrored: false, built: s.week };
+    const b = newBuilding(id, kind, { x, y, ...placeSize(kind, rotated) }, s.week);
     s.buildings.push(b);
     for (const c of cellsOf(b)) s.grid[indexOf(s, c.x, c.y)] = b;
-    rollLook(s, b, rng ?? createRng(id));
+    const r = rng ?? createRng(id);
+    rollLook(s, b, r);
+    if (kind === 'house') rollUpWeeks(b, r);
   }
   refreshCity(s);
   return r;
@@ -178,13 +182,14 @@ export function checkClear(s: GameState, x: number, y: number): ActionResult {
   return s.silver < RULES.treeClearCost ? fail('silver') : OK;
 }
 
-/** Removes a building or road (no refund) or cuts a tree (costs silver). */
+/** Removes a building or road (no refund) or cuts a tree (costs silver). The family of a demolished house leaves the city. */
 export function clearCell(s: GameState, x: number, y: number): ActionResult {
   const r = checkClear(s, x, y);
   if (!r.ok) return r;
   const i = indexOf(s, x, y);
   const b = s.grid[i];
   if (b) {
+    if (b.kind === 'house') leaveHouse(s, b.id, 'demolished');
     s.buildings = s.buildings.filter((o) => o !== b);
     for (const c of cellsOf(b)) s.grid[indexOf(s, c.x, c.y)] = null;
   } else if (s.roads[i]) {
@@ -194,5 +199,29 @@ export function clearCell(s: GameState, x: number, y: number): ActionResult {
     s.silver -= RULES.treeClearCost;
   }
   refreshCity(s);
+  return r;
+}
+
+/** Checks raising the service building at (x, y) one level: it must have a next level and the silver for it. */
+export function checkUpgrade(s: GameState, x: number, y: number): ActionResult {
+  const b = inBounds(s, x, y) ? s.grid[indexOf(s, x, y)] : null;
+  const next = b && nextLevelOf(b);
+  if (!next) return fail('locked');
+  if (s.silver < 0) return fail('debt');
+  return s.silver < next.cost ? fail('silver') : OK;
+}
+
+/**
+ * Raises a granary, market or workshop one level at once (no refund on demolishing): pays the
+ * level's cost; its stats and upkeep change (see `statOf`). Pushes a `buildingUp` event.
+ */
+export function upgradeBuilding(s: GameState, x: number, y: number, events: GameEvent[] = []): ActionResult {
+  const r = checkUpgrade(s, x, y);
+  if (!r.ok) return r;
+  const b = s.grid[indexOf(s, x, y)]!;
+  s.silver -= nextLevelOf(b)!.cost;
+  b.level++;
+  refreshCity(s);
+  events.push({ type: 'buildingUp', x: b.x, y: b.y, level: b.level });
   return r;
 }

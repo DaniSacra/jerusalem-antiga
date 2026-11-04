@@ -1,8 +1,8 @@
-import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
+import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, newBuilding, RULES, statOf } from './data';
 import { clearCell, placeSpots } from './actions';
 import { serviceOf } from './coverage';
-import { computeEconomy, foodPerResident, round2, type Economy } from './economy';
-import { familyBlock, type FamilyBlock } from './families';
+import { computeEconomy, round2, type Economy } from './economy';
+import { birthBlock, type BirthBlock } from './life';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
@@ -26,13 +26,13 @@ export interface CityReadout {
   eco: Economy;
   /** `foodForecast` for a year. */
   forecast: FoodForecast;
-  /** Why no new family comes (`familyBlock`). */
-  block: FamilyBlock | null;
+  /** Why no child can be born (`birthBlock`). */
+  births: BirthBlock | null;
 }
 
 export function readCity(s: GameState): CityReadout {
   const eco = computeEconomy(s);
-  return { eco, forecast: foodForecast(s, eco), block: familyBlock(s, eco) };
+  return { eco, forecast: foodForecast(s, eco), births: birthBlock(s, eco) };
 }
 
 /** City level shown on the HUD: goals done + 1. */
@@ -63,7 +63,7 @@ export function calendar(week: number): { season: Season; year: number; week: nu
  * and production; the new coverage is left out).
  */
 export function balanceAfter(s: GameState, kind: BuildableKind): number {
-  const ghost: Building = { id: -1, kind, x: 0, y: 0, w: 1, h: 1, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: 0 };
+  const ghost = { ...newBuilding(-1, kind, { x: 0, y: 0, w: 1, h: 1 }, 0), connected: true };
   return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
 }
 
@@ -87,7 +87,7 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
   // With no spot the ghost stands off the map: no river or trees around it.
   const { x, y } = at ?? { x: -s.cols, y: -s.rows };
   const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
-  const ghost: Building = { id: -1, kind, x, y, w, h, level: 0, upStreak: 0, downStreak: 0, connected, variant: 0, mirrored: false, built: s.week };
+  const ghost = { ...newBuilding(-1, kind, { x, y, w, h }, s.week), connected };
   const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost] });
   const own = gatherFood(s, ghost) + fieldHarvest(s, ghost, s.week);
   return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), efficiency: eco.efficiency };
@@ -97,19 +97,15 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
 export function housesServed(s: GameState, b: Building): number | null {
   if (!serviceOf(b.kind)) return null;
   if (!b.connected) return 0;
-  const area = new Set(cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.w, b.h));
+  const area = new Set(cellsInRadius(s, b.x, b.y, statOf(b, 'radius'), b.w, b.h));
   return s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
 }
 
-/**
- * What a house gains on its next level (residents and base tax) and what it eats more a week at
- * this week's rate (winter included), or null at the top level.
- */
-export function upgradeGain(level: number, week: number): { residents: number; tax: number; food: number } | null {
+/** What a house gains on its next level (room for more people and base tax), or null at the top level. */
+export function upgradeGain(level: number): { capacity: number; tax: number } | null {
   const cur = HOUSE_LEVELS[level];
   const next = HOUSE_LEVELS[level + 1];
-  const eats = (l: number) => HOUSE_LEVELS[l].residents * foodPerResident(l, week);
-  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(level + 1) - eats(level)) } : null;
+  return next ? { capacity: next.capacity - cur.capacity, tax: round2(next.tax - cur.tax) } : null;
 }
 
 export interface Spot extends Cell {
@@ -152,7 +148,8 @@ export function foodLostIfRemoved(s: GameState, x: number, y: number): number {
   if (!s.buildings.some((o) => o.connected && BUILDINGS[o.kind].storage)) return 0;
   // A copy whose buildings are new objects (refreshing it must not touch `connected` in `s`).
   const twin = new Map(s.buildings.map((o) => [o, { ...o }]));
-  const copy: GameState = { ...s, roads: [...s.roads], grid: s.grid.map((o) => (o ? twin.get(o)! : o)), buildings: [...twin.values()] };
+  // No people: demolishing a house in the copy must not send anyone away in `s`.
+  const copy: GameState = { ...s, people: [], families: [], roads: [...s.roads], grid: s.grid.map((o) => (o ? twin.get(o)! : o)), buildings: [...twin.values()] };
   if (!clearCell(copy, x, y).ok) return 0;
   return round2(Math.max(0, s.food - foodCapacity(copy)));
 }

@@ -4,13 +4,14 @@ import {
   costOf,
   createGame,
   createRng,
-  familyBlock,
   foodCapacity,
   foodLastsToHarvest,
-  foodPerResident,
+  freeHouse,
+  plainEating,
+  plazaHouseSpots,
+  waitingCouples,
   foodSpot,
   GOALS,
-  HOUSE_LEVELS,
   needMet,
   place,
   placeSpots,
@@ -23,6 +24,7 @@ import {
   type Cell,
   type GameState,
 } from '../src/core';
+import { besideRiver, constRng, emptyGame, fill, put } from './helpers';
 
 /**
  * Viability: a minimal plan, the one the tutorial teaches, must get through the first year on
@@ -31,8 +33,8 @@ import {
  *
  * The plan: road to the best food spot and a fisher or gatherer there, a field, a plaza for the
  * caravan tents; then each week, with the silver it has, the granary once unlocked, more food when
- * the forecast does not reach the spring, a plot near a plaza when a family could come, and a
- * plaza for a tent without one. It never spends below 0.
+ * the forecast does not reach the spring, a plot near a plaza when a couple waits for a house,
+ * and a plaza for a tent without one. It never spends below 0.
  */
 const altar = RULES.map.altar;
 const near = (to: Cell) => (a: Cell, b: Cell) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y));
@@ -58,7 +60,7 @@ function plazaFor(s: GameState, house: Building): boolean {
   return build(s, 'plaza', spot, spot?.rotated);
 }
 
-/** A plot near a plaza, so the tent that comes can become a mud-brick house. */
+/** A plot near a plaza, so the couple's tent can become a mud-brick house. */
 function addPlot(s: GameState): boolean {
   const plazas = s.buildings.filter((b) => b.kind === 'plaza' && b.connected);
   if (!plazas.length) return false;
@@ -74,7 +76,8 @@ function playWeek(s: GameState) {
   if (bare) plazaFor(s, bare);
   if (s.unlocked.includes('granary') && !has('granary')) build(s, 'granary', placeSpots(s, 'granary').sort(near(altar))[0]);
   if (!foodLastsToHarvest(s)) addFood(s);
-  if (familyBlock(s) === 'noPlot' && s.silver >= costOf('house') + 10) addPlot(s);
+  const free = s.buildings.filter((b) => freeHouse(s, b)).length;
+  if (waitingCouples(s).length > free && s.silver >= costOf('house') + 10) addPlot(s);
 }
 
 interface Run {
@@ -109,9 +112,11 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
     expect(runs.filter((r) => r.firstFamine !== null && r.firstFamine < 26)).toEqual([]);
   });
 
-  it('goal 1 (food until the spring, which unlocks the granary) is done in the first autumn', () => {
-    expect(GOALS[0].type).toBe('foodUntilSpring');
+  it('goal 1 (the first wedding) is done in the first autumn and goal 2 (food until the spring) before the spring', () => {
+    expect(GOALS[0]).toMatchObject({ type: 'milestone', milestone: 'firstWedding' });
+    expect(GOALS[1].type).toBe('foodUntilSpring');
     expect(runs.filter((r) => !(r.goalWeeks[0] < RULES.weeksPerSeason))).toEqual([]);
+    expect(runs.filter((r) => !(r.goalWeeks[1] < 2 * RULES.weeksPerSeason))).toEqual([]);
   });
 
   it('goals 1 and 2 are done within the first year', () => {
@@ -139,15 +144,53 @@ describe('invariants of the start', () => {
     const fieldWeek = (BUILDINGS.field.harvest ?? 0) / (3 * W);
     for (const seed of SEEDS) {
       const s = createGame(createRng(seed));
-      const tents = s.start.families;
       const spot = foodSpot(s)!;
-      const eats = (week: number) => tents * HOUSE_LEVELS[1].residents * foodPerResident(1, week);
+      const eats = (week: number) => plainEating(s.people, week);
       // A field built in the first autumn and the fisher or gatherer fill the store before the winter...
       expect(fieldWeek + spot.food, `seed ${seed}`).toBeGreaterThan(eats(0));
       const stored = Math.min(RULES.baseFoodStorage, s.food + (fieldWeek + spot.food - eats(0)) * W);
-      // ...and the store and the spot's winter food cover the winter, when the tents eat more.
-      expect(stored + spot.food * W, `seed ${seed}`).toBeGreaterThanOrEqual(eats(W) * W);
+      // ...and the store and the spot's winter food (cut by winterFactor) cover the winter, when the tents eat more.
+      const winterSpot = spot.food * BUILDINGS[spot.kind].gather!.winterFactor!;
+      expect(stored + winterSpot * W, `seed ${seed}`).toBeGreaterThanOrEqual(eats(W) * W);
       expect(foodCapacity(s)).toBe(RULES.baseFoodStorage);
+    }
+  });
+});
+
+describe('a granary of level 1 is enough for a city of 15 houses (A8)', () => {
+  it('15 mud-brick houses (~52 people), 2 fields, a fisher, a gatherer and one full granary: no famine until the spring', () => {
+    const W = RULES.weeksPerSeason;
+    const s = emptyGame({ week: W }); // the first week of winter
+    s.unlocked = Object.keys(BUILDINGS) as BuildableKind[];
+    const plazas = placeSpots(s, 'plaza').sort(near(altar));
+    put(s, 'fisher', besideRiver(s, 30), 30);
+    put(s, 'granary', placeSpots(s, 'granary').sort(near(altar))[0].x, placeSpots(s, 'granary').sort(near(altar))[0].y);
+    for (let k = 0; k < 2; k++) {
+      const c = placeSpots(s, 'field').sort(near(altar))[0];
+      put(s, 'field', c.x, c.y);
+    }
+    const g = placeSpots(s, 'gatherer').sort(near(altar))[0];
+    put(s, 'gatherer', g.x, g.y);
+    let people = 0;
+    for (let k = 0; k < 15; k++) {
+      let spot = plazaHouseSpots(s).sort(near(altar))[0];
+      if (!spot) {
+        const p = placeSpots(s, 'plaza').sort(near(altar))[0] ?? plazas[0];
+        put(s, 'plaza', p.x, p.y);
+        spot = plazaHouseSpots(s).sort(near(altar))[0];
+      }
+      const n = k < 7 ? 4 : 3; // 7 × 4 + 8 × 3 = 52
+      fill(s, put(s, 'house', spot.x, spot.y, 2, false, 0), n);
+      people += n;
+    }
+    expect(people).toBe(52);
+    expect(s.buildings.filter((b) => b.kind === 'house' && b.level === 2 && b.connected)).toHaveLength(15);
+    expect(s.buildings.filter((b) => b.kind === 'granary')).toHaveLength(1);
+    s.food = foodCapacity(s);
+    const never = constRng(0.99);
+    for (let k = 0; k < W; k++) {
+      stepWeek(s, never);
+      expect(s.famine, `week ${k}`).toBe(false);
     }
   });
 });

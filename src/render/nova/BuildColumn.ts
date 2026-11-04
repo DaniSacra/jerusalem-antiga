@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, upkeepCharged, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
@@ -153,7 +153,7 @@ export class BuildColumn {
   private showToolBalloon(s: GameState, kind: BuildableKind) {
     const d = BUILDINGS[kind];
     const N = T.nova;
-    const head = [N.price(d.cost, d.upkeep ?? 0, upkeepCharged(s)), ...(!PHONE && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
+    const head = [N.price(d.cost, d.upkeep ?? 0), ...(!PHONE && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
     const lines: Line[] = [
       { text: d.name, size: S.num },
       { text: head, color: NOVA_CSS.gold },

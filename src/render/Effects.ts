@@ -18,7 +18,7 @@ const ADD = Phaser.BlendModes.ADD;
  */
 export function milestoneSite(s: GameState, id: MilestoneId, ups: ReadonlyMap<number, Cell>): Building {
   const altar = s.buildings.find((b) => b.kind === 'altar')!;
-  const level = id === 'firstFamily' ? 1 : id === 'firstMud' ? 2 : id === 'firstStone' ? 3 : 0;
+  const level = id === 'firstWedding' ? 1 : id === 'firstMud' ? 2 : id === 'firstStone' ? 3 : 0;
   const cell = level ? ups.get(level) : undefined;
   const house = cell && s.grid[indexOf(s, cell.x, cell.y)];
   if (house) return house;

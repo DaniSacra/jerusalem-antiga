@@ -1,10 +1,10 @@
-import { GOALS, RULES } from './data';
+import { GOALS } from './data';
 import { computeEconomy } from './economy';
 import { foodForecast } from './forecast';
 import { weeksToHarvest } from './harvest';
 import { countHousesAtLeast } from './houses';
 import { WEEKS_PER_YEAR } from './seasons';
-import type { GameEvent, GameState, GoalDef, Placeable } from './types';
+import type { GameEvent, GameState, GoalDef, MilestoneId, Placeable } from './types';
 
 export const currentGoal = (s: GameState): GoalDef | undefined => GOALS[s.goalIndex];
 
@@ -12,6 +12,7 @@ export function goalProgress(s: GameState, goal: GoalDef): number {
   if (goal.type === 'residents') return computeEconomy(s).residents;
   if (goal.type === 'foodUntilSpring') return foodWeeksUntilSpring(s);
   if (goal.type === 'houses') return countHousesAtLeast(s, goal.level ?? 0);
+  if (goal.type === 'milestone') return goal.milestone && s.milestones.includes(goal.milestone) ? 1 : 0;
   return s.buildings.filter((b) => b.kind === goal.kind && b.connected).length;
 }
 
@@ -51,17 +52,22 @@ function completeGoal(s: GameState, events: GameEvent[]): boolean {
   } else {
     events.push({ type: 'goal', index, reward: goal.reward, unlock: goal.unlock });
   }
-  if (s.goalIndex === RULES.upkeepStartsAfterGoal) events.push({ type: 'upkeepStart' });
   return true;
 }
 
-const WAITS = GOALS.findIndex((g) => g.fromYear);
-
 /**
- * The goal a temple built early waits for (the one with `fromYear`), with its 1-based number. Once it
- * is met, the victory comes in the same week.
+ * The goal a temple built early waits for (the one before the victory), with its 1-based number.
+ * Once it is met, the victory comes in the same week.
  */
-export const TEMPLE_GOAL = { number: WAITS + 1, goal: GOALS[WAITS] };
+export const TEMPLE_GOAL = { number: VICTORY, goal: GOALS[VICTORY - 1] };
+
+/** Records a milestone the first time only (with its week and an event). */
+export function reach(s: GameState, id: MilestoneId, events: GameEvent[]) {
+  if (s.milestones.includes(id)) return;
+  s.milestones.push(id);
+  s.milestoneWeeks[id] = s.week;
+  events.push({ type: 'milestone', id });
+}
 
 /** A temple stands but goals before the victory are still open: the win waits for them. */
 export const templeWaitsForGoal = (s: GameState) =>

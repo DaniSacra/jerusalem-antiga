@@ -10,7 +10,7 @@ describe('stepWeek: resources', () => {
     put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content, plain tax
     stepWeek(s, never);
     const tent = HOUSE_LEVELS[1];
-    expect(s.food).toBeCloseTo(10 - tent.residents * tent.food);
+    expect(s.food).toBeCloseTo(10 - tent.capacity * RULES.people.food.adult);
     expect(s.silver).toBe(tent.tax);
     expect(s.week).toBe(1);
   });

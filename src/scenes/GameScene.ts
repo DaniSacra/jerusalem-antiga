@@ -25,7 +25,10 @@ import {
   templeSpotsNear,
   templeRoadSpot,
   templeWaitsForGoal,
-  reasonTool,
+  personById,
+  seasonOf,
+  upgradeBuilding,
+  BUILDINGS,
   type TempleSpot,
   type ActionResult,
   type BuildableKind,
@@ -35,7 +38,6 @@ import {
   type Economy,
   type GameEvent,
   type GameState,
-  type Placeable,
   type Rng,
 } from '../core';
 import { Ambient } from '../render/Ambient';
@@ -243,7 +245,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     // The weeks are the forecast's, the same the food pill and goal 1 show.
     const c = this.state.start;
     const weeks = this.city.forecast?.weeks ?? c.foodWeeks;
-    if (this.state.week === 0) ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
+    if (this.state.week === 0) {
+      ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
+      // The tutorial's house step speaks of the couple; out of it, a toast names them.
+      const [a, b] = c.couple.map((id) => personById(this.state, id)?.name);
+      if (a && b && !this.guide) ui.toast(T.wantToMarry(a, b), 'good', { ms: 5000 });
+    }
     this.selectTool('view');
   }
 
@@ -315,6 +322,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'goal':
           this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
+          if (e.unlock === 'market') this.guide?.marketUnlocked();
           if (e.unlock && T.unlocked[e.unlock]) this.ui?.toast(T.unlocked[e.unlock]!, 'good');
           if (e.unlock) this.ui?.unlocked(e.unlock);
           break;
@@ -323,7 +331,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'familyLeft':
           this.walkers.leave(this.state, e.x, e.y);
-          this.ui?.toast(T.familyLeft[e.reason], 'bad');
+          this.ui?.toast(T.familyLeft(e.reason, e.name), 'bad');
           break;
         case 'debtStart':
           this.ui?.toast(T.debtStart, 'bad');
@@ -359,9 +367,33 @@ export class GameScene extends Phaser.Scene implements UiHost {
             this.fx.ring(c.x, c.y, C.grain, 2.4);
           }
           break;
-        case 'upkeepStart':
-          if (!this.guide?.upkeepStarted()) this.ui?.toast(T.upkeepStart, 'info');
+        case 'wedding':
+          this.ui?.toast(T.wedding(this.nameOf(e.a), this.nameOf(e.b)), 'good');
           break;
+        case 'birth': {
+          const p = personById(this.state, e.id);
+          if (p) this.ui?.toast(T.birth(p.name, p.sex === 'f', this.nameOf(p.fatherId), this.nameOf(p.motherId)), 'info');
+          const c = footCenter(e.x, e.y);
+          this.fx.floatText(c.x, c.y - 30, '+1');
+          break;
+        }
+        case 'death':
+          this.ui?.toast(T.death(this.nameOf(e.id), e.age), 'info');
+          break;
+        case 'coupleLeft':
+          this.ui?.toast(T.coupleLeft(this.nameOf(e.a), this.nameOf(e.b)), 'bad');
+          break;
+        case 'caravanAnnounced':
+          this.ui?.toast(T.caravanAnnounced(e.families, seasonOf(e.week)), 'info');
+          break;
+        case 'caravanArrived':
+          this.ui?.toast(T.caravanArrived(e.housed, e.left), e.left ? 'info' : 'good');
+          break;
+        case 'buildingUp': {
+          const b = this.state.grid[indexOf(this.state, e.x, e.y)];
+          if (b) this.ui?.toast(T.buildingUp(BUILDINGS[b.kind].name, e.level), 'good');
+          break;
+        }
       }
     }
   }
@@ -438,6 +470,18 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   /** Demolishes what is on a cell (Demolir in the tapped building's balloon). */
+  /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */
+  upgradeAt(cell: Cell) {
+    const events: GameEvent[] = [];
+    const r = upgradeBuilding(this.state, cell.x, cell.y, events);
+    if (!r.ok) {
+      this.ui?.toast(T.fail[r.reason], 'bad');
+      return;
+    }
+    this.handleEvents(events);
+    this.refresh();
+  }
+
   demolishAt(cell: Cell) {
     const r = this.demolish(cell);
     if (!r.ok) {
@@ -547,15 +591,19 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   skipTutorial() {
     if (!this.guide) return;
-    if (this.guide.skip()) this.ui?.toast(T.upkeepStart, 'info');
+    this.guide.skip();
     this.guide = null;
     this.ui?.setTutorial(null);
     this.refresh();
   }
 
   tutorialOk() {
-    this.guide?.tap(this.state);
     this.refresh();
+  }
+
+  /** Name of a person alive or in the records ('' when unknown). */
+  private nameOf(id: number | null): string {
+    return personById(this.state, id)?.name ?? '';
   }
 
   private drawOverlay() {
@@ -590,12 +638,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.ui?.setTutorial(null);
       return;
     }
-    // The family step says why no family can come, or that one may come soon, until one walks in
-    // (the other steps keep their own sentence).
-    const block = step.id === 'family' ? this.city.block : null;
-    const stuck = block !== null && this.state.families.length === 0;
     if (step.id === 'house') this.houseHint = houseHint(this.state);
-    this.ui?.setTutorial(stuck ? T.familyBlockText(block!, this.state) : T.tutorial.step[step.id], step.id === 'upkeep');
+    this.ui?.setTutorial(T.tutorial.step[step.id], false);
     if (step.id !== this.pannedFor) {
       this.pannedFor = step.id;
       if (step.id === 'field') this.fieldHint = fieldHint(this.state);
@@ -623,7 +667,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Per frame: the arrow follows the map under the camera, and the camera follows the first family. */
   private updateTutorial(delta: number) {
     const step = this.guide!.step;
-    if (step?.id === 'family' && !this.followed && this.state.families.length) {
+    if (step?.id === 'wedding' && !this.followed && this.state.families.length) {
       this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
       this.followed = true;
     }
@@ -654,8 +698,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
   private tutorialTarget(): TutorialTarget | null {
     const step = this.guide!.step!;
-    if (step.id === 'upkeep') return this.ui?.anchor('silver') ?? null;
-    const tool = step.id === 'family' ? this.familyStepTool() : step.tool;
+    const tool = step.tool;
     if (tool && this.tool !== tool && this.tool !== step.alt) {
       const b = this.ui?.buttonOf(tool);
       if (!b) return null;
@@ -680,12 +723,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.input.activePointer.wasTouch && !DRAG_TOOLS.has(this.tool)) return { x: at.x, y: at.y + TOUCH_LIFT, dir: 'down' };
     const top = (HEIGHT[TEX.building(this.tool)] ?? 20) * this.cameras.main.zoom;
     return { x: at.x, y: at.y - top, dir: 'down' };
-  }
-
-  /** Family step: the unlocked tool that solves why no family comes (granary, field; fisher in winter), while none is on the way. */
-  private familyStepTool(): Placeable | null {
-    const tool = this.state.families.length ? null : reasonTool(this.city.block, this.state.week);
-    return tool && this.state.unlocked.includes(tool) ? tool : null;
   }
 
   private toScreen(wx: number, wy: number) {

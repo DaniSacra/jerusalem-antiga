@@ -50,5 +50,5 @@ const scale = (value: number, min: number, max: number) =>
 /** Tax multiplier of a house (happy houses pay more). */
 export const taxFactor = (value: number) => scale(value, H.taxMin, H.taxMax);
 
-/** Family arrival chance multiplier for the city's average happiness. */
-export const familyFactor = (cityValue: number) => scale(cityValue, H.familyMin, H.familyMax);
+/** Birth chance multiplier for the city's average happiness. */
+export const birthFactor = (cityValue: number) => scale(cityValue, H.birthMin, H.birthMax);

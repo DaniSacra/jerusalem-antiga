@@ -5,14 +5,14 @@
  *   npm run sim -- --brief | --json | --rows     # one line per bot, raw results, one line per run
  *   npm run sim -- --trace comum:1:80            # week by week of one game (bot:seed:weeks)
  *   npm run sim -- --profile savesTemple=true   # changes a bot profile field for this run
- *   npm run sim -- --set rules.workerShare=0.5 --drop-goal 4
+ *   npm run sim -- --set rules.people.birthChance=0.04 --drop-goal 4
  *        # tries balance numbers in memory only (src/data is not touched); --drop-goal is 1-based
  */
 import {
   computeEconomy,
   createGame,
   createRng,
-  familyBlock,
+  birthBlock,
   foodCapacity,
   foodForecast,
   GOALS,
@@ -73,7 +73,7 @@ for (const name of bots) {
     const won = rs.filter((r) => r.won);
     const g = (i: number) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)));
     const pc = (k: number) => `${f((100 * k) / n)}%`;
-    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeGap).length)}/${rs.filter((r) => r.templeGap !== null).length} (ready ${rs.filter((r) => r.templeRoom).length}, ≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | ${endPace(rs)} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
+    console.log(`${name.padEnd(9)} Y1 ${pc(rs.filter((r) => r.year1).length)} lost ${rs.filter((r) => r.lost).length} (<150wk ${rs.filter((r) => r.lost && r.weeks < 150).length}) won ${pc(won.length)} winwk ${f(med(won.map((r) => r.weeks)))} (${f(mins(med(won.map((r) => r.weeks))), 1)} min) | houses52 ${f(med(rs.map((r) => r.houses52)))} res52 ${f(med(rs.map((r) => r.residents52)))} | famWinter ${pc(rs.filter((r) => r.famineWinters > 0).length)} crisis ${pc(rs.filter((r) => r.crises > 0).length)} recov ${pc(rs.filter((r) => r.recoveries > 0).length)} | wsMax ${Math.max(...rs.map((r) => r.maxWorkshops))} idle>26 ${rs.filter((r) => r.silverIdle > 26).length} | J1 ${f(med(rs.map(gap56)))} J2 ${f(med(rs.map(perYear)))} J3 ${f(med(rs.map((r) => r.goalWait)))} M1 ${f(med(rs.map((r) => r.features0)))} M2 ${pc(rs.filter((r) => r.templeGap).length)}/${rs.filter((r) => r.templeGap !== null).length} (ready ${rs.filter((r) => r.templeRoom).length}, ≤6 roads ${rs.filter((r) => r.templeNear).length}) | clear$ ${f(med(rs.map((r) => r.clearSpent)))} big260 ${f(med(rs.map((r) => r.big260)))} | Y2 wed ${f(med(rs.map((r) => r.peopleByYear[1]?.weddings ?? NaN)))} births ${f(med(rs.map((r) => r.peopleByYear[1]?.births ?? NaN)))} | caravan stayed ${rs.reduce((a, r) => a + r.caravanHoused, 0)}/${rs.reduce((a, r) => a + r.caravanHoused + r.caravanLeft, 0)} | granMax ${Math.max(...rs.map((r) => r.maxGranaries))} | plaza ${f(med(rs.map((r) => r.built.plaza ?? 0)))} park ${f(med(rs.map((r) => r.built.park ?? 0)))} | ${endPace(rs)} | goals ${GOALS.map((_, i) => g(i)).join(' ')}`);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -88,8 +88,11 @@ for (const name of bots) {
   const bsum: Record<string, number> = {}; const b1: Record<string, number> = {};
   for (const r of rs) { for (const [k, v] of Object.entries(r.blocks)) bsum[k] = (bsum[k] ?? 0) + v; for (const [k, v] of Object.entries(r.blocksY1)) b1[k] = (b1[k] ?? 0) + v; }
   const pct = (o: Record<string, number>) => { const t = Object.values(o).reduce((a, v) => a + v, 0); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${f((100 * v) / t)}%`).join(', '); };
-  console.log(`family block Y1: ${pct(b1)}`);
-  console.log(`family block all: ${pct(bsum)}`);
+  console.log(`birth block Y1: ${pct(b1)}`);
+  console.log(`birth block all: ${pct(bsum)}`);
+  const py = (y: number, k: 'births' | 'deaths' | 'weddings') => f(med(rs.map((r) => r.peopleByYear[y]?.[k] ?? NaN)));
+  console.log(`people per year (med births/deaths/weddings): ${Array.from({ length: 8 }, (_, y) => `Y${y + 1} ${py(y, 'births')}/${py(y, 'deaths')}/${py(y, 'weddings')}`).join('  ')}`);
+  console.log(`caravans: families stayed ${rs.reduce((a, r) => a + r.caravanHoused, 0)} went on ${rs.reduce((a, r) => a + r.caravanLeft, 0)} | granaries max at once med ${f(med(rs.map((r) => r.maxGranaries)))} max ${Math.max(...rs.map((r) => r.maxGranaries))}`);
   console.log(`silver below 0: Y1 ${rs.filter((r) => r.debtY1).length}/${n}  Y2 ${rs.filter((r) => r.debtY2).length}/${n}  ever ${rs.filter((r) => r.debtEver).length}/${n} | longest wait on one goal med ${f(med(rs.map((r) => r.goalWait)))} max ${f(Math.max(...rs.map((r) => r.goalWait)))}  runs > 52 wk ${rs.filter((r) => r.goalWait > 52).length} (goals ${[...new Set(rs.filter((r) => r.goalWait > 52).map((r) => r.goalWaitIndex + 1))].sort((x, y) => x - y).join(',') || '-'})`);
   for (const fam of [...new Set(rs.map((r) => r.families0))].sort()) {
     const c = rs.filter((r) => r.families0 === fam);
@@ -103,7 +106,7 @@ for (const name of bots) {
   for (let y = 0; y < Math.min(years, 12); y++) {
     const o: Record<string, number> = {};
     for (const r of rs) for (const [k, v] of Object.entries(r.blocksByYear[y] ?? {})) o[k] = (o[k] ?? 0) + v;
-    console.log(`  family block Y${y + 1}: ${pct(o)}`);
+    console.log(`  birth block Y${y + 1}: ${pct(o)}`);
   }
   if (won.length) console.log(`houses per level at victory (med tent/mud/stone/big): ${[0, 1, 2, 3].map((l) => f(med(won.map((r) => r.levelsAtEnd[l])))).join('/')}`);
   console.log(`drought years med ${f(med(rs.map((r) => r.droughtYears)))}  famine weeks in dry years med ${f(med(rs.map((r) => r.famineAfterDrought)))}`);
@@ -130,7 +133,7 @@ if (args.includes('--trace')) {
     const bl = s.buildings.filter((b) => b.kind !== 'altar').map((b) => b.kind === 'house' ? 'h' + b.level : b.kind[0] + b.kind[1]).sort().join('');
     const eco = computeEconomy(s);
     const fc = foodForecast(s, eco);
-    console.log(`w${s.week} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} blk ${familyBlock(s, eco) ?? 'open'} g${s.goalIndex + 1}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
+    console.log(`w${s.week} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} res ${eco.residents} births ${birthBlock(s, eco) ?? 'open'} g${s.goalIndex + 1}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
     prevB = bl;
     stepWeek(s, rng);
   }
