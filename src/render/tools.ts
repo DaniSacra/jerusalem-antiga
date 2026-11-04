@@ -7,7 +7,7 @@ export const SPEEDS = [1, 3, 0] as const;
 export type Speed = (typeof SPEEDS)[number];
 
 /** The build column order (top to bottom), grouped by category in `CATEGORIES` order. */
-export const COLUMN_ORDER: readonly BuildableKind[] = ['house', 'plaza', 'park', 'field', 'fisher', 'gatherer', 'granary', 'market', 'workshop', 'temple'];
+export const COLUMN_ORDER: readonly BuildableKind[] = ['house', 'plaza', 'park', 'field', 'fisher', 'gatherer', 'granary', 'lumber', 'quarry', 'market', 'workshop', 'temple'];
 
 /** PC keys: 1 Mover, 2 Rua, 0 Demolir; 3–6 the categories (the same key again: the next building of it). */
 export const TOOL_KEYS: Partial<Record<Tool, string>> = { view: '1', road: '2', clear: '0' };

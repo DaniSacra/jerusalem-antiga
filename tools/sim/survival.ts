@@ -18,7 +18,7 @@ import {
   familyBlock,
   foodCapacity,
   foodForecast,
-  gatherFood,
+  gatherYield,
   fieldBonus,
   fieldHarvest,
   goalProgress,
@@ -255,7 +255,7 @@ export class SurvivalBot {
     if (eco.silverDelta >= 0 && s.silver + eco.silverDelta * (RULES.debtWeeksToLose - s.debtWeeks) >= 0) return false;
     const value = (b: Building) => {
       if (b.kind === 'plaza' || b.kind === 'market' || b.kind === 'park') return 2 * s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cheb(h, b) <= (BUILDINGS[b.kind].radius ?? 0)).length;
-      if (b.kind === 'fisher' || b.kind === 'gatherer') return gatherFood(s, b) * 3;
+      if (b.kind === 'fisher' || b.kind === 'gatherer') return gatherYield(s, b) * 3;
       if (b.kind === 'field') return 3;
       if (b.kind === 'granary') return s.food > RULES.baseFoodStorage ? 6 : 1;
       return 4;
@@ -325,7 +325,7 @@ export class SurvivalBot {
     if (!this.p.knowsAutumn || seasonOf(s.week) === 'winter' || s.silver < costOf('field')) return false;
     const st = settle(s);
     const eco = computeEconomy(st);
-    const steady = st.buildings.reduce((a, b) => a + gatherFood(st, b), 0) * eco.efficiency;
+    const steady = st.buildings.reduce((a, b) => a + gatherYield(st, b), 0) * eco.efficiency;
     // A year of eating: three seasons as now, the winter at the winter factor.
     const yearEaten = eco.foodEaten * (3 + RULES.winter.foodFactor) * RULES.weeksPerSeason;
     const gap = yearEaten * 1.15 - steady * 52;
@@ -371,7 +371,7 @@ export class SurvivalBot {
       if (d > reach) continue;
       let v = 0;
       if (kind === 'fisher' || kind === 'gatherer') {
-        const g = gatherFood(s, fake(s, kind, r));
+        const g = gatherYield(s, fake(s, kind, r));
         if (g < 0.5) continue;
         v = g * 10;
       } else if (kind === 'field') {
@@ -646,8 +646,8 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     for (const b of s.buildings) {
       if (!b.connected) continue;
       if (b.kind === 'field') res.food.field += fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * eco.efficiency;
-      if (b.kind === 'fisher') res.food.fisher += gatherFood(s, b) * eco.efficiency;
-      if (b.kind === 'gatherer') res.food.gatherer += gatherFood(s, b) * eco.efficiency;
+      if (b.kind === 'fisher') res.food.fisher += gatherYield(s, b) * eco.efficiency;
+      if (b.kind === 'gatherer') res.food.gatherer += gatherYield(s, b) * eco.efficiency;
     }
     if (res.firstFieldWeek === null && s.buildings.some((b) => b.kind === 'field' && b.connected)) res.firstFieldWeek = s.week;
     if (res.firstGranaryWeek === null && s.buildings.some((b) => b.kind === 'granary' && b.connected)) res.firstGranaryWeek = s.week;

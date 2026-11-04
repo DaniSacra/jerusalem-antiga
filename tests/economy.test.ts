@@ -7,7 +7,7 @@ import {
   fieldBonus,
   fieldHarvest,
   foodPerResident,
-  gatherFood,
+  gatherYield,
   GOALS,
   HOUSE_LEVELS,
   idleShare,
@@ -87,6 +87,8 @@ describe('economy', () => {
       plaza: 1,
       fisher: 1,
       gatherer: 1,
+      lumber: 1,
+      quarry: 2,
       granary: 1,
       market: 4,
       workshop: 2,
@@ -255,16 +257,16 @@ describe('workshop field bonus', () => {
     const fisher = put(s, 'fisher', besideRiver(s, 40), 40);
     const gatherer = put(s, 'gatherer', westOf('gatherer'), 27);
     s.feature[indexOf(s, 20, 30)] = 'olive';
-    const caught = gatherFood(s, fisher);
-    const picked = gatherFood(s, gatherer);
+    const caught = gatherYield(s, fisher);
+    const picked = gatherYield(s, gatherer);
     expect(caught).toBeGreaterThan(0);
     expect(picked).toBeGreaterThan(0);
     const before = computeEconomy(s).foodMade;
     put(s, 'workshop', EAST, 27);
     put(s, 'workshop', EAST, 30);
     expect(fieldBonus(s)).toBeGreaterThan(0);
-    expect(gatherFood(s, fisher)).toBe(caught);
-    expect(gatherFood(s, gatherer)).toBe(picked);
+    expect(gatherYield(s, fisher)).toBe(caught);
+    expect(gatherYield(s, gatherer)).toBe(picked);
     const after = computeEconomy(s);
     expect(after.efficiency).toBe(1);
     expect(after.foodMade).toBeCloseTo(before);

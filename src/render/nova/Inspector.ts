@@ -3,7 +3,7 @@ import {
   BUILDINGS,
   byRiver,
   craftOf,
-  gatherFood,
+  gatherYield,
   harvestsIn,
   weeksToHarvest,
   fieldHarvest,
@@ -163,8 +163,8 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
     if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, color: NOVA_CSS.good } : { text: N.inspect.droughtDry, color: NOVA_CSS.warn });
   }
   if (def.gather && b.connected) {
-    const n = gatherFood(s, b) * eco.efficiency;
-    out.push(n > 0 ? { text: N.yields(n), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
+    const n = gatherYield(s, b) * eco.efficiency;
+    out.push(n > 0 ? { text: N.yields(n, def.gather.product), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });

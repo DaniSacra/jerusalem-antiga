@@ -2,6 +2,9 @@ import { dimsOf, RULES } from './data';
 import { between } from './rng';
 import type { Cell, Feature, Ground, Rng } from './types';
 
+/** Features the map is drawn with (stumps only come from cutting). */
+type MapFeature = Exclude<Feature, 'stump'>;
+
 const { cols, rows, altar, clearRadius, rocks, olives, palms, grassShare, river, denseGrove, rockOutcrop } = RULES.map;
 
 const ALTAR = dimsOf('altar');
@@ -99,7 +102,7 @@ function riverRows(distance: number, p: number[]): { x0: number[]; w: number[] }
 const jitter = (rng: Rng, spread: number) => Math.round((rng() + rng() + rng() - 1.5) * spread);
 
 /** Clumps of each feature: features per clump and how far they spread from its center. */
-const CLUMPS: Record<Feature, { size: [number, number]; spread: number }> = {
+const CLUMPS: Record<MapFeature, { size: [number, number]; spread: number }> = {
   rock: { size: [4, 9], spread: 1.6 },
   olive: { size: [7, 14], spread: 2.4 },
   palm: { size: [6, 12], spread: 2.2 },
@@ -123,7 +126,7 @@ const CLUMP_GAP = 4;
 export function generateTerrain(rng: Rng): Terrain {
   const p = [rng(), rng(), rng(), rng(), rng(), rng()].map((v) => v * TAU);
   const distance = between(rng, river.distance);
-  const left: Record<Feature, number> = { rock: between(rng, rocks), olive: between(rng, olives), palm: between(rng, palms) };
+  const left: Record<MapFeature, number> = { rock: between(rng, rocks), olive: between(rng, olives), palm: between(rng, palms) };
 
   const noise = (x: number, y: number) => Math.sin(x * 0.35 + p[0]) + Math.sin(y * 0.3 + p[1]) + Math.sin((x + y) * 0.21 + p[2]);
   const threshold = 3 - 6 * grassShare;
@@ -139,7 +142,7 @@ export function generateTerrain(rng: Rng): Terrain {
   const feature: (Feature | null)[] = new Array(cols * rows).fill(null);
   const inMap = (x: number, y: number) => x >= 0 && y >= 0 && x < cols && y < rows;
   const open = (x: number, y: number) => inMap(x, y) && !isReserved(x, y) && ground[y * cols + x] !== 'river' && !feature[y * cols + x];
-  const put = (x: number, y: number, f: Feature) => {
+  const put = (x: number, y: number, f: MapFeature) => {
     feature[y * cols + x] = f;
     left[f]--;
   };
@@ -178,7 +181,7 @@ export function generateTerrain(rng: Rng): Terrain {
     for (let dy = -CLUMP_GAP; dy <= CLUMP_GAP; dy++) for (let dx = -CLUMP_GAP; dx <= CLUMP_GAP; dx++) if (inMap(x + dx, y + dy) && feature[(y + dy) * cols + x + dx]) return true;
     return false;
   };
-  for (const f of ['rock', 'olive', 'palm'] as Feature[]) {
+  for (const f of ['rock', 'olive', 'palm'] as MapFeature[]) {
     while (left[f] > 0) {
       const free: number[] = [];
       const apart: number[] = [];

@@ -1,8 +1,8 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
-import { fieldBonus, fieldHarvest, gatherFood, isWorking } from './harvest';
+import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import { seasonOf } from './seasons';
-import type { BuildingKind, GameState } from './types';
+import type { BuildingKind, GameState, Material } from './types';
 
 export interface Economy {
   residents: number;
@@ -19,6 +19,9 @@ export interface Economy {
   /** Food made this week (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
   foodMade: number;
   foodEaten: number;
+  /** Wood and stone made this week (lumbers and quarries, after efficiency). */
+  wood: number;
+  stone: number;
   /** Weekly silver balance: taxes - upkeep. */
   silverDelta: number;
   taxes: number;
@@ -58,6 +61,7 @@ export function computeEconomy(s: GameState): Economy {
   let yearJobs = 0;
   let foodProd = 0;
   let harvest = 0;
+  const made: Record<Material, number> = { wood: 0, stone: 0 };
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const charged = upkeepCharged(s);
   const bonus = fieldBonus(s);
@@ -76,7 +80,9 @@ export function computeEconomy(s: GameState): Economy {
     jobs += def.jobs;
     const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus);
     harvest += h;
-    foodProd += gatherFood(s, b) + h;
+    const product = productOf(b.kind);
+    if (product && product !== 'food') made[product] += gatherYield(s, b);
+    else foodProd += (product ? gatherYield(s, b) : 0) + h;
   }
   const workers = Math.floor(residents * RULES.workerShare);
   const idle = idleShare(s, { workers, yearJobs });
@@ -100,6 +106,8 @@ export function computeEconomy(s: GameState): Economy {
     harvest: round2(harvest * efficiency),
     foodMade: round2(foodProd * efficiency),
     foodEaten: round2(eaten),
+    wood: round2(made.wood * efficiency),
+    stone: round2(made.stone * efficiency),
     silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),
     upkeep,

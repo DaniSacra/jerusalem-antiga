@@ -389,7 +389,7 @@ export class MapView {
     if (!key || !tree) return;
     const c = footCenter(x, y);
     // Palms sway more than the other trees in the light wind; rocks stay still.
-    const sway = tree === 'palm' ? 1.6 : tree === 'rock' ? 0 : 0.7;
+    const sway = tree === 'palm' ? 1.6 : tree === 'rock' || tree === 'stump' ? 0 : 0.7;
     const img = setTex(this.scene.add.image(c.x, c.y, key), this.dress(key)).setDepth(depthAt(x + 0.5, y + 0.5));
     img.setTint(sway ? this.tints.trees : this.tints.rock);
     this.features.set(i, { key, img, sway, tree });

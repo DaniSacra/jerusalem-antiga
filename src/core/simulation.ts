@@ -6,6 +6,8 @@ import { checkGoal } from './goals';
 import { hasNeeds } from './houses';
 import { rollLook } from './looks';
 import { refreshCity } from './refresh';
+import { lackingMaterial, levelMaterials, payMaterials } from './materials';
+import { cutTrees, regrowTrees } from './trees';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameEvent, GameState, MilestoneId, Rng } from './types';
 
@@ -14,6 +16,7 @@ function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rn
   b.level += dir;
   b.upStreak = 0;
   b.downStreak = 0;
+  b.waiting = undefined;
   rollLook(s, b, rng);
   const delta = HOUSE_LEVELS[b.level].residents - before;
   const { x, y } = b;
@@ -24,11 +27,15 @@ function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rn
  * A house climbs one level after `weeksToUpgrade` weeks in a row with the next level's needs met
  * and drops one after `weeksToDowngrade` weeks missing its own. Famine pauses the climb and may
  * drop the house or send the tent's family away. Plots (level 0) are filled by arriving families.
+ * Climbing pays the next level's materials at once; without them the house waits at
+ * `weeksToUpgrade` with `waiting` set (houses are visited in list order: the oldest pays first).
+ * Dropping gives nothing back.
  */
 function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   if (b.level === 0) return;
   if (!hasNeeds(s, b, HOUSE_LEVELS[b.level].needs)) {
     b.upStreak = 0;
+    b.waiting = undefined;
     if (++b.downStreak >= RULES.weeksToDowngrade) changeLevel(s, b, -1, false, rng, events);
     return;
   }
@@ -51,9 +58,19 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   }
   const next = HOUSE_LEVELS[b.level + 1];
   if (next && hasNeeds(s, b, next.needs)) {
-    if (++b.upStreak >= RULES.weeksToUpgrade) changeLevel(s, b, 1, false, rng, events);
+    b.upStreak = Math.min(b.upStreak + 1, RULES.weeksToUpgrade);
+    if (b.upStreak < RULES.weeksToUpgrade) return;
+    const cost = levelMaterials(b.level + 1);
+    const lacking = lackingMaterial(s, cost);
+    if (lacking) {
+      b.waiting = lacking;
+      return;
+    }
+    payMaterials(s, cost);
+    changeLevel(s, b, 1, false, rng, events);
   } else {
     b.upStreak = 0;
+    b.waiting = undefined;
   }
 }
 
@@ -145,6 +162,10 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   }
 
   s.silver = round2(s.silver + eco.silverDelta);
+  s.wood = round2(s.wood + eco.wood);
+  s.stone = round2(s.stone + eco.stone);
+  regrowTrees(s, events);
+  cutTrees(s, eco, events);
 
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
 

@@ -43,7 +43,7 @@ describe('goals', () => {
   it('has the configured targets, rewards, unlocks and years in order', () => {
     expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? null, g.reward, g.unlock ?? null, g.fromYear ?? null])).toEqual([
       ['foodUntilSpring', 1, null, 30, 'granary', null],
-      ['houses', 3, 2, 40, null, null],
+      ['houses', 3, 2, 40, 'quarry', null],
       ['residents', 60, null, 50, 'market', null],
       ['houses', 3, 3, 60, 'workshop', null],
       ['residents', 150, null, 80, 'park', null],

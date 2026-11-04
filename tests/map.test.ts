@@ -157,7 +157,7 @@ describe('map generation', () => {
     }
     // At least 3 spots for the 6 x 6 temple on the road, within 12 cells of the altar, without cutting trees.
     s.unlocked = [...s.unlocked, 'temple'];
-    s.silver = 1e6;
+    Object.assign(s, { silver: 1e6, wood: 1e6, stone: 1e6 });
     const { w } = dimsOf('temple');
     let spots = 0;
     for (let y = 0; y + w <= rows; y++) {

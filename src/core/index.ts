@@ -24,3 +24,5 @@ export * from './menu';
 export * from './readouts';
 export * from './harvest';
 export * from './forecast';
+export * from './materials';
+export * from './trees';

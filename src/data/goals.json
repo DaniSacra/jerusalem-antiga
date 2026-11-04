@@ -1,6 +1,6 @@
 [
   { "type": "foodUntilSpring", "target": 1, "reward": 30, "unlock": "granary", "text": "Comida até a primavera" },
-  { "type": "houses",    "target": 3,   "level": 2, "reward": 40,  "text": "Tenha 3 casas de barro" },
+  { "type": "houses",    "target": 3,   "level": 2, "reward": 40,  "unlock": "quarry", "text": "Tenha 3 casas de barro" },
   { "type": "residents", "target": 60,  "reward": 50,  "unlock": "market",   "text": "Chegue a 60 moradores" },
   { "type": "houses",    "target": 3,   "level": 3, "reward": 60,  "unlock": "workshop", "text": "Tenha 3 casas de pedra" },
   { "type": "residents", "target": 150, "reward": 80,  "unlock": "park",     "text": "Chegue a 150 moradores" },

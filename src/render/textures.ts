@@ -3473,6 +3473,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     make(scene, TEX.feature('rock', v), SMALL, (p) => rock(p, v), 20);
     make(scene, TEX.feature('olive', v), SMALL, (p) => olive(p, v), 40);
     make(scene, TEX.feature('palm', v), SMALL, (p) => palm(p, v), 56);
+    make(scene, TEX.feature('stump', v), SMALL, (p) => rock(p, v), 20); // placeholder until the stump art
     for (const state of ['bare', 'bloom', 'leaf'] as const) make(scene, TEX.tree('almond', v, state), SMALL, (p) => almond(p, v, state), 36);
     for (const state of ['bare', 'leaf', 'yellow'] as const) make(scene, TEX.tree('fig', v, state), SMALL, (p) => fig(p, v, state), 34);
   }
@@ -3491,6 +3492,9 @@ export function generateTextures(scene: Phaser.Scene): void {
     ['plaza', plaza, 48, 44],
     ['fisher', fisher, 40, 32],
     ['gatherer', gatherer, 44, 34],
+    // Placeholders until the sprite-artist draws the lumber and the quarry.
+    ['lumber', gatherer, 44, 34],
+    ['quarry', fisher, 40, 32],
     ['park', park, 60, 40],
     ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],

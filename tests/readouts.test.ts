@@ -246,6 +246,7 @@ describe('house upgrade gain', () => {
           residents: next.residents - cur.residents,
           tax: next.tax - cur.tax,
           food: expect.closeTo(next.residents * foodPerResident(level + 1, week) - cur.residents * foodPerResident(level, week)),
+          materials: next.materials ?? {},
         });
       }
       expect(upgradeGain(level, winter)!.food).not.toBe(upgradeGain(level, 0)!.food); // the winter factors apply

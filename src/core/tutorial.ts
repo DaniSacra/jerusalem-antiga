@@ -5,7 +5,7 @@ import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } fro
 import { isGatherSource } from './harvest';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
-export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'upkeep' | 'market';
+export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'family' | 'lumber' | 'upkeep' | 'market';
 export interface TutorialStep {
   id: TutorialStepId;
   /** The tool the step points at (null: just watch, or tap). Every tool stays usable. */
@@ -15,7 +15,11 @@ export interface TutorialStep {
   target: number;
 }
 
-/** The six steps of the first game (food first: road, fisher or gatherer, field; then plaza, house, family), then the two short ones (balance at goal 2, then the market). */
+/**
+ * The six steps of the first game (food first: road, fisher or gatherer, field; then plaza, house,
+ * family) and the short lumber step right after them; then the two short ones (balance when upkeep
+ * starts, then the market).
+ */
 export const TUTORIAL_STEPS = TUTORIAL.steps as TutorialStep[];
 export const TUTORIAL_EXTRAS = TUTORIAL.extras as TutorialStep[];
 
@@ -49,6 +53,7 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
       return s.milestones.includes('firstFamily') ? 1 : 0;
     case 'field':
     case 'plaza':
+    case 'lumber':
     case 'market':
       return connected(s, step.id);
     case 'upkeep':
@@ -61,13 +66,13 @@ export const tutorialHoldsClock = (step: TutorialStep | null) => !!step?.tool;
 
 export const tutorialStepDone = (s: GameState, step: TutorialStep, mark: TutorialMark) => tutorialProgress(s, step, mark) >= step.target;
 
-/** Where the tutorial sends the player for food: a fisher or gatherer spot and the road to it. */
+/** Where the tutorial sends the player for food (fisher or gatherer) or wood (lumber), and the road to it. */
 export interface FoodSpot {
-  kind: 'fisher' | 'gatherer';
+  kind: 'fisher' | 'gatherer' | 'lumber';
   /** Top-left cell of the building. */
   x: number;
   y: number;
-  /** Food a week once connected (before the worker efficiency). */
+  /** What it brings a week once connected (before the worker efficiency): food, or wood for a lumber. */
   food: number;
   /** Road cells to build, from the network to the cell beside the building (empty when it already touches it). */
   road: Cell[];
@@ -107,10 +112,15 @@ function roadDistances(s: GameState): { dist: Int32Array; prev: Int32Array } {
  * least `minSpotFood` a week, the one that brings the most, and of those the one with the shortest
  * new road. Null when no spot brings enough or none can be reached.
  */
-export function foodSpot(s: GameState): FoodSpot | null {
+export const foodSpot = (s: GameState): FoodSpot | null => gatherSpot(s, ['fisher', 'gatherer']);
+
+/** The lumber step's spot: the same search as `foodSpot`, for a lumber among the trees. */
+export const lumberSpot = (s: GameState): FoodSpot | null => gatherSpot(s, ['lumber']);
+
+function gatherSpot(s: GameState, kinds: readonly FoodSpot['kind'][]): FoodSpot | null {
   const { dist, prev } = roadDistances(s);
   let best: (FoodSpot & { end: number }) | null = null;
-  for (const kind of ['fisher', 'gatherer'] as const) {
+  for (const kind of kinds) {
     const g = BUILDINGS[kind].gather!;
     const { w, h } = dimsOf(kind);
     for (let y = 0; y + h <= s.rows; y++) {

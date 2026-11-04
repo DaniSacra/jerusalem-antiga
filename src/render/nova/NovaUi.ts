@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  isTree,
   BUILDINGS,
   dimsOf,
   foodAfter,
@@ -250,7 +251,7 @@ export class NovaUi {
     if (t === 'clear') {
       const i = indexOf(s, c.x, c.y);
       if (i < 0) return null;
-      const tree = !s.grid[i] && !s.roads[i] && !!s.feature[i] && s.feature[i] !== 'rock';
+      const tree = !s.grid[i] && !s.roads[i] && isTree(s.feature[i]);
       if (tree) return { text: T.nova.cutTree, ...c, w: 1, h: 1, lift: px(40) };
       // A granary, or the road that links one: the food that would spoil.
       const b = s.grid[i];

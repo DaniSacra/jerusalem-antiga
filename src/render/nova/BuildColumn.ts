@@ -159,7 +159,7 @@ export class BuildColumn {
       { text: head, color: NOVA_CSS.gold },
       { text: N.effect[kind], bold: false },
     ];
-    if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max), color: NOVA_CSS.muted, bold: false });
+    if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max, d.gather.product), color: NOVA_CSS.muted, bold: false });
     if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
     if (d.fieldBonus) {
       // The workshop's field bonus: the city's total after it, and when it is already at the cap.

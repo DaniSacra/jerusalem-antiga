@@ -9,6 +9,7 @@ import {
   foodLastsToHarvest,
   foodPerResident,
   foodSpot,
+  lumberSpot,
   GOALS,
   HOUSE_LEVELS,
   needMet,
@@ -31,8 +32,9 @@ import {
  *
  * The plan: road to the best food spot and a fisher or gatherer there, a field, a plaza for the
  * caravan tents; then each week, with the silver it has, the granary once unlocked, more food when
- * the forecast does not reach the spring, a plot near a plaza when a family could come, and a
- * plaza for a tent without one. It never spends below 0.
+ * the forecast does not reach the spring, a lumber at the tutorial's spot once the first family
+ * came, a plot near a plaza when a family could come, and a plaza for a tent without one. It
+ * never spends below 0.
  */
 const altar = RULES.map.altar;
 const near = (to: Cell) => (a: Cell, b: Cell) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y));
@@ -42,13 +44,15 @@ function build(s: GameState, kind: BuildableKind, at: Cell | undefined, rotated 
   return place(s, kind, at.x, at.y, rotated).ok;
 }
 
-/** A fisher or gatherer at the best spot, with its road; false if there is none or no silver. */
-function addFood(s: GameState): boolean {
-  const spot = foodSpot(s);
+/** A building at a tutorial spot (food or lumber), with its road; false if there is none or no silver. */
+function addAt(s: GameState, spot: ReturnType<typeof foodSpot>): boolean {
   if (!spot || s.silver < costOf(spot.kind) + spot.road.length * costOf('road')) return false;
   for (const c of spot.road) place(s, 'road', c.x, c.y);
   return build(s, spot.kind, spot);
 }
+
+/** A fisher or gatherer at the best spot, with its road. */
+const addFood = (s: GameState) => addAt(s, foodSpot(s));
 
 /** A plaza for this house: the spot that also reaches the most houses with a family. */
 function plazaFor(s: GameState, house: Building): boolean {
@@ -74,6 +78,8 @@ function playWeek(s: GameState) {
   if (bare) plazaFor(s, bare);
   if (s.unlocked.includes('granary') && !has('granary')) build(s, 'granary', placeSpots(s, 'granary').sort(near(altar))[0]);
   if (!foodLastsToHarvest(s)) addFood(s);
+  // The tutorial's lumber step, right after the first family.
+  if (s.milestones.includes('firstFamily') && !has('lumber')) addAt(s, lumberSpot(s));
   if (familyBlock(s) === 'noPlot' && s.silver >= costOf('house') + 10) addPlot(s);
 }
 

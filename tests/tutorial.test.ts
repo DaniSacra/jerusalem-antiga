@@ -5,7 +5,7 @@ import {
   createRng,
   dimsOf,
   foodSpot,
-  gatherFood,
+  gatherYield,
   ghostRoad,
   fieldHint,
   houseHint,
@@ -33,7 +33,7 @@ import { constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helper
 const step = (id: TutorialStepId) => [...TUTORIAL_STEPS, ...TUTORIAL_EXTRAS].find((s) => s.id === id)!;
 
 describe('tutorial steps', () => {
-  it('has the six survival steps, food first, then the balance and market extras, each with its tool', () => {
+  it('has the six survival steps, food first, and the short lumber step, then the balance and market extras, each with its tool', () => {
     expect(TUTORIAL_STEPS.map((s) => [s.id, s.tool, s.target])).toEqual([
       ['road', 'road', 1],
       ['gather', 'fisher', 1],
@@ -41,6 +41,7 @@ describe('tutorial steps', () => {
       ['plaza', 'plaza', 1],
       ['house', 'house', 1],
       ['family', null, 1],
+      ['lumber', 'lumber', 1],
     ]);
     expect(step('gather').alt).toBe('gatherer');
     expect(TUTORIAL_STEPS.filter((s) => s.alt)).toHaveLength(1);
@@ -162,7 +163,7 @@ describe('food spot and ghost road', () => {
       const b = put(s, spot.kind, spot.x, spot.y);
       refreshCity(s);
       expect(b.connected).toBe(true);
-      expect(gatherFood(s, b)).toBeCloseTo(spot.food);
+      expect(gatherYield(s, b)).toBeCloseTo(spot.food);
       good++;
     }
     expect(good).toBeGreaterThanOrEqual(190);

@@ -147,7 +147,7 @@ const stats = (page) =>
 async function setupHudCity(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
-    s.silver = 1e4;
+    Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
     s.unlocked.push('market', 'workshop');
@@ -172,7 +172,7 @@ async function setupHudCity(page) {
 async function buildTown(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
-    s.silver = 1e6;
+    Object.assign(s, { silver: 1e6, wood: 1e6, stone: 1e6 }); // materials too: scenarios build freely
     s.unlocked = ['road', 'house', 'field', 'plaza', 'fisher', 'gatherer', 'granary', 'market', 'workshop', 'park', 'temple'];
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
@@ -470,7 +470,7 @@ async function dragCells(page, cells) {
 /** Opens the families' door: two granaries and food to reach the harvest (new families only come when the food lasts). */
 async function openFamilyDoor(page) {
   await page.evaluate(() => {
-    window.state.silver = 1e4;
+    Object.assign(window.state, { silver: 1e4, wood: 1e4, stone: 1e4 });
     window.state.unlocked.push('granary');
   });
   await placeNear(page, 'granary');
@@ -519,7 +519,7 @@ async function p2Interface(page, suffix) {
   const house = await page.evaluate(() => {
     const { state: s, core, game } = window;
     game.setSpeed(0);
-    s.silver = 1e4;
+    Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
     const at = core.campPlazaSpot();
     const r = core.place(s, 'plaza', at.x, at.y);
     if (!r.ok) throw new Error(`plaza: ${r.reason}`);
@@ -757,7 +757,7 @@ async function tutorialBlocked(page) {
   await page.evaluate(() => {
     const { state: s, core } = window;
     window.game.setSpeed(0);
-    s.silver = 1e4;
+    Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
     // Jump to the family step with an empty store (the "food" block).
     const g = window.game.guide;
     while (g.step && g.step.id !== 'family') g.k++;
@@ -823,7 +823,7 @@ async function previewFoodAfter(page, suffix) {
   await startGame(page);
   await page.evaluate(() => {
     window.game.setSpeed(0);
-    window.state.silver = 1e4;
+    Object.assign(window.state, { silver: 1e4, wood: 1e4, stone: 1e4 });
   });
   const spot = await page.evaluate(() => window.core.foodSpot(window.state));
   await page.evaluate((road) => {
@@ -1014,7 +1014,7 @@ const scenarios = {
     const before = await stats(page);
     assert(before.roads > 0, `the city starts with roads (${before.roads})`);
     assert(before.buildings.filter((k) => k !== 'house').join() === 'altar', `only the altar and the caravan tents at start (${before.buildings})`);
-    await page.evaluate(() => (window.state.silver = 1e4));
+    await page.evaluate(() => Object.assign(window.state, { silver: 1e4, wood: 1e4, stone: 1e4 }));
 
     await tool(page, 2); // Rua
     await mouseDrag(page, [[27, 24], [32, 24]]);
@@ -1041,7 +1041,7 @@ const scenarios = {
 
   async 'families-arrive'(page) {
     await startGame(page);
-    await page.evaluate(() => (window.state.silver = 1e4));
+    await page.evaluate(() => Object.assign(window.state, { silver: 1e4, wood: 1e4, stone: 1e4 }));
     await tool(page, 3); // Casa
     await mouseDrag(page, [[22, 28], [22, 36]]);
     await openFamilyDoor(page);
@@ -1250,7 +1250,7 @@ const scenarios = {
       }, zoom);
     await page.evaluate(() => {
       const { state: s, core } = window;
-      s.silver = 1e6;
+      Object.assign(s, { silver: 1e6, wood: 1e6, stone: 1e6 }); // materials too: scenarios build freely
       s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'temple'];
       s.feature = s.feature.map(() => null);
       for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
@@ -1481,7 +1481,7 @@ const scenarios = {
     await startGame(page);
     await page.evaluate(() => {
       const { state: s, core } = window;
-      s.silver = 1e4;
+      Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
       s.feature = s.feature.map(() => null);
       for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
       core.place(s, 'field', 22, 30); // connected, but nobody lives here yet
@@ -1538,7 +1538,7 @@ const scenarios = {
     await startGame(page);
     await page.evaluate(() => {
       const { state: s, core } = window;
-      s.silver = 1e4;
+      Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
       s.unlocked.push('market');
       s.feature = s.feature.map(() => null);
       core.place(s, 'market', 22, 30); // upright 2x4, west of the road
@@ -1579,7 +1579,7 @@ const scenarios = {
     await startGame(page);
     await page.evaluate(() => {
       const { state: s, core } = window;
-      s.silver = 1e4;
+      Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
       s.feature = s.feature.map(() => null);
       for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
       s.unlocked.push('market', 'workshop');

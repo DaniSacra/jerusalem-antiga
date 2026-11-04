@@ -6,7 +6,8 @@
     { "id": "field", "tool": "field", "target": 1 },
     { "id": "plaza", "tool": "plaza", "target": 1 },
     { "id": "house", "tool": "house", "target": 1 },
-    { "id": "family", "tool": null, "target": 1 }
+    { "id": "family", "tool": null, "target": 1 },
+    { "id": "lumber", "tool": "lumber", "target": 1 }
   ],
   "extras": [
     { "id": "upkeep", "tool": null, "target": 1 },

@@ -1,6 +1,6 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
 import { computeEconomy, foodPerResident, round2, type Economy } from './economy';
-import { byRiver, fieldBonus, fieldHarvest, foodCapacity, gatherFood, harvestsIn, weeksToHarvest } from './harvest';
+import { byRiver, fieldBonus, fieldHarvest, foodCapacity, gatherYield, harvestsIn, productOf, weeksToHarvest } from './harvest';
 import { targetLevel } from './houses';
 import { seasonCount, seasonOf, SEASONS, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameState, Season } from './types';
@@ -66,7 +66,7 @@ export function foodForecast(
   horizon = WEEKS_PER_YEAR,
   opts: ForecastOptions = {},
 ): FoodForecast {
-  const steady = s.buildings.reduce((sum, b) => sum + gatherFood(s, b), 0);
+  const steady = s.buildings.reduce((sum, b) => sum + (productOf(b.kind) === 'food' ? gatherYield(s, b) : 0), 0);
   const bonus = fieldBonus(s);
   const fields = s.buildings.filter((b) => BUILDINGS[b.kind].harvest && b.connected).map((b) => ({ b, river: byRiver(s, b) }));
   // Fields take no workers in winter, so the efficiency changes over the year.

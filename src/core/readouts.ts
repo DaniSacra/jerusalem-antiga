@@ -6,9 +6,10 @@ import { familyBlock, type FamilyBlock } from './families';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
-import { fieldHarvest, foodCapacity, gatherFood } from './harvest';
+import { fieldHarvest, foodCapacity, gatherYield, isGatherSource, productOf } from './harvest';
+import { levelMaterials } from './materials';
 import { seasonOf } from './seasons';
-import type { BuildableKind, Building, Cell, GameState, Season } from './types';
+import type { BuildableKind, Building, Cell, GameState, Materials, Product, Season } from './types';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
 
@@ -61,8 +62,10 @@ export function balanceAfter(s: GameState, kind: BuildableKind): number {
 export interface FoodAfter {
   /** Weekly food balance with the new building (after the worker efficiency). */
   delta: number;
-  /** Food the new building itself brings a week (after the worker efficiency). */
+  /** What the new building itself brings a week of `product` (after the worker efficiency). */
   yields: number;
+  /** Food for fields, fishers and gatherers; wood or stone for a lumber or quarry. */
+  product: Product;
   /** Worker efficiency with the new building's jobs. */
   efficiency: number;
 }
@@ -80,8 +83,8 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
   const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
   const ghost: Building = { id: -1, kind, x, y, w, h, level: 0, upStreak: 0, downStreak: 0, connected, variant: 0, mirrored: false, built: s.week };
   const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost] });
-  const own = gatherFood(s, ghost) + fieldHarvest(s, ghost, s.week);
-  return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), efficiency: eco.efficiency };
+  const own = gatherYield(s, ghost) + fieldHarvest(s, ghost, s.week);
+  return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), product: productOf(kind) ?? 'food', efficiency: eco.efficiency };
 }
 
 /** Houses with a family inside the radius of a service building; null for kinds with no service. */
@@ -93,14 +96,37 @@ export function housesServed(s: GameState, b: Building): number | null {
 }
 
 /**
- * What a house gains on its next level (residents and base tax) and what it eats more a week at
- * this week's rate (winter included), or null at the top level.
+ * What a house gains on its next level (residents and base tax), what it eats more a week at
+ * this week's rate (winter included) and the materials it pays to climb, or null at the top level.
  */
-export function upgradeGain(level: number, week: number): { residents: number; tax: number; food: number } | null {
+export function upgradeGain(level: number, week: number): { residents: number; tax: number; food: number; materials: Materials } | null {
   const cur = HOUSE_LEVELS[level];
   const next = HOUSE_LEVELS[level + 1];
   const eats = (l: number) => HOUSE_LEVELS[l].residents * foodPerResident(l, week);
-  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(level + 1) - eats(level)) } : null;
+  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(level + 1) - eats(level)), materials: levelMaterials(level + 1) } : null;
+}
+
+/** The tree-gathering kind that shares the groves with this one (gatherer and lumber), or null. */
+const RIVAL: Partial<Record<BuildableKind, BuildableKind>> = { gatherer: 'lumber', lumber: 'gatherer' };
+
+/**
+ * Trees a gatherer or lumber placed at (x, y) would share with the existing ones of the other
+ * kind (in both radii): the preview's "shares the grove". 0 for other kinds.
+ */
+export function sharedTrees(s: GameState, x: number, y: number, kind: BuildableKind, rotated = false): number {
+  const rival = RIVAL[kind];
+  const g = BUILDINGS[kind].gather;
+  if (!rival || !g) return 0;
+  const { w, h } = dimsOf(kind, rotated);
+  const theirs = new Set<number>();
+  for (const b of s.buildings) if (b.kind === rival) for (const i of cellsInRadius(s, b.x, b.y, BUILDINGS[rival].gather!.radius, b.w, b.h)) theirs.add(i);
+  return cellsInRadius(s, x, y, g.radius, w, h).filter((i) => theirs.has(i) && isGatherSource(s, i, 'tree')).length;
+}
+
+/** Weeks between two trees cut by a lumber bringing `perWeek` wood (rounded up), or null when it brings none. */
+export function weeksPerCut(perWeek: number): number | null {
+  const every = BUILDINGS.lumber.cutEvery ?? 0;
+  return perWeek > 0 && every > 0 ? Math.ceil(every / perWeek - 1e-9) : null;
 }
 
 export interface Spot extends Cell {

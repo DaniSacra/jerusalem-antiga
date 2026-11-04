@@ -3,7 +3,8 @@ import { BUILDINGS, RULES } from './data';
 import { foodLastsToHarvest } from './forecast';
 import { fieldBonus, foodCapacity } from './harvest';
 import { seasonOf } from './seasons';
-import type { BuildingKind, GameState } from './types';
+import { housesWaiting } from './houses';
+import { MATERIALS, type BuildingKind, type GameState, type Material } from './types';
 
 /** Standing warnings, most urgent first (the Avisos button and the statistics). */
 export type Alert =
@@ -11,6 +12,8 @@ export type Alert =
   | { kind: 'debt'; weeksLeft: number; famine: boolean }
   /** The food will not last until the next spring (in any season). */
   | { kind: 'foodShort' }
+  /** `count` houses are ready to climb but wait for this material. */
+  | { kind: 'material'; material: Material; count: number }
   /** The stores are full and food is spoiling; `locked`: the granary is not unlocked yet. */
   | { kind: 'spoiling'; amount: number; capacity: number; locked: boolean }
   /** End of autumn with families in tents: winter hurts them. */
@@ -29,6 +32,8 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   if (s.silver < 0) out.push({ kind: 'debt', weeksLeft: RULES.debtWeeksToLose - s.debtWeeks, famine: s.famine });
   const season = seasonOf(s.week);
   if (!foodLastsToHarvest(s, eco)) out.push({ kind: 'foodShort' });
+  const waiting = housesWaiting(s);
+  for (const material of MATERIALS) if (waiting[material] > 0) out.push({ kind: 'material', material, count: waiting[material] });
   if (s.spoiled > 0) out.push({ kind: 'spoiling', amount: s.spoiled, capacity: foodCapacity(s), locked: !s.unlocked.includes('granary') });
   if (lateAutumn(s.week) && s.buildings.some((b) => b.kind === 'house' && b.level === 1)) out.push({ kind: 'winterComing' });
   if (s.drought && (season === 'winter' || season === 'spring')) out.push({ kind: 'drought' });

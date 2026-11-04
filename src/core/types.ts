@@ -1,6 +1,16 @@
 export type Ground = 'sand' | 'grass' | 'river';
-export type Feature = 'rock' | 'palm' | 'olive';
-export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
+/** A stump is a cut tree (see trees.ts): it does not block building and grows back. */
+export type Feature = 'rock' | 'palm' | 'olive' | 'stump';
+/** The trees on the map (a stump remembers which one it was). */
+export type TreeFeature = 'olive' | 'palm';
+/** Building materials kept by the city, like silver. */
+export type Material = 'wood' | 'stone';
+export const MATERIALS: readonly Material[] = ['wood', 'stone'];
+/** Materials a building or a house level costs (missing = none). */
+export type Materials = Partial<Record<Material, number>>;
+/** What a gathering building brings every week. */
+export type Product = 'food' | Material;
+export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'lumber' | 'quarry' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 /** The four seasons, in order. */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -20,6 +30,9 @@ export type BalloonKind = NeedKind | 'workers' | 'sad' | 'noSource';
 export const SERVICE_KINDS: readonly ServiceKind[] = ['plaza', 'market', 'sacred', 'park'];
 
 export type Rng = () => number;
+
+/** Cells a gathering building takes from: river water, trees (olive or palm) or rocks. */
+export type GatherSource = 'river' | 'tree' | 'rock';
 
 /** Moments celebrated once per game. */
 export type MilestoneId = 'firstFamily' | 'firstMud' | 'firstHarvest' | 'firstWinter' | 'firstStone' | 'yearWithoutFamine';
@@ -98,8 +111,15 @@ export interface BuildingDef {
   crafts?: Craft[];
   /** Food a field makes in a year, all of it delivered over the spring weeks (see harvest.ts). */
   harvest?: number;
-  /** Food gathered every week from the river or trees in a radius: min(max, cells × perCell). */
-  gather?: { source: 'river' | 'tree'; radius: number; perCell: number; max: number };
+  /**
+   * Gathered every week from the river, trees or rocks in a radius: min(max, cells × perCell) of
+   * `product` (food when missing).
+   */
+  gather?: { source: GatherSource; radius: number; perCell: number; max: number; product?: Product };
+  /** Lumber: cuts the nearest tree in its radius every this much wood made (see trees.ts). */
+  cutEvery?: number;
+  /** Materials paid on top of the silver cost when built. */
+  materials?: Materials;
   /** Food this building lets the city keep (granary). */
   storage?: number;
   /** Workshop: each connected one adds this share to the fields' food, up to `fieldBonusMax` in all. */
@@ -117,6 +137,8 @@ export interface HouseLevelDef {
   /** Number of drawn variants for this level. */
   variants: number;
   needs: NeedKind[];
+  /** Materials paid when a house climbs to this level (see houses in simulation.ts). */
+  materials?: Materials;
 }
 
 export interface GoalDef {
@@ -142,6 +164,10 @@ export interface GoalDef {
 export interface Rules {
   startSilver: number;
   startUnlocked: Placeable[];
+  /** Materials the founding caravan brings. */
+  startMaterials: Record<Material, number>;
+  /** Weeks a free stump takes to grow back into its tree. */
+  treeRegrowWeeks: number;
   weekSeconds: number;
   /** Upkeep is charged only once this many goals are done (the first goals are free of it). */
   upkeepStartsAfterGoal: number;
@@ -249,6 +275,17 @@ export interface Building {
   mirrored: boolean;
   /** Week it was built (a field only harvests in a spring after an autumn it stood through). */
   built: number;
+  /** Lumber: wood made since its last cut tree (see trees.ts). */
+  cutProgress?: number;
+  /** House: ready to climb (13/13 weeks with the needs) but the city lacks this material. */
+  waiting?: Material;
+}
+
+/** A cut tree on cell `i`, cut in `week`; it grows back into `kind` after `treeRegrowWeeks`. */
+export interface Stump {
+  i: number;
+  kind: TreeFeature;
+  week: number;
 }
 
 /** A family walking from the city entrance to an empty plot. */
@@ -281,6 +318,11 @@ export interface GameState {
   entrance: Cell;
   silver: number;
   food: number;
+  /** Building materials in store (no limit). */
+  wood: number;
+  stone: number;
+  /** Cut trees waiting to grow back (their cells hold the 'stump' feature). */
+  stumps: Stump[];
   /** Weeks elapsed. */
   week: number;
   famine: boolean;
@@ -337,7 +379,12 @@ export type GameEvent =
   | { type: 'harvestStart'; amount: number }
   /** Winter began and the coming spring will be dry. */
   | { type: 'drought' }
-  | { type: 'milestone'; id: MilestoneId };
+  | { type: 'milestone'; id: MilestoneId }
+  /** A lumber cut the tree on (x, y): it is a stump now. */
+  | { type: 'treeCut'; x: number; y: number; kind: TreeFeature }
+  /** The stump on (x, y) grew back into its tree. */
+  | { type: 'treeRegrown'; x: number; y: number; kind: TreeFeature };
 
-export type FailReason = 'locked' | 'invalid' | 'silver' | 'debt' | 'noRoad' | 'protected';
+/** `materials`: not enough wood or stone (see `missingMaterial`). */
+export type FailReason = 'locked' | 'invalid' | 'silver' | 'materials' | 'debt' | 'noRoad' | 'protected';
 export type ActionResult = { ok: true } | { ok: false; reason: FailReason };

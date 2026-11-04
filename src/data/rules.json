@@ -1,6 +1,8 @@
 {
   "startSilver": 180,
-  "startUnlocked": ["road", "house", "field", "plaza", "fisher", "gatherer"],
+  "startUnlocked": ["road", "house", "field", "plaza", "fisher", "gatherer", "lumber"],
+  "startMaterials": { "wood": 20, "stone": 0 },
+  "treeRegrowWeeks": 104,
   "weekSeconds": 3.2,
   "workerShare": 0.5,
   "unemploymentAlert": 6,

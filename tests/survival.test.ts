@@ -14,7 +14,7 @@ import {
   createGame,
   createRng,
   fieldHarvest,
-  gatherFood,
+  gatherYield,
   foodCapacity,
   foodForecast,
   foodLastsToHarvest,
@@ -777,7 +777,7 @@ describe('fields take no workers in winter', () => {
     expect(e.harvest).toBe(0);
     expect(e.yearJobs).toBe(3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs); // still jobs of the year
     expect(e.foodMade).toBeGreaterThan(0);
-    expect(e.foodMade).toBeCloseTo(gatherFood(s, fisher)); // the fisher at full strength
+    expect(e.foodMade).toBeCloseTo(gatherYield(s, fisher)); // the fisher at full strength
     s.goalIndex = RULES.upkeepStartsAfterGoal;
     expect(computeEconomy(s).upkeep.field).toBe(3 * BUILDINGS.field.upkeep!);
     expect(fisher.connected).toBe(true);

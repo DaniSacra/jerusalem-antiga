@@ -291,7 +291,9 @@ describe('house info and balloons', () => {
           { kind: 'plaza', ok: true },
           { kind: 'market', ok: false },
         ],
+        materials: { stone: 10 },
       },
+      waiting: null,
     });
   });
 

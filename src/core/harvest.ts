@@ -1,7 +1,7 @@
 import { BUILDINGS, RULES } from './data';
 import { borderCells, cellsInRadius, indexOf } from './grid';
 import { seasonOf, WEEKS_PER_YEAR } from './seasons';
-import type { Building, GameState } from './types';
+import type { Building, BuildingKind, Feature, GameState, GatherSource, Product, TreeFeature } from './types';
 
 /**
  * Fields give food in spring, summer and autumn, from the week they are built; in winter they
@@ -62,19 +62,33 @@ export function nextFieldTurn(week: number): { season: 'winter' | 'spring'; week
   return { season: 'winter', weeks: d };
 }
 
-/** River or tree cells within a gathering building's radius. */
+/** River, tree or rock cells within a gathering building's radius. */
 export function gatherCells(s: GameState, b: Building): number {
   const g = BUILDINGS[b.kind].gather;
   if (!g) return 0;
   return cellsInRadius(s, b.x, b.y, g.radius, b.w, b.h).filter((i) => isGatherSource(s, i, g.source)).length;
 }
 
-/** A cell a fisher (river) or gatherer (olive or palm tree) takes food from. */
-export const isGatherSource = (s: GameState, i: number, source: 'river' | 'tree') =>
-  source === 'river' ? s.ground[i] === 'river' : s.feature[i] === 'olive' || s.feature[i] === 'palm';
+/** A tree a gatherer or lumber takes from (a stump is not one). */
+export const isTree = (f: Feature | null): f is TreeFeature => f === 'olive' || f === 'palm';
 
-/** Food a fisher or gatherer brings every week before the worker efficiency (0 when disconnected). */
-export function gatherFood(s: GameState, b: Building): number {
+/** A cell a fisher (river), gatherer or lumber (olive or palm tree) or quarry (rock) takes from. */
+export function isGatherSource(s: GameState, i: number, source: GatherSource): boolean {
+  if (source === 'river') return s.ground[i] === 'river';
+  return source === 'rock' ? s.feature[i] === 'rock' : isTree(s.feature[i]);
+}
+
+/** What a gathering building brings: food unless its data says wood or stone. */
+export const productOf = (kind: BuildingKind): Product | null => {
+  const g = BUILDINGS[kind].gather;
+  return g ? (g.product ?? 'food') : null;
+};
+
+/**
+ * What a gathering building (fisher, gatherer, lumber, quarry) brings every week of its product
+ * (`productOf`) before the worker efficiency: min(max, cells × perCell), 0 when disconnected.
+ */
+export function gatherYield(s: GameState, b: Building): number {
   const g = BUILDINGS[b.kind].gather;
   return g && b.connected ? Math.min(g.max, gatherCells(s, b) * g.perCell) : 0;
 }

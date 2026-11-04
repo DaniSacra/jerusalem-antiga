@@ -3,7 +3,7 @@ import { computeEconomy, idleShare, type Economy } from './economy';
 import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
 import { gatherCells, isWorking } from './harvest';
-import type { BalloonKind, Building, GameState, NeedKind } from './types';
+import type { BalloonKind, Building, GameState, Material, Materials, NeedKind } from './types';
 
 /** Road: the building is connected. Services: any cell of its footprint is covered. */
 export function needMet(s: GameState, b: Building, need: NeedKind): boolean {
@@ -22,7 +22,10 @@ export interface HouseInfo {
   tax: number;
   /** Only for houses with a family. */
   happiness: Happiness | null;
-  next: { name: string; needs: { kind: NeedKind; ok: boolean }[] } | null;
+  /** The next level: its needs and the materials it costs to climb (paid when it climbs). */
+  next: { name: string; needs: { kind: NeedKind; ok: boolean }[]; materials: Materials } | null;
+  /** Ready to climb but waiting for this material (see `Building.waiting`). */
+  waiting: Material | null;
 }
 
 export function houseInfo(s: GameState, b: Building): HouseInfo | null {
@@ -36,7 +39,8 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
     residents: cur.residents,
     tax: happiness ? cur.tax * taxFactor(happiness.value) : cur.tax,
     happiness,
-    next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })) } : null,
+    next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })), materials: next.materials ?? {} } : null,
+    waiting: b.waiting ?? null,
   };
 }
 
@@ -54,7 +58,8 @@ export function targetLevel(s: GameState, b: Building): number {
 
 /**
  * Weeks until a house with a family climbs to the next level if nothing changes (paused by a
- * famine), or null when it is at the top or misses one of the next level's needs.
+ * famine), or null when it is at the top or misses one of the next level's needs. A house waiting
+ * for material shows 1 (it climbs the week the material is there; see `waiting`).
  */
 export function weeksToNextLevel(s: GameState, b: Building): number | null {
   const next = HOUSE_LEVELS[b.level + 1];
@@ -75,6 +80,13 @@ export function balloonNeed(s: GameState, b: Building, e: Economy = computeEcono
   const first = b.level < HOUSE_LEVELS.length - 1 ? missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0] : undefined;
   if (first) return first; // a locked need shows too (with a lock): the player learns what comes next
   return houseHappiness(s, b, idleShare(s, e)).mood === 'sad' ? 'sad' : null;
+}
+
+/** Houses ready to climb that wait for each material (the `material` alert and the top bar). */
+export function housesWaiting(s: GameState): Record<Material, number> {
+  const out: Record<Material, number> = { wood: 0, stone: 0 };
+  for (const b of s.buildings) if (b.kind === 'house' && b.waiting) out[b.waiting]++;
+  return out;
 }
 
 /** Houses connected to the road network with at least the given level. */

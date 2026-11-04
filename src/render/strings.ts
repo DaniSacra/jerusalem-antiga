@@ -1,5 +1,8 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GatherSource, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
+
+/** Names of what gathering buildings bring (drafts for the copywriter). */
+const PRODUCT: Record<Product, string> = { food: 'comida', wood: 'madeira', stone: 'pedra' };
 
 /** Upkeep begins (toast, or the tutorial step for who did not skip it). */
 const UPKEEP_START = 'Começou a manutenção: tudo, menos casas e ruas, custa prata por semana';
@@ -72,6 +75,7 @@ export const T = {
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   fail: {
     silver: 'Prata insuficiente',
+    materials: 'Falta madeira ou pedra',
     debt: 'Em dívida: não dá para construir',
     invalid: 'Não dá para construir aqui',
     noRoad: 'O Templo precisa encostar numa rua ligada ao altar',
@@ -92,6 +96,8 @@ export const T = {
         : `Em dívida: ${weeks(a.weeksLeft)} para a cidade ser abandonada. Reduza a manutenção`;
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
+    if (a.kind === 'material')
+      return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${a.material === 'wood' ? 'um lenhador' : 'uma pedreira'}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
     if (a.kind === 'spoiling')
       return a.locked
@@ -99,7 +105,7 @@ export const T = {
         : 'Comida estragando: construa um celeiro';
     if (a.kind === 'winterComing') return 'O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
-    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa ${a.workshopsFull ? 'um campo' : 'um campo ou uma oficina'}`;
+    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo ou uma oficina'}`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
   debtEnd: 'A cidade saiu da dívida!',
@@ -124,6 +130,7 @@ export const T = {
       plaza: 'Construa uma praça perto das tendas da caravana',
       house: 'Construa uma casa encostada na rua, perto da praça',
       family: 'Uma família está chegando!',
+      lumber: 'Casas pedem madeira: construa um lenhador perto das árvores',
       upkeep: UPKEEP_START,
       market: 'Construa um mercado perto das casas de barro: elas viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
@@ -161,7 +168,7 @@ export const T = {
   lockedHint: (kind: Placeable) => `${toolName(kind)}: libera no objetivo ${unlockingGoal(kind)}`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
-  feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
+  feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', stump: 'Toco', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
   need: { road: 'Rua', plaza: 'Praça', market: 'Mercado', park: 'Parque' } satisfies Record<NeedKind, string>,
   /** Interface Nova (drafts for the copywriter). */
   nova: {
@@ -224,6 +231,8 @@ export const T = {
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
+      lumber: 'Corta árvores e dá madeira. Divide o bosque com a Coletora.',
+      quarry: 'Tira pedra das rochas. Casas de pedra e o Templo precisam dela.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
@@ -236,10 +245,10 @@ export const T = {
     },
     cutTree: `Cortar árvore · ${RULES.treeClearCost} prata`,
     /** Over the preview of a fisher or gatherer, and in its balloon. */
-    yields: (n: number) => `Rende ${fmt(n)} comida/sem`,
+    yields: (n: number, product: Product = 'food') => `Rende ${fmt(n)} ${PRODUCT[product]}/sem`,
     /** Fisher and gatherer rule in the chosen building balloon. */
-    gatherRule: (source: 'river' | 'tree', perCell: number, radius: number, max: number) =>
-      `${fmt(perCell)} comida por ${source === 'river' ? 'trecho de rio' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
+    gatherRule: (source: GatherSource, perCell: number, radius: number, max: number, product: Product = 'food') =>
+      `${fmt(perCell)} ${PRODUCT[product]} por ${source === 'river' ? 'trecho de rio' : source === 'rock' ? 'rocha' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
     stores: (n: number) => `Guarda ${n} de comida`,
     /** Demolir aimed at a granary (or a road that links one): the food that would spoil. */
     foodLost: (n: number) => `Perde ${fmt(n)} de comida`,
@@ -320,7 +329,7 @@ export const T = {
       frozen: (weeks: number) => `Congelado no inverno: volta em ${weeks} sem`,
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
       droughtDry: 'Ano seco: longe do rio, colhe menos',
-      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada' },
+      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra' } satisfies Record<GatherSource, string>,
       happiness: (value: number, mood: Mood, why: string) => `Alegria ${value}, ${T.mood[mood]}${why ? ` (${why})` : ''}`,
       serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
       upkeep: (n: number, charged: boolean) => `${n} por semana${charged ? '' : ` depois do Objetivo ${RULES.upkeepStartsAfterGoal}`}`,

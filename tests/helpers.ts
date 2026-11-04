@@ -1,8 +1,8 @@
 import { HOUSE_LEVELS, RULES, campRoad, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type GoalDef, type Rng } from '../src/core';
 
 /**
- * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver and
- * everything unlocked. The 4x4 altar covers x, y = 22..25, a road ring surrounds it (x, y = 21..26)
+ * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver, wood
+ * and stone, and everything unlocked. The 4x4 altar covers x, y = 22..25, a road ring surrounds it (x, y = 21..26)
  * and the starting road runs south along x = 24, from the ring (y = 26) to the entrance at (24, 47).
  * Buildings beside the starting road go at y >= 27 so they stay off the ring.
  */
@@ -16,6 +16,8 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   s.ground = s.ground.map((g) => (g === 'river' ? 'river' : 'sand'));
   s.feature = s.feature.map(() => null);
   s.silver = 100_000;
+  s.wood = 100_000;
+  s.stone = 100_000;
   s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'park', 'temple'];
   s.goalIndex = RULES.upkeepStartsAfterGoal; // upkeep is charged (tests of the first goals set goalIndex)
   Object.assign(s, overrides);
@@ -23,15 +25,12 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   return s;
 }
 
-/** Places a building (top-left at x, y) without charging silver, optionally at a given house level. */
+/** Places a building (top-left at x, y) without charging silver or materials, optionally at a given house level. */
 export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0, rotated = false) {
-  const silver = s.silver;
-  const unlocked = s.unlocked;
-  s.silver = 1e9;
-  s.unlocked = [kind];
+  const { silver, wood, stone, unlocked } = s;
+  Object.assign(s, { silver: 1e9, wood: 1e9, stone: 1e9, unlocked: [kind] });
   const r = place(s, kind, x, y, rotated);
-  s.silver = silver;
-  s.unlocked = unlocked;
+  Object.assign(s, { silver, wood, stone, unlocked });
   if (!r.ok) throw new Error(`cannot place ${kind} at ${x},${y}: ${r.reason}`);
   const b = s.grid[indexOf(s, x, y)]!;
   b.level = level;

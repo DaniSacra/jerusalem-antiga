@@ -17,6 +17,7 @@ import {
   houseHint,
   type FoodSpot,
   inBounds,
+  isTree,
   indexOf,
   place,
   RULES,
@@ -837,7 +838,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool === 'road' && s.roads[indexOf(s, o.x, o.y)]) return;
     // What is demolished (for the size of the dust): read before it is gone.
     const removed = this.tool === 'clear' ? s.grid[indexOf(s, o.x, o.y)] : null;
-    const tree = this.tool === 'clear' && inBounds(s, o.x, o.y) && !removed && !s.roads[indexOf(s, o.x, o.y)] && !!s.feature[indexOf(s, o.x, o.y)];
+    const tree = this.tool === 'clear' && inBounds(s, o.x, o.y) && !removed && !s.roads[indexOf(s, o.x, o.y)] && isTree(s.feature[indexOf(s, o.x, o.y)]);
     // Food that spoils because a granary (or the road to one) goes: said where it happens.
     const lost = this.tool === 'clear' && inBounds(s, o.x, o.y) ? foodLostIfRemoved(s, o.x, o.y) : 0;
     const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated, this.rng) : clearCell(s, o.x, o.y);

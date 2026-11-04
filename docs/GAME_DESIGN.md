@@ -28,10 +28,10 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
     - **2 bosques densos** (`denseGrove`: min 2) com 24 + 2..8 árvores (oliveiras e palmeiras,
       tiradas dos totais) num quadrado de raio 3 (7 x 7), centro a 10–20 células do altar (na
       prática 13–19, porque o quadrado inteiro precisa ficar fora das 9 células livres e dentro do
-      mapa). Preparam a coleta de madeira de um pacote futuro; hoje servem à Coletora;
+      mapa). Servem à Coletora e ao Lenhador (que disputam as mesmas árvores);
     - **1 afloramento de rochas** (`rockOutcrop`: min 1) com 12 + 0..4 rochas (tiradas do total)
-      num quadrado de raio 2 (5 x 5), centro a 10–18 células do altar (na prática 12–18). Prepara a
-      pedreira de um pacote futuro;
+      num quadrado de raio 2 (5 x 5), centro a 10–18 células do altar (na prática 12–18). É o lugar
+      da Pedreira;
   - o resto das rochas, oliveiras e palmeiras vem em **grupos** (rochas de 4 a 9, oliveiras de 7
     a 14, palmeiras de 6 a 12), cada grupo novo começando a 5+ células de qualquer outro, com
     clareiras entre eles (`CLUMPS` em `map.ts`; forma do terreno, não equilíbrio).
@@ -58,10 +58,11 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   alcança todas as tendas**. A comida inicial vale
   **14 a 22 semanas** do consumo delas, cortada no limite sem celeiro (50). Uma frase na abertura
   mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas" (as
-  semanas da previsão, as mesmas da pílula de comida e do Objetivo 1).
+  semanas da previsão, as mesmas da pílula de comida e do Objetivo 1). A caravana traz também
+  **20 de madeira** e nenhuma pedra (`startMaterials` em `rules.json`).
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
-- Liberados: Mover, Rua, Casa, Campo, Praça, Pescador, Coletora e Demolir.
+- Liberados: Mover, Rua, Casa, Campo, Praça, Pescador, Coletora, Lenhador e Demolir.
 - **Não há água no jogo** (desde o Pacote 2, 2026-11-04): o Poço saiu, nenhuma casa pede água e a
   porta das famílias não olha água. O rio é só terreno, pesca e o bônus dos campos na seca.
 
@@ -70,24 +71,28 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Construção | Custo | Manutenção | Tamanho | Vagas | Produção | Raio | Observações |
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
-| Casa | 40 | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
+| Casa | 40 + 5 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
 | Campo | 20 | 1/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
 | Praça | 25 | 1/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
 | Pescador | 20 | 1/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem | 2 | o ano todo |
 | Coletora | 20 | 1/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem | 3 | o ano todo |
-| Celeiro | 40 | 1/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 1 |
-| Mercado | 60 | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
-| Oficina | 50 | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |
-| Parque | 60 | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 5; casas de pedra no raio viram casas grandes; dá Alegria |
-| Templo | 800 | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido; o raio só dá Alegria |
+| Lenhador | 25 | 1/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 3 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
+| Pedreira | 40 + 10 madeira | 2/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 3 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 2; as rochas não acabam |
+| Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 150 de comida | – | liberado pelo Objetivo 1 |
+| Mercado | 60 + 10 madeira | 4/sem | 2 x 4 | 3 | – | 5 | liberado pelo Objetivo 3; pode girar para 4 x 2 |
+| Oficina | 50 + 10 madeira | 2/sem | 3 x 3 | 3 | +10% da comida dos campos por oficina ligada, até +30% (`fieldBonus`, `fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 4; 6 ofícios (só aparência) |
+| Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 5; casas de pedra no raio viram casas grandes; dá Alegria |
+| Templo | 800 + 300 pedra + 150 madeira | 10/sem | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 8 (6 casas grandes); a vitória ainda pede o Objetivo 9 (500 moradores, a partir do Ano 8); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
-- **Pescador e Coletora** (`gather` em `buildings.json`, uma regra só): produção por semana =
-  mín(`max`, células do recurso no raio × `perCell`) × eficiência. Recurso: rio (Pescador) ou
-  árvore (Coletora; oliveira, amendoeira, figueira e palmeira contam). Podem ser construídos em
-  qualquer lugar; rendendo 0 mostram o balão "longe do rio" ou "sem árvores". A prévia mostra
-  "Rende N comida/sem". Cortar árvores baixa a Coletora. Dois no mesmo recurso contam as mesmas
-  células.
+- **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
+  `gatherYield`): produção por semana = mín(`max`, células do recurso no raio × `perCell`) ×
+  eficiência, do produto `gather.product` (comida quando falta; madeira no Lenhador, pedra na
+  Pedreira). Recurso: rio (Pescador), árvore (Coletora e Lenhador; oliveira, amendoeira, figueira
+  e palmeira contam, toco não) ou rocha (Pedreira). Podem ser construídos em qualquer lugar;
+  rendendo 0 mostram o balão "longe do rio", "sem árvores" ou "sem rochas". A prévia mostra
+  "Rende N comida/sem" (ou madeira, pedra). Cortar árvores baixa a Coletora. Dois no mesmo
+  recurso contam as mesmas células.
 - **Celeiro:** a cidade guarda **50** de comida sem celeiro (`baseFoodStorage`); cada celeiro
   **ligado** soma 150 (`storage`). A capacidade não depende da vaga preenchida. Comida acima do
   limite **estraga** no fim da semana, com o aviso "Comida estragando: construa um celeiro".
@@ -101,6 +106,38 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   ruas, custa prata por semana" (passo do tutorial ou toast).
   A partir daí é cobrada toda semana de toda construção, **mesmo desconectada**, e também depois da
   vitória.
+
+## Madeira e pedra (Pacote 3)
+
+- **Estoque da cidade**, como a prata: `wood` e `stone` no estado, **sem limite e sem depósito**.
+  Começa com **20 de madeira e 0 de pedra** (`startMaterials`). Entra toda semana a produção dos
+  Lenhadores e Pedreiras ligados × eficiência (`Economy.wood`, `Economy.stone`, o "+N/sem").
+  Demolir não devolve material.
+- **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 5 madeira; Celeiro,
+  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 150 madeira. **Não
+  custam material:** Rua, Campo, Praça, Pescador, Coletora e Lenhador (comida e madeira nunca
+  travam por material). Construir exige prata **e** material e paga os dois; sem material, falha
+  com a razão `materials` sem gastar nada (a prata é conferida antes). `missingMaterial(s, kind)`
+  diz o material que falta (madeira primeiro) para o botão, a prévia e o toast.
+- **Evolução das casas** (`materials` em `houses.json`, pago ao subir para o nível): Casa de barro
+  5 madeira, Casa de pedra 10 pedra, Casa grande 10 pedra + 5 madeira (terreno e tenda: nada).
+  Veja Casas.
+- **Corte** (`trees.ts`): cada Lenhador ligado soma a madeira que fez na semana (com a eficiência)
+  em `cutProgress`; a cada **10** (`cutEvery`) corta a **árvore mais próxima no raio** (menor
+  distância ao quadrado até a área do Lenhador; empate pela célula de menor índice, ou seja,
+  linha de cima e depois coluna da esquerda). A árvore vira **toco** (feature `stump`, guardado em
+  `stumps` com o tipo e a semana), com o evento `treeCut`. O toco não conta para Coletora nem
+  Lenhador.
+- **Toco não bloqueia:** construir ou pôr rua em cima é permitido, sem custo a mais, e o toco some
+  (não volta). Demolir não age num toco. Toco livre volta a ser **a mesma árvore** (oliveira ou
+  palmeira) depois de **104 semanas** (`treeRegrowWeeks`), com o evento `treeRegrown`.
+- **Rochas** não acabam e continuam sem demolir.
+- A porta das famílias **não** olha materiais.
+- **Prévias** (`readouts.ts`): `sharedTrees(s, x, y, kind)` conta as árvores que um Lenhador (ou
+  Coletora) naquele lugar dividiria com as Coletoras (ou Lenhadores) existentes ("Divide o bosque
+  com …"); `foodAfter` diz o produto (`product`) e o rendimento; `weeksPerCut(n)` = 10 / n semanas
+  por árvore cortada, para cima ("corta 1 árvore a cada N sem"); `upgradeGain` diz o material
+  pedido ao evoluir.
 
 - Tamanho é largura (x) por altura (y) em células. O **Mercado** é o único que gira: tocar de novo
   no botão Mercado (ou a tecla R no PC) alterna entre 2 x 4 e 4 x 2; a escolha vale para as
@@ -151,6 +188,17 @@ fazem parte da evolução (só dão Alegria).
 
 Cada morador come 0,2 por semana em todos os níveis (mais no inverno, veja Simulação). Futuro
 (Pacote Evoluções): casa senhorial com 30 moradores.
+
+**Material ao evoluir** (coluna nova de `houses.json`): Casa de barro **5 madeira**, Casa de pedra
+**10 pedra**, Casa grande **10 pedra + 5 madeira**. Cumpridas as 13 semanas e as exigências, a casa
+sobe só se houver o material, e **paga na hora**. Sem material, a contagem fica parada em 13/13 e
+a casa guarda `waiting: 'wood' | 'stone'` (o primeiro que falta) até o material chegar; sobe na
+semana em que ele chega (a produção entra antes da evolução). Casas prontas na mesma semana pagam
+na ordem da lista (a **mais antiga primeiro**). Perder uma exigência zera a contagem e a espera.
+Cair de nível não devolve; subir de novo paga de novo. O aviso `material` ("N casas esperando
+madeira/pedra") vem logo depois da comida (ordem: dívida, comida acabando, material, estoque
+cheio, inverno, seca, saldo, desemprego). Com o bônus das oficinas no teto, o aviso de desemprego
+manda para o Lenhador ou a Pedreira.
 
 **Evolução lenta:** uma casa sobe **um nível por estação**: precisa de **13 semanas seguidas**
 (`weeksToUpgrade`) com as exigências do próximo nível. Cair continua rápido: **3 semanas**
@@ -279,6 +327,8 @@ A cada semana, nesta ordem (`simulation.ts`):
    passa do estoque (50 + celeiros) **estraga**.
 4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (só depois do Objetivo 4; o campo paga manutenção o ano todo). A prata **pode ficar negativa** (dívida).
    Esse saldo é o "+X/sem" da pílula.
+   Madeira += produção dos Lenhadores, pedra += produção das Pedreiras (× eficiência). Depois os
+   tocos com 104 semanas voltam a ser árvores e os Lenhadores cortam (veja Madeira e pedra).
 5. Novas famílias (veja Famílias); depois todas andam (as novas já na mesma semana), e as que
    chegam transformam o terreno em tenda.
 6. Para cada casa de nível 1 ou mais:
@@ -288,8 +338,8 @@ A cada semana, nesta ordem (`simulation.ts`):
      embora); cada tenda tem **20%** de chance (`famineLeaveChance`) de ser **abandonada**, e
      **35% no inverno** (`winterFamineLeaveChance`): vira terreno vazio e a família vai embora
      andando até a entrada (só aparência);
-   - se tem as exigências do próximo nível: após **13 semanas** seguidas, sobe de nível; se perde
-     uma delas, a contagem zera.
+   - se tem as exigências do próximo nível: após **13 semanas** seguidas, sobe de nível pagando o
+     material do nível (sem material, espera em 13/13); se perde uma delas, a contagem zera.
 7. Guardar a maior população (`peakPopulation`), o histórico, os marcos e verificar o objetivo
    atual.
 8. **Dívida:** se a prata terminou a semana negativa, conta mais uma semana em dívida; com prata
@@ -342,7 +392,7 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | # | Texto | Alvo | Prêmio | Libera |
 |---|---|---|---|---|
 | 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
-| 2 | Tenha 3 casas de barro | 3 | +40 | – |
+| 2 | Tenha 3 casas de barro | 3 | +40 | Pedreira |
 | 3 | Chegue a 60 moradores | 60 | +50 | Mercado |
 | 4 | Tenha 3 casas de pedra | 3 | +60 | Oficina (e a manutenção começa) |
 | 5 | Chegue a 150 moradores | 150 | +80 | Parque (e a Alegria) |
@@ -470,8 +520,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - **Rua**: arrastar constrói, como hoje;
   - **Demolir** (martelo): a construção sob o cursor/dedo fica avermelhada; ao demolir, poeira e
     pedrinhas; sobre árvore, "Cortar árvore · 5 prata". Regras de Limpar sem mudança.
-- **Coluna direita de construções**: são 10 (Casa, Praça, Parque, Campo, Pescador, Coletora,
-  Celeiro, Mercado, Oficina, Templo; `COLUMN_ORDER` em `tools.ts`), mais que `toolColumnMax` (8), então a coluna mostra as **4
+- **Coluna direita de construções**: são 12 (Casa, Praça, Parque, Campo, Pescador, Coletora,
+  Celeiro, Lenhador, Pedreira, Mercado, Oficina, Templo; `COLUMN_ORDER` em `tools.ts`), mais que `toolColumnMax` (8), então a coluna mostra as **4
   categorias** e tocar numa abre a faixa dela (veja Categorias). Botão redondo com a miniatura da arte do jogo; celular 46 px só o desenho; PC 86 px com
   desenho, nome e "preço · tecla N". Escolhida: borda dourada com brilho. Sem prata: acinzentada e
   preço em vermelho. Bloqueada: cinza, borda tracejada e cadeado (PC: "objetivo N"); tocar mostra
@@ -510,9 +560,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Tutorial:** a seta aponta os botões da Nova e o balão fica acima da parte de baixo da tela; o
   último passo aponta a pílula do objetivo.
 - **Categorias** (`category` em `buildings.json`): Moradia (Casa, Praça, Parque), Comida (Campo,
-  Pescador, Coletora, Celeiro), Trabalho (Mercado, Oficina), Especiais (Templo). Com até
+  Pescador, Coletora, Celeiro), Trabalho (Lenhador, Pedreira, Mercado, Oficina), Especiais (Templo). Com até
   `toolColumnMax` (8, em `rules.json`) construções a coluna mostra todas; acima disso mostra as 4
-  categorias e tocar numa abre uma faixa com as construções dela. São 10, então as categorias valem.
+  categorias e tocar numa abre uma faixa com as construções dela. São 12, então as categorias valem.
   A categoria com uma construção liberada nova ganha o selo "novo".
 - **Detalhes decididos na implementação (ui-designer):**
   - celular ou PC pelo tamanho real da tela: altura real < 500 px ou ponteiro grosso (toque) = celular;
@@ -650,6 +700,11 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
      (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
      Construa mais casas: cada uma recebe uma família". Se a porta das famílias estiver fechada e nenhuma
      família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo).
+  7. Mini passo do Lenhador, logo depois do 6 (o último de `steps` em `tutorial.json`; o relógio
+     para, como nos passos de construir): "Casas pedem madeira: construa um lenhador perto das
+     árvores". O lugar é `lumberSpot`, a mesma busca de `foodSpot` (maior rendimento, depois rua
+     mais curta) para o Lenhador. Conclui com 1 lenhador ligado. (A seta no lugar e a rua marcada
+     até ele ainda são trabalho da interface.)
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,
   praça, casa) com a ponta **acima da construção**, para não cobrir a prévia. No celular, a seta de
   uma construção única (pescador, coletora, praça) aponta onde o dedo vai: a mira fica 90 px acima do

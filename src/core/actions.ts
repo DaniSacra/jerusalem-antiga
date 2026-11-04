@@ -4,6 +4,8 @@ import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
+import { materialsOf, missingMaterial, payMaterials } from './materials';
+import { clearStump } from './trees';
 import type { ActionResult, BuildableKind, Building, Cell, Dims, FailReason, GameState, Placeable, Rng } from './types';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
@@ -13,11 +15,11 @@ export const costOf = (kind: Placeable) => (kind === 'road' ? RULES.roadCost : B
 /** Footprint of a placeable; only non-square buildings change when rotated. */
 export const placeSize = (kind: Placeable, rotated = false): Dims => (kind === 'road' ? { w: 1, h: 1 } : dimsOf(kind, rotated));
 
-/** Free land: inside the map, not river, no rock or tree, no building or road. */
+/** Free land: inside the map, not river, no rock or tree (a stump is free), no building or road. */
 export function isFreeLand(s: GameState, x: number, y: number): boolean {
   if (!inBounds(s, x, y)) return false;
   const i = indexOf(s, x, y);
-  return s.ground[i] !== 'river' && !s.feature[i] && !s.grid[i] && !s.roads[i];
+  return s.ground[i] !== 'river' && (!s.feature[i] || s.feature[i] === 'stump') && !s.grid[i] && !s.roads[i];
 }
 
 const isFreeRect = (s: GameState, x: number, y: number, { w, h }: Dims) => footprint(x, y, w, h).every((c) => isFreeLand(s, c.x, c.y));
@@ -30,6 +32,7 @@ export function checkPlace(s: GameState, kind: Placeable, x: number, y: number, 
   if (kind === 'temple' && !touchesNetwork(s, { x, y, ...d })) return fail('noRoad');
   if (s.silver < 0) return fail('debt');
   if (s.silver < costOf(kind)) return fail('silver');
+  if (missingMaterial(s, kind)) return fail('materials');
   return OK;
 }
 
@@ -48,11 +51,17 @@ export function placeSpots(s: GameState, kind: BuildableKind, rotated = false): 
 /** Top-left cells where the temple fits. */
 export const templeSpots = (s: GameState) => placeSpots(s, 'temple');
 
-/** Builds a road or building. `rng` draws the look of houses (seeded from the id if not given). */
+/**
+ * Builds a road or building, paying its silver and materials; stumps under it go away. `rng`
+ * draws the look of houses (seeded from the id if not given).
+ */
 export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false, rng?: Rng): ActionResult {
   const r = checkPlace(s, kind, x, y, rotated);
   if (!r.ok) return r;
   s.silver -= costOf(kind);
+  payMaterials(s, materialsOf(kind));
+  const { w, h } = placeSize(kind, rotated);
+  for (const c of footprint(x, y, w, h)) clearStump(s, indexOf(s, c.x, c.y));
   if (kind === 'road') {
     s.roads[indexOf(s, x, y)] = true;
   } else {

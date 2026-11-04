@@ -3,7 +3,7 @@ import {
   BUILDINGS,
   calendar,
   foodCapacity,
-  gatherFood,
+  gatherYield,
   goalProgress,
   goalTarget,
   GOALS,
@@ -323,7 +323,7 @@ export class Panels {
     upkeep.push(row(st.balance, `${signed(e.silverDelta)}${per}`, tone(e.silverDelta)));
 
     // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
-    const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherFood(s, b) : 0), 0) * e.efficiency;
+    const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherYield(s, b) : 0), 0) * e.efficiency;
     const lasts = lastsToHarvest(s, out);
     const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodEnds[out!.season]}`;
     const cap = foodCapacity(s);
