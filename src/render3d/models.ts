@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { patch } from './shaders';
 
 /**
  * Model library of the 3D proof of concept.
@@ -67,22 +68,36 @@ export const COLORS = {
   flame: 0xffd36a,
 } as const;
 
+/** Crop colours of the four field variants (wheat, barley, lentil, flax). */
+export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
+
 // ------------------------------------------------------------------ building blocks
 
 const materials = new Map<string, THREE.Material>();
 
-/** Shared flat-shaded material per colour (emissive for fire). */
+/**
+ * Shared flat-shaded material per colour (emissive for fire), patched with the world effects:
+ * snow on upward faces, wetness and cloud shadows; the dark of windows and doors glows at night,
+ * the crops grow with the season.
+ */
 function mat(color: number, emissive = false): THREE.Material {
   const key = `${color}-${emissive}`;
   let m = materials.get(key);
   if (!m) {
     m = emissive
       ? new THREE.MeshBasicMaterial({ color })
-      : new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true });
+      : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
+          snow: true,
+          windows: color === COLORS.dark,
+          grow: (CROPS as readonly number[]).includes(color),
+        });
     materials.set(key, m);
   }
   return m;
 }
+
+/** The shared material of a model colour (to recolour plants and crops with the season). */
+export const materialOf = (color: number) => mat(color) as THREE.MeshStandardMaterial;
 
 type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean };
 
@@ -211,8 +226,9 @@ function bigHouse(): Piece[] {
 }
 
 function field(crop: number): Piece[] {
+  // Soil with plowed ridges (they show when the crop is low) and five rows of crop.
   const rows: Piece[] = [box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.soil)];
-  for (let k = 0; k < 5; k++) rows.push(box(0.24, 0.22, 1.65, -0.72 + k * 0.36, 0.05, 0, crop));
+  for (let k = 0; k < 5; k++) rows.push(box(0.2, 0.05, 1.7, -0.72 + k * 0.36, 0.03, 0, COLORS.soil), box(0.24, 0.22, 1.65, -0.72 + k * 0.36, 0.05, 0, crop));
   rows.push(cyl(0.02, 0.02, 0.6, 4, 0.9, 0, 0.9, COLORS.wood), box(0.3, 0.2, 0.05, 0.9, 0.45, 0.9, COLORS.cloth));
   return rows;
 }
@@ -397,7 +413,6 @@ const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18
 const shrub = (): Piece[] => [blob(0.16, 0, 0.1, 0, COLORS.leafDark, 0.7)];
 const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
 
-const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax];
 
 /** The provisional code-built models, by key. */
 export function codeModels(): Record<ModelKey, Prototype> {

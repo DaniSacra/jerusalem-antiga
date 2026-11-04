@@ -101,6 +101,13 @@ function devSeed(): number | null {
   return v === null ? null : Number(v) >>> 0;
 }
 
+/** A city played elsewhere (the 3D proof) that this scene shows and plays on, same state and generator. */
+export interface SharedCity {
+  state: GameState;
+  rng: Rng;
+  seed: number;
+}
+
 export class GameScene extends Phaser.Scene implements UiHost {
   private state!: GameState;
   private rng!: Rng;
@@ -168,15 +175,19 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return SPEEDS[this.speedIndex];
   }
 
-  /** `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once. */
-  create(data?: { tutorial?: boolean }) {
+  /**
+   * `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once.
+   * `shared` plays a city that already exists (the 3D proof shows the same state), with no tutorial.
+   */
+  create(data?: { tutorial?: boolean; shared?: SharedCity }) {
     generateTextures(this);
     generateUiArt(this);
-    const seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
-    this.rng = createRng(seed);
+    const shared = data?.shared;
+    const seed = shared?.seed ?? devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
+    this.rng = shared?.rng ?? createRng(seed);
     this.seasons = new SeasonClock(seed);
-    this.state = createGame(this.rng);
-    this.guide = data?.tutorial || !tutorialSeen() ? new TutorialGuide(this.state) : null;
+    this.state = shared?.state ?? createGame(this.rng);
+    this.guide = !shared && (data?.tutorial || !tutorialSeen()) ? new TutorialGuide(this.state) : null;
     this.spot = this.guide ? foodSpot(this.state) : null;
     this.ghost = this.spot?.road ?? [];
     this.houseHint = null;
@@ -221,6 +232,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
         Object.assign(window, { game: this, state: this.state, core, iso, layout }),
       );
     }
+  }
+
+  /** Shared city (3D proof): the week fraction, to hand the clock over between the views. */
+  get weekClock() {
+    return this.clock;
+  }
+
+  /** Shared city (3D proof): the state changed while this view slept; take the clock and redraw. */
+  resumeShared(clock: number) {
+    this.clock = clock;
+    this.refresh();
   }
 
   attachWeather(w: Weather) {

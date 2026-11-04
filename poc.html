@@ -5,40 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>Jerusalém Antiga 3D</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #e9cfa6; touch-action: none; font: 600 14px 'Trebuchet MS', Verdana, sans-serif; }
-      #view, #view canvas { width: 100%; height: 100%; display: block; }
-      .bar { position: fixed; left: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; pointer-events: none; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #6b5236; touch-action: none; font: 600 13px 'Trebuchet MS', Verdana, sans-serif; }
+      #view, #view canvas, #game2d { width: 100%; height: 100%; display: block; }
+      #game2d { display: none; }
+      body.in2d #view, body.in2d .only3d { display: none; }
+      body.in2d #game2d { display: block; }
+      .bar { position: fixed; left: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; pointer-events: none; z-index: 5; }
       .bar > * { pointer-events: auto; }
       #top { top: 8px; }
       #bottom { bottom: 8px; }
-      #stats, .bar a { background: rgba(60, 40, 24, 0.78); color: #f6ead2; padding: 6px 10px; border-radius: 8px; text-decoration: none; }
+      .pill, .bar a { background: rgba(60, 40, 24, 0.78); color: #f6ead2; padding: 6px 10px; border-radius: 8px; text-decoration: none; cursor: pointer; user-select: none; }
       .bar a.on { background: #c8952f; color: #2e1f12; }
-      #help { color: #3c2818; background: rgba(246, 234, 210, 0.85); padding: 6px 10px; border-radius: 8px; }
+      #speeds { display: flex; gap: 4px; }
+      #speeds a { min-width: 22px; text-align: center; }
+      #clock { background: rgba(246, 234, 210, 0.9); color: #3c2818; }
+      #stats { font-weight: 400; opacity: 0.85; }
+      #toggle { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: 8px; background: #2e1f12; color: #f6ead2; border: 2px solid #c8952f; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
+      #banner { position: fixed; z-index: 4; left: 0; right: 0; top: 34%; text-align: center; font-size: 54px; color: #fff8e8; text-shadow: 0 3px 12px rgba(40, 24, 10, 0.75); opacity: 0; pointer-events: none; }
+      #banner.show { animation: banner 3.2s ease-out; }
+      @keyframes banner { 0% { opacity: 0; transform: translateY(12px); } 15%, 60% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+      #note { position: fixed; z-index: 4; top: 46px; left: 50%; transform: translateX(-50%); opacity: 0; pointer-events: none; }
+      #note.show { animation: banner 4s ease-out; }
+      #help { color: #3c2818; background: rgba(246, 234, 210, 0.85); padding: 6px 10px; border-radius: 8px; font-weight: 400; }
+      @media (max-height: 430px) { #help { display: none; } #banner { font-size: 40px; } }
     </style>
   </head>
   <body>
     <div id="view"></div>
-    <div class="bar" id="top">
-      <span id="stats">Carregando…</span>
-      <a href="./">Jogo 2D</a>
+    <div id="game2d"></div>
+    <div id="banner"></div>
+    <div id="note" class="pill"></div>
+    <div class="bar only3d" id="top">
+      <span id="clock" class="pill">Carregando…</span>
+      <span id="speeds"></span>
+      <a id="demo"></a>
+      <span id="stats" class="pill"></span>
     </div>
-    <div class="bar" id="bottom">
+    <div class="bar only3d" id="bottom">
       <a data-q="weeks=60">~40 construções</a>
-      <a data-q="weeks=156">~100</a>
-      <a data-q="weeks=400">~150</a>
+      <a data-q="b=150">150</a>
       <a data-q="quality=low">Qualidade baixa</a>
-      <a data-q="shadows=off">Sem sombras</a>
-      <span id="help">Arraste para mover · pinça ou roda: zoom · dois dedos girando ou botão direito: girar e inclinar</span>
+      <span id="help">Arraste: mover · pinça ou roda: zoom · dois dedos girando ou botão direito: girar e inclinar</span>
     </div>
+    <a id="toggle"></a>
     <script type="module">
       // Option links: toggle one URL option, keeping the others.
       const now = new URLSearchParams(location.search);
       for (const a of document.querySelectorAll('[data-q]')) {
         const [k, v] = a.dataset.q.split('=');
-        const on = now.get(k) === v || (k === "weeks" && !now.has("weeks") && v === "156");
+        const on = now.get(k) === v;
         a.classList.toggle('on', on);
         const next = new URLSearchParams(now);
-        if (on && k !== "weeks") next.delete(k);
+        if (on) next.delete(k);
         else next.set(k, v);
         a.href = `?${next}`;
       }

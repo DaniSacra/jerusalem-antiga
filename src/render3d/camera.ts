@@ -28,7 +28,7 @@ export class CameraRig {
       this.zoom(Math.exp(e.deltaY * 0.0012));
     }, { passive: false });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    addEventListener('keydown', (e) => this.keys.add(e.key.toLowerCase()));
+    addEventListener('keydown', (e) => el.isConnected && el.offsetParent && this.keys.add(e.key.toLowerCase()));
     addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     this.apply();
   }
@@ -108,6 +108,17 @@ export class CameraRig {
     if (k.has('s') || k.has('arrowdown')) this.pan(0, -step);
     if (k.has('q')) this.yaw += 1.6 * dt;
     if (k.has('e')) this.yaw -= 1.6 * dt;
+    this.apply();
+  }
+
+  /** The ground point the camera looks at. */
+  get focus(): THREE.Vector3 {
+    return this.target;
+  }
+
+  /** Turns the view around its focus (the demonstration's slow orbit). */
+  orbit(angle: number) {
+    this.yaw += angle;
     this.apply();
   }
 
