@@ -242,7 +242,7 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
   ano, na primeira semana da primavera.
 - **Seca:** cada ano é seco ou não, sorteado pela semente do mapa (`drought` em `rules.json`):
   chance **25%**, nunca nos Anos 1 e 2 (`safeYears` 2: a primeira seca possível é na primavera do
-  Ano 3), nunca dois anos seguidos. Num ano seco a colheita é **× 0,4**,
+  Ano 3), nunca dois anos seguidos. Num ano seco a colheita é **× 0,25**,
   exceto nos campos **encostados no rio** (alguma célula vizinha, lado com lado, é rio), que colhem
   normal. A seca é anunciada na **semana 1 do inverno**: "As chuvas estão fracas este ano".
 
@@ -336,7 +336,7 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
   celeiro ainda bloqueado: "Estoque cheio (50): o excesso estraga. O celeiro libera no objetivo
   1"); "O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida" (nas últimas 3
   semanas do outono, `winterWarningWeeks`, se houver tendas); "Ano seco: campos longe do rio
-  colhem 40%. Construa pescador ou coletora" (do inverno ao fim da primavera de um ano seco);
+  colhem 25%. Construa pescador ou coletora" (do inverno ao fim da primavera de um ano seco);
   "Nenhuma família vem: …"; saldo negativo ("Saldo −X/sem · maior custo: Tipo (N/sem) ·
   use Demolir em serviços que atendem poucas casas"); desemprego.
 

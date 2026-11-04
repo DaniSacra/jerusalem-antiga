@@ -16,7 +16,7 @@
   "winterFamineLeaveChance": 0.35,
   "winterWarningWeeks": 3,
   "historyWeeks": 52,
-  "drought": { "chance": 0.25, "harvestFactor": 0.4, "safeYears": 2, "neverTwice": true },
+  "drought": { "chance": 0.25, "harvestFactor": 0.25, "safeYears": 2, "neverTwice": true },
   "caravan": { "families": [2, 4], "foodWeeks": [14, 22] },
   "weeksToUpgrade": 13,
   "weeksToDowngrade": 3,

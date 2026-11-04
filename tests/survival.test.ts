@@ -235,7 +235,7 @@ describe('winter and drought', () => {
     dry.built = 0;
     const full = fieldHarvest(s, dry, SPRING, false);
     expect(fieldHarvest(s, dry, SPRING, true)).toBeCloseTo(full * RULES.drought.harvestFactor);
-    expect(RULES.drought.harvestFactor).toBe(0.4);
+    expect(RULES.drought.harvestFactor).toBe(0.25);
   });
 
   it('fields touching the river harvest in full in a dry year', () => {
