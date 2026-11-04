@@ -50,7 +50,7 @@ export interface Profile {
   delay: number;
   /** Uses foodForecast to plan (knows the rules); otherwise only reacts to on-screen signals. */
   planner: boolean;
-  /** Knows fields must be sown in autumn. */
+  /** Plans fields ahead (sows them out of winter, when they give food at once). */
   knowsAutumn: boolean;
   /** Reacts to food only in famine (forgets the forecast and the family-block message). */
   foodOnlyInFamine: boolean;
@@ -84,8 +84,17 @@ const passable = (s: GameState, x: number, y: number) => {
   return isFreeLand(s, x, y) || (!s.grid[i] && !s.roads[i] && s.ground[i] !== 'river' && (s.feature[i] === 'palm' || s.feature[i] === 'olive'));
 };
 
-/** BFS road distance from the connected road network over passable cells (0 = a network road cell). */
-function roadDist(s: GameState): { dist: Int32Array; prev: Int32Array } {
+/** A cell a road can go through after demolishing what is on it (any building but the protected ones). */
+const diggable = (s: GameState, x: number, y: number) => {
+  const b = s.grid[indexOf(s, x, y)];
+  return !!b && !BUILDINGS[b.kind].protected;
+};
+
+/**
+ * BFS road distance from the connected road network over passable cells (0 = a network road cell).
+ * With `dig`, buildings count as passable too: the bot demolishes them to open the way (a boxed-in city).
+ */
+function roadDist(s: GameState, dig = false): { dist: Int32Array; prev: Int32Array } {
   const n = s.cols * s.rows;
   const dist = new Int32Array(n).fill(-1);
   const prev = new Int32Array(n).fill(-1);
@@ -95,7 +104,7 @@ function roadDist(s: GameState): { dist: Int32Array; prev: Int32Array } {
     const i = q[h];
     for (const c of neighbors(s, i % s.cols, Math.floor(i / s.cols))) {
       const j = indexOf(s, c.x, c.y);
-      if (dist[j] >= 0 || !passable(s, c.x, c.y)) continue;
+      if (dist[j] >= 0 || !(passable(s, c.x, c.y) || (dig && diggable(s, c.x, c.y)))) continue;
       dist[j] = dist[i] + 1;
       prev[j] = i;
       q.push(j);
@@ -127,6 +136,9 @@ const cheb = (a: Rect, b: Rect) => Math.max(0, a.x - (b.x + b.w - 1), b.x - (a.x
 
 // ------------------------------------------------------------------ bot
 
+/** Road cells a bot lays to reach a well or market spot. */
+const SERVICE_ROAD = 6;
+
 interface Stats {
   actions: number;
   built: Record<string, number>;
@@ -136,8 +148,9 @@ interface Stats {
 export class SurvivalBot {
   stats: Stats = { actions: 0, built: {}, roadCells: 0 };
   private streak: Record<string, number> = {};
+  private lastDryDemolish = -Infinity;
   /** A pending target: the bot laid road toward it and builds it once connected. */
-  private pending: { kind: BuildableKind; r: Rect } | null = null;
+  private pending: { kind: BuildableKind; r: Rect; dig: boolean } | null = null;
   constructor(readonly p: Profile, private rng: Rng) {}
 
   private bump(k: string, on: boolean) { this.streak[k] = on ? (this.streak[k] ?? 0) + 1 : 0; }
@@ -149,9 +162,11 @@ export class SurvivalBot {
     this.bump('famine', s.famine);
     this.bump('blockFood', block === 'food');
     this.bump('blockWater', block === 'water');
+    this.bump('blockStorage', block === 'storage');
     this.bump('spoil', s.spoiled > 0);
     this.bump('deficit', eco.silverDelta < 0);
-    this.bump('idle', unemployed(s, eco) >= RULES.unemploymentAlert);
+    // A staff-aware bot knows the frozen fields' workers come back in spring.
+    this.bump('idle', (this.p.staffAware ? eco.workers - yearJobs(s) : unemployed(s, eco)) >= RULES.unemploymentAlert);
     this.bump('debt', s.silver < 0);
     if (this.rng() < this.p.idleChance) return;
     for (let k = 0; k < this.p.actions; k++) {
@@ -164,9 +179,9 @@ export class SurvivalBot {
     if (this.seen('debt') || (this.p.planner && s.silver < 0)) return this.trim(s);
     if (s.silver < 0) return false;
     if (this.pending) {
-      const { kind, r } = this.pending;
+      const { kind, r, dig } = this.pending;
       if (!freeRect(s, r)) this.pending = null;
-      else if (this.reach(s, kind, r)) return true;
+      else if (this.reach(s, kind, r, dig)) return true;
     }
     const eco = computeEconomy(s);
     const goal = currentGoal(s);
@@ -190,7 +205,8 @@ export class SurvivalBot {
     const granaries = s.buildings.filter((b) => b.kind === 'granary').length;
     if (s.unlocked.includes('granary')) {
       const want = goal?.type === 'build' && goal.kind === 'granary' && granaries === 0;
-      const spoil = this.seen('spoil');
+      // "The store only keeps N" (block `storage`) asks for a granary, like spoiled food.
+      const spoil = this.seen('spoil') || (!this.p.foodOnlyInFamine && this.seen('blockStorage'));
       const plan = this.p.planner && this.plannerWantsGranary(s);
       if ((want || spoil || plan || (this.p.granaryEarly && granaries === 0)) && this.place(s, 'granary')) return true;
     }
@@ -199,6 +215,13 @@ export class SurvivalBot {
     const dry = s.buildings.filter((b) => b.kind === 'house' && b.connected && !needMet(s, b, 'well'));
     const waterGoal = goal?.type === 'water';
     if (dry.length && (this.p.planner || waterGoal || this.seen('blockWater')) && this.well(s, dry)) return true;
+    // No well fits next to a dry family house: the player demolishes that house to reopen the gate.
+    const dryFamily = dry.filter((b) => b.level > 0);
+    if (dryFamily.length && this.seen('blockWater') && (this.streak.blockWater ?? 0) > this.p.delay + 4 && s.week - this.lastDryDemolish >= RULES.weeksPerSeason) {
+      this.lastDryDemolish = s.week;
+      this.stats.built.dryDemolished = (this.stats.built.dryDemolished ?? 0) + 1;
+      return clearCell(s, dryFamily[0].x, dryFamily[0].y).ok;
+    }
 
     // 4. Workshops / markets for the goals and jobs.
     if (goal?.type === 'build' && goal.kind === 'workshop' && goalProgress(s, goal) < goal.target && this.place(s, 'workshop')) return true;
@@ -299,7 +322,8 @@ export class SurvivalBot {
 
   /** Autumn: sows enough fields for next year's food gap (and one for the harvest goal). */
   private plannerFields(s: GameState): boolean {
-    if (!this.p.knowsAutumn || seasonOf(s.week) !== 'autumn' || s.silver < costOf('field')) return false;
+    // Fields give food from the week they are built, except in winter (see harvest.ts).
+    if (!this.p.knowsAutumn || seasonOf(s.week) === 'winter' || s.silver < costOf('field')) return false;
     const st = settle(s);
     const eco = computeEconomy(st);
     const steady = st.buildings.reduce((a, b) => a + gatherFood(st, b), 0) * eco.efficiency;
@@ -308,24 +332,21 @@ export class SurvivalBot {
     const goal = currentGoal(s);
     const want = this.p.foodMix[2] === 0 ? (goal?.type === 'harvest' && sown === 0 ? 1 : 0) : Math.max(goal?.type === 'harvest' ? 1 : 0, Math.ceil(gap / ((BUILDINGS.field.harvest ?? 1) * Math.max(0.5, eco.efficiency))));
     if (sown >= want) return false;
-    if (this.p.staffAware && eco.jobs + BUILDINGS.field.jobs > eco.workers + 1 && sown >= 1) return false;
+    if (this.p.staffAware && yearJobs(s) + BUILDINGS.field.jobs > eco.workers + 1 && sown >= 1) return false;
     return this.place(s, 'field');
   }
 
   private plannerWantsGranary(s: GameState) {
-    // Expected spring harvest vs. what can be kept.
-    const fields = s.buildings.filter((b) => b.kind === 'field' && b.connected);
-    const eco = computeEconomy(s);
-    // Every connected field gives food from the spring on (see harvest.ts).
-    const spring = fields.length * (BUILDINGS.field.harvest ?? 0) * eco.efficiency;
-    const keep = spring - eco.foodEaten * RULES.weeksPerSeason;
-    return keep > foodCapacity(s) - 10;
+    // Fields give food every week out of winter (see harvest.ts); the store must hold the winter's food.
+    if (!s.buildings.some((b) => b.kind === 'field' && b.connected)) return false;
+    const eco = computeEconomy(settle(s));
+    return foodCapacity(s) < eco.foodEaten * RULES.weeksPerSeason * 1.2 + 10;
   }
 
   /** Planner: in autumn adds fields when next year's food is short; adds steady food when needed. */
   private plannerGrowth(s: GameState): boolean {
     const eco = computeEconomy(s);
-    if (this.p.staffAware && eco.jobs >= eco.workers) return false;
+    if (this.p.staffAware && yearJobs(s) >= eco.workers) return false;
     const st = settle(s);
     const out = foodForecast(st, computeEconomy(st), 60);
     if (!out) return false;
@@ -336,12 +357,13 @@ export class SurvivalBot {
   // ---------------------------------------------------------------- placement
 
   /** Best spot for a kind (connected or reachable by road): returns rect and road cells needed. */
-  private spotFor(s: GameState, kind: BuildableKind): { r: Rect; d: number } | null {
+  private spotFor(s: GameState, kind: BuildableKind, dig = false, far = false): { r: Rect; d: number; dig: boolean } | null {
     const { w, h } = dimsOf(kind);
-    const rd = roadDist(s);
+    const rd = roadDist(s, dig);
     const altar = altarRect(s);
     let best: { r: Rect; d: number; v: number } | null = null;
-    const reach = kind === 'fisher' || kind === 'gatherer' || (kind === 'field' && this.p.planner) || kind === 'temple' ? this.p.roadReach : 0;
+    // Food and the temple are worth a long road; other buildings a short one (SERVICE_ROAD).
+    const reach = far || kind === 'fisher' || kind === 'gatherer' || (kind === 'field' && this.p.planner) || kind === 'temple' ? this.p.roadReach : Math.min(this.p.roadReach, SERVICE_ROAD);
     for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
       const r = { x, y, w, h };
       if (!freeRect(s, r)) continue;
@@ -359,37 +381,37 @@ export class SurvivalBot {
         v = -cheb(r, altar) * 0.2;
       } else {
         v = -cheb(r, altar) * 0.2;
+        // A planner keeps the altar's sacred radius for the big houses.
+        if (this.p.planner && cheb(r, altar) <= (BUILDINGS.altar.radius ?? 0)) v -= 4;
       }
       v += -d * 0.4 + this.rng() * this.p.noise;
       if (!best || v > best.v) best = { r, d, v };
     }
-    return best;
+    // The temple must go somewhere: in a boxed-in city the bot demolishes its way out.
+    if (!best && (kind === 'temple' || far) && !dig) return this.spotFor(s, kind, true, far);
+    return best && { r: best.r, d: best.d, dig };
   }
 
   private place(s: GameState, kind: BuildableKind, emergency = false): boolean {
     if (!s.unlocked.includes(kind) || s.silver < costOf(kind)) return false;
-    if (this.p.planner && !emergency && kind !== 'temple') {
-      const eco = computeEconomy(s);
-      const after = eco.silverDelta - (BUILDINGS[kind].upkeep ?? 0);
-      if (after < 0 && s.silver - costOf(kind) < -after * 20) return false;
-    }
+    if (!emergency && kind !== 'temple' && !this.affords(s, kind)) return false;
     if (this.p.staffAware && BUILDINGS[kind].jobs > 0 && kind !== 'fisher' && kind !== 'gatherer' && kind !== 'field' && kind !== 'granary' && kind !== 'temple') {
       const eco = computeEconomy(s);
-      if (eco.jobs + BUILDINGS[kind].jobs > eco.workers + 1) return false;
+      if (yearJobs(s) + BUILDINGS[kind].jobs > eco.workers + 1) return false;
     }
     const spot = this.spotFor(s, kind);
     if (!spot) return false;
-    return this.reach(s, kind, spot.r);
+    return this.reach(s, kind, spot.r, spot.dig);
   }
 
   /** Builds the rect if it touches the network, else lays one road stroke toward it. */
-  private reach(s: GameState, kind: BuildableKind, r: Rect): boolean {
+  private reach(s: GameState, kind: BuildableKind, r: Rect, dig = false): boolean {
     if (s.silver < costOf(kind)) return false;
-    const rd = roadDist(s);
+    const rd = roadDist(s, dig);
     const { d, cell } = rectReach(s, r, rd);
     if (d === 0) {
       this.pending = null;
-      const ok = place(s, kind, r.x, r.y).ok;
+      const ok = place(s, kind, r.x, r.y, r.w !== dimsOf(kind).w).ok;
       if (ok) this.stats.built[kind] = (this.stats.built[kind] ?? 0) + 1;
       return ok;
     }
@@ -399,12 +421,13 @@ export class SurvivalBot {
     let laid = 0;
     for (const i of path.slice(0, 12)) {
       const x = i % s.cols, y = Math.floor(i / s.cols);
-      if (s.feature[i] && !clearCell(s, x, y).ok) break;
+      if (dig && s.grid[i]) this.stats.built.dug = (this.stats.built.dug ?? 0) + 1;
+      if ((s.feature[i] || (dig && s.grid[i])) && !clearCell(s, x, y).ok) break;
       if (!place(s, 'road', x, y).ok) break;
       laid++;
     }
     this.stats.roadCells += laid;
-    this.pending = laid ? { kind, r } : null;
+    this.pending = laid ? { kind, r, dig } : null;
     return laid > 0;
   }
 
@@ -412,23 +435,38 @@ export class SurvivalBot {
     return this.service(s, 'well', dry);
   }
 
+  /** A planner keeps 20 weeks of a negative balance in the bank (with the counted upkeep, not before it starts). */
+  private affords(s: GameState, kind: BuildableKind) {
+    if (!this.p.planner) return true;
+    const eco = computeEconomy(s);
+    const after = eco.silverDelta - (BUILDINGS[kind].upkeep ?? 0);
+    return !(after < 0 && s.silver - costOf(kind) < -after * 20);
+  }
+
   private service(s: GameState, kind: 'well' | 'market', targets: Building[]) {
-    if (s.silver < costOf(kind)) return false;
+    if (s.silver < costOf(kind) || !this.affords(s, kind)) return false;
     const { w, h } = dimsOf(kind);
     const rad = BUILDINGS[kind].radius ?? 0;
-    let best: { r: Rect; v: number } | null = null;
+    // Spots touching the network, or a few road cells away (the bot lays the road first).
+    const rd = roadDist(s);
+    let best: { r: Rect; v: number; n: number; d: number } | null = null;
     for (const rot of kind === 'market' ? [false, true] : [false]) {
       const d = rot ? { w: h, h: w } : { w, h };
       for (let y = 0; y + d.h <= s.rows; y++) for (let x = 0; x + d.w <= s.cols; x++) {
         const r = { x, y, ...d };
-        if (!freeRect(s, r) || !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) continue;
-        const v = targets.filter((t) => cheb(r, t) <= rad).length + this.rng() * this.p.noise * 0.3;
-        if (!best || v > best.v) best = { r, v };
+        if (!freeRect(s, r)) continue;
+        const reach = rectReach(s, r, rd).d;
+        if (reach > SERVICE_ROAD) continue;
+        const n = targets.filter((t) => cheb(r, t) <= rad).length;
+        if (n === 0) continue;
+        const v = n - reach * 0.3 + this.rng() * this.p.noise * 0.3;
+        if (!best || v > best.v) best = { r, v, n, d: reach };
       }
     }
-    if (!best || best.v < 1) return false;
+    if (!best) return false;
     const r = best.r;
     const rotated = r.w !== w;
+    if (best.d > 0) return this.reach(s, kind, r);
     const ok = place(s, kind, r.x, r.y, rotated).ok;
     if (ok) this.stats.built[kind] = (this.stats.built[kind] ?? 0) + 1;
     return ok;
@@ -458,7 +496,10 @@ export class SurvivalBot {
         const spot = this.spotFor(s, 'well');
         if (spot && spot.d === 0 && s.silver >= costOf('well') + cost) { const ok = place(s, 'well', spot.r.x, spot.r.y).ok; if (ok) this.stats.built.well = (this.stats.built.well ?? 0) + 1; return ok; }
       }
-      return this.roadStroke(s);
+      if (this.roadStroke(s)) return true;
+      // No straight stroke out of the city: a road (demolishing if boxed in) to the nearest free plot.
+      const spot = this.spotFor(s, 'house', false, true);
+      return !!spot && this.reach(s, 'house', spot.r, spot.dig);
     }
     cands.sort((a, b) => b.v - a.v);
     let n = 0;
@@ -492,6 +533,9 @@ export class SurvivalBot {
     return laid > 0;
   }
 }
+
+/** Jobs of every connected workplace, frozen fields included (they need their workers back in spring). */
+const yearJobs = (s: GameState) => s.buildings.reduce((a, b) => a + (b.connected ? BUILDINGS[b.kind].jobs : 0), 0);
 
 /** A copy where every house with a family is at the level its needs allow (what it will become). */
 function settle(s: GameState): GameState {
@@ -535,6 +579,13 @@ export interface Result {
   droughtYears: number;
   famineAfterDrought: number;
   debtLoss: boolean;
+  /** Silver went below 0 in year 1 (weeks 1-52) / year 2 (53-104) / ever. */
+  debtY1: boolean;
+  debtY2: boolean;
+  debtEver: boolean;
+  /** Longest wait on a single goal in weeks (the unfinished one counts until the end), and its index. */
+  goalWait: number;
+  goalWaitIndex: number;
   built: Record<string, number>;
   peak: number;
 }
@@ -554,10 +605,11 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     bot: p.name, seed, families0: s.start.families, foodWeeks0: s.start.foodWeeks, riverDist: riverDistance(s), won: false, lost: false, weeks: maxWeeks,
     year1: false, residents52: 0, residents104: 0, lowestResidentsY1: Infinity, famineY1: 0, famineWeeks: 0, longestFamine: 0, left: 0, leftWinter1: 0, emptied: false,
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
-    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, built: bot.stats.built, peak: 0,
+    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
   };
   let run = 0;
   let dryYear = false;
+  let goalSince = 0;
   while (s.week < maxWeeks) {
     bot.act(s);
     const eco = computeEconomy(s);
@@ -578,6 +630,9 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.drought && !wasDrought) { res.droughtYears++; dryYear = true; }
     if (seasonOf(s.week) === 'autumn' && s.week % RULES.weeksPerSeason === 0) dryYear = false;
     for (let g = goalBefore; g < s.goalIndex; g++) res.goalWeeks[g] = s.week;
+    if (s.goalIndex > goalBefore) goalSince = s.week;
+    if (s.goalIndex < GOALS.length && s.week - goalSince > res.goalWait) { res.goalWait = s.week - goalSince; res.goalWaitIndex = s.goalIndex; }
+    if (s.silver < 0) { res.debtEver = true; if (s.week <= 52) res.debtY1 = true; else if (s.week <= 104) res.debtY2 = true; }
     res.food.spoiled += s.spoiled;
     const lefts = events.filter((e) => e.type === 'familyLeft').length;
     res.left += lefts;
@@ -596,7 +651,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       run++;
       res.longestFamine = Math.max(res.longestFamine, run);
     } else run = 0;
-    if (s.won) { res.won = true; res.weeks = s.week; break; }
+    if (s.won) { res.won = true; res.weeks = s.week; if (s.week < 52) res.year1 = true; break; }
     if (s.lost) { res.lost = true; res.debtLoss = true; res.weeks = s.week; break; }
   }
   return res;

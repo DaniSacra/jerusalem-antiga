@@ -13,6 +13,7 @@ import {
   roadMask,
   serviceOf,
   placeSpots,
+  wateredHouseSpots,
   servedHouses,
   type Building,
   type BuildingKind,
@@ -719,7 +720,9 @@ export class MapView {
   private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
     const seen = new Set<number>();
     const { w, h } = dimsOf(kind);
-    for (const o of placeSpots(s, kind)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
+    // The tutorial's house spots are the ones with water (a family there keeps the gate open).
+    const spots = kind === 'house' ? wateredHouseSpots(s) : placeSpots(s, kind);
+    for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
   }
 

@@ -43,7 +43,7 @@ for (const name of bots) {
     const won = rs.filter((r) => r.won);
     const goals = rs.map((r) => r.goalWeeks.filter((x) => x !== null).length);
     const g = (i: number) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)));
-    console.log(`${name.padEnd(9)} Y1 ${rs.filter((r) => r.year1).length}/${n} empt ${rs.filter((r) => r.emptied).length} debt ${rs.filter((r) => r.lost).length} won ${won.length} winwk ${f(med(won.map((r) => r.weeks)))} | res52 ${f(med(rs.map((r) => r.residents52)))} res104 ${f(med(rs.map((r) => r.residents104)))} peak ${f(med(rs.map((r) => r.peak)))} | famY1 ${f(med(rs.map((r) => r.famineY1)))} left ${f(med(rs.map((r) => r.left)))} | goals med ${f(med(goals))} | g4 ${g(3)} g5 ${g(4)} g6 ${g(5)} g9 ${g(8)} g10 ${g(9)}`);
+    console.log(`${name.padEnd(9)} Y1 ${rs.filter((r) => r.year1).length}/${n} empt ${rs.filter((r) => r.emptied).length} debt ${rs.filter((r) => r.lost).length} won ${won.length} dY1 ${rs.filter((r) => r.debtY1).length} dY2 ${rs.filter((r) => r.debtY2).length} wait>52 ${rs.filter((r) => r.goalWait > 52).length} winwk ${f(med(won.map((r) => r.weeks)))} | res52 ${f(med(rs.map((r) => r.residents52)))} res104 ${f(med(rs.map((r) => r.residents104)))} peak ${f(med(rs.map((r) => r.peak)))} | famY1 ${f(med(rs.map((r) => r.famineY1)))} left ${f(med(rs.map((r) => r.left)))} | goals med ${f(med(goals))} | g4 ${g(3)} g5 ${g(4)} g6 ${g(5)} g9 ${g(8)} g10 ${g(9)}`);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -60,6 +60,11 @@ for (const name of bots) {
   const pct = (o: Record<string, number>) => { const t = Object.values(o).reduce((a, v) => a + v, 0); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${f((100 * v) / t)}%`).join(', '); };
   console.log(`family block Y1: ${pct(b1)}`);
   console.log(`family block all: ${pct(bsum)}`);
+  console.log(`silver below 0: Y1 ${rs.filter((r) => r.debtY1).length}/${n}  Y2 ${rs.filter((r) => r.debtY2).length}/${n}  ever ${rs.filter((r) => r.debtEver).length}/${n} | longest wait on one goal med ${f(med(rs.map((r) => r.goalWait)))} max ${f(Math.max(...rs.map((r) => r.goalWait)))}  runs > 52 wk ${rs.filter((r) => r.goalWait > 52).length} (goals ${[...new Set(rs.filter((r) => r.goalWait > 52).map((r) => r.goalWaitIndex + 1))].sort((x, y) => x - y).join(',') || '-'})`);
+  for (const fam of [...new Set(rs.map((r) => r.families0))].sort()) {
+    const c = rs.filter((r) => r.families0 === fam);
+    console.log(`caravan ${fam} families: ${c.length} runs | Y1 ${c.filter((r) => r.year1).length}/${c.length}  famine Y1 med ${f(med(c.map((r) => r.famineY1)))}  debt Y1 ${c.filter((r) => r.debtY1).length}  lost ${c.filter((r) => r.lost).length}  won ${c.filter((r) => r.won).length}  win wk med ${f(med(c.filter((r) => r.won).map((r) => r.weeks)))}  res52 med ${f(med(c.map((r) => r.residents52)))}`);
+  }
   console.log(`drought years med ${f(med(rs.map((r) => r.droughtYears)))}  famine weeks in dry years med ${f(med(rs.map((r) => r.famineAfterDrought)))}`);
   console.log('goal                                  done  week med (min-max)  min@1x');
   GOALS.forEach((g, i) => {

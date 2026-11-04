@@ -526,11 +526,12 @@ async function playTutorial(page, suffix) {
   const yields = await page.evaluate(() => window.game.ui.view.tag.visible && window.game.ui.view.tagText.text);
   assert(yields && yields.startsWith('Rende'), `the preview says what it yields (${yields})`);
   await shotStep('step-2-preview');
-  await page.evaluate(([k, x, y]) => {
-    window.core.place(window.state, k, x, y);
+  const placed = await page.evaluate(([k, x, y]) => {
+    const r = window.core.place(window.state, k, x, y);
     window.game.refresh();
+    return r.ok ? 'ok' : r.reason;
   }, [spot.kind, spot.x, spot.y]);
-  assert((await tutorialStep(page)) === 'field', 'a fisher or gatherer ends step 2');
+  assert((await tutorialStep(page)) === 'field', `a fisher or gatherer ends step 2 (place: ${placed}, step ${await tutorialStep(page)})`);
 
   // 3. Field, now in the autumn.
   await pressBuild(page, 'field');
@@ -556,6 +557,12 @@ async function playTutorial(page, suffix) {
   // 5. House next to the road, near the well.
   await pressBuild(page, 'house');
   await page.waitForTimeout(200);
+  const hintWet = await page.evaluate(() => {
+    const { state: s, game } = window;
+    const h = game.houseHint;
+    return !!h && [0, 1].some((dx) => [0, 1].some((dy) => s.coverage.well[(h.y + dy) * s.cols + h.x + dx]));
+  });
+  assert(hintWet, 'the arrow points at a house spot with water');
   await shotStep('step-5');
   await placeNear(page, 'house');
   assert((await tutorialStep(page)) === 'family', 'a house ends step 5');

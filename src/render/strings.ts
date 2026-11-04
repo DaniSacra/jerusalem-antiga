@@ -53,7 +53,10 @@ export const T = {
     noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
   } satisfies Record<FamilyBlock, string>,
   /** Why no new family comes; "storage" names the store size and how to get a granary. */
+  /** `water` while the city has no well yet. */
+  familyNoWell: 'Nenhuma família vem: casa sem água. Construa um poço perto',
   familyBlockText(block: FamilyBlock, s: GameState): string {
+    if (block === 'water' && !s.buildings.some((b) => b.kind === 'well' && b.connected)) return T.familyNoWell;
     if (block !== 'storage') return T.familyBlock[block];
     const granary = s.unlocked.includes('granary') ? 'Construa o celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
     return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;

@@ -11,11 +11,11 @@ import {
   fieldHarvest,
   type CityReadout,
   foodSpot,
+  houseHint,
   type FoodSpot,
   inBounds,
   indexOf,
   place,
-  placeSpots,
   RULES,
   spotsServing,
   stepWeek,
@@ -221,10 +221,13 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   attachUi(ui: UIScene) {
     this.ui = ui;
-    this.selectTool('view');
-    // The opening sentence, with the caravan the seed drew (the game does not pause).
+    // The opening sentence first, with the caravan the seed drew (the game does not pause): the
+    // warnings of the first refresh wait behind it.
+    // The weeks are the forecast's, the same the food pill and goal 1 show.
     const c = this.state.start;
-    if (this.state.week === 0) ui.toast(T.caravan(c.families, c.foodWeeks), 'good', { big: true, ms: 5000 });
+    const weeks = this.city.forecast?.weeks ?? c.foodWeeks;
+    if (this.state.week === 0) ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
+    this.selectTool('view');
   }
 
   update(_time: number, delta: number) {
@@ -526,14 +529,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.ui?.setTutorial(null);
       return;
     }
-    // A step that waits on the city (the family) says why no family can come.
-    const block = step.tool ? null : this.city.block;
+    // The family step says why no family can come (the other steps keep their own sentence).
+    const block = step.id === 'family' ? this.city.block : null;
     const stuck = block !== null && block !== 'wait' && this.state.families.length === 0;
-    if (step.id === 'house') {
-      const a = RULES.map.altar;
-      const d = (c: Cell) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
-      this.houseHint = placeSpots(this.state, 'house').reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
-    }
+    if (step.id === 'house') this.houseHint = houseHint(this.state);
     this.ui?.setTutorial(stuck ? T.familyBlockText(block!, this.state) : T.tutorial.step[step.id], step.id === 'upkeep');
     if (step.id !== this.pannedFor) {
       this.pannedFor = step.id;
@@ -559,7 +558,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
       this.followed = true;
     }
-    if (this.gesture?.moved) this.pan = null; // the player moves the camera: leave it there
+    if (this.gesture) this.pan = null; // a press on the map (a road being dragged) stops the glide under it
     if (this.follow) {
       const p = this.walkers.familyPos(this.follow.id);
       if (!p || this.time.now > this.follow.until) this.follow = null;
@@ -574,7 +573,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const c = this.rig.toWorld(cam.width / 2, VIEW_CY);
     const k = Math.min(1, (delta / 1000) * 4);
     this.rig.centerAt(c.x + (p.x - c.x) * k, c.y + (p.y - c.y) * k, cam.width / 2, VIEW_CY);
-    return Math.hypot(p.x - c.x, p.y - c.y) < 2;
+    // There, or held back by the map edge (the camera no longer moves).
+    const now = this.rig.toWorld(cam.width / 2, VIEW_CY);
+    return Math.hypot(p.x - c.x, p.y - c.y) < 2 || Math.hypot(now.x - c.x, now.y - c.y) < 0.05;
   }
 
   /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
@@ -595,7 +596,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (!cell) return null;
     const { w, h } = step.id === 'house' ? dimsOf('house') : step.id === 'gather' && this.spot ? dimsOf(this.spot.kind) : { w: 1, h: 1 };
     const p = footCenter(cell.x, cell.y, w, h);
-    return { ...this.toScreen(p.x, p.y), dir: 'down' };
+    const at = this.toScreen(p.x, p.y);
+    // On touch a single building is aimed TOUCH_LIFT above the finger: the arrow shows where the
+    // finger goes, so a tap on its tip builds on the marked spot.
+    const lift = this.input.activePointer.wasTouch && isPlaceTool(this.tool) && !DRAG_TOOLS.has(this.tool) ? TOUCH_LIFT : 0;
+    return { x: at.x, y: at.y + lift, dir: 'down' };
   }
 
   private toScreen(wx: number, wy: number) {
@@ -639,6 +644,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.onUp(p));
     this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.onUp(p));
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      this.pan = null; // the player moves the camera: the tutorial leaves it there
       this.rig.zoomAt(p.x, p.y, this.rig.zoom * (dy > 0 ? 0.9 : 1.1));
     });
     const keys = this.input.keyboard;
@@ -693,6 +699,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private onMove(p: Phaser.Input.Pointer) {
     if (this.rightPan?.id === p.id) {
+      this.pan = null;
       this.rig.panBy(p.x - this.rightPan.x, p.y - this.rightPan.y);
       this.rightPan.x = p.x;
       this.rightPan.y = p.y;
@@ -704,6 +711,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       const [a, b] = [...this.touches.values()];
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
+      this.pan = null;
       this.rig.panBy(midX - this.pinch.midX, midY - this.pinch.midY);
       this.rig.zoomAt(midX, midY, (this.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / Math.max(1, this.pinch.dist));
       this.pinch.midX = midX;
@@ -726,6 +734,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool === 'view') {
       if (g.moved) {
         this.updateCursor();
+        this.pan = null;
         this.rig.panBy(p.x - g.lastX, p.y - g.lastY);
       }
     } else {

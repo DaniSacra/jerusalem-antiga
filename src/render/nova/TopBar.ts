@@ -345,9 +345,13 @@ export class TopBar {
     this.season.setIcon(TEX.icon(this.drought || this.iconOf.dry ? 'drought' : this.iconOf.season));
   }
 
-  /** Tutorial arrow targets: under the silver pill, or under the goal pill. */
+  /**
+   * Tutorial arrow targets: the goal from under its pill; the silver from its right end (under it
+   * sits the goal pill, which the arrow would seem to point at).
+   */
   anchor(name: 'silver' | 'goal'): TutorialTarget {
     const r = (name === 'silver' ? this.silver.rect : this.goal.rect) ?? this.levelRect;
+    if (name === 'silver') return { x: r.x + r.w - 2, y: r.y + r.h / 2, dir: 'left' };
     return { x: r.x + Math.min(r.w / 2, px(40)), y: r.y + r.h + 2, dir: 'up' };
   }
 

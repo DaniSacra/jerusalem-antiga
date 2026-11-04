@@ -7,9 +7,11 @@ import {
   foodSpot,
   gatherFood,
   ghostRoad,
+  houseHint,
   indexOf,
   isFreeLand,
   markTutorial,
+  needMet,
   refreshCity,
   servedHouses,
   TUTORIAL_EXTRAS,
@@ -18,6 +20,7 @@ import {
   tutorialProgress,
   tutorialStepDone,
   stepWeek,
+  wateredHouseSpots,
   type Cell,
   type TutorialStepId,
 } from '../src/core';
@@ -205,6 +208,28 @@ describe('food spot and ghost road', () => {
     const next = ghostRoad(s);
     expect(next.length).toBeGreaterThan(0);
     expect(next.every((c) => isFreeLand(s, c.x, c.y))).toBe(true);
+  });
+});
+
+describe('house hint', () => {
+  it('is null with no well, and otherwise a free spot with water, the nearest to the altar', () => {
+    const s = emptyGame();
+    expect(houseHint(s)).toBeNull();
+    expect(wateredHouseSpots(s)).toEqual([]);
+    put(s, 'well', EAST, 27);
+    refreshCity(s);
+    const spots = wateredHouseSpots(s);
+    expect(spots.length).toBeGreaterThan(0);
+    for (const o of spots) {
+      const cells = [0, 1].flatMap((dx) => [0, 1].map((dy) => indexOf(s, o.x + dx, o.y + dy)));
+      expect(cells.some((i) => s.coverage.well[i])).toBe(true);
+    }
+    const hint = houseHint(s)!;
+    expect(spots).toContainEqual(hint);
+    // A family on the hinted plot keeps the gate open: the tent has water.
+    const tent = put(s, 'house', hint.x, hint.y, 1);
+    refreshCity(s);
+    expect(needMet(s, tent, 'well')).toBe(true);
   });
 });
 

@@ -52,7 +52,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   enche primeiro. Ao lado, a leste, fica um lugar 2 x 2 livre (`campWellSpot`) onde **um poço
   alcança todas as tendas**. A comida inicial vale
   **14 a 22 semanas** do consumo delas, cortada no limite sem celeiro (50). Uma frase na abertura
-  mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas".
+  mostra os números reais: "A caravana chegou com 3 famílias e comida para 14 semanas" (as
+  semanas da previsão, as mesmas da pílula de comida e do Objetivo 1).
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
 - Liberados: Mover, Rua, Casa, Campo, Poço, Pescador, Coletora e Demolir.
@@ -178,7 +179,8 @@ Só contam serviços **conectados**. O valor fica entre 0 e 100.
   chance **0,6 por semana** (`familyChance`, vezes o fator da alegria). No máximo uma por vez.
   Não há mais famílias garantidas: a caravana é o começo.
 - **Quando ninguém vem**, o aviso diz o motivo, nesta ordem: "Nenhuma família vem: casa longe do
-  poço. Construa outro poço", "Nenhuma família vem: a comida não dura até a primavera. Pesque ou
+  poço. Construa outro poço" (sem nenhum poço ainda: "Nenhuma família vem: casa sem água.
+  Construa um poço perto"), "Nenhuma família vem: a comida não dura até a primavera. Pesque ou
   colete", "Nenhuma família vem: o estoque só guarda N. O celeiro libera no objetivo 3" (ou
   "Construa o celeiro"; motivo `storage`: a comida chegaria, mas o estoque corta), "Nenhuma
   família vem: não há casa vazia. Construa uma ao lado da rua" (sem terreno livre ligado). Com
@@ -578,7 +580,8 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   primeira cidade ser feita sem pressa, e volta a andar no passo 6 (a família chegando). A
   velocidade escolhida fica guardada.
 - A cada passo a câmera desliza até o lugar dele (a rua marcada, o lugar do pescador ou da
-  coletora, o terreno da casa); se o jogador mexer na câmera, ela fica onde ele deixou.
+  coletora, o terreno da casa); se o jogador mexer na câmera (arrastar, dois dedos, botão
+  direito, roda), ela fica onde ele deixou, e o deslizamento para na borda do mapa.
 - Passos (cada um só avança com a sua ação; comida primeiro):
   1. "Puxe uma rua pelo caminho marcado, até onde há comida": o caminho fantasma (`ghostRoad`) é
      a rua mais curta, por terra livre, da rede até o **melhor lugar de pescador ou coletora**
@@ -591,12 +594,16 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   3. "Construa um campo: ele dá comida já, até o inverno congelar". Conclui com 1 campo ligado.
   4. "Construa um poço perto das tendas da caravana": a prévia mostra o raio e "Atende N casas".
      Conclui com 1 poço ligado.
-  5. "Construa uma casa encostada na rua, perto do poço": os terrenos livres no raio do poço e
-     encostados na rede ficam verdes. Conclui com 1 casa nova ligada.
+  5. "Construa uma casa encostada na rua, perto do poço": os terrenos livres com água (alguma
+     célula no raio de um poço ligado) e encostados na rede ficam verdes, e a seta aponta o mais
+     perto do altar (`houseHint`). Conclui com 1 casa nova ligada.
   6. "Uma família está chegando!": a câmera acompanha a família por 2 s
      (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
      Agora siga os objetivos no alto da tela". Se a porta das famílias estiver fechada e nenhuma
      família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo).
+- No celular, a seta de uma construção única (pescador, coletora, casa) aponta onde o dedo vai: a
+  mira fica 90 px acima do dedo, então tocar na ponta da seta constrói no lugar marcado.
+- O passo da manutenção aponta a prata pelo lado direito da pílula e sempre mostra o seu texto.
 - Mini passos (só para quem não pulou), sem travar ferramentas:
   - Ao cumprir o Objetivo 3: a seta aponta a prata e o balão traz a mensagem da manutenção com o
     botão "Entendi".

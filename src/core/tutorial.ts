@@ -1,6 +1,6 @@
 import TUTORIAL from '../data/tutorial.json';
-import { isFreeLand } from './actions';
-import { BUILDINGS, dimsOf } from './data';
+import { isFreeLand, placeSpots } from './actions';
+import { BUILDINGS, dimsOf, RULES } from './data';
 import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } from './grid';
 import { isGatherSource } from './harvest';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
@@ -140,6 +140,22 @@ export function foodSpot(s: GameState): FoodSpot | null {
 
 /** The suggested road of the tutorial: the road to `foodSpot` (empty when there is none to build). */
 export const ghostRoad = (s: GameState): Cell[] => foodSpot(s)?.road ?? [];
+
+/** Free house spots touching the network with water (a cell in a connected well's reach): the green spots of the house step. */
+export function wateredHouseSpots(s: GameState): Cell[] {
+  const { w, h } = dimsOf('house');
+  return placeSpots(s, 'house').filter((o) => footprint(o.x, o.y, w, h).some((c) => s.coverage.well[indexOf(s, c.x, c.y)]));
+}
+
+/**
+ * Where the tutorial arrow suggests the house: the watered spot nearest the altar, so the family
+ * that comes does not close the gate for want of water. Null when there is none.
+ */
+export function houseHint(s: GameState): Cell | null {
+  const a = RULES.map.altar;
+  const d = (c: Cell) => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
+  return wateredHouseSpots(s).reduce<Cell | null>((best, c) => (!best || d(c) < d(best) ? c : best), null);
+}
 
 /** Houses with a family that a service of this kind placed at (x, y) would reach. */
 export function servedHouses(s: GameState, kind: BuildableKind, x: number, y: number, rotated = false): Building[] {
