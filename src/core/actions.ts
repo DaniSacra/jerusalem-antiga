@@ -118,6 +118,37 @@ export function templeSpotsNear(s: GameState): TempleSpot[] {
   return out.sort((p, q) => p.far - q.far).map(({ far: _far, ...spot }) => spot);
 }
 
+/**
+ * When no temple spot is near the network: the free place for it that needs the shortest new road,
+ * with that road (from the network to the cell beside the place). Ties go to the place nearest the
+ * altar. Null when the temple fits nowhere a road can reach.
+ */
+export function templeRoadSpot(s: GameState): (TempleSpot & { road: Cell[] }) | null {
+  const d = dimsOf('temple');
+  const { dist, prev } = roadDistances(s);
+  const a = { x: s.altar.x + dimsOf('altar').w / 2, y: s.altar.y + dimsOf('altar').h / 2 };
+  let best: { x: number; y: number; end: number; far: number } | null = null;
+  for (let y = 0; y + d.h <= s.rows; y++) {
+    for (let x = 0; x + d.w <= s.cols; x++) {
+      if (!isFreeRect(s, x, y, d)) continue;
+      let end = -1;
+      for (const c of borderCells(s, { x, y, ...d })) {
+        if (!inBounds(s, c.x, c.y)) continue;
+        const i = indexOf(s, c.x, c.y);
+        if (dist[i] >= 0 && (end < 0 || dist[i] < dist[end])) end = i;
+      }
+      if (end < 0) continue;
+      const far = Math.abs(x + d.w / 2 - a.x) + Math.abs(y + d.h / 2 - a.y);
+      if (best && (dist[end] > dist[best.end] || (dist[end] === dist[best.end] && far >= best.far))) continue;
+      best = { x, y, end, far };
+    }
+  }
+  if (!best) return null;
+  const road: Cell[] = [];
+  for (let i = best.end; dist[i] > 0; i = prev[i]) road.unshift({ x: i % s.cols, y: Math.floor(i / s.cols) });
+  return { x: best.x, y: best.y, ready: road.length === 0, road };
+}
+
 /** Builds a road or building. `rng` draws the look of houses (seeded from the id if not given). */
 export function place(s: GameState, kind: Placeable, x: number, y: number, rotated = false, rng?: Rng): ActionResult {
   const r = checkPlace(s, kind, x, y, rotated);

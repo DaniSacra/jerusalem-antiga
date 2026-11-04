@@ -69,7 +69,7 @@ obra**. Resumo:
   (lenha é o P4)
 - Linha de base: o main com as "P2 correções" (abaixo), e não mais da5a8bb
 - Alavancas novas, depois das da seção 9, uma por rodada: objetivo 8 6 → 12 casas grandes (se J3 > 250
-  ou objetivos 7 e 8 a < 13 sem); prêmio do objetivo 9 200 → 400 (se do 9 à vitória > 100 sem);
+  ou objetivos 7 e 8 a < 13 sem); prêmio do objetivo 9 (antecipado para o pacote final P2, ver Decisões);
   Coletora `perCell` 0,3 → 0,2 (se a Coletora > 16% da comida)
 - Também no P3: toasts que cobrem o balão da ferramenta no celular (ui-designer)
 
@@ -87,6 +87,8 @@ Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecâ
 - Medição em 3 rodadas: R0 correções; R1 `drought.harvestFactor` 0,4 → 0,25; R2
   `familyFoodReserveWeeks` 2 → 1 (fica só se passar). M2 redefinido: 6x6 livre a ≤ 1 célula da rede,
   ≥ 95% no Comum
+- Medido: R1 (seca 0,25) aprovada, R2 (reserva 1) reprovada. Pacote final "ritmo do fim": linha
+  "Junte 800 para o Templo" e prêmio do objetivo 9 200 → 400 (R1 do pacote final), ver Decisões
 
 ## Feito: Pacote 2 "Água sai e mapa" (no main: f9dfc4c..da5a8bb)
 Especificação: `docs/revisoes/2026-11-04/plano-p2.md`. Medido (sim-tester, d901a12): Comum 46% de
@@ -673,6 +675,13 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04 — Pacote final P2, ritmo do fim: entra a linha "Junte 800 para o Templo: N/800" do
+  objetivo 8 até o templo (só UI), e o prêmio do objetivo 9 200 → 400 é antecipado do P3 (R1). Se
+  falhar, R2a prêmio 600; R2b `fromYear` 8 → 7 só com vitória mediana ≥ 520 sem. `fromYear` 6 FORA
+  (vitória ~22 min, abaixo do piso de 25); objetivo 8 → 10/12 continua no P3; praça 40/raio 5
+  DEPOIS. Motivo: 38/40 Comuns chegam ao 9 e só 20 vencem; do 9 à vitória a mediana é 190 sem.
+  Espera sem meta visível não é desafio. Vitórias aceitas até 55% nesta medição. Especificação:
+  `docs/revisoes/2026-11-04/plano-p2-correcoes.md`, "Pacote final P2 — ritmo do fim".
 - 2026-11-04: o templo fica sem manutenção (10 → 0) e o texto deixa de prometer a vitória antes do
   objetivo 9. Motivo: 15 de 25 Distraídos erguiam o templo cedo e 10 entravam em dívida esperando. A
   liberação no objetivo 8 (decisão do usuário) continua.

@@ -77,6 +77,10 @@ export const T = {
   noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
   /** Preview of any building that fits but would not touch the road network. */
   needsRoad: 'Cabe aqui: falta ligar à rua',
+  /** Preview that fits but the city has not the silver yet. */
+  /** A touch drag of Demolir passed over something whose removal would spoil food. */
+  demolishKeepsFood: 'Isso perde comida: toque nele para demolir',
+  missingSilver: (cost: number) => `Falta prata: custa ${cost}`,
   fail: {
     silver: 'Prata insuficiente',
     debt: 'Em dívida: não dá para construir',
@@ -208,9 +212,10 @@ export const T = {
     seasonName: { spring: 'Primavera', summer: 'Verão', autumn: 'Outono', winter: 'Inverno' } satisfies Record<Season, string>,
     calendar: (season: Season, year: number, week: number, long: boolean) =>
       `${T.nova.seasonName[season]} · Ano ${year} · ${long ? 'Semana' : 'Sem'} ${week}`,
-    /** The fields' next turn after the calendar ("inverno em 5 sem"); the phone drops the year and week for it. */
+    /** The fields' next turn after the calendar ("inverno em 5 sem"); the phone drops the week for it. */
     fieldTurn: (turn: { season: 'winter' | 'spring'; weeks: number }) => `${turn.season === 'winter' ? 'inverno' : 'primavera'} em ${turn.weeks} sem`,
-    calendarPhone: (season: Season, turn: { season: 'winter' | 'spring'; weeks: number }) => `${T.nova.seasonName[season]} · ${T.nova.fieldTurn(turn)}`,
+    calendarPhone: (season: Season, year: number, turn: { season: 'winter' | 'spring'; weeks: number }) =>
+      `${T.nova.seasonName[season]} · Ano ${year} · ${T.nova.fieldTurn(turn)}`,
     /** Name of a bottom tool, with its key on PC ("Mover · 1"). */
     withKey: (name: string, key: string) => `${name} · ${key}`,
     /** Price and key inside a PC column button. */

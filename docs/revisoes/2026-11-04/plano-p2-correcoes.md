@@ -150,6 +150,46 @@ Alavancas novas do P3 (entram na seção 9 do `plano-p3.md`, depois das atuais, 
 Total: ~9–11 h de uma pessoa, ~3–4 h numa sessão do Claude Code. O que pode atrasar: a instabilidade
 dos testes visuais, que é difícil de reproduzir, e a R2, se reprovar e precisar de uma nova rodada.
 
+## Pacote final P2 — ritmo do fim (game-director, 2026-11-04)
+
+Fontes: `playtester-p2-final.md` item 2, `sim-tester-p2-correcoes.md` e as notas finais do fun-critic.
+Diagnóstico: o fim tem duas esperas seguidas, e nenhuma é desafio. (a) Do objetivo 8 ao 9 (sem. 174 →
+368, ~10 min) o relógio do Ano 8 trava, e nada na tela diz para juntar prata. (b) Do 9 à vitória a
+renda de ~+10/sem não junta 800 (mediana 190 sem, p75 319 no playtest). Chegar ao 9 e perder por
+tempo não é derrota, é tédio.
+
+| Item | Pilares | Decisão | Motivo |
+|---|---|---|---|
+| Linha "Junte 800 para o Templo: 312/800" | fortalece 7 (meta clara) e 3; neutro nos outros | **ENTRA AGORA** | Só interface: o jogador passa a guardar prata nos 10 min de espera, que viram preparação. |
+| Prêmio do objetivo 9: 200 → 400 | fortalece 1 (prata é meio) e 2; nenhum quebra | **ENTRA AGORA** (R1) | A menor alavanca que corta a espera da prata sem encurtar o jogo antes do Ano 8. |
+| Objetivo 9 `fromYear` 8 → 7 | fortalece 3; risco para o piso de 25 min | **R2b, condicional** | Só vale se o jogo continuar ≥ 520 sem depois da R1. |
+| Objetivo 9 `fromYear` 8 → 6 | quebra o piso de 25 min | **FORA** | Tira ~104 sem: a vitória mediana cairia para ~22 min. |
+| Objetivo 8 6 → 10 casas grandes | – | **P3** (alavanca já prevista) | A casa grande do P3 pede pedra e madeira; medir lá. |
+| Praça 25 → 40, raio 4 → 5 | – | **DEPOIS** | Não toca no fim do jogo. |
+
+**Linha de progresso (ui-designer + copywriter):** desde o templo liberado (objetivo 8) até ele ser
+erguido, o painel de objetivos e a pílula do objetivo (no celular, segunda linha) mostram
+`Junte 800 para o Templo: 312/800`, com 800 lido de `buildings.json` e a prata atual. Some com o
+templo erguido. Nenhum número novo e nenhuma regra no core. O bot não lê a tela, então o sim não mede
+esta linha; quem confirma são o playtester e o fun-critic.
+
+**Rodadas (sim-tester, 100 seeds × 4 bots × 700 sem; Comum também com 200 seeds, pelo ruído de ±5).**
+A base é o main com R1 da seca (0,25). Se o conserto das áreas do templo (playtester, item 1) entrar
+antes, a base é com ele.
+
+| Rodada | Muda | Passa se (Comum, salvo indicação) |
+|---|---|---|
+| R1 | `goals.json` objetivo 9 `reward` 200 → **400** | Do 9 à vitória: mediana ≤ 100 sem e p75 ≤ 160. Das partidas que chegam ao 9, ≥ 75% vencem. Vitórias 30–55%, mediana na sem. 469–656 (25–35 min). Eficiente ≥ Comum. C1 ≤ 5, D = 0, F ≤ 9 |
+| R2a | só se a R1 falhar no tempo do 9 à vitória: prêmio 400 → **600** | Os mesmos da R1 |
+| R2b | só se a R1 passar e o Comum ficar com vitória mediana ≥ 520 sem e espera do 8 ao 9 > 150 sem: `fromYear` 8 → **7** | Os mesmos da R1, mais espera do 8 ao 9 ≤ 150 sem e vitória mediana ≥ 469 sem |
+
+Vitórias até 55% (e não 50%) só nesta medição: as "derrotas" a mais da R0 são partidas paradas na
+semana 700, não cidades que perderam. Se a R1 e a R2a falharem, o prêmio volta a 200 e o fim vai para
+o P3 com a linha de progresso já no jogo. Nunca as duas R2 juntas.
+
+Estimativa: linha de progresso 0,5–1 h (ui-designer, copywriter, cenário visual); R1 ~40 min e cada
+R2 ~40 min (sim-tester); docs 15 min.
+
 ## 5. Fora
 Rua fantasma até o templo, balão de poucos trabalhadores, mudanças nos objetivos e prêmios (P3),
 imposto da casa grande (P9), Limpar mais caro, templo 5x5, liberar o templo antes, mexer no mapa para

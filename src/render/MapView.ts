@@ -7,6 +7,7 @@ import {
   BUILDINGS,
   checkClear,
   checkPlace,
+  costOf,
   computeEconomy,
   footprint,
   indexOf,
@@ -175,6 +176,8 @@ export class MapView {
   private serves: Phaser.GameObjects.Text;
   /** Where the temple fits (green) or a road is missing (yellow), drawn while it is chosen. */
   private templeAreas: readonly TempleSpot[] = [];
+  /** The road to the temple area when none is near the network (drawn like the tutorial's road). */
+  private templeRoad: readonly Cell[] = [];
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
@@ -733,8 +736,9 @@ export class MapView {
   }
 
   /** The temple areas shown while the temple is chosen (set by the scene on picking it and on each refresh). */
-  setTempleAreas(areas: readonly TempleSpot[]) {
+  setTempleAreas(areas: readonly TempleSpot[], road: readonly Cell[] = []) {
     this.templeAreas = areas;
+    this.templeRoad = road;
   }
 
   private coverageCells(s: GameState, covered: boolean[]): Cell[] {
@@ -752,8 +756,9 @@ export class MapView {
     g.clear();
     this.preview.setVisible(false);
     this.serves.setVisible(false);
-    if (guide?.ghost.length) {
-      const ghost = guide.ghost.filter((c) => !s.roads[indexOf(s, c.x, c.y)]);
+    const ghostRoad = tool === 'temple' && this.templeRoad.length ? this.templeRoad : guide?.ghost ?? [];
+    if (ghostRoad.length) {
+      const ghost = ghostRoad.filter((c) => !s.roads[indexOf(s, c.x, c.y)]);
       this.fillCells(ghost, C.ui.goldLight, 0.45);
       g.lineStyle(2, C.ui.goldDark, 0.9);
       for (const c of ghost) g.strokePoints(rectCorners(c.x, c.y, 1, 1), true, true);
@@ -816,8 +821,12 @@ export class MapView {
     }
     // Yellow: it fits and only the road is missing; red: something is in the way (or no silver).
     const roadOnly = isPlaceTool(tool) && onlyNeedsRoad(s, tool, o.x, o.y, rotated);
-    const ok = !roadOnly && (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
+    const check = isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y);
+    const ok = !roadOnly && check.ok;
     if (roadOnly) label.push(T.needsRoad);
+    // Red only for lack of silver: say so, or the red looks like a bad spot.
+    else if (!check.ok && isPlaceTool(tool) && (check.reason === 'silver' || check.reason === 'debt'))
+      label.push(check.reason === 'silver' ? T.missingSilver(costOf(tool)) : T.fail.debt);
     const color = roadOnly ? C.needsRoad : ok ? 0xfff3b0 : C.famine;
     this.fillCells(footprint(o.x, o.y, w, h), color, 0.3);
     g.lineStyle(2, color, 0.9);

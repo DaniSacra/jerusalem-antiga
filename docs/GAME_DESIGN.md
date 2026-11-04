@@ -113,7 +113,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Comida perdida ao demolir** (`foodLostIfRemoved` em `readouts.ts`): quanto da comida guardada
   estragaria na hora se a construção ou rua da célula sumisse (um celeiro, ou uma rua cujo corte
   desliga um celeiro, baixa o estoque); 0 quando nada se perde. Serve à prévia de Demolir
-  ("Perde N de comida").
+  ("Perde N de comida"). No celular, Demolir arrastado pula o que perderia comida e avisa uma vez
+  por gesto: "Isso perde comida: toque nele para demolir".
 
 ## Ruas e conexão
 
@@ -258,7 +259,7 @@ acaba e se chega ao **começo da próxima colheita** (a próxima semana 1 da pri
 primavera, a do ano seguinte, contando o que ainda vai ser colhido). Usada por:
 
 - **porta das famílias** (veja Famílias);
-- **pílula de comida:** "até a primavera" quando chega; senão "acaba no <estação>" (a estação em
+- **pílula de comida:** "até a primavera" quando chega (nada quando a cidade não tem moradores); senão "acaba no <estação>" (a estação em
   que acaba);
 - **aviso** "A comida não dura até a primavera: pesque, colete ou plante campos" (em qualquer
   estação, na lista de Avisos enquanto valer; toast só se começar no verão);
@@ -457,8 +458,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Topo direito:** pílula "Outono · Ano 1 · Semana 5 · inverno em 9 sem" (semana 1–13; ícone da
   estação; num ano seco anunciado, o ícone da seca no lugar e "· Seca" em laranja). A contagem é
   a próxima virada dos campos (`nextFieldTurn`): fora do inverno, "inverno em N sem" (laranja nas
-  últimas 3 semanas); no inverno, "primavera em N sem". No celular a pílula troca o ano e a semana
-  pela contagem: "Outono · inverno em 9 sem"; velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
+  últimas 3 semanas); no inverno, "primavera em N sem". No celular a pílula troca a semana
+  pela contagem: "Outono · Ano 1 · inverno em 9 sem"; velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
   3x, o ativo dourado); engrenagem das Configurações.
 - **Lateral esquerda** (botões redondos):
   - **Objetivos** (bandeira): lista dos 10 objetivos, cumpridos, atual (com progresso) e próximos,
@@ -595,16 +596,20 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   contornam as casas com família que atenderiam ali e mostram "Atende N casas" sobre a prévia; o
   Templo mostra "+10 de Alegria em N casas" (o 10 é `happiness.sacred`). Quando a construção cabe
   e só falta rua (`onlyNeedsRoad`: terreno livre, prata, mas sem encostar na rede), a prévia fica
-  **amarela** com "Cabe aqui: falta ligar à rua" (ocupado ou sem prata continua vermelho).
+  **amarela** com "Cabe aqui: falta ligar à rua" (ocupado ou sem prata continua vermelho; sem
+  prata a prévia diz "Falta prata: custa N", em dívida "Em dívida: não dá para construir").
   Pescador e Coletora mostram "Rende N comida/sem" (com as células de rio ou árvores contadas
   destacadas); Campo mostra que dá comida fora do inverno. Com Casa, destaque da área coberta
   pelas praças (onde a tenda pode virar casa de barro). O Templo mostra as 6 x 6 células
   e contorna até `maxTempleSpots` (6, em `visual.json`) áreas onde cabe, sem sobrepor, as mais
   perto do altar (`templeSpotsNear` no core, recalculado ao escolher e a cada atualização, nunca
   por quadro): **verde** se já encosta na rede, **amarela** se um 6 x 6 livre fica a no máximo
-  `templeSpotRoadGap` (1, em `rules.json`) célula livre da rede. Sem área verde, toast "Sem lugar
-  pronto: o Templo cabe no amarelo, falta ligar à rua"; sem nenhuma, "Sem espaço para o Templo:
-  abra uma rua ao lado de um terreno livre 6 x 6".
+  `templeSpotRoadGap` (1, em `rules.json`) célula livre da rede. Sem nenhuma dessas, marca em
+  amarelo o 6 x 6 livre que a rua mais curta alcança (`templeRoadSpot`; empate: o mais perto do
+  altar) e desenha essa rua em dourado, como a do tutorial. Ao escolher o Templo a câmera desliza
+  até a primeira área. Sem área verde, toast "Sem lugar pronto: puxe uma rua ligada ao altar até
+  uma área amarela"; sem nenhuma, "Sem espaço para o Templo: abra uma rua ao lado de um terreno
+  livre 6 x 6".
 - **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima):
   prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local
   inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, objetivo cumprido,
@@ -662,7 +667,8 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   5. "Construa uma casa encostada na rua, perto da praça": os terrenos livres perto de uma praça
      (alguma célula no raio de uma praça ligada, `plazaHouseSpots`) e encostados na rede ficam
      verdes, e a seta aponta o mais perto do altar (`houseHint`). Conclui com 1 casa nova ligada.
-  6. "Uma família está chegando!": a câmera acompanha a família por 2 s
+  6. "Uma família está chegando!" (sem família andando, o motivo da porta; com o motivo `wait`,
+     "Uma nova família pode chegar em breve"): a câmera acompanha a família por 2 s
      (`tutorial.followSeconds` em `visual.json`). Conclui quando ela chega; aparece "Muito bem!
      Construa mais casas: cada uma recebe uma família". Se a porta das famílias estiver fechada e nenhuma
      família estiver andando, o balão mostra o motivo no lugar da frase (sem toast repetindo) e a

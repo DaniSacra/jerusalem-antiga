@@ -23,6 +23,7 @@ import {
   spotsServing,
   stepWeek,
   templeSpotsNear,
+  templeRoadSpot,
   templeWaitsForGoal,
   reasonTool,
   type TempleSpot,
@@ -92,6 +93,8 @@ interface Gesture {
   applied: boolean;
   cancelled: boolean;
   toastedSilver: boolean;
+  /** A touch drag of Demolir skipped something that would lose food (said once). */
+  toastedFood: boolean;
   /** Road cells placed during this gesture, checked for connection when it ends. */
   roads: Cell[];
   /** The drag went over the interface after building: it stopped there (a toast says so). */
@@ -271,6 +274,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.weekSeconds, light.walkers * (this.weather?.walkers ?? 1));
     this.haulers.update(delta / 1000, speed);
     if (this.guide) this.updateTutorial(delta);
+    else if (this.pan && (this.gesture || this.glide(this.pan, delta))) this.pan = null; // the camera going to a temple area
     this.ui?.setSlow(this.dayNight.degraded);
     this.ui?.setDrought(look.drought);
   }
@@ -379,7 +383,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.spots = null;
     this.drawSpots();
     this.refresh();
-    if (tool === 'temple' && !this.templeAreas.some((a) => a.ready)) this.ui?.hint(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, true);
+    if (tool !== 'temple') return;
+    if (!this.templeAreas.some((a) => a.ready)) this.ui?.hint(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, true);
+    // The camera goes to the best area, so it is never off screen.
+    const first = this.templeAreas[0];
+    if (first) this.pan = footCenter(first.x, first.y, dimsOf('temple').w, dimsOf('temple').h);
   }
 
   /**
@@ -396,8 +404,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
         if (areas.every((b) => apart(a, b))) areas.push(a);
       }
     }
+    // None near the roads: the free place a road can reach soonest, with that road marked.
+    const far = this.tool === 'temple' && !areas.length ? templeRoadSpot(this.state) : null;
+    if (far) areas.push(far);
     this.templeAreas = areas;
-    this.map.setTempleAreas(areas);
+    this.map.setTempleAreas(areas, far?.road ?? []);
   }
 
   /** Screen point of the center of a grid footprint (UI coordinates) and the camera zoom. */
@@ -579,9 +590,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.ui?.setTutorial(null);
       return;
     }
-    // The family step says why no family can come (the other steps keep their own sentence).
+    // The family step says why no family can come, or that one may come soon, until one walks in
+    // (the other steps keep their own sentence).
     const block = step.id === 'family' ? this.city.block : null;
-    const stuck = block !== null && block !== 'wait' && this.state.families.length === 0;
+    const stuck = block !== null && this.state.families.length === 0;
     if (step.id === 'house') this.houseHint = houseHint(this.state);
     this.ui?.setTutorial(stuck ? T.familyBlockText(block!, this.state) : T.tutorial.step[step.id], step.id === 'upkeep');
     if (step.id !== this.pannedFor) {
@@ -765,6 +777,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       applied: false,
       cancelled: false,
       toastedSilver: false,
+      toastedFood: false,
       roads: [],
       cutByUi: false,
     };
@@ -888,6 +901,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
       // building's balloon ("Perde N de comida" and its own Demolir, with a second tap).
       if (touch && inBounds(s, o.x, o.y) && foodLostIfRemoved(s, o.x, o.y) > 0) {
         if (first) this.select(o);
+        else if (this.gesture && !this.gesture.toastedFood) {
+          // A drag passes over it: say why it stayed.
+          this.gesture.toastedFood = true;
+          this.ui?.toast(T.demolishKeepsFood, 'bad');
+        }
         return;
       }
       // Any other touch or click with Demolir closes a balloon it opened.

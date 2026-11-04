@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, onlyNeedsRoad, place, placeSpots, RULES, templeSpots, templeSpotsNear } from '../src/core';
+import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, onlyNeedsRoad, place, placeSpots, RULES, templeRoadSpot, templeSpots, templeSpotsNear } from '../src/core';
 import { EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
@@ -115,6 +115,26 @@ describe('temple placement', () => {
     expect(far).toEqual([...far].sort((p, q) => p - q));
     s.feature = s.feature.map(() => 'rock');
     expect(templeSpotsNear(s)).toEqual([]);
+  });
+
+  it('templeRoadSpot: with no area near the roads, the free place the shortest road reaches, and that road', () => {
+    const s = emptyGame({ silver: 1e6 });
+    const d = dimsOf('temple');
+    // Rocks everywhere but one free 6x6 two cells east of the road at x = EAST - 1, and a 1-cell-wide path to it.
+    s.feature = s.feature.map(() => 'rock');
+    const fx = EAST + 2;
+    for (let y = 30; y < 30 + d.h; y++) for (let x = fx; x < fx + d.w; x++) s.feature[indexOf(s, x, y)] = null;
+    for (let x = EAST; x < fx; x++) s.feature[indexOf(s, x, 30)] = null;
+    expect(templeSpotsNear(s)).toEqual([]);
+    const far = templeRoadSpot(s)!;
+    expect(far).toMatchObject({ x: fx, y: 30, ready: false });
+    expect(far.road).toHaveLength(2);
+    // Building that road makes it a ready spot, where the temple can be built.
+    road(s, far.road.map((c) => [c.x, c.y] as [number, number]));
+    expect(checkPlace(s, 'temple', fx, 30).ok).toBe(true);
+    expect(templeRoadSpot(s)).toMatchObject({ ready: true, road: [] });
+    s.feature = s.feature.map(() => 'rock');
+    expect(templeRoadSpot(s)).toBeNull();
   });
 
   it('onlyNeedsRoad: free and paid for, but away from the network', () => {

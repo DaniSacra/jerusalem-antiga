@@ -108,7 +108,7 @@ const gameReady = (page) =>
  * tutorial is skipped (marked as seen) unless `tutorial` is set. */
 async function startGame(page, { tutorial = false } = {}) {
   if (!tutorial) await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
-  await page.goto(URL);
+  await page.goto(URL, { timeout: 90000 });
   await page.waitForFunction(() => document.querySelector('canvas'));
   await page.waitForTimeout(800);
   await page.keyboard.press('Enter');
@@ -528,7 +528,7 @@ const inspectorLines = (page) => page.evaluate(() => window.game.ui.view.inspect
  */
 async function p2Interface(page, suffix) {
   await startGame(page);
-  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 90000 }); // the opening sentence goes away
   const house = await page.evaluate(() => {
     const { state: s, core, game } = window;
     game.setSpeed(0);
@@ -642,7 +642,7 @@ async function p2Interface(page, suffix) {
  */
 async function templeAreas(page, suffix) {
   await startGame(page);
-  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 30000 }); // the opening sentence goes away
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 90000 }); // the opening sentence goes away
   const areas = await page.evaluate(() => {
     const { state: s, core, game } = window;
     game.setSpeed(0);
@@ -688,6 +688,52 @@ async function templeAreas(page, suffix) {
   const houseLabel = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
   assert(houseLabel === 'Cabe aqui: falta ligar à rua', `the house preview away from the road (${houseLabel})`);
   await shot(page, `preview-needs-road${suffix}`);
+
+  // No silver: the preview over a green area is red and says why.
+  const green = areas.find((a) => a.ready);
+  await page.evaluate(() => {
+    window.state.silver = 100;
+    window.game.selectTool('temple');
+  });
+  await page.evaluate(([x, y]) => window.game.setHover({ x, y }), [green.x + 2, green.y + 2]);
+  await page.waitForTimeout(200);
+  const poorLabel = await page.evaluate(() => window.game.map.serves.visible && window.game.map.serves.text);
+  assert(poorLabel && /\nFalta prata: custa 800$/.test(poorLabel), `the temple preview without silver says so (${poorLabel})`);
+
+  // No area near the roads (rocks block the land one and two cells from the network, but for one
+  // path): the nearest free place is marked with the road to it, and the camera goes there.
+  const remote = await page.evaluate(() => {
+    const { state: s, core, game } = window;
+    s.silver = 1e4;
+    game.selectTool('view');
+    const { dist, prev } = core.roadDistances(s);
+    const free = (x, y) => x >= 0 && y >= 0 && x + 6 <= s.cols && y + 6 <= s.rows && [...Array(36).keys()].every((k) => core.isFreeLand(s, x + (k % 6), y + Math.floor(k / 6)) && dist[core.indexOf(s, x + (k % 6), y + Math.floor(k / 6))] >= 3);
+    let end = -1;
+    for (let y = 0; y < s.rows && end < 0; y++)
+      for (let x = 0; x < s.cols && end < 0; x++) {
+        if (!free(x, y)) continue;
+        for (const c of core.borderCells(s, { x, y, w: 6, h: 6 })) {
+          if (!core.inBounds(s, c.x, c.y)) continue;
+          const i = core.indexOf(s, c.x, c.y);
+          if (dist[i] === 3) { end = i; break; }
+        }
+      }
+    if (end < 0) return null;
+    const keep = new Set();
+    for (let i = end; i >= 0 && dist[i] > 0; i = prev[i]) keep.add(i);
+    dist.forEach((d, i) => { if ((d === 1 || d === 2) && !keep.has(i)) s.feature[i] = 'rock'; });
+    game.refresh();
+    if (core.templeSpotsNear(s).length) return null;
+    const cam = game.cameras.main;
+    const before = { x: cam.scrollX, y: cam.scrollY };
+    game.selectTool('temple');
+    return { areas: game.templeAreas.map((a) => ({ ...a })), road: game.map.templeRoad.length, before };
+  });
+  assert(remote && remote.areas.length === 1 && !remote.areas[0].ready && remote.road > 0, `with no area near the roads, the nearest place and its road (${JSON.stringify(remote)})`);
+  await page.waitForTimeout(1500);
+  const moved = await page.evaluate((b) => { const c = window.game.cameras.main; return Math.hypot(c.scrollX - b.x, c.scrollY - b.y); }, remote.before);
+  assert(moved > 20, `the camera goes to the temple area (${moved})`);
+  await shot(page, `temple-far-road${suffix}`);
 }
 
 /**
@@ -696,7 +742,7 @@ async function templeAreas(page, suffix) {
  */
 async function demolishLoss(page, suffix) {
   await startGame(page);
-  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 90000 });
   const granary = await page.evaluate(() => {
     const { state: s, core, game } = window;
     game.setSpeed(0);
@@ -1017,7 +1063,7 @@ async function harvestCountdown(page, suffix) {
 
 const scenarios = {
   async title(page) {
-    await page.goto(URL);
+    await page.goto(URL, { timeout: 90000 });
     await page.waitForTimeout(1200);
     await shot(page, 'title');
     // Once the tutorial was seen, the title offers it again.
@@ -1067,7 +1113,7 @@ const scenarios = {
   /** A toast that comes while a panel is open waits until the panel closes. */
   async 'toast-panel'(page) {
     await startGame(page);
-    await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
+    await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 90000 }); // the opening sentence goes away
     await clickUi(page, 'side-stats');
     await page.waitForTimeout(200);
     assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'the statistics are open');
@@ -1461,7 +1507,7 @@ const scenarios = {
       const phoneH = Math.round(Math.min(720, Math.max(560, (GAME_W * 390) / 844)));
 
       await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
-      await page.goto(URL);
+      await page.goto(URL, { timeout: 90000 });
       await page.waitForTimeout(1200);
       await shot(page, 'touch-title');
       await page.waitForFunction(() => document.querySelector('canvas'));

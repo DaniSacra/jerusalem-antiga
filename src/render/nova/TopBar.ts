@@ -247,7 +247,7 @@ export class TopBar {
         ? [{ text: PHONE ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
         : s.spoiled > 0
           ? [{ text: dot + N.full, color: NOVA_CSS.warn }]
-          : PHONE ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }];
+          : PHONE || eco.residents === 0 ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }]; // nobody eats: no promise
     const fv = label(N.food).length;
     this.food.set([
       ...label(N.food),
@@ -273,7 +273,7 @@ export class TopBar {
       const turn = nextFieldTurn(s.week);
       const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
       this.season.set([
-        ...(PHONE ? [{ text: N.calendarPhone(season, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
+        ...(PHONE ? [{ text: N.calendarPhone(season, year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
         ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
       ]);
     }
