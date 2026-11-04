@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Jerusalém Antiga 3D</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #e9cfa6; touch-action: none; font: 600 14px 'Trebuchet MS', Verdana, sans-serif; }
+      #view, #view canvas { width: 100%; height: 100%; display: block; }
+      .bar { position: fixed; left: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; pointer-events: none; }
+      .bar > * { pointer-events: auto; }
+      #top { top: 8px; }
+      #bottom { bottom: 8px; }
+      #stats, .bar a { background: rgba(60, 40, 24, 0.78); color: #f6ead2; padding: 6px 10px; border-radius: 8px; text-decoration: none; }
+      .bar a.on { background: #c8952f; color: #2e1f12; }
+      #help { color: #3c2818; background: rgba(246, 234, 210, 0.85); padding: 6px 10px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <div class="bar" id="top">
+      <span id="stats">Carregando…</span>
+      <a href="./">Jogo 2D</a>
+    </div>
+    <div class="bar" id="bottom">
+      <a data-q="months=30">~40 construções</a>
+      <a data-q="months=100">~100</a>
+      <a data-q="months=200">~150</a>
+      <a data-q="quality=low">Qualidade baixa</a>
+      <a data-q="shadows=off">Sem sombras</a>
+      <span id="help">Arraste para mover · pinça ou roda: zoom · dois dedos girando ou botão direito: girar e inclinar</span>
+    </div>
+    <script type="module">
+      // Option links: toggle one URL option, keeping the others.
+      const now = new URLSearchParams(location.search);
+      for (const a of document.querySelectorAll('[data-q]')) {
+        const [k, v] = a.dataset.q.split('=');
+        const on = now.get(k) === v || (k === 'months' && !now.has('months') && v === '100');
+        a.classList.toggle('on', on);
+        const next = new URLSearchParams(now);
+        if (on && k !== 'months') next.delete(k);
+        else next.set(k, v);
+        a.href = `?${next}`;
+      }
+    </script>
+    <script type="module" src="/src/render3d/main.ts"></script>
+  </body>
+</html>

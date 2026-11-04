@@ -12,12 +12,15 @@
     "test:visual": "node scripts/visual/run.mjs",
     "sim": "rolldown tools/sim/run.ts --file node_modules/.cache/sim/run.mjs --platform node --format esm && node node_modules/.cache/sim/run.mjs",
     "sim:dump": "rolldown tools/sim/dump.ts --file node_modules/.cache/sim/dump.mjs --platform node --format esm && node node_modules/.cache/sim/dump.mjs",
-    "test:pwa": "node scripts/pwa-check.mjs"
+    "test:pwa": "node scripts/pwa-check.mjs",
+    "poc": "vite --host --port 5174"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "^3.90.0",
+    "three": "^0.181.0"
   },
   "devDependencies": {
+    "@types/three": "^0.181.0",
     "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
