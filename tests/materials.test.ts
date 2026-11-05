@@ -545,7 +545,7 @@ describe('materials and trees: edge cases', () => {
     expect(s.stumps).toHaveLength(2);
   });
 
-  it('cutTrees with fewer trees than owed: cuts what is there and keeps the rest of the count', () => {
+  it('cutTrees with fewer trees than owed: cuts what is there and keeps one cut waiting, no more', () => {
     const s = city();
     const b = lumberAt(s);
     plant(s, 'olive', [[27, 30]]); // 0.25 wood a week
@@ -553,7 +553,7 @@ describe('materials and trees: edge cases', () => {
     const events: GameEvent[] = [];
     cutTrees(s, computeEconomy(s), events);
     expect(events).toHaveLength(1);
-    expect(b.cutProgress).toBeCloseTo(EVERY + lumber.perCell);
+    expect(b.cutProgress).toBe(EVERY);
     expect(nextTreeToCut(s, b)).toBeNull();
   });
 

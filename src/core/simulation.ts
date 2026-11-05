@@ -178,8 +178,10 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   s.silver = round2(s.silver + eco.silverDelta);
   s.wood = round2(s.wood + eco.wood);
   s.stone = round2(s.stone + eco.stone);
-  regrowTrees(s, events);
+  // Cut first: the cut count follows the trees the week's wood came from, and a tree that grows
+  // back this week is not felled before it is seen.
   cutTrees(s, eco, events);
+  regrowTrees(s, events);
 
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
 

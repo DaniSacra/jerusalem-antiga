@@ -13,13 +13,14 @@ import {
   upgradeGain,
   unlockingGoal,
   lackingMaterial,
+  makerOf,
   nextLevelOf,
+  regrowLeft,
   statOf,
   weeksToNextLevel,
   fieldBonus,
   foodLostIfRemoved,
   needLocked,
-  RULES,
   weeksPerCut,
   houseBirths,
   HOUSE_LEVELS,
@@ -94,9 +95,7 @@ function card(s: GameState, c: Cell, { eco, births }: CityReadout): Card | null 
     }
     const f = s.feature[i];
     if (f === 'stump') {
-      const cut = s.stumps.find((t) => t.i === i);
-      const left = cut ? Math.max(1, RULES.treeRegrowWeeks - (s.week - cut.week)) : RULES.treeRegrowWeeks;
-      return { lines: [{ text: N.stump(left) }], foot: one, building: null, action: null, demolish: false, aside: [] };
+      return { lines: [{ text: N.stump(regrowLeft(s, i)) }], foot: one, building: null, action: null, demolish: false, aside: [] };
     }
     if (f === 'rock') return { lines: [{ text: N.rock(T.feature.rock) }], foot: one, building: null, action: null, demolish: false, aside: [] };
     if (f) return { lines: [{ text: N.tree(T.feature[treeKind(f, c.x, c.y)]) }], foot: one, building: null, action: null, demolish: false, aside: [] };
@@ -236,7 +235,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null): Card {
     if (gain && !wait && Object.keys(gain.materials).length) level.push({ text: N.asks(gain.materials), color: NOVA_CSS.gold, bold: false });
     // Main action: the first missing need the player can build now; waiting, where to put the lumber or quarry.
     const miss = h.next.needs.find((n) => !n.ok);
-    const maker = wait === 'wood' ? 'lumber' : wait === 'stone' ? 'quarry' : null;
+    const maker = wait ? makerOf(wait) : null;
     if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
     else if (miss && s.unlocked.includes(miss.kind)) action = { label: N.where[miss.kind], kind: miss.kind, target: b };
     else if (!miss && maker && s.unlocked.includes(maker)) action = { label: N.where[maker], kind: maker, target: b };

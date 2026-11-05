@@ -30,7 +30,7 @@ import {
   type Dims,
   type Rect,
   type Stump,
-  RULES,
+  isSprouting,
   byRiver,
   foodCapacity,
 } from '../core';
@@ -395,7 +395,7 @@ export class MapView {
     if (tree === 'almond' || tree === 'fig') return TEX.tree(tree, v, this.trees[tree]);
     if (tree !== 'stump') return TEX.feature(tree, v);
     const t = this.stumps.get(indexOf(this.state, x, y));
-    return TEX.stump(t?.kind ?? 'olive', !!t && this.state.week - t.week >= RULES.treeRegrowWeeks / 2, v);
+    return TEX.stump(t?.kind ?? 'olive', !!t && isSprouting(this.state, t), v);
   }
 
   private syncFeature(s: GameState, x: number, y: number) {

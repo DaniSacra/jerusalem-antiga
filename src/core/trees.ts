@@ -2,7 +2,7 @@ import { BUILDINGS, RULES } from './data';
 import { round2, type Economy } from './economy';
 import { cellOf, cellsInRadius } from './grid';
 import { gatherYield, isTree } from './harvest';
-import type { Building, GameEvent, GameState, TreeFeature } from './types';
+import type { Building, GameEvent, GameState, Stump, TreeFeature } from './types';
 
 /**
  * Cutting and regrowth. Every `cutEvery` wood a lumber makes, it cuts the tree in its radius
@@ -38,7 +38,10 @@ export function cutTrees(s: GameState, eco: Economy, events: GameEvent[]): void 
     b.cutProgress = round2((b.cutProgress ?? 0) + gatherYield(s, b) * eco.efficiency);
     while (b.cutProgress >= every) {
       const i = nextTreeToCut(s, b);
-      if (i === null) break;
+      if (i === null) {
+        b.cutProgress = every; // no tree left: one cut waits, no backlog of fellings
+        break;
+      }
       b.cutProgress = round2(b.cutProgress - every);
       const kind = s.feature[i] as TreeFeature;
       s.feature[i] = 'stump';
@@ -57,6 +60,15 @@ export function regrowTrees(s: GameState, events: GameEvent[]): void {
     return false;
   });
 }
+
+/** Weeks until the stump on cell i grows back (at least 1; a full cycle when it is not listed). */
+export function regrowLeft(s: GameState, i: number): number {
+  const cut = s.stumps.find((t) => t.i === i);
+  return cut ? Math.max(1, RULES.treeRegrowWeeks - (s.week - cut.week)) : RULES.treeRegrowWeeks;
+}
+
+/** A stump past half its regrowth shows a sprout (looks only). */
+export const isSprouting = (s: GameState, t: Stump): boolean => s.week - t.week >= RULES.treeRegrowWeeks / 2;
 
 /** Building or laying a road on a stump removes it (no cost, it never grows back). */
 export function clearStump(s: GameState, i: number): void {

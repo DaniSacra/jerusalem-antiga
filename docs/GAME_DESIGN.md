@@ -135,7 +135,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   distância ao quadrado até a área do Lenhador; empate pela célula de menor índice, ou seja,
   linha de cima e depois coluna da esquerda). A árvore vira **toco** (feature `stump`, guardado em
   `stumps` com o tipo e a semana), com o evento `treeCut`. O toco não conta para Coletora nem
-  Lenhador.
+  Lenhador. Sem árvore no raio, o Lenhador guarda no máximo **um** corte esperando (não acumula).
+  Na semana, o corte vem antes da rebrota: uma árvore que volta não é cortada na mesma semana.
 - **Toco não bloqueia:** construir ou pôr rua em cima é permitido, sem custo a mais, e o toco some
   (não volta). Demolir não age num toco. Toco livre volta a ser **a mesma árvore** (oliveira ou
   palmeira) depois de **104 semanas** (`treeRegrowWeeks`), com o evento `treeRegrown`.
