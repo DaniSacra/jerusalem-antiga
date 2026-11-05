@@ -241,7 +241,8 @@ a casa guarda `waiting: 'wood' | 'stone'` (o primeiro que falta) até o material
 semana em que ele chega (a produção entra antes da evolução). Casas prontas na mesma semana pagam
 na ordem da lista (a **mais antiga primeiro**). Perder uma exigência zera a contagem e a espera.
 Cair de nível não devolve; subir de novo paga de novo. O aviso `material` ("N casas esperando
-madeira/pedra") vem logo depois da comida (ordem: dívida, comida acabando, material, estoque
+madeira/pedra: construa um lenhador", ou, se o material já chega, "já chega aos poucos, um lenhador a
+mais acelera") vem logo depois da comida (ordem: dívida, comida acabando, material, estoque
 cheio, inverno, seca, saldo, desemprego). Com o bônus das oficinas no teto, o aviso de desemprego
 manda para o Lenhador ou a Pedreira.
 
@@ -644,7 +645,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
   - **3D** (botão redondo com "3D", embaixo das Estatísticas): abre a **cidade do jogador em 3D**
     (veja Visão 3D). Em telas baixas (celular 800 x 360) os quatro botões da coluna ficam mais
-    juntos (no mínimo 6 px) para o 3D ficar sempre a 15 px ou mais acima do Mover.
+    juntos (no mínimo 6 px) para o 3D ficar sempre a 15 px ou mais acima do Mover. Quando um
+    objetivo é cumprido ou uma casa vira Casa grande, o botão 3D pulsa de leve com a borda dourada
+    por uns 4 s (convite; nunca abre sozinho). Abrir o 3D fecha antes o painel aberto, a ficha e o
+    balão da construção tocada (nada fica aberto embaixo nem na volta).
 - **Visão 3D** (`src/render3d/view.ts`, Three.js): uma camada de tela cheia sobre o jogo, com o
   `GameState` vivo só para leitura. Mostra todas as construções (casas por nível; casa vazia que
   guardou o nível com o desenho desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e
@@ -713,7 +717,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - celeiro, mercado e oficina: "Nível 1 de 3", a linha do próximo nível num quadro dourado
     ("Nível 2: guarda 600 · 2/sem (hoje 300 · 1/sem)"; mercado "alcance", oficina "+20% nos
     campos") e a ação principal **"Melhorar · 60 · 20 pedra"** dourada; sem prata o botão fica cinza,
-    "Falta prata: custa 60"; sem a pedra, cinza com "Falta pedra: construa uma pedreira"; tocar nele
+    "Falta prata: custa 60"; sem a pedra, cinza com "Falta pedra: 20 (tem 0)"; tocar nele
     diz o mesmo num toast; no topo, "Nível máximo" e nenhuma ação.
     Melhorar faz a construção pular e brilhar e o toast "Celeiro subiu para o nível 2";
   - outras construções: o que faz, quantas casas atende (serviços), vagas, produção, manutenção

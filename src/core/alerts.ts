@@ -22,7 +22,7 @@ export type Alert =
   /** A material store is full: its lumber or quarry stopped. */
   | { kind: 'storageFull'; material: Material }
   /** `count` houses are ready to climb but wait for this material. */
-  | { kind: 'material'; material: Material; count: number }
+  | { kind: 'material'; material: Material; count: number; making: boolean }
   /** A caravan is announced: its families, weeks to go and empty houses missing for it and the waiting couples (0: room for all). */
   | { kind: 'caravan'; families: number; weeks: number; missing: number; couples: number }
   /** Engaged couples waiting for an empty house. */
@@ -52,7 +52,7 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   const missing = firewoodShort(s, eco);
   if (s.cold || missing > 0) out.push({ kind: 'firewood', missing, cold: s.cold });
   const waiting = housesWaiting(s);
-  for (const material of MATERIALS) if (waiting[material] > 0) out.push({ kind: 'material', material, count: waiting[material] });
+  for (const material of MATERIALS) if (waiting[material] > 0) out.push({ kind: 'material', material, count: waiting[material], making: eco[material] > 0 });
   const caravan = announcedCaravan(s);
   const couples = waitingCouples(s);
   if (caravan) {

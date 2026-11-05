@@ -144,7 +144,7 @@ function card(s: GameState, c: Cell, { eco, births }: CityReadout): Card | null 
     if (next && !action) {
       const short = s.silver < next.cost;
       const lack = lackingMaterial(s, next.materials ?? {});
-      const label = short ? T.missingSilver(next.cost) : lack ? T.lacking(lack) : N.upgrade(next.cost, next.materials);
+      const label = short ? T.missingSilver(next.cost) : lack ? T.lackingAmount(lack, next.materials?.[lack] ?? 0, s[lack]) : N.upgrade(next.cost, next.materials);
       action = { label, kind: 'upgrade', target: b, dim: short || !!lack };
     }
   }

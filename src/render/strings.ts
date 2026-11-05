@@ -21,7 +21,7 @@ export const T = {
   start: 'Começar',
   howTo: [
     'Guarde comida para o inverno: pesque, colete e plante campos.',
-    `Casais precisam de casa. Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
+    `Casais precisam de casa. Tendas perto de uma praça viram casas de barro, com madeira de um lenhador. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -125,6 +125,8 @@ export const T = {
   } satisfies Record<FailReason, string>,
   /** Building without the wood or stone it costs (toast). */
   lacking: (m: Material) => `Falta ${PRODUCT[m]}: construa ${MAKER[m]}`,
+  /** Melhorar short of a material: how much it asks and how much the city has. */
+  lackingAmount: (m: Material, need: number, have: number) => `Falta ${PRODUCT[m]}: ${need} (tem ${Math.floor(have)})`,
   goalDone: (reward: number, unlock?: Placeable) =>
     `Objetivo cumprido! +${reward} prata` + (unlock ? ` · Nova construção: ${toolName(unlock)}` : ''),
   /** Extra message when a goal unlocks a building, explaining what it is for. */
@@ -141,7 +143,7 @@ export const T = {
     if (a.kind === 'deficit')
       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
     if (a.kind === 'material')
-      return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${MAKER[a.material]}`;
+      return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: ${a.making ? `já chega aos poucos, ${MAKER[a.material]} a mais acelera` : `construa ${MAKER[a.material]}`}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
     if (a.kind === 'firewood')
       return a.cold ? 'Frio! Sem lenha, as casas esvaziam. Construa um lenhador' : `A lenha não dura o inverno: faltam ${a.missing} de madeira. Construa um lenhador`;
@@ -319,7 +321,7 @@ export const T = {
       road: `Rua · ${RULES.roadCost} prata por trecho. Arraste a partir de uma rua ligada ao altar.`,
       clear: `Demolir · sem reembolso. Toque ou arraste no que quer tirar.`,
     },
-    cutTree: `Cortar árvore · ${RULES.treeClearCost} prata`,
+    cutTree: `Cortar árvore · ${RULES.treeClearCost} prata (não dá madeira: o lenhador corta sozinho)`,
     /** Over the preview of a fisher or gatherer, and in its balloon. */
     yields: (n: number, product: Product = 'food') => `Rende ${fmt(n)} ${PRODUCT[product]}/sem`,
     /** Preview of a fisher, gatherer, lumber or quarry not touching a road linked to the altar. */

@@ -426,7 +426,7 @@ describe('houses waiting for material', () => {
     for (let k = 0; computeEconomy(s).silverDelta >= 0; k++) put(s, 'quarry', 2 + 3 * k, 2);
     const list = alerts(s);
     const kinds = list.map((a) => a.kind);
-    expect(list).toContainEqual({ kind: 'material', material: 'stone', count: 2 });
+    expect(list).toContainEqual({ kind: 'material', material: 'stone', count: 2, making: false });
     expect(kinds.indexOf('foodShort')).toBeLessThan(kinds.indexOf('material'));
     expect(kinds.indexOf('material')).toBeLessThan(kinds.indexOf('deficit'));
     s.silver = -1;
