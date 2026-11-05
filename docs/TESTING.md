@@ -8,6 +8,7 @@ npm test                        # testes unitários (Vitest), ~1 s
 npm run test:visual             # testes visuais (Playwright), ~1 min
 npm run test:visual -- touch    # só os cenários cujo nome contém "touch"
 VISUAL_PORT=5299 VISUAL_OUT=/tmp/shots npm run test:visual   # outra porta e outra pasta (dois agentes ao mesmo tempo)
+VISUAL_SHARD=0/4 npm run test:visual   # só um quarto dos cenários (0/4, 1/4, 2/4 e 3/4 cobrem todos): rodadas curtas
 npx tsc --noEmit                # typecheck
 npm run build && npm run test:pwa  # o build é um app instalável e abre sem internet
 ```
@@ -75,6 +76,12 @@ Cobrem `src/core` (TypeScript puro, sem Phaser) e a lógica pura da visão 3D (`
 O script sobe o servidor de desenvolvimento do Vite, abre o jogo no Chromium do Playwright,
 executa cada cenário, salva screenshots em `screenshots/` (fora do git) e falha se uma verificação
 quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-<cenário>.png`.
+**Uma rodada por vez na máquina:** cada Chromium desenha o WebGL na CPU (SwiftShader) e passa de
+1 GB; quatro rodadas ao mesmo tempo esgotaram a memória do WSL e travaram tudo (2026-11-05). O
+`run.mjs` segura a trava `logs/visual.lock`, e uma segunda rodada espera a primeira terminar. Use
+`VISUAL_SHARD` para rodadas curtas. O `tools/watchdog.sh` mata o navegador de teste maior se a memória
+livre cair abaixo de 1 GB, e o Vitest usa no máximo 6 workers (`vite.config.ts`).
+
 O servidor roda sem recarga automática (`hmr: false`, sem vigiar arquivos): um arquivo editado por
 outro agente durante a rodada não recarrega a página no meio de um cenário.
 

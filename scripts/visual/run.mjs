@@ -6,11 +6,13 @@
  *
  *   npm run test:visual            # all scenarios
  *   npm run test:visual -- touch   # only scenarios whose name contains "touch"
+ *   VISUAL_SHARD=0/4 npm run test:visual   # a quarter of them (0/4, 1/4, 2/4, 3/4 cover all)
  *
  * Scenarios use the dev-only hooks window.game, window.state and window.core
  * (exposed by GameScene in dev builds) to read state and set up situations quickly.
  */
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { rmSync } from 'node:fs';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
@@ -25,6 +27,8 @@ const URL = `http://localhost:${PORT}/?seed=${SEED}`;
 const GAME_W = 1280;
 const GAME_H = 720;
 const filter = process.argv[2] ?? '';
+/** `VISUAL_SHARD=k/n` runs only every n-th scenario starting at k (0-based): long suites in short runs. */
+const [SHARD_K, SHARD_N] = (process.env.VISUAL_SHARD ?? '0/1').split('/').map(Number);
 
 // ---------- helpers ----------
 
@@ -3178,6 +3182,32 @@ async function cdpTapPage(page, x, y) {
 
 // ---------- runner ----------
 
+// One visual run at a time on this machine: each Chromium draws WebGL on the CPU (SwiftShader) and
+// takes 1+ GB; several at once filled the WSL memory and froze it (2026-11-05). Others wait here.
+const LOCK = 'logs/visual.lock';
+await mkdir('logs', { recursive: true });
+for (let waited = 0; ; waited += 5) {
+  try {
+    await writeFile(LOCK, String(process.pid), { flag: 'wx' });
+    break;
+  } catch {
+    const pid = Number(await readFile(LOCK, 'utf8').catch(() => '0'));
+    let alive = false;
+    try {
+      alive = pid > 0 && process.kill(pid, 0);
+    } catch {}
+    if (!alive) {
+      await rm(LOCK, { force: true });
+      continue;
+    }
+    if (waited % 60 === 0) console.log(`waiting for another visual run (pid ${pid}) to finish…`);
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+}
+const unlock = () => rmSync(LOCK, { force: true });
+process.on('exit', unlock);
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(130));
+
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 // No file watching or hot reload: an edit made while the scenarios run (another agent at work) must not reload the page mid-scenario.
@@ -3186,8 +3216,9 @@ await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 
 let failed = 0;
-for (const [name, def] of Object.entries(scenarios)) {
+for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
   if (filter && !name.includes(filter)) continue;
+  if (k % SHARD_N !== SHARD_K) continue;
   const run = typeof def === 'function' ? def : def.run;
   const context = await browser.newContext(def.context ?? { viewport: { width: GAME_W, height: GAME_H } });
   const page = await context.newPage();

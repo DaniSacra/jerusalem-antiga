@@ -5,10 +5,25 @@
 # - Any other `until/while ...; do sleep` wait loop alive for 30 min is killed too.
 # - A visual test (run.mjs), sim run or headless browser older than LIMIT seconds is only
 #   reported (HUNG? line), because a long sim can be legitimate.
+# - Memory guard (every 5 s): when the WSL has less than MIN_FREE_MB available, the biggest test
+#   browser (chrome-headless-shell) is killed before the machine runs out of memory and freezes
+#   (KILLED low memory line). Test browsers only: the game and the editor are never touched.
 # Usage: tools/watchdog.sh [limitSeconds=1200] [pollSeconds=60]
 LIMIT=${1:-1200}
 POLL=${2:-60}
+MIN_FREE_MB=${MIN_FREE_MB:-1000}
 seen=" "
+
+# Kills the biggest test browser while available memory is under MIN_FREE_MB.
+memguard() {
+  local free pid rss
+  free=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
+  [ "$free" -ge "$MIN_FREE_MB" ] && return
+  read -r pid rss < <(ps -eo pid=,rss=,args= | grep chrome-headless-shell | grep -v grep | sort -k2 -nr | awk '{print $1, $2}' | head -1)
+  [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null &&
+    echo "$(date '+%F %T') KILLED low memory (${free} MB free): test browser pid $pid ($((rss / 1024)) MB)"
+}
+
 while true; do
   while read -r pid age args; do
     [ "$pid" = "$$" ] && continue
@@ -29,5 +44,8 @@ while true; do
         fi ;;
     esac
   done < <(ps -eo pid=,etimes=,args= | grep -v -e watchdog.sh -e "ps -eo")
-  sleep "$POLL"
+  for ((t = 0; t < POLL; t += 5)); do
+    memguard
+    sleep 5
+  done
 done
