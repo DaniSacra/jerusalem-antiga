@@ -99,7 +99,7 @@ src/
     model/           o que a interface mostra, como dados (textos e tons, sem px):
       topbar.ts      pílulas, previsão, estação, encurtar por etapas (MAX_FIT)
       build.ts       coluna, categorias, custo "25 prata · 10 madeira (tem 4)", balão da construção escolhida
-      inspect.ts     balão da construção tocada (o card() de hoje), moradores, ações
+      card.ts        balão da construção tocada (o card() de hoje), moradores, ações
       panels.ts      Objetivos, Avisos, Estatísticas (Agora, Povo, Histórico), Configurações
       person.ts      ficha da pessoa
       preview.ts     pílula sobre a prévia ("Rende N…", "Atende N casas", "Cabe aqui: falta ligar à rua")
@@ -306,7 +306,7 @@ Clique em botão HTML   ──► ui/* onTap ───────────�
 | `GameScene` `checkTutorial`, `tutorialTarget`, `lumberRoadLeft`; `render/Tutorial.ts > TutorialGuide, tutorialSeen` | `game/tutorial.ts` | tutorial |
 | `GameScene.updateTempleAreas`, `showSpots/drawSpots` | `game/session.ts` | áreas do Templo e "Onde pôr" |
 | `render/Toasts.ts` (fila, regras) | `game/toastQueue.ts` | fila de toasts |
-| `nova/Inspector.ts` `card`, `houseCard`, `lossLine`, `foodLines`, `levelStatOf` | `game/model/inspect.ts` | balão da construção tocada |
+| `nova/Inspector.ts` `card`, `houseCard`, `lossLine`, `foodLines`, `levelStatOf` | `game/model/card.ts` | balão da construção tocada |
 | `nova/Panels.ts` (seções, linhas, gráficos como números) | `game/model/panels.ts` | painéis |
 | `nova/BuildColumn.ts` `costLine` e textos | `game/model/build.ts` | coluna e balão da escolhida |
 | `nova/TopBar.ts` textos e etapas `MAX_FIT` | `game/model/topbar.ts` | barra do topo |
@@ -334,6 +334,12 @@ o Phaser e o HTML traduzem o papel para cor e tamanho. Assim os dois desenham o 
 ---
 
 ## 4. A chave 2D/3D (plano B)
+
+> **Decisão do usuário (2026-11-05): o 2D está congelado.** O jogo abre em 3D (`pickView`); o 2D só
+> com `?view=2d` ou sem WebGL 2. A engrenagem do 3D não troca mais para o 2D. `npm run test:visual`
+> roda só os cenários 3D (mais `title`, que vê o 2D abrir); os do 2D só com `VISUAL_2D=1` ou pelo nome.
+> O 2D não recebe mais adaptações nem testes; sai de vez (Fase 5) ao fim da Fase 3. O texto abaixo é o
+> plano original.
 
 - `settings.view: '2d' | '3d'` em `render/settings.ts` (chave `jerusalem-antiga.settings`, já salva no
   navegador), mais `?view=2d|3d` na URL para os testes.
@@ -425,6 +431,15 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   balão passou a ficar na área livre do mapa (abaixo da barra, à esquerda da coluna, acima das
   ferramentas) e os avisos entre as ferramentas e a coluna. **Fase 1 fechada**; o "pronto quando"
   de jogar até o objetivo 4 em 3D fica para o `playtester` na Fase 4.
+- **Fase 2, parte 1 (2026-11-05):** modelos puros compartilhados com o 2D em `game/model/{card,panels,person,people}.ts`
+  (o `Inspector`, `Panels`, `PersonSheet` e `BuildColumn` da Nova viram adaptadores de cor sobre
+  eles; `model/inspect.ts` saiu); HTML em `ui/{cardBalloon,panels,sheet,charts,figure,lines,labels}.ts`.
+  Balão da casa com moradores, ficha com parentes e Voltar, Objetivos (pelo anel e pela pílula do
+  objetivo, como no 2D), Avisos com selo e pulso, Estatísticas com as três abas e o gráfico em SVG,
+  balão da construção escolhida, balões de problema com cadeado, tom de fome. Os painéis e o balão
+  medem a área livre (`--free-bottom`) e rolam por dentro. Cenários `ui3d-phone` e `ui3d-pc`.
+  Falta na Fase 2: Configurações completas (girar e visão), pílula "Rende N…", "−5"/"Perde N de
+  comida", escala dos balões de problema no zoom afastado e o `nudge` do balão.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar
@@ -541,7 +556,7 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | Encurtar a barra por etapas (`MAX_FIT`) | refazer | `model/topbar.ts` + `ResizeObserver` | 1 |
 | Coluna: 4 categorias, faixa, cadeado, "novo", miniaturas, tecla no PC | refazer | `ui/column.ts` | 1 |
 | Balão da construção escolhida (Saldo depois, Comida depois, até onde melhora) | refazer | `model/build.ts`, `ui/balloon.ts` | 2 |
-| Balão da construção tocada (todas as variações do design) | refazer | `model/inspect.ts`, `ui/balloon.ts` | 2 |
+| Balão da construção tocada (todas as variações do design) | refazer | `model/card.ts`, `ui/cardBalloon.ts` | 2 |
 | "Onde pôr uma praça/mercado/parque/pedreira/lenhador", "Ligar à rua" | refazer | `session.ts`, `overlay.ts` | 3 |
 | Ficha da pessoa | refazer | `ui/person.ts` | 2 |
 | Toasts: máx. 3, fila, ruins na frente, somem com painel, volta 1 aviso | lógica pronta na fase 0 | `toastQueue.ts`, `ui/toasts.ts` | 1 |

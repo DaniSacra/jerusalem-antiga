@@ -653,8 +653,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Jogo em 3D** (`src/app/play3d.ts` e `src/render3d/scene3d.ts`, Three.js, com a interface em HTML em `src/ui`): o
   **mesmo jogo** (a mesma `Session`) desenhado em 3D. O botão 3D do 2D passa a partida para ele e o
   laço do Phaser dorme (só uma visão desenha); o botão "2D" no alto à direita volta para o 2D na
-  mesma partida, que é redesenhado como está. `?view=3d` (ou a opção de visão 3D) abre o jogo direto
-  em 3D, sem baixar o Phaser.
+  mesma partida, que é redesenhado como está. **Desde 2026-11-05 o jogo abre em 3D** (sem baixar o
+  Phaser); o 2D é legado congelado e só abre com `?view=2d` ou num aparelho sem WebGL 2.
   - **O jogo continua correndo** no 3D: semanas, velocidade (botão dourado no alto à direita,
     Espaço no PC) e o dia (o mesmo ciclo do 2D: 240 s a 1x, parado na pausa).
   - Mostra todas as construções (casas por nível; casa vazia que guardou o nível com o desenho
@@ -669,11 +669,23 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     balão da construção tocada (nome, ligada à rua, nível, Melhorar e Demolir), a pílula sobre a
     prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. O balão fica ao
     lado da construção, mas sempre na área livre do mapa (nunca sobre a barra, a coluna ou as
-    ferramentas; construção fora da tela: na borda dessa área). Painéis
-    (objetivos, avisos, estatísticas, povo) e ficha de pessoa vêm na Fase 2.
+    ferramentas; construção fora da tela: na borda dessa área); maior que ela, rola por dentro.
+  - Interface HTML (Fase 2), com os mesmos textos e regras da Nova (`game/model/{card,panels,person}.ts`):
+    o balão da casa tocada traz os moradores (botões com figura, nome, idade e trabalho; duas
+    colunas no celular, uma no PC), filhos, nível, ✓/✗ das necessidades, "Melhorar"/"Onde pôr…",
+    Demolir com "Certeza?" e ✕; no celular, a parte do nível vai numa segunda coluna e os botões
+    ficam sob os moradores. Tocar num morador abre a **ficha** (parentes que abrem a ficha deles,
+    "Voltar"; a casa leva a câmera até ela). O **anel do nível e a pílula do objetivo** abrem
+    Objetivos (como no 2D); na lateral, sob os botões de girar, ficam **Avisos** (selo e pulso a cada
+    aviso novo, que também vira toast) e **Estatísticas** (Agora, Povo e Histórico; uma família do
+    Povo leva até a casa dela). Os painéis e a ficha terminam acima das ferramentas. Escolher uma
+    construção na coluna mostra o balão dela ao lado do botão (custo, manutenção, efeito, "Saldo
+    depois", "Comida depois"). Sobre as construções com problema, um balão com o ícone da
+    necessidade (sem rua, sem trabalhadores, sem fonte, praça, mercado, parque, triste; cadeado
+    quando ainda bloqueada); na fome, o mapa fica avermelhado. Esc fecha na ordem: engrenagem,
+    ficha ou painel, balão.
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
-    fica salvo) e "Mapa: em 3D", que troca para o 2D clássico (volta à mesma partida quando o 3D
-    veio do botão 3D; aberto direto em 3D, avisa "O 2D começa uma partida nova"). Esc fecha.
+    fica salvo). Esc fecha. (A troca para o 2D saiu: o 2D está congelado.)
   - **Tela inicial em HTML** (3D aberto direto): nome, como jogar, controles, "Começar" (Enter no
     PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
     enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do

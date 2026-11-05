@@ -1,15 +1,11 @@
-import { settings } from '../render/settings';
-
 export type ViewKind = '2d' | '3d';
 
 /**
- * Which game opens: `?view=2d|3d` in the URL (the tests use it), else the player's setting. A device
- * without WebGL 2 always gets the 2D.
+ * Which game opens: the 3D (user decision, 2026-11-05). The legacy 2D only with `?view=2d` (its old
+ * tests), or on a device without WebGL 2.
  */
-export function pickView(search: string, saved: ViewKind, webgl2: boolean): ViewKind {
-  const asked = new URLSearchParams(search).get('view');
-  const want: ViewKind = asked === '2d' || asked === '3d' ? asked : saved;
-  return want === '3d' && webgl2 ? '3d' : '2d';
+export function pickView(search: string, webgl2: boolean): ViewKind {
+  return new URLSearchParams(search).get('view') === '2d' || !webgl2 ? '2d' : '3d';
 }
 
 /** True when the browser can draw WebGL 2 (the 3D view needs it). */
@@ -21,4 +17,4 @@ export function hasWebGL2(): boolean {
   }
 }
 
-export const chooseView = (search: string): ViewKind => pickView(search, settings.view, hasWebGL2());
+export const chooseView = (search: string): ViewKind => pickView(search, hasWebGL2());

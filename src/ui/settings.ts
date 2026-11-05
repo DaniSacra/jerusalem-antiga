@@ -2,11 +2,9 @@ import { saveSettings, settings } from '../render/settings';
 import { T } from '../render/strings';
 import { h, onTap } from './dom';
 
-/** The gear's panel: day and night, and which map the game opens with (3D or the classic 2D). */
+/** The gear's panel: day and night. */
 export class SettingsPanel {
   readonly el = h('div.settings.panel.hidden');
-
-  constructor(private o: { standalone: boolean; toClassic: () => void }) {}
 
   get open() {
     return !this.el.classList.contains('hidden');
@@ -35,12 +33,6 @@ export class SettingsPanel {
         saveSettings();
         this.draw();
       }),
-      row(S.view, S.view3d, 'set-view', () => {
-        settings.view = '2d';
-        saveSettings();
-        this.close();
-        this.o.toClassic();
-      }, this.o.standalone ? S.viewNewGame : undefined),
     );
     this.el.classList.remove('hidden');
   }

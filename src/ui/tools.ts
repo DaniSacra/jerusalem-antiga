@@ -1,5 +1,7 @@
 import { BUILDINGS, type BuildableKind } from '../core';
 import { buildColumn } from '../game/model/build';
+import { toolCard } from '../game/model/card';
+import { cardLine } from './lines';
 import type { Session } from '../game/session';
 import { T } from '../render/strings';
 import { COLUMN_ORDER, type Tool } from '../render/tools';
@@ -11,6 +13,9 @@ export class Tools {
   readonly turns = h('nav.side');
   readonly tools = h('nav.tools');
   readonly column = h('nav.column.panel');
+  /** The chosen building's balloon, left of the column at its button (`toolCard`). */
+  readonly tip = h('div.toolballoon.panel.hidden', { 'data-spot': 'tool-balloon' });
+  private tipKey = '';
   private toolEls = new Map<Tool, HTMLElement>();
   private builds = new Map<BuildableKind, HTMLButtonElement>();
 
@@ -39,6 +44,31 @@ export class Tools {
       el.classList.toggle('short', btn.short);
       setText(el.querySelector('small')!, btn.line);
     }
+    this.updateTip(phone);
+  }
+
+  private updateTip(phone: boolean) {
+    const s = this.s;
+    const kind = s.tool as BuildableKind;
+    const btn = this.builds.get(kind);
+    if (!btn || !s.state.unlocked.includes(kind)) {
+      this.tip.classList.add('hidden');
+      this.tipKey = '';
+      return;
+    }
+    const lines = toolCard(s.state, kind, phone);
+    const key = JSON.stringify(lines);
+    if (key !== this.tipKey) {
+      this.tipKey = key;
+      this.tip.replaceChildren(...lines.map((l) => cardLine(l, () => {})));
+    }
+    this.tip.classList.remove('hidden');
+    // Beside its button, kept on screen (measured on update only).
+    const b = btn.getBoundingClientRect();
+    const col = this.column.getBoundingClientRect();
+    const h = this.tip.offsetHeight;
+    const y = Math.max(8, Math.min(innerHeight - h - 8, b.top + b.height / 2 - h / 2));
+    this.tip.style.transform = `translate(${Math.round(col.left - 10 - this.tip.offsetWidth)}px, ${Math.round(y)}px)`;
   }
 
   /** Where the tutorial arrow points for a tool or building button (measured: call on update/resize only). */

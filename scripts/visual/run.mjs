@@ -4,8 +4,9 @@
  * Starts the Vite dev server, plays scripted scenarios, saves screenshots to screenshots/
  * and fails if an assertion breaks or the page logs an error.
  *
- *   npm run test:visual            # all scenarios
- *   npm run test:visual -- touch   # only scenarios whose name contains "touch"
+ *   npm run test:visual            # the 3D scenarios, plus "title" (the legacy 2D still opens)
+ *   npm run test:visual -- touch   # only scenarios whose name contains "touch" (2D ones too)
+ *   VISUAL_2D=1 npm run test:visual   # every scenario, the frozen legacy 2D ones too
  *   VISUAL_SHARD=0/4 npm run test:visual   # a quarter of them (0/4, 1/4, 2/4, 3/4 cover all)
  *
  * Scenarios use the dev-only hooks window.game, window.state and window.core
@@ -23,7 +24,8 @@ const TUTORIAL = JSON.parse(await readFile('src/data/tutorial.json', 'utf8'));
 const PORT = Number(process.env.VISUAL_PORT ?? 5199);
 /** A fixed map (dev hook): the river and the caravan always in the same place, away from the test towns. */
 const SEED = 5;
-const URL = `http://localhost:${PORT}/?seed=${SEED}`;
+/** The legacy 2D game (the 3D scenarios open `?view=3d` themselves). */
+const URL = `http://localhost:${PORT}/?seed=${SEED}&view=2d`;
 const GAME_W = 1280;
 const GAME_H = 720;
 const filter = process.argv[2] ?? '';
@@ -1469,7 +1471,9 @@ async function setupPeople(page, { freeHouse = true } = {}) {
   return page.evaluate((freeHouse) => {
     const { state: s, core } = window;
     const Y = core.RULES.people.weeksPerLifeYear;
-    window.game.setSpeed(0);
+    // The 2D game, or the 3D one (its session).
+    const g = window.view3d ? window.session : window.game;
+    g.setSpeed(0);
     s.week = 3 * core.WEEKS_PER_YEAR + 5;
     s.silver = 500;
     s.wood = 200; // materials: the scenario builds freely
@@ -1529,7 +1533,11 @@ async function setupPeople(page, { freeHouse = true } = {}) {
     if (!core.place(s, 'granary', 25, 30).ok) throw new Error('no granary');
     s.food = 120;
     core.refreshCity(s);
-    window.game.refresh();
+    g.refresh();
+    if (window.view3d) {
+      window.view3d.rig.set({ x: a.x + 1, z: a.y + 1 });
+      return ids;
+    }
     const w = window.iso.gridToWorld(a.x + 1, a.y + 1);
     window.game.cameras.main.setZoom(1);
     window.game.cameras.main.centerOn(w.x, w.y);
@@ -2170,6 +2178,138 @@ async function touch3dScenario(page) {
   await page.screenshot({ path: `${OUT}/touch3d.png` });
 }
 
+/**
+ * The full 3D interface (phase 2): the house balloon with its people (two columns on the phone),
+ * the person sheet and Voltar, Objetivos, Avisos with its selo, Estatísticas and its three tabs, the
+ * chosen building's balloon, problem balloons over the buildings and the famine tone. No text under
+ * 12 px; the balloon never covers the controls.
+ */
+async function ui3dScenario(page, name) {
+  await open3dGame(page);
+  const phone = name !== 'pc';
+  const ids = await setupPeople(page);
+  await page.evaluate(() => window.session.setSpeed(0));
+  const minText = () =>
+    page.evaluate(() => {
+      let min = 99;
+      for (const el of document.querySelectorAll('#hud *')) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || el.closest('.hidden') || ![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+        min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+      }
+      return min;
+    });
+  const inFree = () =>
+    page.evaluate(() => {
+      const b = document.querySelector('.balloon').getBoundingClientRect();
+      const col = document.querySelector('nav.column').getBoundingClientRect();
+      const side = document.querySelector('nav.side').getBoundingClientRect();
+      const tools = document.querySelector('nav.tools').getBoundingClientRect();
+      const r = (x) => [x.left, x.top, x.right, x.bottom].map(Math.round);
+      return { ok: b.right <= col.left + 1 && b.left >= side.right - 1 && b.bottom <= tools.top + 1, b: r(b), col: r(col), side: r(side), tools: r(tools), free: window.view3d.game.hud.free };
+    });
+  // A panel or the sheet never covers the controls.
+  const clear = (sel) =>
+    page.evaluate((sel) => {
+      const a = document.querySelector(sel).getBoundingClientRect();
+      const hit = (b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+      return ['header.top', 'nav.side', 'nav.tools', 'nav.column'].filter((g) => [...document.querySelectorAll(`${g} button, ${g} .pill, ${g} .level`)].some((e) => hit(e.getBoundingClientRect())));
+    }, sel);
+  let t0 = Date.now();
+  const lap = (what) => {
+    if (process.env.VISUAL_TIMING) console.log(`  ${what}: ${Date.now() - t0} ms`);
+    t0 = Date.now();
+  };
+  // The mud house: its four people, in two columns on the phone.
+  await page.evaluate(() => {
+    const b = window.state.grid[27 * window.state.cols + 22];
+    window.session.selectHouse(b.id);
+  });
+  await page.waitForTimeout(400);
+  const chips = await page.evaluate(() => [...document.querySelectorAll('.balloon .chip')].map((c) => c.getBoundingClientRect()).map((r) => ({ x: Math.round(r.left), h: r.height })));
+  assert(chips.length === 4, `four people in the mud house (${chips.length})`);
+  assert(new Set(chips.map((c) => c.x)).size === (phone ? 2 : 1), `${phone ? 'two columns' : 'one column'} of people`);
+  assert(chips.every((c) => c.h >= 44), 'person rows of 44 px or more');
+  const head = await page.evaluate(() => document.querySelector('.balloon .line.big').textContent);
+  assert(head === 'Casa de barro · 4/4 pessoas', `the house head (${head})`);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-house.png` });
+  const fits = await inFree();
+  assert(fits.ok, `the balloon stays in the map's free area ${JSON.stringify(fits)}`);
+  assert((await minText()) >= 12, 'no text under 12 px with the house balloon');
+  // A person's sheet, then a relative's, then Voltar.
+  await page.click('.balloon .chip >> nth=1');
+  await page.waitForSelector('.sheet:not(.hidden)');
+  const title = await page.evaluate(() => document.querySelector('.sheet .line.big').textContent);
+  assert(title.startsWith('Ana') || title.length > 0, `the sheet opens (${title})`);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-sheet.png` });
+  lap('house and sheet');
+  const sheetOver = await clear('.sheet');
+  assert(sheetOver.length === 0, `the sheet covers ${sheetOver}`);
+  const kin = await page.$('.sheet .kin .chip[data-person]');
+  if (kin) {
+    await kin.click();
+    await page.waitForTimeout(200);
+    assert((await page.evaluate(() => document.querySelector('[data-spot="sheet-back"]').textContent)) === 'Voltar', 'a relative\'s sheet offers Voltar');
+    await page.click('[data-spot="sheet-back"]');
+  }
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  assert(await page.evaluate(() => document.querySelector('.sheet').classList.contains('hidden')), 'Esc closes the sheet');
+  // The panels.
+  await page.click('[data-spot="panel-goals"]');
+  await page.waitForSelector('.panelbox:not(.hidden):not(.sheet)');
+  assert((await page.evaluate(() => document.querySelector('.panelbox:not(.sheet) .pline .big').textContent)) === 'Objetivos', 'Objetivos opens');
+  assert((await minText()) >= 12, 'no text under 12 px in Objetivos');
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-goals.png` });
+  lap('goals');
+  const goalsOver = await clear('.panelbox:not(.sheet)');
+  assert(goalsOver.length === 0, `Objetivos covers ${goalsOver}`);
+  await page.click('[data-spot="panel-alerts"]');
+  await page.waitForTimeout(150);
+  const badge = await page.evaluate(() => ({ shown: !document.querySelector('.badge').classList.contains('hidden'), n: document.querySelector('.badge').textContent, lines: document.querySelectorAll('.panelbox:not(.sheet) .pline').length }));
+  assert(badge.lines >= 2, `Avisos lists the warnings (${JSON.stringify(badge)})`);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-alerts.png` });
+  await page.click('[data-spot="panel-stats"]');
+  for (const tab of ['now', 'people', 'history']) {
+    await page.click(`[data-spot="tab-${tab}"]`);
+    await page.waitForTimeout(150);
+    assert((await minText()) >= 12, `no text under 12 px in Estatísticas (${tab})`);
+    await page.screenshot({ path: `${OUT}/ui3d-${name}-stats-${tab}.png` });
+    const over = await clear('.panelbox:not(.sheet)');
+    assert(over.length === 0, `Estatísticas (${tab}) covers ${over}`);
+  }
+  lap('stats');
+  // A family of the Povo tab goes to its house.
+  await page.click('[data-spot="tab-people"]');
+  await page.click('.panelbox .chip.family >> nth=0');
+  await page.waitForTimeout(300);
+  assert(await page.evaluate(() => document.querySelector('.panelbox:not(.sheet)').classList.contains('hidden') && !!window.session.selected), 'a family opens its house');
+  await page.keyboard.press('Escape');
+  // The chosen building's balloon.
+  await page.evaluate(() => window.session.selectTool('plaza'));
+  await page.waitForTimeout(200);
+  const tip = await page.evaluate(() => ({ shown: !document.querySelector('.toolballoon').classList.contains('hidden'), text: document.querySelector('.toolballoon').textContent }));
+  assert(tip.shown && tip.text.startsWith('Praça') && tip.text.includes('prata'), `the chosen building's balloon (${tip.text})`);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-tool.png` });
+  lap('panels to tool');
+  await page.evaluate(() => window.session.selectTool('view'));
+  // Problem balloons: a building off the road shows the road icon; famine tints the map.
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = 500;
+    core.place(s, 'fisher', 3, 3);
+    s.famine = true;
+    core.refreshCity(s);
+    window.session.refresh();
+  });
+  await page.waitForTimeout(200);
+  const marks = await page.evaluate(() => ({ road: document.querySelectorAll('.need[data-need="road"]').length, famine: document.querySelector('.famine').classList.contains('on') }));
+  assert(marks.road >= 1 && marks.famine, `problem balloons and the famine tone (${JSON.stringify(marks)})`);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-problems.png` });
+  lap('problems');
+  void ids;
+}
+
 /** The 3D keeps the phone cool and survives a lost GPU: 10 frames a second while paused and still; the city comes back after the WebGL context is lost and restored. */
 async function context3dScenario(page) {
   await open3dGame(page);
@@ -2609,6 +2749,8 @@ const scenarios = {
   'input3d-pc': { context: PC, run: input3dScenario },
   touch3d: { context: PHONE, run: touch3dScenario },
   'context3d-pc': { context: PC, run: context3dScenario },
+  'ui3d-phone': { context: PHONE, run: (page) => ui3dScenario(page, 'phone') },
+  'ui3d-pc': { context: PC, run: (page) => ui3dScenario(page, 'pc') },
   'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },
   'hud3d-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => hud3dScenario(page, 'wide') },
   'hud3d-small-phone': { context: { ...PHONE, viewport: { width: 667, height: 375 } }, run: (page) => hud3dScenario(page, 'small-phone') },
@@ -3583,9 +3725,14 @@ const relaunch = async () => {
 /** Another process on the machine killed the browser (not a failure of the scenario). */
 const killed = (e) => /has been closed|Browser closed|Target closed/.test(String(e?.message ?? e));
 
+/** A 3D scenario (the 2D's "3D" button ones, view3d*, belong to the 2D); "title" checks the 2D opens. */
+const isThreeD = (name) => name === 'title' || (name.includes('3d') && !name.startsWith('view3d'));
+
 let failed = 0;
 for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
   if (filter && !filter.split(',').some((f) => name.includes(f))) continue;
+  // The 2D is frozen (user decision, 2026-11-05): its scenarios run only when named or with VISUAL_2D.
+  if (!filter && !process.env.VISUAL_2D && !isThreeD(name)) continue;
   if (k % SHARD_N !== SHARD_K) continue;
   const run = typeof def === 'function' ? def : def.run;
   for (let attempt = 0; attempt < 3; attempt++) {

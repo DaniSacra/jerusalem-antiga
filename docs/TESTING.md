@@ -5,8 +5,9 @@ Dois níveis de teste: **unitários** (regras do jogo, rápidos, obrigatórios) 
 
 ```bash
 npm test                        # testes unitários (Vitest), ~1 s
-npm run test:visual             # testes visuais (Playwright), ~1 min
-npm run test:visual -- touch    # só os cenários cujo nome contém "touch"
+npm run test:visual             # cenários do 3D (e "title", que vê o 2D abrir), ~4 min
+VISUAL_2D=1 npm run test:visual # todos, também os do 2D congelado (~1 h)
+npm run test:visual -- touch    # só os cenários cujo nome contém "touch" (do 2D também)
 npm run test:visual -- play3d,view3d    # vários: nomes separados por vírgula
 VISUAL_PORT=5299 VISUAL_OUT=/tmp/shots npm run test:visual   # outra porta e outra pasta (dois agentes ao mesmo tempo)
 VISUAL_SHARD=0/4 npm run test:visual   # só um quarto dos cenários (0/4, 1/4, 2/4 e 3/4 cobrem todos): rodadas curtas
@@ -129,6 +130,7 @@ outro agente durante a rodada não recarrega a página no meio de um cenário.
 | `input3d-pc` | 3D direto no PC: D move a câmera, Q gira um quarto de volta, a roda aproxima, o botão direito arrasta o mapa, 2 escolhe Rua, Esc volta para Mover, Espaço muda a velocidade | `input3d-pc` |
 | `touch3d` | 3D direto no celular: um dedo com Mover move o mapa; com Rua, a pinça aproxima e não constrói; dois dedos girando giram o mapa sem construir | `touch3d` |
 | `context3d-pc` | 3D no PC: pausado e parado desenha ~10 quadros por segundo (andando, mais); a cidade volta inteira depois de perder e recuperar o contexto WebGL (`WEBGL_lose_context`) | `context3d-pc` |
+| `ui3d-phone`, `ui3d-pc` | interface completa em 3D: balão da casa de barro com 4 pessoas (2 colunas no celular, 1 no PC, linhas ≥ 44 px, dentro da área livre), ficha da pessoa e de um parente com Voltar, Esc fecha; Objetivos, Avisos e Estatísticas (Agora, Povo, Histórico; uma família do Povo abre a casa); balão da construção escolhida (Praça, custo em prata); balão de problema "sem rua" sobre a construção e tom de fome. Nenhum texto < 12 px; a ficha e os painéis não cobrem barra, lateral, ferramentas nem coluna (`VISUAL_TIMING=1` mostra o tempo de cada etapa) | `ui3d-*-house`, `-sheet`, `-goals`, `-alerts`, `-stats-*`, `-tool`, `-problems` |
 | `hud3d-phone`, `hud3d-wide`, `hud3d-small-phone`, `hud3d-pc` | interface 3D em quatro telas (844x390, 915x412, 667x375, 1366x768), com o tutorial e um aviso, depois o balão do altar, depois a engrenagem: nenhum texto < 12 px, nenhum botão < 44 px no celular, tudo na tela e nada por cima de outro grupo (barra do topo, giros, ferramentas, coluna, avisos, tutorial, seta, balão; só o menu da engrenagem pode cobrir a coluna e um aviso pode passar sobre o balão) | `hud3d-*`, `-balloon`, `-settings` |
 | `touch` | celular deitado com toque real: toque no botão Rua de baixo; um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
 | `input-phone` | celular deitado 844 x 390 (jogo 1280 x 591), pausado com avisos de saldo negativo e desemprego: a coluna abre Moradia e escolhe a Praça; prévia mirada acima do dedo; deslizar até a coluna e soltar cancela; sem prévia nem construção quando o ponto mirado cai sob a pílula do objetivo; com Demolir, um toque na fresta entre Avisos e Estatísticas conta como interface e não demole nada; um Esc volta de Demolir para Mover | `input-phone-preview`, `input-phone-clear` |

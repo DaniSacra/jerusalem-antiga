@@ -25,8 +25,9 @@
 /* ---------- top bar ---------- */
 .top { position: absolute; left: var(--margin); right: var(--margin); top: var(--margin); display: flex; justify-content: space-between; gap: var(--gap); align-items: flex-start; }
 .top .left { display: flex; gap: var(--gap); align-items: flex-start; min-width: 0; }
-.top .rows { display: flex; flex-direction: column; gap: calc(var(--gap) * 0.7); min-width: 0; }
-.top .pills { display: flex; gap: var(--gap); flex-wrap: wrap; }
+.top .pills { display: flex; gap: calc(var(--gap) * 0.7) var(--gap); flex-wrap: wrap; min-width: 0; }
+.top .pillset { display: contents; }
+.level, .goal { cursor: pointer; }
 .level { width: var(--level); height: var(--level); border-radius: 50%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: conic-gradient(var(--c-gold) calc(var(--f, 0) * 1turn), #5a4630 0); position: relative; }
 .level::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(36, 25, 14, 0.92); }
@@ -66,10 +67,65 @@
 /* ---------- anchored to the world ---------- */
 .anchor { position: absolute; left: 0; top: 0; will-change: transform; }
 .tag { padding: 4px 10px; border-radius: 10px; font-size: var(--text); font-weight: 700; text-align: center; white-space: pre-line; transform: translate(-50%, -100%); }
-.balloon { width: 250px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
-#hud[data-form='phone'] .balloon { width: 220px; }
-.balloon h3 { margin: 0; font-size: var(--num); }
-.balloon .acts { display: flex; gap: 8px; margin-top: 6px; }
+/* The tapped cell's balloon: the card's lines; on the phone a second column (the level) with the buttons under it. */
+.balloon { box-sizing: border-box; max-width: 300px; overflow-y: auto; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; pointer-events: auto; background: rgba(36, 25, 14, 0.94); }
+#hud[data-form='phone'] .balloon { max-width: 580px; }
+#hud[data-form='phone'] .balloon .aside { width: 250px; }
+.balloon .main, .balloon .aside { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.balloon .cols { display: flex; gap: 14px; }
+.balloon .aside { width: 190px; padding-left: 12px; border-left: 1px solid rgba(255, 244, 220, 0.25); }
+.balloon .acts, .panelbox .acts { display: flex; gap: 8px; margin-top: 6px; }
+.line { font-weight: 700; white-space: pre-line; }
+.line.big { font-size: var(--num); }
+.line.plain, .pline .plain { font-weight: 400; }
+.line.box { background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 6px 8px; }
+.people { display: grid; gap: 4px; }
+.chip { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px 0 4px; border-radius: 12px; background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 244, 220, 0.25); text-align: left; pointer-events: auto; }
+.chip .fig { width: 36px; height: 36px; flex: none; }
+.chip .who { display: flex; flex-direction: column; min-width: 0; }
+.chip .who b { font-size: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .who small { font-size: var(--small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip.family { padding: 0 14px; font-weight: 700; font-size: var(--text); background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
+.chip.family.dim { opacity: 0.6; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.act.dim { background: #8a8174; color: #2b1f14; }
+.act.confirm { background: #c0392b; border-color: var(--c-gold); }
+.act.close { flex: none; width: 44px; }
+.fig svg, .fig { display: block; }
+/* The famine tone over the map (under the interface). */
+.famine { position: absolute; inset: 0; background: #c0392b; opacity: 0; transition: opacity 0.6s; pointer-events: none; mix-blend-mode: multiply; }
+.famine.on { opacity: 0.22; }
+/* Problem balloons over the buildings (pinned to the world; under every control). */
+.need { width: 34px; height: 40px; padding: 4px 4px 10px; background: #f4e8cc; border: 2px solid #3b2a1a; border-radius: 12px 12px 12px 12px; clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 50% 100%, 38% 78%, 0 78%); pointer-events: none; }
+.need svg { width: 26px; height: 26px; display: block; }
+.need .lock { position: absolute; right: -2px; top: 14px; width: 14px; height: 14px; }
+.need .lock svg { width: 14px; height: 14px; }
+/* The chosen building's balloon, left of the column. */
+.toolballoon { position: absolute; left: 0; top: 0; width: 260px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; background: rgba(36, 25, 14, 0.94); pointer-events: none; }
+#hud[data-form='phone'] .toolballoon { width: 220px; }
+/* Side buttons: Objetivos, Avisos (with the red selo), Estatísticas under the turns. */
+.side button { position: relative; }
+.badge { position: absolute; right: -6px; top: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: #b0302a; border: 1.5px solid var(--c-text); color: var(--c-text); font-size: 12px; font-weight: 800; line-height: 19px; }
+.side button.pulse { animation: hud-pulse 0.52s ease-in-out 4; }
+@keyframes hud-pulse { 50% { transform: scale(1.18); } }
+.side button.on { background: var(--c-gold); color: var(--c-ink); }
+/* A panel (Objetivos, Avisos, Estatísticas) or the person sheet: right of the side buttons, above the tools. */
+.panelbox { box-sizing: border-box; position: absolute; left: calc(var(--margin) + var(--btn) + var(--gap) * 2); top: calc(var(--margin) + var(--level) + var(--gap) * 2); right: calc(var(--margin) * 2 + var(--col)); max-height: calc(100% - var(--margin) - var(--level) - var(--gap) * 2 - var(--free-bottom, 90px)); overflow: auto; padding: 12px 14px; border-radius: 16px; pointer-events: auto; background: rgba(36, 25, 14, 0.96); font-size: var(--text); z-index: 1; width: fit-content; max-width: calc(100% - var(--btn) - var(--col) - var(--margin) * 4 - var(--gap) * 2); }
+.sections { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: flex-start; }
+.section { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.sections.goals .section { min-width: 0; }
+.pline { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; font-weight: 700; }
+.pline.wrap { max-width: 340px; }
+.pline .big { font-size: var(--num); }
+.pline .small { font-size: var(--small); }
+.chart svg { width: 200px; height: 60px; display: block; }
+.tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+.tab { min-height: 44px; padding: 0 16px; border-radius: 22px; font-weight: 800; background: rgba(0, 0, 0, 0.3); border: 1.5px solid rgba(255, 244, 220, 0.3); }
+.tab.on { background: var(--c-gold); color: var(--c-ink); }
+.sheet { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.sheet .head { display: flex; gap: 10px; align-items: center; }
+.sheet .fig.big { width: 56px; height: 56px; flex: none; }
+.sheet .kin { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .act { flex: 1; min-height: 44px; border-radius: 22px; font-weight: 800; border: 2px solid var(--c-ink); background: var(--c-parchment); color: var(--c-ink); }
 .act.gold { background: var(--c-gold); }
 .act.red { background: #8e2a1f; color: var(--c-text); border-color: #4a120c; }

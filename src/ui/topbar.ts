@@ -4,18 +4,24 @@ import { T } from '../render/strings';
 import { h, keyed, onTap, setText } from './dom';
 import { iconButton, iconEl, partsTo } from './parts';
 
-/** The top bar: level ring, resource pills, the goal, the season, speed, back to 2D and the gear. */
+/**
+ * The top bar: level ring, resource pills, the goal, the season, speed, back to 2D and the gear. The
+ * level ring and the goal open Objetivos (as in the 2D); the goal follows the pills on their row when
+ * it fits, else on the next one.
+ */
 export class TopBar {
   readonly el: HTMLElement;
-  private pills = h('div.pills');
-  private level = h('div.level', {}, h('b'), h('small', {}, T.nova.level));
-  private goal = h('div.pill.goal');
+  private pills = h('span.pillset');
+  private level = h('div.level.hit', { 'data-spot': 'panel-goals', role: 'button', 'aria-label': T.nova.buttons.goals }, h('b'), h('small', {}, T.nova.level));
+  private goal = h('div.pill.goal.hit', { role: 'button' });
   private season = h('div.pill.season');
   private speed: HTMLButtonElement;
 
-  constructor(private s: Session, o: { exit: (() => void) | null; settings: () => void }) {
+  constructor(private s: Session, o: { exit: (() => void) | null; settings: () => void; goals: () => void }) {
     this.speed = h('button.round.gold', { 'data-spot': 'speed', 'aria-label': 'velocidade' });
     onTap(this.speed, () => s.cycleSpeed());
+    onTap(this.level, o.goals);
+    onTap(this.goal, o.goals);
     const right = h('div.right', {}, this.season, this.speed);
     if (o.exit) {
       const exit = h('button.round.pill', { 'data-spot': 'exit3d', 'aria-label': T.view3d.classicHint }, T.view3d.classic);
@@ -23,7 +29,7 @@ export class TopBar {
       right.append(exit);
     }
     right.append(iconButton('gear', T.nova.buttons.settings, o.settings, 'settings'));
-    this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.rows', {}, this.pills, this.goal)), right);
+    this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.goal)), right);
   }
 
   update(phone: boolean) {

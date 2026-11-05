@@ -4,8 +4,9 @@
 
 **The game is migrating to 3D** (user decision, 2026-11-05): the city in Three.js (`src/render3d`)
 and the UI in HTML/CSS, phone and PC alike. Plan and phases: `docs/arquitetura-3d.md` (architect).
-The Phaser 2D (`src/render`, `src/scenes`) is legacy, kept as plan B until the 3D has parity:
-fixes only there, no new art or UI.
+The game opens in 3D. The Phaser 2D (`src/render`, `src/scenes`) is **frozen** (user decision,
+2026-11-05): only `?view=2d` or a device without WebGL 2 opens it; no adaptations, no 2D test runs;
+it is removed at the end of migration phase 3.
 
 ## Read first
 - `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
@@ -18,7 +19,7 @@ matching doc in the same change.
 ## Commands
 - `npm run dev` — dev server (also on the LAN for phones)
 - `npm test` — unit tests for `src/core`
-- `npm run test:visual` — Playwright scenarios with screenshots in `screenshots/` (`-- <name>` to filter)
+- `npm run test:visual` — the 3D Playwright scenarios, screenshots in `screenshots/` (`-- <name>` to filter; `VISUAL_2D=1` for the frozen 2D ones)
 - `npm run build` — typecheck + static build in `dist/`
 - `npm run test:pwa` — after a build: the app is installable and opens offline (PWA)
 
@@ -80,7 +81,8 @@ the change have been looked at.
 - `src/data`: balance numbers in JSON (costs, jobs, radii, house levels, goals, rules).
 - `src/render3d` (3D world) and the HTML UI: drawing, animation and input only. Pure look and UI
   logic lives in modules without Three.js or DOM and has Vitest tests. Game rules belong in core.
-- `src/render` and `src/scenes` (legacy Phaser 2D): fixes only until the 3D has parity.
+- `src/render` and `src/scenes` (legacy Phaser 2D): frozen; only keep it compiling. `src/render/strings.ts`
+  and the pure helpers there are still shared.
 - Every new or changed rule in core needs Vitest tests in `tests/`.
 - Code, comments and commits in English; on-screen text in Portuguese (`src/render/strings.ts`).
 - DRY and KISS. Do not add story, verses or mechanics that were not requested.

@@ -1,28 +1,19 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, MATERIALS, materialsOf, missingMaterial, statOf, unlockingGoal, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { BUILDINGS, buildMenu, costOf, GOALS, missingMaterial, unlockingGoal, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
 import { TEX } from '../textures';
 import { categoryKinds, COLUMN_ORDER, keyOf, type Tool } from '../tools';
-import { TextBalloon, type Line } from './Balloon';
-import { levelStatOf } from './Inspector';
+import { TextBalloon } from './Balloon';
+import { cardLine } from './Inspector';
+import { lockedCard, toolCard } from '../../game/model/card';
 import { H, PHONE, S, W } from './metrics';
 import { darkPanel, icon, ntext, RoundButton } from './widgets';
 
 const LOCKED_MS = 2500;
 
 /** The cost line of a building: "25 prata · 10 madeira", each piece the city lacks in red with what it has. */
-function costLine(s: GameState, kind: BuildableKind): Line {
-  const N = T.nova;
-  const piece = (text: string, need: number, has: number) => (has < need ? { text: text + N.have(has), color: NOVA_CSS.bad } : { text, color: NOVA_CSS.gold });
-  const cost = costOf(kind);
-  const parts = [piece(N.silverCost(cost), cost, s.silver)];
-  const m = materialsOf(kind);
-  for (const k of MATERIALS) if (m[k]) parts.push({ text: ' · ', color: NOVA_CSS.gold }, piece(N.materialCost(m[k]!, k), m[k]!, s[k]));
-  return { text: parts.map((p) => p.text).join(''), parts };
-}
-
 interface Item {
   kind: BuildableKind | null;
   category: BuildingCategory | null;
@@ -162,44 +153,9 @@ export class BuildColumn {
     }
   }
 
-  /** The balloon of the chosen building, at the left of its button. */
+  /** The balloon of the chosen building (`toolCard`, shared with the 3D), at the left of its button. */
   private showToolBalloon(s: GameState, kind: BuildableKind) {
-    const d = BUILDINGS[kind];
-    const N = T.nova;
-    const upkeep = [...(d.upkeep ? [N.upkeep(d.upkeep)] : []), ...(!PHONE && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
-    const lines: Line[] = [
-      { text: d.name, size: S.num },
-      costLine(s, kind),
-      ...(upkeep ? [{ text: upkeep, color: NOVA_CSS.gold }] : []),
-      { text: N.effect[kind], bold: false },
-    ];
-    if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max, d.gather.product), color: NOVA_CSS.muted, bold: false });
-    // A building with levels: its first and last ("Guarda 300 · melhora até 1000").
-    const stat = levelStatOf(kind);
-    if (stat && d.levels) {
-      const say = N.levelStat[stat];
-      lines.push({ text: N.growsTo(say(statOf({ kind, level: 1 }, stat)), say(statOf({ kind, level: d.levels.length + 1 }, stat))), color: NOVA_CSS.gold, bold: false });
-    } else if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
-    if (d.fieldBonus) {
-      // The workshop's field bonus: the city's total after it, and when it is already at the cap.
-      const pct = (n: number) => Math.round(n * 100);
-      const now = fieldBonus(s);
-      const max = d.fieldBonusMax ?? 0;
-      const after = Math.min(max, now + d.fieldBonus);
-      lines.push(now >= max ? { text: N.workshopFull(pct(max)), color: NOVA_CSS.warn } : { text: N.workshopBonus(pct(d.fieldBonus), pct(after), pct(max)), color: NOVA_CSS.good });
-    }
-    if (!PHONE && d.radius && stat !== 'radius') lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
-    if (!PHONE) {
-      const after = balanceAfter(s, kind);
-      lines.push({ text: N.balanceAfter(after), color: after < 0 ? NOVA_CSS.bad : NOVA_CSS.good });
-    }
-    // A workplace that takes workers from the food buildings: the food it costs (fisher, gatherer
-    // and field say it on the map, where their spot is known).
-    if (d.jobs && !d.gather && !d.harvest) {
-      const food = foodAfter(s, kind).delta;
-      if (food < computeEconomy(s).foodDelta) lines.push({ text: N.foodAfter(food), color: food < 0 ? NOVA_CSS.bad : NOVA_CSS.warn });
-    }
-    this.balloon.show(lines, this.besideButton(kind));
+    this.balloon.show(toolCard(s, kind, PHONE).map(cardLine), this.besideButton(kind));
   }
 
   /** Places a balloon at the left of a building's button (or of its category), arrow pointing at it. */
@@ -216,8 +172,7 @@ export class BuildColumn {
   private showLocked(it: Item) {
     const kind = it.kind!;
     this.lockedOn = kind;
-    const n = unlockingGoal(kind) ?? 0;
-    this.balloon.show([{ text: T.nova.unlocksAt(n, GOALS[n - 1]?.fromYear) }], this.besideButton(kind));
+    this.balloon.show(lockedCard(kind).map(cardLine), this.besideButton(kind));
     this.lockedTimer?.remove();
     this.lockedTimer = this.scene.time.delayedCall(LOCKED_MS, () => {
       this.lockedOn = null;

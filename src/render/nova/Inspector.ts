@@ -1,62 +1,19 @@
 import Phaser from 'phaser';
-import {
-  BUILDINGS,
-  byRiver,
-  craftOf,
-  gatherYield,
-  harvestsIn,
-  weeksToHarvest,
-  fieldHarvest,
-  houseInfo,
-  housesServed,
-  indexOf,
-  upgradeGain,
-  unlockingGoal,
-  lackingMaterial,
-  makerOf,
-  materialMadeBy,
-  RULES,
-  seasonOf,
-  storageFull,
-  nextLevelOf,
-  regrowLeft,
-  statOf,
-  weeksToNextLevel,
-  fieldBonus,
-  foodLostIfRemoved,
-  needLocked,
-  weeksPerCut,
-  houseBirths,
-  HOUSE_LEVELS,
-  isWalking,
-  jobsOf,
-  personById,
-  type BirthBlock,
-  type LevelStat,
-  type CityReadout,
-  type BuildableKind,
-  type Building,
-  type Cell,
-  type Economy,
-  type GameState,
-  type NeedKind,
-} from '../../core';
+import type { BuildableKind, Building, Cell, CityReadout, GameState } from '../../core';
+import { cardOf, levelStatOf, type CardAction, type CardLine, type CardTone } from '../../game/model/card';
 import { HW } from '../iso';
 import { px, type Rect } from '../layout';
 import { NOVA_CSS } from '../palette';
-import { treeKind } from '../Seasons';
 import { T } from '../strings';
 import { TEX } from '../textures';
-import { TextBalloon, type Chip, type Line } from './Balloon';
+import { TextBalloon, type Line } from './Balloon';
 import { H, PHONE, S, W } from './metrics';
-import { ageNow, bandOf, jobText, residentsOf } from './people';
 import { icon, nameTag, ntext, RoundButton } from './widgets';
 
-/**
- * What the main (gold) button does: pick a building and show where it would solve the need, pick
- * Rua, or raise a service building a level (`dim`: grey, the silver is short).
- */
-export type Action = { label: string; kind: BuildableKind | 'road' | 'upgrade'; target: Building; dim?: boolean };
+export { levelStatOf };
+
+/** What the main (gold) button does (see `CardAction`). */
+export type Action = CardAction;
 
 interface Card {
   lines: Line[];
@@ -83,207 +40,27 @@ export interface InspectorHost {
   nudge(dx: number): void;
 }
 
-const ok = (yes: boolean, label: string): Line => ({ text: `${yes ? '✓' : '✗'} ${label}`, color: yes ? NOVA_CSS.good : NOVA_CSS.bad });
+const COLOR: Record<CardTone, string> = { text: NOVA_CSS.text, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, gold: NOVA_CSS.gold, muted: NOVA_CSS.muted };
+
+/** A card line (`src/game/model/card`, shared with the 3D) as a line of the 2D balloon. */
+export function cardLine(l: CardLine): Line {
+  return {
+    text: l.text,
+    color: l.tone ? COLOR[l.tone] : undefined,
+    size: l.big ? S.num : undefined,
+    bold: l.plain ? false : undefined,
+    box: l.box,
+    gap: l.gap ? px(l.gap) : undefined,
+    grid: l.people?.map(({ subTone, ...p }) => ({ ...p, subColor: subTone ? COLOR[subTone] : undefined })),
+    cols: l.cols,
+    parts: l.parts?.map((p) => ({ text: p.text, color: COLOR[p.tone] })),
+  };
+}
 
 /** The card of a tapped cell; null for plain land and the river (a tap there closes the balloon). */
-function card(s: GameState, c: Cell, { eco, births }: CityReadout): Card | null {
-  const N = T.nova.inspect;
-  const i = indexOf(s, c.x, c.y);
-  const b = s.grid[i];
-  const one = { x: c.x, y: c.y, w: 1, h: 1 };
-  if (!b) {
-    if (s.roads[i]) {
-      const linked = s.network[i];
-      const lines: Line[] = [{ text: N.road(linked, c.x === s.entrance.x && c.y === s.entrance.y), color: linked ? NOVA_CSS.text : NOVA_CSS.bad }];
-      return { lines: [...lines, ...lossLine(s, c)], foot: one, building: null, action: null, demolish: true, aside: [] };
-    }
-    const f = s.feature[i];
-    if (f === 'stump') {
-      return { lines: [{ text: N.stump(regrowLeft(s, i)) }], foot: one, building: null, action: null, demolish: false, aside: [] };
-    }
-    if (f === 'rock') return { lines: [{ text: N.rock(T.feature.rock) }], foot: one, building: null, action: null, demolish: false, aside: [] };
-    if (f) return { lines: [{ text: N.tree(T.feature[treeKind(f, c.x, c.y)]) }], foot: one, building: null, action: null, demolish: false, aside: [] };
-    return null;
-  }
-  const foot = { x: b.x, y: b.y, w: b.w, h: b.h };
-  const lines: Line[] = [];
-  let action: Action | null = null;
-  if (b.kind === 'house') return houseCard(s, b, births);
-  const def = BUILDINGS[b.kind];
-  const craft = craftOf(b);
-  lines.push({ text: craft ? `${def.name} (${T.craft[craft]})` : def.name, size: S.num });
-  if (b.kind === 'altar') {
-    lines.push({ text: N.altar, bold: false }, { text: T.nova.reach(def.radius ?? 0), color: NOVA_CSS.muted, bold: false });
-    return { lines, foot, building: b, action: null, demolish: false, aside: [] };
-  }
-  lines.push({ text: T.nova.effect[b.kind], bold: false });
-  lines.push(ok(b.connected, b.connected ? N.connected : N.disconnected));
-  if (!b.connected) action = { label: N.where.road, kind: 'road', target: b };
-  else {
-    const served = housesServed(s, b);
-    if (served !== null) lines.push({ text: N.serves(served) });
-    if (def.jobs) lines.push({ text: T.nova.jobs(def.jobs) + (eco.efficiency < 1 && eco.efficiency > 0 ? ` · ${N.efficiency(Math.round(eco.efficiency * 100))}` : '') });
-    if (def.fieldBonus) lines.push({ text: N.fieldBonus(Math.round(fieldBonus(s) * 100)), color: NOVA_CSS.good });
-    if (def.jobs && eco.efficiency === 0) lines.push({ text: N.noWorkers, color: NOVA_CSS.bad });
-  }
-  lines.push(...foodLines(s, b, eco));
-  const upkeep = statOf(b, 'upkeep');
-  if (upkeep) lines.push({ text: N.upkeep(upkeep), color: NOVA_CSS.gold });
-  // Service levels: what the next one changes, and the gold Melhorar (grey without the silver).
-  const levels: Line[] = [];
-  if (def.levels) {
-    const next = nextLevelOf(b);
-    const stat = levelStatOf(b.kind);
-    levels.push({ text: N.levelOf(b.level, def.levels.length + 1), color: NOVA_CSS.muted, bold: false, gap: PHONE ? 0 : px(4) });
-    if (!next) levels.push({ text: N.topLevel, color: NOVA_CSS.gold });
-    else if (stat) {
-      const up = { kind: b.kind, level: b.level + 1 };
-      const say = T.nova.levelStat[stat];
-      levels.push({ text: N.nextLevel(b.level + 1, say(statOf(up, stat)), statOf(up, 'upkeep'), say(statOf(b, stat)), upkeep), color: NOVA_CSS.gold, box: true });
-    }
-    if (next && !action) {
-      const short = s.silver < next.cost;
-      const lack = lackingMaterial(s, next.materials ?? {});
-      const label = short ? T.missingSilver(next.cost) : lack ? T.lackingAmount(lack, next.materials?.[lack] ?? 0, s[lack]) : N.upgrade(next.cost, next.materials);
-      action = { label, kind: 'upgrade', target: b, dim: short || !!lack };
-    }
-  }
-  if (!def.protected) levels.push(...lossLine(s, c));
-  // Phone: a building with levels shows them in a second column, with the buttons under it (the screen is short).
-  if (PHONE && def.levels) return { lines, foot, building: b, action, demolish: !def.protected, aside: levels };
-  return { lines: [...lines, ...levels], foot, building: b, action, demolish: !def.protected, aside: [] };
-}
-
-/** The stat a service building's levels change (granary storage, market reach, workshop field bonus). */
-export function levelStatOf(kind: BuildableKind): LevelStat & keyof typeof T.nova.levelStat | null {
-  const first = BUILDINGS[kind].levels?.[0];
-  return first ? ((['storage', 'radius', 'fieldBonus'] as const).find((k) => first[k] !== undefined) ?? null) : null;
-}
-
-/**
- * A house: "Casa de barro · 3/4 pessoas", its people (tap opens the sheet; two columns on the
- * phone), whether they can have children, then the level part: next level, needs, joy and the
- * gain (beside the people on the phone, under them on PC). An empty house says what it waits for.
- */
-function houseCard(s: GameState, b: Building, births: BirthBlock | null): Card {
-  const N = T.nova.inspect;
-  const P = T.nova.people;
-  const h = houseInfo(s, b)!;
-  const foot = { x: b.x, y: b.y, w: b.w, h: b.h };
-  const lines: Line[] = [];
-  let action: Action | null = null;
-  const walking = s.families.filter((f) => f.houseId === b.id).flatMap((f) => f.members.map((id) => personById(s, id)?.name ?? ''));
-  const coming: Line[] = walking.length ? [{ text: P.coming(walking.filter(Boolean).join(', ')), color: NOVA_CSS.good }] : [];
-  if (h.level === 0) {
-    const kept = b.emptyLevel > 0 ? HOUSE_LEVELS[b.emptyLevel].name : null;
-    lines.push({ text: kept ? P.empty(kept) : N.plotWaiting, size: kept ? S.text : S.num });
-    if (!b.connected) {
-      lines.push({ text: N.plotNoRoad, color: NOVA_CSS.bad });
-      action = { label: N.where.road, kind: 'road', target: b };
-    } else lines.push(...coming);
-    return { lines, foot, building: b, action, demolish: true, aside: [] };
-  }
-  lines.push({ text: P.head(h.name, h.residents, h.capacity), size: S.num });
-  const jobs = jobsOf(s);
-  const grid: Chip[] = residentsOf(s, b).map((p) => ({
-    id: p.id,
-    title: P.row(p.name, ageNow(s, p)),
-    sub: isWalking(s, p.id) ? P.walking : jobText(s, p, jobs),
-    subColor: jobs.get(p.id) === null ? NOVA_CSS.warn : undefined,
-    band: bandOf(s, p),
-    sex: p.sex,
-  }));
-  if (grid.length) lines.push({ text: '', grid, cols: PHONE ? 2 : 1, gap: px(4) });
-  // Whether they can have children, and who is on the way (phone: at the top of the level column).
-  const family: Line[] = [];
-  const kids = houseBirths(s, b, births);
-  if (kids) family.push(ok(kids === 'ok', P.births[kids]));
-  family.push(...coming);
-
-  // Phone: the level part sits beside the people, so it is short (the next level only, no tax line).
-  const head = h.next ? (PHONE ? N.nextOnly(h.next.name) : N.next(h.name, h.next.name)) : `${h.name} · ${N.top}`;
-  const level: Line[] = [{ text: head, size: PHONE ? S.text : S.num, color: PHONE ? NOVA_CSS.gold : NOVA_CSS.text, gap: PHONE ? 0 : px(6) }];
-  if (!PHONE) level.push({ text: N.tax(h.tax), color: NOVA_CSS.muted, bold: false });
-  if (h.happiness) {
-    const { value, mood, parts } = h.happiness;
-    const why = parts.map((p) => `${T.happinessPart[p.kind]} ${p.value > 0 ? '+' : '−'}${Math.abs(p.value)}`).join(', ');
-    level.push({ text: N.happiness(value, mood, why), color: mood === 'sad' ? NOVA_CSS.bad : mood === 'happy' ? NOVA_CSS.good : NOVA_CSS.text, bold: false });
-  }
-  if (h.next) {
-    const needs = h.next.needs;
-    // A missing service still locked says which goal unlocks it.
-    const label = (kind: NeedKind, has: boolean) => {
-      if (kind === 'road' && !has) return N.noRoad;
-      const goal = needLocked(s, kind) ? unlockingGoal(kind as BuildableKind) : null;
-      return goal ? N.lockedNeed(T.need[kind], goal) : T.need[kind];
-    };
-    // Ready but short of wood or stone: "Pronta…" says every need is met, so the ✓ list goes (a shorter balloon).
-    const wait = h.waiting;
-    // What it has on one line (green ✓) and what it lacks on another (red ✗).
-    let gap = px(4);
-    for (const has of wait ? [] : [true, false]) {
-      const names = needs.filter((n) => n.ok === has).map((n) => label(n.kind, n.ok));
-      if (!names.length) continue;
-      level.push({ ...ok(has, names.join(', ')), gap });
-      gap = 0;
-    }
-    const left = weeksToNextLevel(s, b);
-    const season = seasonOf(s.week);
-    if (s.cold) level.push({ text: T.nova.cold, color: NOVA_CSS.bad });
-    else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), color: NOVA_CSS.muted, bold: false });
-    if (s.famine) level.push({ text: N.famine, color: NOVA_CSS.bad });
-    else if (wait) level.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), color: NOVA_CSS.bad, gap: px(4) });
-    else if (left !== null) level.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
-    const gain = upgradeGain(h.level);
-    // Phone: the gain goes right under "Próximo nível" as one plain line (the column is short).
-    if (gain && PHONE) level.splice(1, 0, { text: N.gain(gain.capacity, gain.tax), color: NOVA_CSS.gold, bold: false });
-    else if (gain) level.push({ text: `${N.evolve}: ${N.gain(gain.capacity, gain.tax)}`, color: NOVA_CSS.gold, box: true, gap: px(4) });
-    // What climbing asks (waiting, the red line above already says what is missing).
-    if (gain && !wait && Object.keys(gain.materials).length) level.push({ text: N.asks(gain.materials), color: NOVA_CSS.gold, bold: false });
-    // Main action: the first missing need the player can build now; waiting, where to put the lumber or quarry.
-    const miss = h.next.needs.find((n) => !n.ok);
-    const maker = wait ? makerOf(wait) : null;
-    if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
-    else if (miss && s.unlocked.includes(miss.kind)) action = { label: N.where[miss.kind], kind: miss.kind, target: b };
-    else if (!miss && maker && s.unlocked.includes(maker)) action = { label: N.where[maker], kind: maker, target: b };
-  } else if (!b.connected) level.push(ok(false, N.noRoad));
-  // Phone: the level beside the people (the screen is short); PC: under them.
-  if (PHONE && family.length) level[0].gap = px(4);
-  return PHONE ? { lines, foot, building: b, action, demolish: true, aside: [...family, ...level] } : { lines: [...lines, ...family, ...level], foot, building: b, action, demolish: true, aside: [] };
-}
-
-/** "Perde N de comida" when demolishing this would spoil food (a granary, or the road to one). */
-function lossLine(s: GameState, c: Cell): Line[] {
-  const n = foodLostIfRemoved(s, c.x, c.y);
-  return n > 0 ? [ok(false, T.nova.foodLost(n))] : [];
-}
-
-/** Field, fisher, gatherer and granary: when it harvests, what it yields, what it keeps. */
-function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
-  const def = BUILDINGS[b.kind];
-  const N = T.nova;
-  const out: Line[] = [];
-  if (def.harvest) {
-    if (!harvestsIn(s.week)) out.push({ text: N.inspect.frozen(weeksToHarvest(s.week)), color: NOVA_CSS.warn });
-    else if (b.connected) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * eco.efficiency), color: NOVA_CSS.good });
-    if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, color: NOVA_CSS.good } : { text: N.inspect.droughtDry, color: NOVA_CSS.warn });
-  }
-  if (def.gather && b.connected) {
-    const raw = gatherYield(s, b);
-    const n = raw * eco.efficiency;
-    const made = materialMadeBy(b.kind as BuildableKind);
-    // A full store stops it: that line alone, not a green yield beside it. No source only when there
-    // is none (without workers the balloon already says "Sem trabalhadores").
-    if (made && storageFull(s, made)) out.push({ text: N.storeFull(RULES.materialStorage), color: NOVA_CSS.bad });
-    else if (n > 0) out.push({ text: N.yields(n, def.gather.product), color: NOVA_CSS.good });
-    else if (raw <= 0) out.push(ok(false, N.inspect.noSource[def.gather.source]));
-    const every = def.cutEvery ? weeksPerCut(n) : null;
-    if (every) out.push({ text: N.cutsEvery(every), color: NOVA_CSS.muted, bold: false });
-  }
-  const working = def.gather || (def.harvest && harvestsIn(s.week));
-  if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });
-  if (def.storage) out.push({ text: N.stores(statOf(b, 'storage')), color: b.connected ? NOVA_CSS.text : NOVA_CSS.muted });
-  return out;
+function card(s: GameState, c: Cell, city: CityReadout): Card | null {
+  const k = cardOf(s, c, city, PHONE);
+  return k && { ...k, lines: k.lines.map(cardLine), aside: k.aside.map(cardLine) };
 }
 
 /**

@@ -22,6 +22,9 @@ export const ICONS: Record<string, string> = {
   turnLeft: svg('<path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'),
   turnRight: svg('<g transform="matrix(-1 0 0 1 24 0)"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g>'),
   pause: svg('<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/>'),
+  flag: svg('<path d="M7 3v19" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7.5 4c4-2 7 2 12 0-2 3-2 5 0 8-5 2-8-2-12 0z" fill="#b5462f" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
+  alert: svg('<path d="M12 3l10 18H2z" fill="#d9a93e" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v6" stroke="#2b1f14" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="#2b1f14"/>'),
+  stats: svg('<path d="M3 21h18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 18v-6M12 18V5M17 18v-9" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>'),
   gear: svg('<path d="M12 2l1.6 2.6 3-.8.6 3 2.8 1.3-1.2 2.9 1.2 2.9-2.8 1.3-.6 3-3-.8L12 22l-1.6-2.6-3 .8-.6-3-2.8-1.3L5.2 13 4 10.1l2.8-1.3.6-3 3 .8z" fill="currentColor"/><circle cx="12" cy="12" r="3.4" fill="#24190e"/>'),
   arrow: svg('<path d="M20 56L0 34h12V2h16v32h12z" fill="#ffd77a" stroke="#3b2a1a" stroke-width="3" stroke-linejoin="round"/>', '-2 0 44 58'),
 };

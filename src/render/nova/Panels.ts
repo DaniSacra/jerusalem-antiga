@@ -1,35 +1,11 @@
 import Phaser from 'phaser';
-import {
-  announcedCaravan,
-  bandCounts,
-  BUILDINGS,
-  calendar,
-  clanName,
-  householdsOf,
-  waitingCouples,
-  foodCapacity,
-  gatherYield,
-  goalProgress,
-  templeSavings,
-  goalTarget,
-  GOALS,
-  happinessOn,
-  HOUSE_LEVELS,
-  housesByLevel,
-  housesWaiting,
-  RULES,
-  seasonOf,
-  lastsToHarvest,
-  type BuildingKind,
-  type Economy,
-  type FoodForecast,
-  type GameState,
-  type WeekRecord,
-} from '../../core';
+import type { Economy, FoodForecast, GameState } from '../../core';
+import { alertsPanel, goalsPanel, statsPanel, type PanelLine } from '../../game/model/panels';
+import type { CardTone } from '../../game/model/card';
 import { px, setNovaSpot, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { saveSettings, settings } from '../settings';
-import { fmt, fmtInt, signed, T } from '../strings';
+import { T } from '../strings';
 import type { Notice } from './notices';
 import type { PanelKind } from './Tools';
 import { lineH, PHONE, S } from './metrics';
@@ -67,10 +43,8 @@ interface PLine {
 /** Lines that stay together in one column. */
 type Section = PLine[];
 
-const title = (text: string): PLine => ({ parts: [{ text, color: NOVA_CSS.gold, size: S.num }] });
-const row = (label: string, value: string, color: string = NOVA_CSS.text): PLine => ({ parts: [{ text: label, color: NOVA_CSS.muted, bold: false }, { text: value, color }] });
-const tone = (n: number) => (n < 0 ? NOVA_CSS.bad : n > 0 ? NOVA_CSS.good : NOVA_CSS.text);
-const note = (text: string, color: string = NOVA_CSS.muted): PLine => ({ parts: [{ text, color, bold: false, size: S.small }], wrap: true });
+
+const COLOR: Record<CardTone, string> = { text: NOVA_CSS.text, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, gold: NOVA_CSS.gold, muted: NOVA_CSS.muted };
 
 /** Size of a chart (game px). */
 const CHART_W = px(PHONE ? 150 : 200);
@@ -305,180 +279,30 @@ export class Panels {
 
   private sections(kind: PanelKind, d: PanelData): Section[] {
     const { s } = d;
-    const N = T.nova;
     if (kind === 'goals') {
-      const lines: PLine[] = [];
-      GOALS.forEach((g, i) => {
-        const done = i < s.goalIndex;
-        const cur = i === s.goalIndex;
-        const mark = done ? N.goals.done : cur ? N.goals.current : N.goals.next;
-        // Phone: the reward and the unlock only on the current goal (the list must fit the short screen).
-        const extra = PHONE && !cur ? '' : [g.victory ? N.goals.victory : N.goals.reward(g.reward), ...(g.unlock ? [N.goals.unlocks(g.unlock)] : [])].join(' · ');
-        const shown = cur ? N.goalProgress(g, goalProgress(s, g), goalTarget(s, g)) : null;
-        const progress = shown ? [{ text: shown, color: NOVA_CSS.gold }] : [];
-        lines.push({
-          parts: [
-            { text: mark, color: done ? NOVA_CSS.good : cur ? NOVA_CSS.gold : NOVA_CSS.muted },
-            { text: `${i + 1}. ${N.goalText(g)}`, color: done ? NOVA_CSS.muted : NOVA_CSS.text, bold: cur },
-            ...progress,
-            ...(extra ? [{ text: extra, color: NOVA_CSS.muted, size: S.small, bold: false }] : []),
-          ],
-          gap: cur ? px(2) : 0,
-        });
-      });
-      const save = templeSavings(s);
-      if (save) lines.push({ parts: [{ text: N.goals.templeSavings(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold, bold: true }], gap: px(2) });
+      const [head, ...lines] = goalsPanel(s, PHONE).map((l) => this.line(l));
       // As many lines per column as the panel height holds (at least two columns), so a short screen lays them out side by side.
       const a = this.area('goals');
       const fit = Math.floor((a.maxH - 2 * px(14) - lineH(S.num) - px(2)) / (lineH(S.text) + px(2)));
       const per = Math.max(1, Math.min(Math.ceil(lines.length / 2), fit));
       const cols: Section[] = [];
       for (let k = 0; k < lines.length; k += per) cols.push(lines.slice(k, k + per));
-      cols[0]?.unshift(title(N.buttons.goals));
+      cols[0]?.unshift(head);
       return cols;
     }
-    if (kind === 'alerts') {
-      // One section per warning, so a long list flows into a second column instead of past the bottom.
-      const [first, ...rest] = this.noticeLines(d.notices);
-      return [[title(N.buttons.alerts), first], ...rest.map((l) => [l])];
-    }
-    return this.tab === 'history' ? this.history(d) : this.tab === 'people' ? this.people(d) : this.numbers(d);
+    const sections = kind === 'alerts' ? alertsPanel(d.notices) : statsPanel(this.tab, { s, e: d.e, forecast: d.forecast, notices: d.notices }, PHONE);
+    return sections.map((sec) => sec.map((l) => this.line(l)));
   }
 
-  /** Estatísticas, tab "Povo": the people by age, this year's births, deaths and weddings, couples waiting, the next caravan and the families. */
-  private people({ s }: PanelData): Section[] {
-    const st = T.nova.stats;
-    const bands = bandCounts(s);
-    const y = s.yearStats;
-    // Label and number pairs on one line each, so the numbers, the caravan and the families fit a phone.
-    const pairs = (list: [string, number][]): PLine => ({ parts: list.flatMap(([label, n]) => [{ text: label, color: NOVA_CSS.muted, bold: false }, { text: fmtInt(n) }]) });
-    const couples = waitingCouples(s);
-    const caravan = announcedCaravan(s);
-    const at = caravan && calendar(caravan.week);
-    const out: Section[] = [];
-    out.push([
-      title(st.people),
-      pairs((['child', 'adult', 'elder'] as const).map((b) => [st.bands[b], bands[b]])),
-      title(st.thisYear),
-      pairs([[st.births, y.births], [st.deaths, y.deaths], [st.weddings, y.weddings]]),
-      row(st.couples, fmtInt(couples.length), couples.length ? NOVA_CSS.warn : NOVA_CSS.text),
-      // Phone: the names are in Avisos (no room here).
-      ...(couples.length && !PHONE ? [note(couples.map((c) => `${c.man.name} e ${c.woman.name}`).join(' · '))] : []),
-      title(st.caravan),
-      { parts: [{ text: at ? st.caravanAt(at.season, at.year, caravan.families) : st.noCaravan, color: at ? NOVA_CSS.text : NOVA_CSS.muted, bold: !!at }] },
-    ]);
-    const all = householdsOf(s);
-    const max = PHONE ? 6 : 12;
-    const fams: PLine[] = [title(st.families)];
-    if (!all.length) fams.push(note(st.noFamilies));
-    else fams.push({ parts: [], chips: all.slice(0, max).map((f) => ({ label: st.family(clanName(f.clan), f.people), press: () => this.h.onHouse(f.house.id) })) });
-    if (all.length > max) fams.push(note(st.moreFamilies(all.length - max)));
-    out.push(fams);
-    return out;
-  }
-
-  /** The warnings, one wrapped line each (always with the ⚠ mark, never only the color). */
-  private noticeLines(list: Notice[]): PLine[] {
-    if (!list.length) return [{ parts: [{ text: T.nova.noAlerts, color: NOVA_CSS.good }] }];
-    return list.map((n) => ({ parts: [{ text: '⚠ ' + n.text, color: n.bad ? NOVA_CSS.bad : NOVA_CSS.warn }], wrap: true, gap: px(4) }));
-  }
-
-  /** Estatísticas, tab "Agora": silver, food, work, houses, happiness and the problems. */
-  private numbers({ s, e, forecast: out, notices }: PanelData): Section[] {
-    const N = T.nova;
-    const st = N.stats;
-    const per = N.perWeek;
-    const kinds = Object.keys(BUILDINGS) as BuildingKind[];
-    const silver: Section = [title(st.silver), row(st.taxes, `+${fmt(e.taxes)}${per}`, NOVA_CSS.good)];
-    const costs = kinds.filter((k) => e.upkeep[k] !== undefined);
-    // The upkeep and the balance are a section of their own, so a short screen can move them to the next column.
-    const upkeep: Section = [];
-    if (costs.length) upkeep.push({ parts: [{ text: st.upkeep, color: NOVA_CSS.muted, bold: false }] });
-    for (const k of costs) upkeep.push(row('  ' + BUILDINGS[k].name, `−${fmt(e.upkeep[k]!)}${per}`, NOVA_CSS.bad));
-    upkeep.push(row(st.balance, `${signed(e.silverDelta)}${per}`, tone(e.silverDelta)));
-
-    // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
-    const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherYield(s, b) : 0), 0) * e.efficiency;
-    const lasts = lastsToHarvest(s, out);
-    const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodEnds[out!.season]}`;
-    const cap = foodCapacity(s);
-    const food: Section = [title(st.food)];
-    if (e.harvest > 0) food.push(row(BUILDINGS.field.name, `+${fmt(e.harvest)}${per}`, NOVA_CSS.good));
-    for (const k of ['fisher', 'gatherer'] as const) {
-      const n = gathered(k);
-      if (n > 0) food.push(row(BUILDINGS[k].name, `+${fmt(n)}${per}`, NOVA_CSS.good));
-    }
-    food.push(
-      row(st.eaten, `−${fmt(e.foodEaten)}${per}`, NOVA_CSS.bad),
-      row(st.balance, `${signed(e.foodDelta)}${per}`, tone(e.foodDelta)),
-      row(st.stock, N.stock(Math.floor(s.food), cap), s.spoiled > 0 ? NOVA_CSS.warn : NOVA_CSS.text),
-      row(st.forecast, when, lasts ? NOVA_CSS.good : NOVA_CSS.bad),
-    );
-    // Materials: stock and what comes in a week, the houses waiting for each, the stumps left by the lumbers.
-    const waiting = housesWaiting(s);
-    const mats: Section = [title(st.materials)];
-    for (const m of ['wood', 'stone'] as const) {
-      if (m === 'stone' && !s.unlocked.includes('quarry') && s.stone <= 0) continue;
-      mats.push(row(N.material[m], st.materialRow(Math.floor(s[m]), `+${fmt(e[m])}${per}`), waiting[m] ? NOVA_CSS.bad : NOVA_CSS.text));
-      if (waiting[m]) mats.push(row(st.waiting(m), `⚠ ${waiting[m]}`, NOVA_CSS.bad));
-    }
-    if (s.stumps.length) mats.push(row(st.stumps, fmtInt(s.stumps.length)));
-    const idle = Math.max(0, e.workers - e.jobs);
-    const eff = Math.round(e.efficiency * 100);
-    const work: Section = [
-      title(st.work),
-      row(st.workers, fmtInt(e.workers)),
-      row(st.jobs, fmtInt(e.jobs)),
-      row(st.idle, fmtInt(idle), idle > 0 ? NOVA_CSS.warn : NOVA_CSS.text),
-      row(st.efficiency, `${eff}%`, eff < 100 ? NOVA_CSS.bad : NOVA_CSS.good),
-    ];
-    const byLevel = housesByLevel(s);
-    const houses: Section = [title(st.houses), ...HOUSE_LEVELS.map((l, i) => row(l.name, fmtInt(byLevel[i])))];
-    const out2: Section[] = [silver, upkeep, food, mats, work, houses];
-    if (happinessOn(s))
-      out2.push([
-        title(st.happiness),
-        row(st.happiness, String(e.happiness)),
-        row(T.mood.happy, fmtInt(e.moods.happy), NOVA_CSS.good),
-        row(T.mood.neutral, fmtInt(e.moods.neutral)),
-        row(T.mood.sad, fmtInt(e.moods.sad), e.moods.sad ? NOVA_CSS.bad : NOVA_CSS.text),
-        note(st.why),
-      ]);
-    // Phone: the problems are left to the Avisos button (no room for them here).
-    if (!PHONE) out2.push([title(st.problems), ...(notices.length ? this.noticeLines(notices) : [row('', st.none, NOVA_CSS.good)])]);
-    return out2;
-  }
-
-  /** Estatísticas, tab "Histórico": a chart per number over the last weeks, then the milestones. */
-  private history({ s }: PanelData): Section[] {
-    const st = T.nova.stats;
-    const h = s.history;
-    const last = (f: (r: WeekRecord) => number) => (h.length ? f(h[h.length - 1]) : 0);
-    const chart = (name: string, value: string, values: number[], color: number, limit?: number[]): Section => [
-      { parts: [{ text: name, color: NOVA_CSS.gold }, { text: value }] },
-      { parts: [], chart: { values, color, limit } },
-    ];
-    const out: Section[] = [];
-    if (h.length < 2) out.push([title(T.nova.tabs.history), note(st.noHistory)]);
-    else {
-      out.push([title(T.nova.tabs.history), note(st.lastWeeks(h.length))]);
-      out.push(chart(st.silver, fmtInt(last((r) => r.silver)), h.map((r) => r.silver), NOVA.chart.silver));
-      out.push([
-        ...chart(st.food, T.nova.stock(Math.floor(last((r) => r.food)), last((r) => r.capacity)), h.map((r) => r.food), NOVA.chart.food, h.map((r) => r.capacity)),
-        note(`- - ${st.capacity}`),
-      ]);
-      out.push(chart(st.residents, fmtInt(last((r) => r.residents)), h.map((r) => r.residents), NOVA.chart.residents));
-      if (happinessOn(s)) out.push(chart(st.happiness, String(Math.round(last((r) => r.happiness))), h.map((r) => r.happiness), NOVA.chart.happiness));
-    }
-    const marks: PLine[] = [title(st.milestones)];
-    if (!s.milestones.length) marks.push(note(st.noMilestones));
-    for (const id of s.milestones) {
-      const w = s.milestoneWeeks[id];
-      const c = w === undefined ? null : calendar(w);
-      marks.push({ parts: [{ text: '★', color: NOVA_CSS.gold }, { text: c ? st.milestoneAt(T.milestoneName[id], T.nova.calendar(c.season, c.year, c.week, true)) : T.milestoneName[id], bold: false }] });
-    }
-    out.push(marks);
-    return out;
+  /** A panel line (`src/game/model/panels`, shared with the 3D) as a line of the 2D panel. */
+  private line(l: PanelLine): PLine {
+    return {
+      parts: l.parts.map((p) => ({ text: p.text, color: p.tone ? COLOR[p.tone] : undefined, size: p.big ? S.num : p.small ? S.small : undefined, bold: p.plain ? false : undefined })),
+      gap: l.gap ? px(l.gap) : undefined,
+      wrap: l.wrap,
+      chart: l.chart && { values: l.chart.values, color: NOVA.chart[l.chart.color], limit: l.chart.limit },
+      chips: l.chips?.map((c) => ({ label: c.label, press: () => this.h.onHouse(c.houseId) })),
+    };
   }
 
   /** Registers a panel button for the visual tests (window.layout.novaPoint); null once the panel is closed. */

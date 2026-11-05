@@ -42,9 +42,19 @@ export class Anchors {
         this.pins.delete(p.el);
         continue;
       }
-      const s = this.screenOf(p.at, p.top);
-      p.el.style.visibility = s ? 'visible' : 'hidden';
-      if (s) p.el.style.transform = p.place(s, p.age);
+      this.put(p);
     }
+  }
+
+  /** Places a pinned element now (it just showed or changed size), not on the next frame. */
+  place(el: HTMLElement) {
+    const p = this.pins.get(el);
+    if (p?.at) this.put(p);
+  }
+
+  private put(p: Pin) {
+    const s = this.screenOf(p.at!, p.top);
+    p.el.style.visibility = s ? 'visible' : 'hidden';
+    if (s) p.el.style.transform = p.place(s, p.age);
   }
 }
