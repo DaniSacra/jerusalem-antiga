@@ -21,9 +21,11 @@ demonstração, a cidade de teste e o 2D na mesma página).
 | `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas, campos crescendo, cores do chão por estação |
 | `atmosphere.ts` | sol e lua com sombras, céu, neblina |
 | `particles.ts` | chuva, respingos, neve, folhas, pétalas e poeira na GPU |
+| `fx.ts` | momentos do mundo (como o `Effects` do 2D): anel de luz no chão, poeira e pedrinhas ao demolir, festa do templo, brilho e faíscas do marco, mofo com moscas, árvore cortada tombando, pulinho da construção (`World.lift`); tudo em pool, 3 chamadas de desenho |
+| `fxMath.ts` | **puro e testado** (`tests/render3d/fx.test.ts`): raio e esmaecer do anel, pulinho, queda da árvore e as partículas de cada efeito |
 | `camera.ts` | arrastar move; pinça/roda dá zoom; dois dedos ou botões giram; Q/E e WASD no PC |
 | `time/` | **puro e testado** (`tests/render3d`): hora do dia e sol, estações contínuas e campos, clima pela semente, luz do quadro |
-| `look3d.json` | números e cores da luz, das estações, do clima e da multidão |
+| `look3d.json` | números e cores da luz, das estações, do clima, da multidão e dos efeitos (`fx`) |
 
 1 célula = 1 unidade; a coluna do grid é `x` e a linha é `z`. Cada construção fica no centro da sua
 área e vira a frente (`+z`) para uma rua vizinha.
@@ -56,9 +58,11 @@ arquivo que não carrega (sem internet antes do primeiro uso) fica com o modelo 
 também saiu do manifesto: o toldo sobre postes lia como tenda; a praça é o modelo por código (lajes
 claras em dois tons, poço, bancos e uma figueira).
 
-No pacote hoje: `house-1..4`, `market`, `lumber`, `quarry`, `temple`, `workshop`, `fisher` e
-`gatherer`. `altar`, `granary`, `park` e `plaza` foram tentados no Meshy e ficaram com o modelo por
-código (as tentativas saíram piores; ver CREDITS.md). Scripts em `scripts/meshy/` (gerar, empacotar a
+No pacote hoje: `house-1..4`, `market`, `lumber`, `quarry`, `temple`, `workshop`, `fisher`,
+`gatherer`, `altar` (bloco de pedras brutas com chifres, rampa e brasas; `scale: 3.0` para não encher
+os 4x4, o fogo do código fica no topo dele) e `park` (gramado murado com oliveiras e fonte).
+`granary` e `plaza` foram tentados no Meshy e ficaram com o modelo por código (as tentativas saíram
+piores; ver CREDITS.md). Scripts em `scripts/meshy/` (gerar, empacotar a
 1024 px, simplificar).
 
 Os acréscimos `up-granary-2/3`, `up-market-2/3` e `up-workshop-2/3` são sempre por código, por cima do

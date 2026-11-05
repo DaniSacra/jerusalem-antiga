@@ -47,6 +47,8 @@ export async function loadModels(pack: string | null = PACK): Promise<Record<Mod
 
 /** Rebuilding the city waits at least this long after the last one (a road drag changes it per cell). */
 const REBUILD_MS = 250;
+/** People are drawn again only after the city has been still this long (ms): not on every road of a drag. */
+const PEOPLE_QUIET_MS = 600;
 
 /**
  * The drawn world and everything around it: renderer, sky and sun, the city (`World`), seasons,
@@ -155,14 +157,27 @@ export class Stage {
     for (const l of layers) this.pending.add(l);
   }
 
-  /** Draws again the layers that changed, when it is time. */
+  /**
+   * Draws again the layers that changed, when it is time: the city at most every REBUILD_MS, the
+   * people (who walks the roads) only once the city has been still for PEOPLE_QUIET_MS, so a road
+   * dragged across the town redraws the city alone.
+   */
   private rebuild(now: number) {
-    if (!this.pending.size || now - this.builtAt < REBUILD_MS) return;
-    const t0 = performance.now();
-    this.world.sync([...this.pending]);
-    this.pending.clear();
-    this.builtAt = now;
-    this.lastRebuildMs = performance.now() - t0;
+    const p = this.pending;
+    const city = p.has('buildings') || p.has('props');
+    if (city && now - this.builtAt >= REBUILD_MS) {
+      const t0 = performance.now();
+      this.world.sync([...p].filter((l) => l !== 'people'));
+      p.delete('buildings');
+      p.delete('props');
+      this.builtAt = now;
+      this.lastRebuildMs = performance.now() - t0;
+    } else if (!city && p.has('people') && now - this.builtAt >= PEOPLE_QUIET_MS) {
+      const t0 = performance.now();
+      this.world.sync(['people']);
+      p.delete('people');
+      this.lastRebuildMs = performance.now() - t0;
+    }
   }
 
   /** How long the last redraw of city layers took (ms; the performance script reads it). */

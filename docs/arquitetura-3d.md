@@ -694,3 +694,12 @@ Depois disso, Fase 2 como escrita, com `fx.ts` mínimo e `labels.ts` no começo.
 
 A medida simulada (CPU 4x, GPU do WSL ou SwiftShader) não substitui um aparelho: rodar `npm run dev`
 na rede e abrir `?view=3d&perf=1` num celular médio real, com o `info()` na tela, uma vez por fase.
+
+**Medida de 2026-11-05** (`scripts/view3d-perf.mjs`, GPU Intel UHD do WSL, CPU 4x mais lenta, 45
+construções): 60 qps de dia, à noite e na chuva; ~56 chamadas e ~210 mil triângulos. Arrasto de 19 ruas:
+reconstrução máx. **50 ms → 13 ms** depois de duas mudanças: (1) os moradores só são refeitos quando a
+cidade fica parada por 600 ms (`PEOPLE_QUIET_MS` em `stage.ts`; eles leem a altura do chão ao vivo), não a
+cada rua; (2) `Terrain.flatten` espalha só as células ocupadas e `reshape` não mexe na malha quando a
+planura não mudou (rua em chão já plano). Ainda há ~1 quadro > 50 ms por reconstrução (a cidade inteira
+refeita, ~10 ms na CPU lenta + envio à GPU): o próximo passo, se pesar no aparelho real, é separar as
+ruas num instanciador próprio.

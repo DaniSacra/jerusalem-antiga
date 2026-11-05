@@ -299,7 +299,8 @@
     "refineId": "01a1ac5a-d55c-719a-a70e-496495f60b8b",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 3898216
+    "rawBytes": 3898216,
+    "status": "accepted: in use (light version 2 499 triangles, manifest scale 3.0)"
   },
   "granary@2": {
     "prompt": "Granary yard of ancient Jerusalem about 500 BC: a square yard filling the whole square base, closed by smooth knee-high walls of light beige mud plaster with a gap in the middle of the front wall. Along the back wall a long low flat-roofed store house of light beige plaster with one wooden door. In the open yard in front of it three big round beehive-shaped grain silos of pale plaster with smooth domed tops, standing in a row and clearly visible from above. Pale linen grain sacks and clay jars by the gap. No arches, no towers, no battlements, no thatch. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -313,14 +314,15 @@
     "status": "rejected"
   },
   "granary": {
-    "attempt": 3,
-    "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "attempt": 4,
+    "prompt": "Granary of ancient Jerusalem about 500 BC: a compact square compound as wide as it is deep, filling a square base. The back half is one solid flat-roofed storehouse block of beige mud brick spanning the full width, with a flat roof. The front half is a yard with three round mud-brick grain silos with domed tops side by side, lower than the storehouse. A low mud wall closes the yard's front and sides, with a gap in the middle of the front. Square plan, straight walls parallel to the base edges, no arches, no towers. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
     "polycount": 4000,
-    "previewId": "01a1ac58-0eef-7383-9382-360de7497bae",
-    "refineId": "01a1ac58-929d-7720-9aef-3be8b3246cbf",
+    "previewId": "01a1ac6b-9876-718b-a112-b6538e62deb4",
+    "refineId": "01a1ac6b-f70b-7214-9747-81ffd3289768",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 2608144
+    "rawBytes": 2617788,
+    "status": "rejected: one plain tall box on a stepped plinth with a single silo at its side"
   },
   "park@2": {
     "prompt": "Small public garden of ancient Jerusalem about 500 BC: a square lawn of green grass enclosed on all four sides by a low knee-high wall of pale limestone blocks with a gap in the front wall, three small round olive trees with short trunks and chunky rounded olive-green crowns made of smooth blobs, one long low stone bench, a small round stone water basin in the centre, beds of red and yellow flowers along the walls, a sandy path from the gap to the basin, no arches, no niches, no tall walls, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -341,7 +343,8 @@
     "refineId": "01a1ac58-93bc-7713-9024-a0e4447f965e",
     "previewCredits": 5,
     "refineCredits": 10,
-    "rawBytes": 3103208
+    "rawBytes": 3103208,
+    "status": "accepted: in use (light version 2 498 triangles)"
   },
   "plaza@4": {
     "prompt": "Busy square town plaza of ancient Jerusalem about 500 BC: large pale cream limestone paving slabs with a low stone curb around the edge, in the centre a round stone well-head with a wooden crossbeam on two short stone posts, long low stone benches along the back and left edges, a stone water trough, a cluster of clay jars and baskets by the well, one small fig tree with a chunky rounded green crown in the back corner, everything low, no awning, no tent, no tall poles, no roof, on a square base. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
@@ -386,5 +389,16 @@
     "refineCredits": 10,
     "rawBytes": 3736900,
     "status": "rejected: loose benches, well and jars floating apart, no paving"
+  },
+  "granary@3": {
+    "attempt": 3,
+    "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch. Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+    "polycount": 4000,
+    "previewId": "01a1ac58-0eef-7383-9382-360de7497bae",
+    "refineId": "01a1ac58-929d-7720-9aef-3be8b3246cbf",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2608144,
+    "status": "rejected: a long thin strip (silos in a row before a thin back wall) that leaves most of the 3x3 square empty; the level 2-3 storey floats behind it"
   }
 }

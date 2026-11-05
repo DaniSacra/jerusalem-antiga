@@ -9,13 +9,16 @@ import type { ToastOptions, Tone } from '../game/toastQueue';
 import { settings } from '../render/settings';
 import { Hud, type HudHost } from '../ui/hud';
 import { CameraRig } from './camera';
+import { C } from '../render/palette';
 import { changedLayers, cityKeys, type CityKeys } from './diff';
+import { ringRadiusFor } from './fxMath';
+import { WorldFx } from './fx';
 import { marksOf } from './marks';
 import { Overlay } from './overlay';
 import { cellOfPoint, pickBox, rayToGround, type PickBox } from './picking';
 import { yawOfRotation } from './plan';
 import { canRun3D, loadModels, Stage, type Level, type ViewOverride } from './stage';
-import { advanceDay, dayTime } from './time/day';
+import { advanceDay, dayTime, nightness } from './time/day';
 import LOOK from './look3d.json';
 
 export interface Game3DOptions {
@@ -50,6 +53,10 @@ export class Game3D implements SessionView, GestureView, HudHost {
   readonly gestures: Gestures;
   readonly exit: (() => void) | null;
   private overlayMesh: Overlay;
+  /** Moments of the world: rings, dust, sparks, hops and falling trees. */
+  private fx: WorldFx;
+  /** The quality the effects were last limited to. */
+  private fxLevel: Level = 'high';
   private keys: CityKeys;
   private dayT: number;
   private glide: THREE.Vector3 | null = null;
@@ -85,6 +92,11 @@ export class Game3D implements SessionView, GestureView, HudHost {
 
     this.overlayMesh = new Overlay((x, z) => this.stage.world.ground.height(x, z), models);
     stage.scene.add(this.overlayMesh.group);
+    this.fx = new WorldFx(
+      (x, z) => this.stage.world.ground.height(x, z),
+      (x, y, dy, st) => this.stage.world.lift(x, y, dy, st),
+    );
+    stage.scene.add(this.fx.group);
     this.keys = cityKeys(s);
     this.hud = new Hud(root, this);
     this.gestures = new Gestures(session, this);
@@ -275,12 +287,38 @@ export class Game3D implements SessionView, GestureView, HudHost {
         break;
       case 'cheer':
         this.hud.float(o.gain, { x: o.x, y: o.y, w: 1, h: 1 }, 'gold');
+        this.fx.ring({ x: o.x, y: o.y, w: 1, h: 1 });
+        this.fx.hop(o.x, o.y);
         break;
       case 'floatBad':
         this.hud.float(o.text, { x: o.x, y: o.y, w: o.w ?? 1, h: o.h ?? 1 }, 'bad');
         break;
+      case 'placed':
+        if (o.temple) this.fx.celebrate(o);
+        else this.fx.ring(o);
+        break;
+      case 'dust':
+        this.fx.dust(o);
+        break;
+      case 'upgraded':
+        this.fx.ring(o.building, C.ui.goldLight);
+        this.fx.hop(o.building.x, o.building.y);
+        break;
+      case 'harvestRing':
+        this.fx.ring(o.building, C.grain, ringRadiusFor(o.building) * 1.2);
+        break;
+      case 'spoil':
+        this.fx.spoil(o.building);
+        break;
+      case 'milestone':
+        this.fx.milestone(o.building);
+        break;
+      case 'fell': {
+        const s = this.session.state;
+        this.fx.fell(o.x, o.y, s.stumps.find((t) => t.i === o.y * s.cols + o.x)?.kind === 'palm');
+        break;
+      }
       default:
-        // The effects (rings, dust, sparks) come with the 3D effects phase.
         break;
     }
   }
@@ -322,7 +360,14 @@ export class Game3D implements SessionView, GestureView, HudHost {
     if (this.marksDirty) this.drawMarks();
     this.pointTutorial();
     this.hud.frame(dt * 1000);
-    this.stage.frame(dt, this.clock.elapsedTime, s.state.week + s.weekFrac, settings.dayNight ? this.dayT : NOON, this.rig);
+    const dayT = settings.dayNight ? this.dayT : NOON;
+    this.stage.frame(dt, this.clock.elapsedTime, s.state.week + s.weekFrac, dayT, this.rig);
+    if (this.stage.level !== this.fxLevel) {
+      this.fxLevel = this.stage.level;
+      this.fx.limit(this.fxLevel === 'high' ? 1 : this.fxLevel === 'low' ? 0.5 : 0.3);
+    }
+    // Dust and flies darken at night; what shines does not.
+    this.fx.update(dt, this.clock.elapsedTime, 1 - 0.65 * nightness(dayT));
   }
 
   private drawMarks() {
@@ -364,6 +409,7 @@ export class Game3D implements SessionView, GestureView, HudHost {
     this.off = [];
     this.hud.dispose();
     this.overlayMesh.dispose();
+    this.fx.dispose();
     this.stage.dispose();
     this.root.remove();
     if (import.meta.env.DEV) delete (window as { view3d?: unknown }).view3d;

@@ -64,5 +64,16 @@
     "sunCut": 0.75
   },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
-  "fog": { "near": 40, "far": 120 }
+  "fog": { "near": 40, "far": 120 },
+  "fx": {
+    "ring": { "seconds": 0.7, "start": 0.15, "lift": 0.06 },
+    "celebrate": { "rings": 4, "every": 0.18, "radius": 2.6, "grow": 0.75, "sparks": 40 },
+    "upgraded": { "radius": 1.2 },
+    "harvest": { "radius": 1.5 },
+    "dust": { "puffs": [8, 6, 28], "pebbles": [4, 4, 18], "seconds": [0.6, 1.0], "pebbleSeconds": [0.45, 0.75], "gravity": 7 },
+    "milestone": { "rings": 3, "every": 0.32, "sparkEvery": 0.06, "sparkShare": 0.7, "halo": 0.75 },
+    "spoil": { "puffEvery": 0.26, "flies": 7 },
+    "hop": { "seconds": 0.28, "height": 0.16, "stretch": 0.08 },
+    "fall": { "tip": 0.7, "angleDeg": 84, "leaves": 14 }
+  }
 }

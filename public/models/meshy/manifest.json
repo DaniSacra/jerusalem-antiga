@@ -9,5 +9,7 @@
   "temple": { "file": "temple.glb" },
   "workshop": { "file": "workshop.glb" },
   "fisher": { "file": "fisher.glb" },
-  "gatherer": { "file": "gatherer.glb" }
+  "gatherer": { "file": "gatherer.glb" },
+  "altar": { "file": "altar.glb", "scale": 3.0 },
+  "park": { "file": "park.glb" }
 }

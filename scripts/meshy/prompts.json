@@ -51,7 +51,7 @@
     },
     "granary": {
       "polycount": 4000,
-      "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch."
+      "prompt": "Granary of ancient Jerusalem about 500 BC: a compact square compound as wide as it is deep, filling a square base. The back half is one solid flat-roofed storehouse block of beige mud brick spanning the full width, with a flat roof. The front half is a yard with three round mud-brick grain silos with domed tops side by side, lower than the storehouse. A low mud wall closes the yard's front and sides, with a gap in the middle of the front. Square plan, straight walls parallel to the base edges, no arches, no towers."
     },
     "workshop": {
       "polycount": 5000,
@@ -108,6 +108,10 @@
     "plaza@5": {
       "polycount": 4000,
       "prompt": "Square paved town plaza of ancient Jerusalem about 500 BC: a thin flat square platform covered with large pale cream limestone paving slabs in a grid fills the whole base. In the exact centre a round low stone well with dark water inside. Four long low stone benches, one along each edge of the square, facing the well. A few clay jars beside the well. Everything low and flat, open to the sky, no roof, no awning, no poles, no tree, no walls."
+    },
+    "granary@3": {
+      "polycount": 4000,
+      "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch."
     }
   }
 }

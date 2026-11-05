@@ -24,6 +24,14 @@ const hash = (x: number, z: number) => {
   return h - Math.floor(h);
 };
 
+/** Flatness an occupied cell gives each neighbour within 3 cells: (dx, dy, weight). */
+const SPREAD: [number, number, number][] = [];
+for (let dy = -3; dy <= 3; dy++)
+  for (let dx = -3; dx <= 3; dx++) {
+    const w = 1 - Math.max(0, Math.hypot(dx, dy) - 1) / 3;
+    if (w > 0) SPREAD.push([dx, dy, w]);
+  }
+
 /**
  * The ground: one height field over the map and a wide skirt around it. Inside the city (roads,
  * buildings and two cells around them) the ground is flat; elsewhere it rolls gently. Cells outside
@@ -41,20 +49,19 @@ export class Terrain {
   flatten() {
     const s = this.s;
     const { cols, rows } = s;
-    const occ = new Float32Array(cols * rows);
-    for (let i = 0; i < occ.length; i++) occ[i] = s.roads[i] || s.grid[i] ? 1 : 0;
-    const R = 3;
+    const flat = this.flat.fill(0);
+    // Spread each occupied cell over its neighbours (the city is a small part of the map).
     for (let y = 0; y < rows; y++)
       for (let x = 0; x < cols; x++) {
-        let best = 0;
-        for (let dy = -R; dy <= R; dy++)
-          for (let dx = -R; dx <= R; dx++) {
-            const xx = x + dx;
-            const yy = y + dy;
-            if (xx < 0 || yy < 0 || xx >= cols || yy >= rows || !occ[indexOf(s, xx, yy)]) continue;
-            best = Math.max(best, 1 - Math.max(0, Math.hypot(dx, dy) - 1) / R);
-          }
-        this.flat[indexOf(s, x, y)] = best;
+        const i = indexOf(s, x, y);
+        if (!s.roads[i] && !s.grid[i]) continue;
+        for (const [dx, dy, w] of SPREAD) {
+          const xx = x + dx;
+          const yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= cols || yy >= rows) continue;
+          const j = indexOf(s, xx, yy);
+          if (flat[j] < w) flat[j] = w;
+        }
       }
   }
 
@@ -95,7 +102,10 @@ export class Terrain {
    * moving only the heights of the mesh already built (only the map's vertices can change).
    */
   reshape() {
+    const before = this.flat.slice();
     this.flatten();
+    // A road on ground already flat (most of a drag through town) changes nothing.
+    if (before.every((v, i) => v === this.flat[i])) return;
     const g = this.geometry;
     if (!g) return;
     const pos = g.attributes.position as THREE.BufferAttribute;

@@ -1,7 +1,7 @@
 # Modelos Meshy (prova 3D)
 
 Gerados no Meshy (text-to-3D) em 2026-11-04 (1.ª e 2.ª leva) e 2026-11-05 (3.ª leva, no fim) e
-usados pela visão 3D do jogo (`src/render3d`; o manifesto deixa `olive` e `plaza` de fora). Scripts
+usados pela visão 3D do jogo (`src/render3d`; o manifesto deixa `olive` e `plaza` de fora; altar e parque entraram na 4.ª leva). Scripts
 em `scripts/meshy/` (no main desde a 3.ª leva; `remesh.mjs` e `shots.mjs` só no branch `spike/threejs`):
 `generate.mjs` (preview e refine), `pack.mjs` (textura reduzida a 1024 px JPEG), `simplify.mjs`
 (versão leve local com meshoptimizer), `remesh.mjs` (Remesh do Meshy, testado e descartado),
@@ -196,3 +196,46 @@ Prompts da 3.ª leva (antes do estilo comum; `target_polycount` entre parêntese
 Total gasto em todas as levas: 475. Não foram gerados árvores, pedras nem campos: aparecem centenas
 de vezes (a oliveira de 1 235 triângulos já pesava ~500 mil triângulos na cena) e os campos mudam de
 cor com a estação pelo material do código, o que uma textura do Meshy perderia.
+
+## 4.ª leva (nova tentativa de altar, celeiro, parque e praça, 2026-11-05)
+
+Saldo no início: **591 créditos**. Teto do usuário: 80 % do saldo inicial da 3.ª leva (756) = 604
+créditos no total das levas 3 e 4; no máximo 2 tentativas novas por modelo. Mesma configuração e
+estilo comum; versão leve com `simplify.mjs` (alvo 2 500), textura 1024 px com `pack.mjs`.
+
+| Chave | Arquivo | Triângulos (bruto) | Tamanho | Tentativa | Preview | Refine | Créditos | Resultado |
+|---|---|---|---|---|---|---|---|---|
+| `altar` | — | — | — | 3 | 01a1ac58-0eea-73bf-84f5-6f29851d8e3f | 01a1ac58-6911-7775-836f-eeccd5e10d21 | 15 | descartado: plataforma creme lisa com escada (não rampa), bloco pequeno, sem fogo |
+| `altar` | altar.glb | 2 499 (4 077) | 336 KB | 4 | 01a1ac5a-4310-7367-86da-c22cd8092362 | 01a1ac5a-d55c-719a-a70e-496495f60b8b | 15 | **em uso** (`scale: 3.0`) |
+| `granary` celeiro | — | (3 175) | — | 3 | 01a1ac58-0eef-7383-9382-360de7497bae | 01a1ac58-929d-7720-9aef-3be8b3246cbf | 15 | descartado: faixa comprida e fina (silos em fila diante de um muro), deixa quase todo o 3x3 vazio e o andar do nível 2–3 fica no ar |
+| `granary` celeiro | — | — | — | 4 | 01a1ac6b-9876-718b-a112-b6538e62deb4 | 01a1ac6b-f70b-7214-9747-81ffd3289768 | 15 | descartado: uma caixa alta lisa num pedestal com um só silo ao lado |
+| `park` parque | park.glb | 2 498 (3 523) | 318 KB | 3 | 01a1ac58-0efe-752b-92c5-b8721d49f50b | 01a1ac58-93bc-7713-9024-a0e4447f965e | 15 | **em uso** |
+| `plaza` praça | — | — | — | 5 | 01a1ac58-0ef3-7616-a8bf-eef6919989d4 | 01a1ac58-935a-705e-861a-d4863ad62455 | 15 | descartado: bancos, poço e jarros soltos no ar, sem lajes |
+| `plaza` praça | — | — | — | 6 | 01a1ac5a-430a-7759-8c50-9fc61bf884df | 01a1ac5a-a32b-72f1-a826-8acd55f8b35d | 15 | descartado: de novo bancos, poço e um jarro soltos, sem a laje |
+
+- **Altar (tentativa 4, em uso):** bloco maciço de pedras brutas cinza-bege com um chifre em cada
+  canto, brasas e cinza no topo e rampa lisa na frente. Lê de cima como "altar de pedras não lavradas"
+  melhor que o bloco liso do código. Sem a plataforma de lajes: o `scale: 3.0` deixa o bloco com
+  ~2,6 de lado e ~1,3 de altura no lote 4x4 (o fogo do código, a 1,2, fica no topo dele).
+  Prompt: A massive rough fieldstone altar of ancient Israel about 500 BC: one solid square block
+  built of big rough uncut grey-beige boulders, chunky and craggy, half as wide as the base and waist
+  high, a rough boulder horn on each top corner, glowing orange embers and grey ash on its flat top,
+  a smooth sloping earthen ramp, not stairs, rising to the top from the front, all standing on a low
+  wide square platform of pale limestone slabs that fills the whole base. No steps, no stairs, no
+  columns, no arches, no gate.
+- **Parque (tentativa 3, em uso):** gramado verde com muro baixo de calcário em dois lados (com um
+  arco no fundo), fonte redonda de água azul no meio, oliveiras de copa escura e canteiros. De longe
+  é a mancha verde que o parque precisa ser; o do código lia como um quadrado marrom. A grama é da
+  textura (não muda de cor com a estação; a neve e o molhado do shader valem).
+  Prompt: Small square walled garden of ancient Jerusalem about 500 BC: a flat square lawn of bright
+  green grass fills the base, an ankle-high pale limestone kerb around all four edges, a round pale
+  stone fountain basin with blue water in the exact centre, four small olive trees with short thick
+  trunks and solid smooth rounded olive-green crowns, one in each corner, red and yellow flower beds,
+  a sandy path from the front to the fountain. No tall walls, no arches, no niches, no buildings.
+- **Celeiro e praça** ficam com o modelo por código: em seis tentativas cada um (praça) e quatro
+  (celeiro) o Meshy nunca pôs a laje da praça nem encheu o quadrado do celeiro. Os acréscimos
+  `up-granary-2/3` continuam assentados no celeiro do código. Prompts em `scripts/meshy/prompts.json`
+  (`<chave>@<tentativa>`) e ids em `scripts/meshy/tasks.json`.
+
+4.ª leva: 7 tarefas = 105 créditos. Saldo: 591 antes, 486 depois. Total gasto nas levas 3 e 4: 270
+(teto 604); em todas as levas: 580.

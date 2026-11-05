@@ -378,9 +378,10 @@ Os ícones em `public/icons/` são gerados pelo próprio jogo (o templo sobre o 
 
 ## Desempenho da visão 3D (`scripts/view3d-perf.mjs`)
 
-`node scripts/view3d-perf.mjs` mede os quadros por segundo da visão 3D num celular simulado
+`node scripts/view3d-perf.mjs` mede os quadros por segundo do jogo 3D (`?view=3d`) num celular simulado
 (844 x 390, deviceScaleFactor 2,6, toque, CPU 4x mais lenta) numa cidade de ~45 construções, de dia,
-à noite e na chuva, com qualidade automática; usa a GPU do WSL quando existe (`--soft`: SwiftShader,
+à noite e na chuva, com qualidade automática, e depois uma rua arrastada pela cidade (uma célula a cada
+60 ms): a reconstrução mais lenta (`rebuildMaxMs`) e os quadros acima de 50 ms; usa a GPU do WSL quando existe (`--soft`: SwiftShader,
 pessimista). Capturas em `screenshots/view3d-perf` (`VIEW3D_OUT` muda a pasta; `VISUAL_PORT` a porta).
 
 ## Testar no celular de verdade

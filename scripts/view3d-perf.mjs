@@ -1,6 +1,8 @@
-// Frame rate of the 3D view on a simulated mid-range phone (844 x 390, deviceScaleFactor 2.6, touch,
-// CPU slowed 4x), on a town of ~40 buildings, by day, at night and in the rain, at automatic quality
-// (as a player gets it). Screenshots in $VIEW3D_OUT (default screenshots/view3d-perf).
+// Frame rate of the 3D game (`?view=3d`) on a simulated mid-range phone (844 x 390,
+// deviceScaleFactor 2.6, touch, CPU slowed 4x), on a town of ~50 buildings, by day, at night and in
+// the rain, at automatic quality (as a player gets it); then a road dragged across the town: the
+// slowest world rebuild and the frames over 50 ms (targets in docs/arquitetura-3d.md §11.5).
+// Screenshots in $VIEW3D_OUT (default screenshots/view3d-perf).
 //
 // Usage: node scripts/view3d-perf.mjs [--soft]
 //   default: the real GPU when the WSL D3D12 driver is there (else Chromium's default);
@@ -41,10 +43,11 @@ const measure = (ms) =>
 
 const results = [];
 try {
-  await page.goto(`http://localhost:${PORT}/?seed=5`, { timeout: 90000 });
-  await page.waitForTimeout(1000);
+  await page.goto(`http://localhost:${PORT}/?view=3d&seed=5`, { timeout: 90000 });
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.game?.ui && window.state && window.core, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.evaluate(() => window.session.setSpeed(0));
   const renderer = await page.evaluate(() => {
     const g = document.createElement('canvas').getContext('webgl2');
     const e = g?.getExtension('WEBGL_debug_renderer_info');
@@ -73,14 +76,12 @@ try {
     for (const b of s.buildings.filter((b) => b.kind === 'house' && b.level > 0))
       for (let k = 0; k < 4; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 30, houseId: b.id, caravan: 0, clan: k }, () => 0.5);
     core.refreshCity(s);
-    window.game.refresh();
+    window.session.refresh();
     return s.buildings.length;
   });
   console.log(`renderer: ${renderer} | CPU 4x slower | ${buildings} buildings`);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  await page.evaluate(() => window.game.open3D());
-  await page.waitForFunction(() => window.view3d?.frames > 3, null, { timeout: 180000 });
   const CONDITIONS = {
     dia: { day: 0.27 },
     noite: { day: 0.75 },
@@ -97,6 +98,45 @@ try {
     console.log(JSON.stringify(row));
     await page.screenshot({ path: `${OUT}/phone-${cond}.png` });
   }
+  // A road dragged across the town, a cell every 60 ms (a quick finger): each placement asks the
+  // world to draw the city again (throttled); record every rebuild and every long frame.
+  const drag = await page.evaluate(
+    () =>
+      new Promise((ok) => {
+        const v = window.view3d;
+        const se = window.session;
+        se.selectTool('road');
+        const memo = { roads: [], toastedSilver: false, toastedFood: false };
+        const rebuilds = [];
+        const frames = [];
+        let last = performance.now();
+        let seen = v.info().rebuildMs;
+        let x = 12;
+        let done = false;
+        const tick = () => {
+          const now = performance.now();
+          frames.push(now - last);
+          last = now;
+          const r = v.info().rebuildMs;
+          if (r !== seen) rebuilds.push((seen = r));
+          if (!done) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        const step = () => {
+          se.apply({ x, y: 21 }, x === 12, true, memo);
+          if (++x <= 36) return setTimeout(step, 60);
+          setTimeout(() => {
+            done = true;
+            ok({ cells: memo.roads.length, rebuilds, frames });
+          }, 600);
+        };
+        step();
+      }),
+  );
+  const max = (a) => Math.round(Math.max(0, ...a) * 10) / 10;
+  const row = { cond: 'arrasto', roads: drag.cells, syncs: drag.rebuilds.length, rebuildMaxMs: max(drag.rebuilds), frameMaxMs: max(drag.frames), over50ms: drag.frames.filter((f) => f > 50).length, frames: drag.frames.length };
+  results.push(row);
+  console.log(JSON.stringify(row));
 } finally {
   await browser.close();
   await server.close();

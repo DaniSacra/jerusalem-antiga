@@ -80,15 +80,17 @@ export class World {
     for (const [key, i] of (b && this.copies.get(b.id)) ?? []) this.inst?.lift(key, i, dy, stretch);
   }
 
-  /** Draws again the layers that changed (the city part for buildings or props, the people part for people). */
+  /**
+   * Draws again the layers that changed: the city part for buildings or props (with the ground under
+   * it), the people part for people. Walkers read the ground height live, so a city change alone
+   * leaves them walking (the stage rebuilds them once the city is quiet, see `Stage.rebuild`).
+   */
   sync(layers: readonly CityLayer[]) {
-    const city = layers.includes('buildings') || layers.includes('props');
-    if (city) {
+    if (layers.includes('buildings') || layers.includes('props')) {
       this.ground.reshape();
       this.buildCity();
     }
-    // The ground moved under them, or who walks changed.
-    if (city || layers.includes('people')) this.buildPeople();
+    if (layers.includes('people')) this.buildPeople();
   }
 
   private buildCity() {
