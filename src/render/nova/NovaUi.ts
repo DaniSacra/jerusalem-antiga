@@ -28,6 +28,7 @@ import { Inspector } from './Inspector';
 import { H, S, W } from './metrics';
 import { notices, type Notice } from './notices';
 import { Panels, type PanelArea } from './Panels';
+import { PersonSheet } from './PersonSheet';
 import { Tools, type PanelKind } from './Tools';
 import { TopBar } from './TopBar';
 import { darkPanel, ntext } from './widgets';
@@ -54,6 +55,7 @@ export class NovaUi {
   private tools: Tools;
   private panels: Panels;
   private inspector: Inspector;
+  private sheet: PersonSheet;
   private toasts: Toasts;
   private tutorial: TutorialView;
   /** Pill over the map cell under the pointer: "Cortar árvore · 5 prata", "Rende N comida/sem", "Colhe na primavera do ano N". */
@@ -79,13 +81,18 @@ export class NovaUi {
     this.panels = new Panels(scene, (k) => this.panelArea(k), {
       onTurn: (dir) => host.turnMap(dir),
       onSettings: () => host.applySettings(),
+      onHouse: (id) => this.goHouse(id),
     });
+    // The person sheet opens where the statistics do, from just under the top bar (the phone is short).
+    this.sheet = new PersonSheet(scene, () => ({ ...this.panelArea('stats'), y: this.top.bottom + S.gap }), { showHouse: (id) => this.goHouse(id) });
     this.inspector = new Inspector(scene, {
       cellScreen: (x, y, w, h) => host.cellScreen(x, y, w, h),
       act: (a) => (a.kind === 'upgrade' ? host.upgradeAt(a.target) : host.showSpots(a.kind, a.target)),
       demolish: (c) => host.demolishAt(c),
       close: () => host.deselect(),
       limits: () => ({ top: this.top.bottom, toolsRight: this.tools.bottomRight + S.gap, toolsTop: this.tools.top }),
+      openPerson: (id) => this.openPerson(id),
+      nudge: (dx) => host.nudge(dx),
     });
     // Toasts and the tutorial bubble at the bottom, between the tools and the column.
     const left = this.tools.bottomRight + S.gap;
@@ -118,14 +125,32 @@ export class NovaUi {
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.isOverUi(p.x, p.y)) return;
       this.panels.close();
+      this.sheet.close();
       this.column.closeAll();
       this.tools.closeTip();
     });
   }
 
   private togglePanel(kind: PanelKind) {
+    this.sheet.close();
     this.panels.toggle(kind);
     this.tools.refresh(this.tool, this.list, this.panels.open);
+  }
+
+  /** Opens a person's sheet from the house balloon: the balloon and any panel close (one at a time). */
+  openPerson(id: number) {
+    this.panels.close();
+    this.column.closeAll();
+    this.host.deselect();
+    this.sheet.show(id, true);
+    this.tools.refresh(this.tool, this.list, this.panels.open);
+  }
+
+  /** From the sheet or the Povo tab: the camera goes to the house and its balloon opens. */
+  private goHouse(houseId: number) {
+    this.sheet.close();
+    this.panels.close();
+    this.host.showHouse(houseId);
   }
 
   /** Side panels open right of the side buttons, settings under the gear; both end above the bottom tools. */
@@ -153,6 +178,7 @@ export class NovaUi {
     this.toasts.prune();
     this.tools.refresh(tool, this.list, this.panels.open);
     this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });
+    this.sheet.refresh(s);
     // Demolir on touch opens the balloon of a building that would spoil food (see GameScene.apply).
     this.inspector.refresh(s, city, tool === 'view' || tool === 'clear' ? selected : null);
     this.tagKey = '';
@@ -192,6 +218,7 @@ export class NovaUi {
       this.column.contains(x, y) ||
       this.tools.contains(x, y) ||
       this.panels.contains(x, y) ||
+      this.sheet.contains(x, y) ||
       this.inspector.contains(x, y) ||
       this.tutorial.contains(x, y)
     );
@@ -234,12 +261,14 @@ export class NovaUi {
 
   /** Esc: closes the open panel or category strip (a tool's own tip or balloon goes away with the tool). */
   closeTop() {
-    return this.panels.close() || this.column.closeStrip();
+    return this.panels.close() || this.sheet.close() || this.column.closeStrip();
   }
 
   update() {
     // An open panel or the tapped building's balloon holds the toasts (they would cover it).
-    this.toasts.hold(!!this.panels.open || this.inspector.open);
+    this.toasts.hold(!!this.panels.open || this.sheet.open || this.inspector.open);
+    // Toasts stay above the tutorial bubble too (it is taller than the tools on the phone).
+    this.toasts.setBottom(Math.min(this.tools.top, this.tutorial.top ?? H) - S.gap * 2);
     this.inspector.update();
     this.updateTag();
   }

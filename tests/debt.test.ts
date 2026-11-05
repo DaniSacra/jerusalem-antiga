@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alerts, BUILDINGS, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
+import { alerts, BUILDINGS, caravanSpares, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const never = constRng(0.99);
@@ -65,6 +65,34 @@ describe('upkeep and debt', () => {
     const week = s.week;
     expect(run(s, 3)).toEqual([]); // nothing happens after the defeat
     expect(s.week).toBe(week);
+  });
+
+  it(`no defeat while a later caravan is due within ${RULES.debtCaravanWeeks} weeks: the count stops one week short and the warning stays`, () => {
+    const L = RULES.debtWeeksToLose;
+    const s = draining(-1);
+    const due = RULES.debtCaravanWeeks; // planned at week 0, it comes at the edge of the window
+    s.caravans = [{ week: due, families: 1, warn: 4, status: 'planned', housed: 0, left: 0 }];
+    expect(caravanSpares(s)).toBe(true);
+    const before = run(s, due - 1);
+    expect(before.some((e) => e.type === 'defeat')).toBe(false);
+    expect(s.lost).toBe(false);
+    expect(s.debtWeeks).toBe(L - 1);
+    expect(alerts(s)).toContainEqual(expect.objectContaining({ kind: 'debt', weeksLeft: 1 }));
+    expect(s.caravans[0].status).toBe('announced'); // announced spares too
+    // It comes with no empty house: nobody stays, nothing spares the city any more.
+    expect(run(s, 1)).toContainEqual(expect.objectContaining({ type: 'defeat' }));
+    expect(s.lost).toBe(true);
+  });
+
+  it('a caravan further away than the window, skipped or arrived does not spare the city', () => {
+    for (const status of ['planned', 'skipped', 'arrived'] as const) {
+      const s = draining(-1);
+      const week = status === 'planned' ? RULES.debtCaravanWeeks + RULES.debtWeeksToLose + 1 : 30;
+      s.caravans = [{ week, families: 1, warn: 4, status, housed: 0, left: 0 }];
+      expect(caravanSpares(s)).toBe(false);
+      run(s, RULES.debtWeeksToLose);
+      expect(s.lost, status).toBe(true);
+    }
   });
 
   it('remembers the highest population', () => {

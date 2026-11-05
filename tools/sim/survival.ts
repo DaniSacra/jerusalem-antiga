@@ -42,7 +42,12 @@ import {
   templeSpotsNear,
   weeksToHarvest,
   unemployed,
+  ageOf,
+  bandCounts,
+  household,
+  roomIn,
   type Building,
+  type Person,
   type BuildableKind,
   type GameState,
   type Rect,
@@ -85,14 +90,18 @@ export interface Profile {
   noise: number;
   /** Max road cells the bot is willing to lay to reach a food spot. */
   roadReach: number;
+  /** Multiplies `delay` for the "couple waiting" and "caravan" warnings (the distracted player looks late). */
+  houseDelayFactor: number;
+  /** Chance of never preparing houses for an announced caravan (drawn once per caravan). */
+  caravanSkip: number;
 }
 
 export const PROFILES: Record<string, Profile> = {
-  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30 },
+  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0 },
   /** Expert that sows no fields; feeds the city with fishers and gatherers. */
-  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30 },
-  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14 },
-  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10 },
+  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0 },
+  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0 },
+  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5 },
 };
 
 // ------------------------------------------------------------------ geometry
@@ -175,6 +184,16 @@ const EVOLUTION: [number, ServiceBuilding][] = HOUSE_LEVELS.slice(1, -1).map((de
 const stalled = (s: GameState, level: number, kind: ServiceBuilding) =>
   s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level === level && !needMet(s, b, kind));
 
+/** A married couple lives together with the wife in the fertile ages. */
+const fertileCouple = (s: GameState, mother: Person) => {
+  if (mother.sex !== 'f' || mother.engaged !== null || mother.houseId === null) return false;
+  const age = ageOf(mother, s.week);
+  if (age < RULES.people.fertileAges[0] || age > RULES.people.fertileAges[1]) return false;
+  return s.people.some((p) => p.id === mother.spouseId && p.houseId === mother.houseId);
+};
+/** A full house with a fertile couple: only a higher level lets a child be born there. */
+const fertileFull = (s: GameState, h: Building) => roomIn(s, h) <= 0 && household(s, h.id).some((p) => fertileCouple(s, p));
+
 /** The goal that unlocks the temple (the Eficiente reserves its ground and silver from then on). */
 const TEMPLE_UNLOCK = GOALS.findIndex((g) => g.unlock === 'temple');
 /** Kinds the temple savings never hold back. */
@@ -220,7 +239,13 @@ export class SurvivalBot {
   }
 
   private bump(k: string, on: boolean) { this.streak[k] = on ? (this.streak[k] ?? 0) + 1 : 0; }
-  private seen(k: string) { return (this.streak[k] ?? 0) > this.p.delay; }
+  private seen(k: string, factor = 1) { return (this.streak[k] ?? 0) > this.p.delay * factor; }
+  /** Caravans (by week) the bot decided not to prepare for (`caravanSkip`). */
+  private skipped = new Map<number, boolean>();
+  private prepares(c: { week: number }) {
+    if (!this.skipped.has(c.week)) this.skipped.set(c.week, this.rng() < this.p.caravanSkip);
+    return !this.skipped.get(c.week);
+  }
 
   act(s: GameState) {
     const eco = computeEconomy(s);
@@ -288,8 +313,10 @@ export class SurvivalBot {
     for (const [level, kind] of EVOLUTION) {
       if (!s.unlocked.includes(kind)) continue;
       const waiting = stalled(s, level, kind);
+      // The planner serves at once a full house with a fertile couple (the next level gives room for a child).
+      const urgent = this.p.planner && waiting.some((h) => fertileFull(s, h));
       // The distracted player reacts only after seeing the balloon for `delay` weeks.
-      const enough = waiting.length >= (this.p.planner ? 2 : 3) && (!this.p.reactsToBalloons || this.seen(`stall_${kind}`));
+      const enough = (urgent || waiting.length >= (this.p.planner ? 2 : 3)) && (!this.p.reactsToBalloons || this.seen(`stall_${kind}`));
       if (enough && this.service(s, kind, waiting)) return true;
     }
 
@@ -309,8 +336,9 @@ export class SurvivalBot {
     // 6. Houses: one empty house per waiting couple and per family of an announced caravan (the
     // planner at once, the others once they saw the warning for `delay` weeks), plus `plotsAhead`.
     const free = s.buildings.filter((b) => freeHouse(s, b)).length;
-    const couples = this.p.planner || this.seen('couples') ? waitingCouples(s).length : 0;
-    const caravan = this.p.planner || this.seen('caravan') ? (announcedCaravan(s)?.families ?? 0) : 0;
+    const couples = this.p.planner || this.seen('couples', this.p.houseDelayFactor) ? waitingCouples(s).length : 0;
+    const coming = announcedCaravan(s);
+    const caravan = coming && (this.p.planner || this.seen('caravan', this.p.houseDelayFactor)) && this.prepares(coming) ? coming.families : 0;
     const need = couples + caravan + this.p.plotsAhead - free;
     if (need > 0 && this.houses(s, need)) return true;
     // 7. Planner: grow food ahead of growth.
@@ -716,6 +744,27 @@ export interface Result {
   endIncome: number;
   endTempleRoom: boolean;
   endTempleAny: boolean;
+  /** A4: largest residents(year N) / residents(year N-1) from year 2 on (completed years before the end). */
+  growthMax: number;
+  /** Couples that left for lack of a house, and the longest wait of a couple (weeks). */
+  couplesLeft: number;
+  coupleWaitMax: number;
+  /** Later caravans that arrived; with every family housed; with at least one housed. */
+  caravansArrived: number;
+  caravansAll: number;
+  caravansSome: number;
+  /** A8: the first winter with >= 15 houses with people: most granaries at once, store capacity, and famine. */
+  g15: { year: number; granaries: number; capacity: number; famine: boolean } | null;
+  /** Week-couples of the fertile couples living together, by reason they had no child (per year). */
+  coupleBlocksByYear: Record<string, number>[];
+  /** At the end: people by age band, unemployed adults; median age at death (by age). */
+  endBands: { child: number; adult: number; elder: number };
+  endUnemployed: number;
+  deathAge: number;
+  /** Residents in the city at the week of victory or the end. */
+  endResidents: number;
+  /** Week each milestone, residents mark (`res<n>`, n = 10..200 by 5) and houses mark (`h<level>x<n>`) was first reached: for goal design. */
+  marks: Record<string, number>;
 }
 
 const riverDistance = (s: GameState) => {
@@ -753,6 +802,8 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, templeGap: null, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
     endSilver: 0, endIncome: 0, endTempleRoom: false, endTempleAny: false,
+    growthMax: NaN, couplesLeft: 0, coupleWaitMax: 0, caravansArrived: 0, caravansAll: 0, caravansSome: 0, g15: null, coupleBlocksByYear: [],
+    endBands: { child: 0, adult: 0, elder: 0 }, endUnemployed: 0, deathAge: NaN, endResidents: 0, marks: {},
   };
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
@@ -771,6 +822,16 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.week < 52) res.blocksY1[block] = (res.blocksY1[block] ?? 0) + 1;
     const by = (res.blocksByYear[Math.floor(s.week / 52)] ??= {});
     by[block] = (by[block] ?? 0) + 1;
+    // Why each fertile couple living together had no child this week.
+    const cb = (res.coupleBlocksByYear[Math.floor(s.week / 52)] ??= {});
+    for (const m of s.people) {
+      if (!fertileCouple(s, m)) continue;
+      const house = s.buildings.find((b) => b.id === m.houseId);
+      const young = s.people.some((c) => c.motherId === m.id && s.week - c.birthWeek < RULES.people.birthGapWeeks);
+      const why = block !== 'open' ? 'city' : !house || roomIn(s, house) <= 0 ? 'full' : young ? 'gap' : 'open';
+      cb[why] = (cb[why] ?? 0) + 1;
+    }
+    for (const c of waitingCouples(s)) res.coupleWaitMax = Math.max(res.coupleWaitMax, s.week - c.since);
     res.maxWorkshops = Math.max(res.maxWorkshops, s.buildings.filter((b) => b.kind === 'workshop').length);
     res.maxGranaries = Math.max(res.maxGranaries, s.buildings.filter((b) => b.kind === 'granary').length);
     // The year's people counts, read in its last week (they reset when the autumn begins).
@@ -801,6 +862,20 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.goalIndex < GOALS.length && s.week - goalSince > res.goalWait) { res.goalWait = s.week - goalSince; res.goalWaitIndex = s.goalIndex; }
     if (s.silver < 0) { res.debtEver = true; if (s.week <= 52) res.debtY1 = true; else if (s.week <= 104) res.debtY2 = true; }
     res.food.spoiled += s.spoiled;
+    res.couplesLeft += events.filter((e) => e.type === 'coupleLeft').length;
+    for (const e of events) if (e.type === 'caravanArrived') {
+      res.caravansArrived++;
+      if (e.left === 0 && e.housed > 0) res.caravansAll++;
+      if (e.housed > 0) res.caravansSome++;
+    }
+    if (seasonOf(s.week) === 'winter') {
+      const year = Math.floor(s.week / 52);
+      const lived = s.buildings.filter((b) => b.kind === 'house' && b.connected && b.level > 0).length;
+      if (lived >= 15 && (!res.g15 || res.g15.year === year)) {
+        const granaries = s.buildings.filter((b) => b.kind === 'granary' && b.connected).length;
+        res.g15 = { year, granaries: Math.max(granaries, res.g15?.granaries ?? 0), capacity: Math.max(foodCapacity(s), res.g15?.capacity ?? 0), famine: s.famine || !!res.g15?.famine };
+      }
+    }
     // Tents left in famine (a tent cut off from the road leaves too, but that is the bot's own doing).
     const lefts = events.filter((e) => e.type === 'familyLeft' && e.reason === 'famine').length;
     res.left += lefts;
@@ -816,6 +891,11 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       res.recoveries++;
     }
     res.peak = Math.max(res.peak, resid);
+    for (let n = 10; n <= Math.min(200, resid); n += 5) res.marks[`res${n}`] ??= s.week;
+    for (const l of [2, 3, 4]) {
+      const k = s.buildings.filter((b) => b.kind === 'house' && b.level >= l).length;
+      for (let n = 1; n <= Math.min(10, k); n++) res.marks[`h${l}x${n}`] ??= s.week;
+    }
     richRun = s.silver > 300 && !s.unlocked.includes('temple') ? richRun + 1 : 0;
     res.silverIdle = Math.max(res.silverIdle, richRun);
     if (s.famine && seasonOf(s.week) === 'winter') famineYears.add(Math.floor(s.week / 52));
@@ -847,5 +927,14 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   res.caravanHoused = s.caravans.reduce((a, c) => a + c.housed, 0);
   res.caravanLeft = s.caravans.reduce((a, c) => a + c.left, 0);
   res.levelsAtEnd = [1, 2, 3, 4].map((l) => s.buildings.filter((b) => b.kind === 'house' && b.level === l).length);
+  // A4: growth of each completed year over the one before, from year 2 on.
+  const ry = res.residentsByYear;
+  for (let y = 1; y < ry.length; y++) if (ry[y - 1] > 0) res.growthMax = Math.max(Number.isNaN(res.growthMax) ? 0 : res.growthMax, ry[y] / ry[y - 1]);
+  res.endBands = bandCounts(s);
+  res.endUnemployed = unemployed(s);
+  const ages = s.departed.filter((p) => p.end?.cause === 'age').map((p) => ageOf(p, p.end!.week)).sort((a, b) => a - b);
+  res.deathAge = ages.length ? ages[Math.floor((ages.length - 1) / 2)] : NaN;
+  res.endResidents = computeEconomy(s).residents;
+  for (const [id, w] of Object.entries(s.milestoneWeeks)) res.marks[id] = w as number;
   return res;
 }

@@ -28,6 +28,9 @@ import {
   personById,
   seasonOf,
   upgradeBuilding,
+  nextLevelOf,
+  grownUpThisWeek,
+  type TutorialStepId,
   BUILDINGS,
   type TempleSpot,
   type ActionResult,
@@ -153,6 +156,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** The camera follows the first family for a moment (family step). */
   private follow: { id: number; until: number } | null = null;
   private followed = false;
+  /** Births and weddings of this game (the victory screen tells them). */
+  private births = 0;
+  private weddings = 0;
   /** The camera glides to the place of a new tutorial step (world point), and which step it did it for. */
   private pan: { x: number; y: number } | null = null;
   private pannedFor: string | null = null;
@@ -194,6 +200,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.fieldHint = null;
     this.follow = null;
     this.followed = false;
+    this.births = 0;
+    this.weddings = 0;
     this.pan = null;
     this.pannedFor = null;
     this.city = readCity(this.state);
@@ -299,19 +307,24 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.ui?.refresh(this.state, this.city, this.speed, this.tool, this.guide?.running ?? false, this.selected);
   }
 
+  /** A house that grew (a level or a baby): it hops, a ring of light spreads and the gain floats up. */
+  private cheerHouse(x: number, y: number, gain: string) {
+    const b = this.state.grid[indexOf(this.state, x, y)];
+    const c = footCenter(x, y);
+    this.map.bounce(this.state, x, y);
+    this.fx.ring(c.x, c.y);
+    this.fx.floatText(c.x, c.y - (b ? this.map.heightOf(b) : 20) - 8, gain);
+  }
+
   private handleEvents(events: GameEvent[]) {
     /** Where houses rose this week, by level (a milestone celebrates the house that reached it). */
     const ups = new Map<number, Cell>();
     for (const e of events) {
       switch (e.type) {
-        case 'houseUp': {
-          const c = footCenter(e.x, e.y);
+        case 'houseUp':
           ups.set(e.level, { x: e.x, y: e.y });
-          this.map.bounce(this.state, e.x, e.y);
-          this.fx.ring(c.x, c.y);
-          this.fx.floatText(c.x, c.y - (HEIGHT[TEX.building('house', e.level)] ?? 20) - 8, `+${e.delta}`);
+          this.cheerHouse(e.x, e.y, `+${e.delta}`);
           break;
-        }
         case 'houseDown': {
           const c = footCenter(e.x, e.y);
           this.fx.floatText(c.x, c.y - 30, T.houseDown(e.delta, e.famine), CSS.bad);
@@ -327,7 +340,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
           if (e.unlock) this.ui?.unlocked(e.unlock);
           break;
         case 'victory':
-          this.ui?.showVictory(e.week, e.residents);
+          this.ui?.showVictory(e.week, e.residents, this.births, this.weddings);
           break;
         case 'familyLeft':
           this.walkers.leave(this.state, e.x, e.y);
@@ -350,7 +363,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
           const b = milestoneSite(this.state, e.id, ups);
           this.map.shine(b.id);
           this.fx.milestone(this.state, b, this.map.heightOf(b));
-          this.ui?.milestone(e.id);
+          // The first child of the city to come of age is named.
+          const grown = e.id === 'firstGrownUp' ? grownUpThisWeek(this.state) : null;
+          if (grown) this.ui?.toast(T.grownUp(grown.name, grown.sex === 'f'), 'good');
+          else this.ui?.milestone(e.id);
           break;
         }
         case 'spoilStart': {
@@ -368,17 +384,18 @@ export class GameScene extends Phaser.Scene implements UiHost {
           }
           break;
         case 'wedding':
+          this.weddings++;
           this.ui?.toast(T.wedding(this.nameOf(e.a), this.nameOf(e.b)), 'good');
           break;
         case 'birth': {
+          this.births++;
           const p = personById(this.state, e.id);
           if (p) this.ui?.toast(T.birth(p.name, p.sex === 'f', this.nameOf(p.fatherId), this.nameOf(p.motherId)), 'info');
-          const c = footCenter(e.x, e.y);
-          this.fx.floatText(c.x, c.y - 30, '+1');
+          this.cheerHouse(e.x, e.y, '+1');
           break;
         }
         case 'death':
-          this.ui?.toast(T.death(this.nameOf(e.id), e.age), 'info');
+          this.ui?.toast(T.death(this.nameOf(e.id), e.age), 'quiet');
           break;
         case 'coupleLeft':
           this.ui?.toast(T.coupleLeft(this.nameOf(e.a), this.nameOf(e.b)), 'bad');
@@ -473,10 +490,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */
   upgradeAt(cell: Cell) {
     const events: GameEvent[] = [];
+    const b = this.state.grid[indexOf(this.state, cell.x, cell.y)];
+    const cost = b ? nextLevelOf(b)?.cost : undefined;
     const r = upgradeBuilding(this.state, cell.x, cell.y, events);
     if (!r.ok) {
-      this.ui?.toast(T.fail[r.reason], 'bad');
+      this.ui?.toast(r.reason === 'silver' && cost !== undefined ? T.missingSilver(cost) : T.fail[r.reason], 'bad');
       return;
+    }
+    if (b) {
+      const c = footCenter(b.x, b.y, b.w, b.h);
+      this.map.bounce(this.state, b.x, b.y);
+      this.fx.ring(c.x, c.y, C.ui.goldLight, Math.max(b.w, b.h));
     }
     this.handleEvents(events);
     this.refresh();
@@ -511,6 +535,25 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
     else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
     return r;
+  }
+
+  /** Moves the camera to a house (at once) and opens its balloon (person sheet, Povo tab). */
+  showHouse(houseId: number) {
+    const b = this.state.buildings.find((o) => o.id === houseId);
+    if (!b) return;
+    if (this.tool !== 'view') this.selectTool('view');
+    const at = this.ui?.freeCenter() ?? { x: this.cameras.main.width / 2, y: VIEW_CY };
+    const c = footCenter(b.x, b.y, b.w, b.h);
+    this.rig.centerAt(c.x, c.y, at.x, at.y);
+    this.pan = null;
+    this.selected = { x: b.x, y: b.y };
+    this.refresh();
+  }
+
+  /** The tapped building's balloon is too wide beside it: the camera glides so the building goes `dx` screen px sideways. */
+  nudge(dx: number) {
+    const at = this.ui?.freeCenter() ?? { x: this.cameras.main.width / 2, y: VIEW_CY };
+    this.pan = this.rig.toWorld(at.x - dx, at.y);
   }
 
   /** Closes the tapped building's balloon. */
@@ -601,6 +644,13 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
+  /** A tutorial sentence; the house and wedding steps name the caravan's engaged couple. */
+  private stepText(id: TutorialStepId): string {
+    const [a, b] = this.state.start.couple.map((p) => this.nameOf(p));
+    if ((id === 'house' || id === 'wedding') && a && b) return T.tutorial.couple[id](a, b);
+    return T.tutorial.step[id];
+  }
+
   /** Name of a person alive or in the records ('' when unknown). */
   private nameOf(id: number | null): string {
     return personById(this.state, id)?.name ?? '';
@@ -639,7 +689,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       return;
     }
     if (step.id === 'house') this.houseHint = houseHint(this.state);
-    this.ui?.setTutorial(T.tutorial.step[step.id], false);
+    this.ui?.setTutorial(this.stepText(step.id), false);
     if (step.id !== this.pannedFor) {
       this.pannedFor = step.id;
       if (step.id === 'field') this.fieldHint = fieldHint(this.state);

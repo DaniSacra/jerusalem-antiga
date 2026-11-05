@@ -72,6 +72,8 @@ export interface CaravanPlan {
   /** Week it arrives. */
   week: number;
   families: number;
+  /** How many of the families are surely a young engaged pair (`caravans.later[k].engaged`; 0 when missing). */
+  engaged?: number;
   /** Weeks before arriving that it is announced. */
   warn: number;
   status: 'planned' | 'announced' | 'arrived' | 'skipped';
@@ -241,7 +243,8 @@ export interface Rules {
   /** The founding caravan and the later ones (see caravans.ts). */
   caravans: {
     start: { families: [number, number]; foodWeeks: [number, number] };
-    later: { weeks: [number, number]; families: [number, number]; chance: number }[];
+    /** `engaged`: how many of the families are surely a young engaged pair (the others are drawn). */
+    later: { weeks: [number, number]; families: [number, number]; chance: number; engaged?: number }[];
     warnWeeks: [number, number];
     /** Weeks of the newcomers' eating a later caravan brings. */
     foodWeeks: [number, number];
@@ -261,6 +264,8 @@ export interface Rules {
   famineLeaveChance: number;
   /** Consecutive weeks with negative silver that lose the game. */
   debtWeeksToLose: number;
+  /** No defeat by debt while a later caravan (planned or announced) is due within these weeks. */
+  debtCaravanWeeks: number;
   roadCost: number;
   /** House happiness 0..100 (see happiness.ts): bonuses, penalties and what it changes. */
   happiness: {
@@ -333,10 +338,13 @@ export interface PeopleRules {
   birthGapWeeks: number;
   /** Chance per week of a child for a couple that can have one (times the happiness factor). */
   birthChance: number;
-  /** Children are born only if the forecast food stays above this many weeks of eating until the spring. */
+  /** Children are born only if the forecast food stays above this many weeks of eating until the harvest (negative: they are born even if the food runs out up to that many weeks before it). */
   birthFoodReserveWeeks: number;
-  /** Families of the caravans, drawn by weight. */
-  templates: { weight: number; members: TemplateMember[] }[];
+  /**
+   * Families of the caravans, drawn by weight. `engaged`: a young pair (father and mother roles)
+   * of two family names, engaged, who marry on taking a house; never in the founding caravan.
+   */
+  templates: { weight: number; members: TemplateMember[]; engaged?: boolean }[];
   /** The founding caravan's first two families use this template, with a child of these ages: the engaged couple. */
   couple: { template: number; age: [number, number] };
 }

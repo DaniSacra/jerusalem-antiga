@@ -8,7 +8,7 @@
   "startSeason": "autumn",
   "toolColumnMax": 8,
   "baseFoodStorage": 100,
-  "winterFamineLeaveChance": 0.35,
+  "winterFamineLeaveChance": 0.15,
   "winterWarningWeeks": 3,
   "historyWeeks": 52,
   "drought": { "chance": 0.25, "harvestFactor": 0.25, "safeYears": 2, "neverTwice": true },
@@ -16,8 +16,9 @@
   "weeksToDowngrade": 3,
   "winter": { "foodFactor": 1.4, "tentFoodFactor": 1.75 },
   "famineDropChance": 0.12,
-  "famineLeaveChance": 0.2,
+  "famineLeaveChance": 0.1,
   "debtWeeksToLose": 24,
+  "debtCaravanWeeks": 52,
   "treeClearCost": 5,
   "templeSpotRoadGap": 1,
   "roadCost": 2,
@@ -48,23 +49,24 @@
     "maxAgeGap": 15,
     "coupleWaitWeeks": 52,
     "coupleWarnWeeks": 13,
-    "fertileAges": [18, 40],
-    "birthGapWeeks": 26,
-    "birthChance": 0.03,
-    "birthFoodReserveWeeks": 2,
+    "fertileAges": [18, 45],
+    "birthGapWeeks": 13,
+    "birthChance": 0.08,
+    "birthFoodReserveWeeks": -3,
     "templates": [
       { "weight": 3, "members": [{ "role": "father", "age": [36, 46] }, { "role": "mother", "age": [34, 44] }, { "role": "child", "age": [12, 19] }] },
       { "weight": 3, "members": [{ "role": "father", "age": [24, 34] }, { "role": "mother", "age": [22, 32] }, { "role": "child", "age": [0, 8] }] },
-      { "weight": 2, "members": [{ "role": "father", "age": [20, 26] }, { "role": "mother", "age": [18, 24] }] },
-      { "weight": 1, "members": [{ "role": "father", "age": [24, 32] }, { "role": "mother", "age": [22, 30] }, { "role": "grandparent", "age": [52, 62] }] }
+      { "weight": 2, "members": [{ "role": "father", "age": [20, 28] }, { "role": "mother", "age": [20, 28] }] },
+      { "weight": 1, "members": [{ "role": "father", "age": [24, 32] }, { "role": "mother", "age": [22, 30] }, { "role": "grandparent", "age": [52, 62] }] },
+      { "weight": 30, "engaged": true, "members": [{ "role": "father", "age": [18, 22] }, { "role": "mother", "age": [18, 22] }] }
     ],
     "couple": { "template": 0, "age": [18, 19] }
   },
   "caravans": {
-    "start": { "families": [2, 4], "foodWeeks": [14, 22] },
+    "start": { "families": [3, 5], "foodWeeks": [18, 24] },
     "later": [
-      { "weeks": [78, 155], "families": [2, 3], "chance": 1 },
-      { "weeks": [208, 311], "families": [2, 4], "chance": 1 },
+      { "weeks": [52, 98], "families": [3, 3], "chance": 1, "engaged": 1 },
+      { "weeks": [156, 260], "families": [2, 4], "chance": 1 },
       { "weeks": [312, 415], "families": [2, 3], "chance": 0.5 }
     ],
     "warnWeeks": [4, 8],

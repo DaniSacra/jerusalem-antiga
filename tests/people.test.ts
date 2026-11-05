@@ -10,6 +10,7 @@ import {
   computeEconomy,
   deathChance,
   foodCapacity,
+  foodForecast,
   foodOf,
   household,
   isBirthday,
@@ -18,6 +19,7 @@ import {
   stepPeople,
   stepWeek,
   wed,
+  weeksToHarvest,
   type GameEvent,
   type GameState,
   type Person,
@@ -348,7 +350,8 @@ describe('births', () => {
   });
 
   it('only with the mother in the fertile ages', () => {
-    for (const [age, ok] of [[17, false], [18, true], [40, true], [41, false]] as const) {
+    const [from, to] = P.fertileAges;
+    for (const [age, ok] of [[from - 1, false], [from, true], [to, true], [to + 1, false]] as const) {
       const { s } = family(age);
       const before = s.people.length;
       people(s, always);
@@ -410,13 +413,33 @@ describe('births', () => {
     expect(['food', 'storage']).toContain(birthBlock(t));
   });
 
+  it('with the negative reserve (birthFoodReserveWeeks) children still come when the food runs out shortly before the harvest', () => {
+    expect(P.birthFoodReserveWeeks).toBe(-3);
+    const s = emptyGame(); // autumn: no food made, the next harvest is in the spring
+    const h = put(s, 'house', ROADSIDE, 27, 3, false, 0);
+    couple(s, h.id);
+    person(s, { houseId: h.id, age: 50 });
+    /** Least food (in steps of 0.05) with which the food runs out `before` weeks before the harvest. */
+    const runsOut = (before: number) => {
+      for (s.food = 0; ; s.food = Math.round((s.food + 0.05) * 100) / 100) {
+        if ((foodForecast(s, computeEconomy(s), weeksToHarvest(s.week))?.weeks ?? Infinity) >= weeksToHarvest(s.week) - before) return s.food;
+      }
+    };
+    runsOut(1);
+    expect(birthBlock(s)).toBeNull(); // empty 1 week before the harvest: born anyway
+    runsOut(5);
+    expect(birthBlock(s)).toBe('food'); // 5 weeks short: more than the reserve
+    s.food = 0;
+    expect(birthBlock(s)).toBe('food');
+  });
+
   it('says "storage" when the food would last but the store cannot hold it', () => {
     const s = emptyGame(); // autumn: the fields give food until the winter
-    for (let k = 0; k < 4; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 4);
-    for (let k = 0; k < 4; k++) put(s, 'field', EAST, 27 + 2 * k);
-    s.food = RULES.baseFoodStorage; // a winter of 32 people eats more than the store keeps
+    for (let k = 0; k < 6; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 4);
+    for (let k = 0; k < 6; k++) put(s, 'field', EAST, 27 + 2 * k);
+    s.food = RULES.baseFoodStorage; // a winter of 48 people eats more than the store keeps, even with the births' reserve
     expect(birthBlock(s)).toBe('storage');
-    put(s, 'granary', EAST, 36);
+    put(s, 'granary', EAST, 39);
     expect(birthBlock(s)).toBeNull();
   });
 

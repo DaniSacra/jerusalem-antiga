@@ -72,7 +72,14 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
   }
 }
 
-/** Counts consecutive weeks ended in debt; the city is lost after RULES.debtWeeksToLose. */
+/** A later caravan (planned or announced) is due within `debtCaravanWeeks`: the debt cannot lose the game yet. */
+export const caravanSpares = (s: GameState) =>
+  s.caravans.some((c) => (c.status === 'planned' || c.status === 'announced') && c.week - s.week <= RULES.debtCaravanWeeks);
+
+/**
+ * Counts consecutive weeks ended in debt; the city is lost after RULES.debtWeeksToLose, except
+ * while a caravan is due soon (`caravanSpares`): then the count stops one week short of the defeat.
+ */
 function updateDebt(s: GameState, events: GameEvent[]) {
   if (s.silver >= 0) {
     if (s.debtWeeks > 0) events.push({ type: 'debtEnd' });
@@ -80,7 +87,7 @@ function updateDebt(s: GameState, events: GameEvent[]) {
     return;
   }
   if (s.debtWeeks === 0) events.push({ type: 'debtStart' });
-  s.debtWeeks++;
+  s.debtWeeks = caravanSpares(s) ? Math.min(s.debtWeeks + 1, RULES.debtWeeksToLose - 1) : s.debtWeeks + 1;
   if (s.debtWeeks >= RULES.debtWeeksToLose) {
     s.lost = true;
     events.push({ type: 'defeat', week: s.week, peak: s.peakPopulation });

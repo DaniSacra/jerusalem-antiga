@@ -112,6 +112,21 @@ describe('winter in the forecast', () => {
     expect(out!.weeks).toBeLessThan(foodForecast(s, eco)!.weeks);
     expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: 0 })).toEqual(foodForecast(s, eco));
   });
+
+  it('a negative reserveWeeks lets the food run that many weeks of eating past empty', () => {
+    const s = emptyGame({ food: 30 });
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 29, 1);
+    const eco = computeEconomy(s);
+    const floor = -3 * eatAt(1, 2)(0);
+    const out = foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 });
+    expect(out?.weeks).toBe(weeksOfFood(30, 0, eatAt(1, 2), floor));
+    expect(out!.weeks).toBeGreaterThan(foodForecast(s, eco)!.weeks);
+    // With no food at all it still "lasts" about 3 weeks of eating (2 whole weeks before the one it crosses the floor).
+    s.food = 0;
+    expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 })?.weeks).toBeGreaterThanOrEqual(2);
+    expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 })?.weeks).toBeLessThanOrEqual(3);
+  });
 });
 
 describe('workshop bonus in the forecast', () => {

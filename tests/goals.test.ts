@@ -51,16 +51,19 @@ describe('goals', () => {
       ['foodUntilSpring', 1, null, 30, 'granary'],
       ['milestone', 1, 'firstBirth', 30, null],
       ['houses', 3, 2, 40, 'market'],
-      ['residents', 30, null, 50, null],
       ['milestone', 1, 'firstCaravan', 50, 'workshop'],
+      ['residents', 30, null, 50, null],
       ['houses', 3, 3, 60, 'park'],
-      ['residents', 60, null, 80, null],
       ['milestone', 1, 'firstGrownUp', 80, null],
-      ['houses', 2, 4, 100, null],
+      ['residents', 45, null, 80, null],
+      ['houses', 4, 4, 80, null],
       ['milestone', 1, 'thirdGeneration', 100, null],
+      ['residents', 65, null, 100, null],
+      ['residents', 85, null, 120, null],
       ['residents', 100, null, 120, 'temple'],
-      ['houses', 5, 4, 150, null],
-      ['residents', 150, null, 200, null],
+      ['residents', 125, null, 150, null],
+      ['residents', 150, null, 175, null],
+      ['residents', 175, null, 200, null],
       ['build', 1, 'temple', 0, null],
     ]);
     expect(GOALS.at(-1)!.victory).toBe(true);
@@ -76,9 +79,9 @@ describe('goals', () => {
   it('knows which goal unlocks each placeable', () => {
     expect(unlockingGoal('granary')).toBe(2);
     expect(unlockingGoal('market')).toBe(4);
-    expect(unlockingGoal('workshop')).toBe(6);
+    expect(unlockingGoal('workshop')).toBe(5);
     expect(unlockingGoal('park')).toBe(7);
-    expect(unlockingGoal('temple')).toBe(12); // built before the 150 residents; the victory still asks for them
+    expect(unlockingGoal('temple')).toBe(14); // built before the 175 residents; the victory still asks for them
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
@@ -235,17 +238,17 @@ describe('goals', () => {
   });
 
   it('completes one goal per check, even when the next one is already met', () => {
-    // Four big houses meet "3 mud-brick houses" and "30 residents" at once.
-    const s = emptyGame({ goalIndex: 3 });
+    // Four big houses meet "30 residents" and "3 stone houses" at once.
+    const s = emptyGame({ goalIndex: 5 });
     for (const y of [27, 29, 31, 33]) put(s, 'house', ROADSIDE, y, TOP);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(4);
+    expect(s.goalIndex).toBe(6);
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(5);
-    checkGoal(s, events); // the first caravan has not come
-    expect(s.goalIndex).toBe(5);
-    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([3, 4]);
+    expect(s.goalIndex).toBe(7);
+    checkGoal(s, events); // no child born in the city has grown up
+    expect(s.goalIndex).toBe(7);
+    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([5, 6]);
   });
 });
 
@@ -267,10 +270,10 @@ describe('years and the temple goal', () => {
     expect(goalOpen(s, later)).toBe(true);
   });
 
-  it('the temple goal is the one right before the victory (150 residents)', () => {
+  it('the temple goal is the one right before the victory (175 residents)', () => {
     const i = GOALS.length - 2;
     expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal: GOALS[i] });
-    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 150 });
+    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 175 });
   });
 
   it('a temple built before the last goal wins the week it is met (and says what it waits for)', () => {

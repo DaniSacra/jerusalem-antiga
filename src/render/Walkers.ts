@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { craftOf, doorsOf, familySpeed, findPath, indexOf, pickWalkerType, walkerDef, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type WalkerType } from '../core';
+import { bandCounts, craftOf, doorsOf, familySpeed, findPath, indexOf, walkerDef, walkerGoal, walkerStart, walkerTypesAvailable, type AgeBand, type Cell, type Craft, type Family, type GameState, type WalkerType } from '../core';
 import { depthAt, gridToWorld } from './iso';
 import type { RoadWear } from './RoadWear';
 import { TEX, WALKER_LOOKS } from './textures';
+import type { TravelerKind } from './residents';
 
 const MAX_WALKERS = 60;
 const PER_WALKER = 5;
@@ -36,6 +37,32 @@ interface Walker {
 /** Render-side randomness (which walker, small pace differences). Game rules stay seeded in core. */
 const rand = Math.random;
 
+/**
+ * A walker type for the city as it is: children and elders come out in the share of their age
+ * band among the residents (`shares`), the rest are adults of the trades available.
+ */
+export function pickTypeByAge(available: WalkerType[], shares: Record<AgeBand, number>, rng: () => number): WalkerType | undefined {
+  const r = rng();
+  if (r < shares.child && available.includes('child')) return 'child';
+  if (r < shares.child + shares.elder && available.includes('elder')) return 'elder';
+  const adults = available.filter((t) => t !== 'child' && t !== 'elder');
+  const pool = adults.length ? adults : available;
+  return pool[Math.floor(rng() * pool.length)];
+}
+
+/** How people walk to a house: a caravan family with its donkey, newly-weds hand in hand, else the plain family. */
+function travelerOf(s: GameState, f: Family): TravelerKind | null {
+  const people = f.members.map((id) => s.people.find((p) => p.id === id));
+  if (people.some((p) => p?.houseId === null)) return 'caravan';
+  const [a, b] = people;
+  return a && b && people.length === 2 && a.spouseId === b.id ? 'couple' : null;
+}
+
+interface Walking {
+  img: Phaser.GameObjects.Image;
+  kind: TravelerKind | null;
+}
+
 /** Position along a cell path at a fractional step, with a sideways lane offset. */
 function along(path: Cell[], step: number, lane: number) {
   const i = Math.min(Math.floor(step), path.length - 1);
@@ -62,7 +89,10 @@ export function place(img: Phaser.GameObjects.Image, gx: number, gy: number, dx:
 /** Residents of 10 types walking to the places of their trade, and families heading home. Roads only. */
 export class Walkers {
   private list: Walker[] = [];
-  private families = new Map<number, Phaser.GameObjects.Image>();
+  private families = new Map<number, Walking>();
+  /** Share of each age band among the residents, refreshed once a week. */
+  private shares: Record<AgeBand, number> = { child: 0, adult: 1, elder: 0 };
+  private sharesWeek = -1;
   /** Families who abandoned their tent, walking out to the city entrance (only a sight, no rules). */
   private leaving: { img: Phaser.GameObjects.Image; path: Cell[]; step: number }[] = [];
 
@@ -154,7 +184,13 @@ export class Walkers {
   }
 
   private spawn(s: GameState) {
-    const type = pickWalkerType(s, rand);
+    if (s.week !== this.sharesWeek) {
+      this.sharesWeek = s.week;
+      const n = bandCounts(s);
+      const all = Math.max(1, n.child + n.adult + n.elder);
+      this.shares = { child: n.child / all, adult: n.adult / all, elder: n.elder / all };
+    }
+    const type = pickTypeByAge(walkerTypesAvailable(s), this.shares, rand);
     const door = type && walkerStart(s, type, rand);
     if (!type || !door) return;
     const look = Math.floor(rand() * WALKER_LOOKS);
@@ -178,26 +214,30 @@ export class Walkers {
 
   /** World position of a family on its way home (none when it has arrived). */
   familyPos(id: number): { x: number; y: number } | null {
-    const img = this.families.get(id);
-    return img ? { x: img.x, y: img.y } : null;
+    const w = this.families.get(id);
+    return w ? { x: w.img.x, y: w.img.y } : null;
   }
 
   private updateFamilies(s: GameState, weekFrac: number) {
     const alive = new Set<number>();
     for (const f of s.families) {
       alive.add(f.id);
-      let img = this.families.get(f.id);
-      if (!img) {
-        img = this.scene.add.image(0, 0, TEX.family).setOrigin(0.5, 1);
-        this.families.set(f.id, img);
+      let w = this.families.get(f.id);
+      if (!w) {
+        const kind = travelerOf(s, f);
+        w = { img: this.scene.add.image(0, 0, kind ? TEX.traveler(kind, 0) : TEX.family).setOrigin(0.5, 1), kind };
+        this.families.set(f.id, w);
       }
       const step = Math.min(f.step + familySpeed() * weekFrac, f.path.length - 1);
       const p = along(f.path, step, 0);
-      place(img, p.gx, p.gy, p.dx, p.dy, Math.abs(Math.sin(step * Math.PI * 2)) * 1.5);
+      // Two steps per cell; the plain family only bobs.
+      const phase = step * Math.PI * 2;
+      place(w.img, p.gx, p.gy, p.dx, p.dy, Math.abs(Math.sin(phase)) * (w.kind ? 1 : 1.5));
+      if (w.kind) w.img.setTexture(TEX.traveler(w.kind, p.moving && Math.sin(phase * 2) > 0 ? 1 : 0));
     }
-    for (const [id, img] of this.families) {
+    for (const [id, w] of this.families) {
       if (alive.has(id)) continue;
-      img.destroy();
+      w.img.destroy();
       this.families.delete(id);
     }
   }

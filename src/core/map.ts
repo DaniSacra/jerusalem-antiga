@@ -22,15 +22,15 @@ export function altarRing(): Cell[] {
 /** Column of the short road north of the ring that the caravan tents stand along. */
 const CAMP_X = altar.x + 1;
 const HOUSE = dimsOf('house');
-/** Rows of the caravan tents north of the ring: the first row touches it, the second is above. */
-const CAMP_ROWS = [altar.y - 1 - HOUSE.h, altar.y - 1 - 2 * HOUSE.h];
+/** Rows of the caravan tents north of the ring: the first row touches it, the others go up. */
+const CAMP_ROWS = [1, 2, 3].map((k) => altar.y - 1 - k * HOUSE.h);
 
 /** The road stub north of the ring, between the two columns of caravan tents. */
-export const campRoad = (): Cell[] => Array.from({ length: 2 * HOUSE.h }, (_, k) => ({ x: CAMP_X, y: altar.y - 2 - k }));
+export const campRoad = (): Cell[] => Array.from({ length: CAMP_ROWS.length * HOUSE.h }, (_, k) => ({ x: CAMP_X, y: altar.y - 2 - k }));
 
 /**
- * Tent spots for the caravan: a compact 2 x 2 block on both sides of the camp road, the row by
- * the ring first.
+ * Tent spots for the caravan (up to 6): two columns on both sides of the camp road, the row by
+ * the ring first, west before east.
  */
 export const caravanSpots = (): Cell[] =>
   CAMP_ROWS.flatMap((y) => [

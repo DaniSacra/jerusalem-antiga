@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, unlockingGoal, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
+import { balanceAfter, BUILDINGS, fieldBonus, buildMenu, computeEconomy, costOf, foodAfter, GOALS, statOf, unlockingGoal, type BuildableKind, type BuildingCategory, type GameState, type Placeable } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
 import { TEX } from '../textures';
 import { categoryKinds, COLUMN_ORDER, keyOf, type Tool } from '../tools';
 import { TextBalloon, type Line } from './Balloon';
+import { levelStatOf } from './Inspector';
 import { H, PHONE, S, W } from './metrics';
 import { darkPanel, icon, ntext, RoundButton } from './widgets';
 
@@ -160,7 +161,12 @@ export class BuildColumn {
       { text: N.effect[kind], bold: false },
     ];
     if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max), color: NOVA_CSS.muted, bold: false });
-    if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
+    // A building with levels: its first and last ("Guarda 300 · melhora até 1000").
+    const stat = levelStatOf(kind);
+    if (stat && d.levels) {
+      const say = N.levelStat[stat];
+      lines.push({ text: N.growsTo(say(statOf({ kind, level: 1 }, stat)), say(statOf({ kind, level: d.levels.length + 1 }, stat))), color: NOVA_CSS.gold, bold: false });
+    } else if (d.storage) lines.push({ text: N.stores(d.storage), color: NOVA_CSS.muted, bold: false });
     if (d.fieldBonus) {
       // The workshop's field bonus: the city's total after it, and when it is already at the cap.
       const pct = (n: number) => Math.round(n * 100);
@@ -169,7 +175,7 @@ export class BuildColumn {
       const after = Math.min(max, now + d.fieldBonus);
       lines.push(now >= max ? { text: N.workshopFull(pct(max)), color: NOVA_CSS.warn } : { text: N.workshopBonus(pct(d.fieldBonus), pct(after), pct(max)), color: NOVA_CSS.good });
     }
-    if (!PHONE && d.radius) lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
+    if (!PHONE && d.radius && stat !== 'radius') lines.push({ text: N.reach(d.radius), color: NOVA_CSS.muted, bold: false });
     if (!PHONE) {
       const after = balanceAfter(s, kind);
       lines.push({ text: N.balanceAfter(after), color: after < 0 ? NOVA_CSS.bad : NOVA_CSS.good });

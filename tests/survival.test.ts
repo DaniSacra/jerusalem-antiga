@@ -53,7 +53,7 @@ const FOOD_GOAL = GOALS.findIndex((g) => g.type === 'foodUntilSpring');
 const leftAt = (x: number, y: number, reason: string) => expect.objectContaining({ type: 'familyLeft', x, y, reason });
 
 describe('caravan', () => {
-  it('founds the city with 2 to 4 connected tents by the altar, food capped by the stores', () => {
+  it('founds the city with 3 to 5 connected tents by the altar, food capped by the stores', () => {
     const seen = new Set<number>();
     for (let seed = 1; seed <= 60; seed++) {
       const s = createGame(createRng(seed));
@@ -66,7 +66,7 @@ describe('caravan', () => {
       expect(s.food).toBeLessThanOrEqual(RULES.baseFoodStorage);
       expect(s.start.foodWeeks).toBeLessThanOrEqual(RULES.caravans.start.foodWeeks[1]);
     }
-    expect([...seen].sort()).toEqual([2, 3, 4]);
+    expect([...seen].sort()).toEqual([3, 4, 5]);
   });
 
   it('is the same for the same seed', () => {
@@ -678,19 +678,19 @@ describe('milestones (once)', () => {
 });
 
 describe('caravan (layout)', () => {
-  it('pitches the tents in a 2 x 2 camp on both sides of the camp road, the row by the ring first, for free', () => {
+  it('pitches the tents in rows of two on both sides of the camp road, the row by the ring first, for free', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const s = createGame(createRng(seed));
       expect(s.silver).toBe(RULES.startSilver);
       expect(s.families).toEqual([]);
       const tents = s.buildings.filter((b) => b.kind === 'house');
-      const spots = [{ x: 21, y: 19 }, { x: 24, y: 19 }, { x: 21, y: 17 }, { x: 24, y: 17 }].slice(0, tents.length);
+      const spots = [{ x: 21, y: 19 }, { x: 24, y: 19 }, { x: 21, y: 17 }, { x: 24, y: 17 }, { x: 21, y: 15 }].slice(0, tents.length);
       expect(tents.map((t) => ({ x: t.x, y: t.y }))).toEqual(spots);
       for (const t of tents) {
         expect(s.grid[t.y * s.cols + t.x]).toBe(t);
         expect(t.connected).toBe(true);
       }
-      for (let y = 17; y <= 20; y++) expect(s.network[indexOf(s, 23, y)]).toBe(true); // the camp road
+      for (let y = 15; y <= 20; y++) expect(s.network[indexOf(s, 23, y)]).toBe(true); // the camp road
     }
   });
 

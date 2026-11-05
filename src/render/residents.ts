@@ -35,7 +35,7 @@ const SOIL = 0x7a5232;
 const BEARD_BROWN = 0x6b4a30;
 
 type Cover = 'mantle' | 'headcloth' | 'turban' | 'hair';
-type Arm = 'swing' | 'up' | 'front' | 'back' | 'staff' | 'low' | 'reach';
+type Arm = 'swing' | 'up' | 'front' | 'back' | 'staff' | 'low' | 'reach' | 'hold';
 
 interface Look {
   skin: number;
@@ -173,6 +173,7 @@ function person(g: G, cx: number, F: number, b: Body, frame: number) {
     staff: P(5.2 + l * 0.6, -12.5),
     low: P(5.6 + l * 0.7, -8),
     reach: P(6.4 + l * 0.8, -5),
+    hold: P(-4.6 + l * 0.5, -8.4),
   };
   const hand = hands[b.arm];
   g.lineStyle(2.2 * s, shade(b.robe, 0.82));
@@ -785,4 +786,77 @@ export function drawHauler(g: G, kind: HaulerKind, look: number, frame: number) 
       break;
     }
   }
+}
+
+// ---------- people walking to a house ----------
+
+/** Who walks to a house: an engaged or married couple, or a family that came with a caravan. */
+export type TravelerKind = 'couple' | 'caravan';
+export const TRAVELER_KINDS: readonly TravelerKind[] = ['couple', 'caravan'];
+export const TRAVELER_SIZE: Record<TravelerKind, [number, number]> = { couple: [32, 36], caravan: [64, 40] };
+
+/** Bedding and household goods tied in bundles on a donkey's back, standing at (x, F). */
+function bundles(g: G, x: number, F: number) {
+  const roll = (cx: number, cy: number, w: number, h: number, c: number, stripe: number) => {
+    g.fillStyle(shade(c, 0.75));
+    g.fillEllipse(cx + 0.6, cy + 0.6, w, h);
+    g.fillStyle(c);
+    g.fillEllipse(cx, cy, w, h);
+    g.fillStyle(stripe);
+    g.fillRect(cx - 1, cy - h / 2 + 0.6, 2, h - 1.2);
+    g.lineStyle(1, shade(c, 0.45), 0.8);
+    g.strokeEllipse(cx, cy, w, h);
+  };
+  roll(x - 2, F - 22, 12, 6, CLOTH.wool, CLOTH.red);
+  roll(x + 3, F - 26.5, 10, 5.5, CLOTH.indigo, CLOTH.linen);
+  // A cooking pot hung on the side.
+  g.fillStyle(0x3a3330);
+  g.fillEllipse(x - 8.5, F - 12, 5, 4.5);
+  g.lineStyle(1, C.rope);
+  g.lineBetween(x - 8.5, F - 14, x - 6, F - 17);
+}
+
+/** A bundle wrapped in cloth balanced on the head. */
+function headBundle(g: G, top: Pt) {
+  g.fillStyle(shade(CLOTH.ochre, 0.75));
+  g.fillEllipse(top.x + 0.5, top.y - 2.2, 11, 6);
+  g.fillStyle(CLOTH.ochre);
+  g.fillEllipse(top.x, top.y - 3, 10, 5.4);
+  g.lineStyle(1, shade(CLOTH.ochre, 0.5), 0.9);
+  g.lineBetween(top.x - 4, top.y - 3, top.x + 4, top.y - 3.4);
+}
+
+/**
+ * People walking to a house, facing right, in step frame 0 or 1, on a canvas of TRAVELER_SIZE:
+ * a couple hand in hand (he carries a sack, she leads), or a caravan family: the father leading a
+ * donkey laden with bundles, the mother with a bundle on her head and a child.
+ */
+export function drawTraveler(g: G, kind: TravelerKind, frame: number) {
+  const [w, h] = TRAVELER_SIZE[kind];
+  const F = h - 2;
+  if (kind === 'couple') {
+    const he = LOOKS.porter[0];
+    const she = LOOKS.basketWoman[0];
+    shadowAt(g, w / 2, F, 24);
+    // He walks behind with a sack, holding her hand; she reaches back to him.
+    const a = person(g, w / 2 - 5.5, F, { ...he, cover: 'headcloth', arm: 'low' }, frame);
+    sack(g, { x: a.back.x + 1, y: a.back.y + 1 });
+    const b = person(g, w / 2 + 5.5, F, { ...she, cover: 'mantle', arm: 'hold' }, 1 - frame);
+    g.lineStyle(2, she.skin);
+    g.lineBetween(a.hand.x, a.hand.y, b.hand.x, b.hand.y);
+    return;
+  }
+  const cx = w / 2;
+  // Mother and child at the back, the laden donkey, the father at the halter.
+  shadowAt(g, cx - 22, F, 10);
+  const mom = person(g, cx - 22, F, { ...LOOKS.basketWoman[2], cover: 'mantle', arm: 'up' }, frame);
+  headBundle(g, mom.top);
+  shadowAt(g, cx - 13, F, 7);
+  person(g, cx - 13, F - (frame === 1 ? 1 : 0), { ...LOOKS.child[0], cover: 'hair', arm: 'swing', short: true, s: 0.66 }, 1 - frame);
+  donkey(g, cx + 2, F, frame, 0x8d8072, 0x9a7448);
+  bundles(g, cx + 2, F);
+  shadowAt(g, cx + 22, F, 10);
+  const dad = person(g, cx + 22, F, { ...LOOKS.shepherd[0], cover: 'headcloth', arm: 'back' }, frame);
+  g.lineStyle(1, C.rope, 0.95);
+  g.lineBetween(dad.hand.x, dad.hand.y, cx + 14, F - 16);
 }

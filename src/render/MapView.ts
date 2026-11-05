@@ -5,6 +5,7 @@ import {
   balloonNeed,
   needLocked,
   BUILDINGS,
+  HOUSE_LEVELS,
   checkClear,
   checkPlace,
   costOf,
@@ -36,7 +37,7 @@ import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
+import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, ensureTexture, hasSnowTexture, levelCount, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
 import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
@@ -101,8 +102,13 @@ export function originFor(kind: Tool, cell: Cell, rotated = false): Cell {
 /** Balloon size on screen relative to zoom 1 (they are scaled up when zoomed out). */
 const BALLOON_SCREEN_SCALE = 1.2;
 
-const keyOf = (b: Rect & { kind: BuildingKind; level?: number; variant?: number; mirrored?: boolean }) =>
-  TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
+const keyOf = (b: Rect & { kind: BuildingKind; level?: number; emptyLevel?: number; variant?: number; mirrored?: boolean }) =>
+  b.kind === 'house' && !b.level && (b.emptyLevel ?? 0) >= 2
+    ? TEX.emptyHouse(b.emptyLevel!, (b.variant ?? 0) % HOUSE_LEVELS[0].variants, b.mirrored ?? false)
+    : TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
+
+/** Level a building's drawing shows: an empty house shows the level it kept. */
+const shownLevel = (b: Building) => (b.kind === 'house' && b.level === 0 ? b.emptyLevel : b.level);
 
 /** Houses get a small per-plot nudge and a slightly different shade of mud or stone (returned). */
 function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
@@ -110,7 +116,8 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
   const h = cellHash(b.x, b.y);
   const grey = Math.round(255 * (0.9 + ((h >>> 5) % 11) * 0.01));
   img.setPosition((h % 5) - 2, ((h >>> 3) % 3) - 1);
-  return (grey << 16) | (grey << 8) | grey;
+  const look = (grey << 16) | (grey << 8) | grey;
+  return b.level === 0 && b.emptyLevel >= 2 ? mulColor(look, C.vacant) : look;
 }
 
 const SV = VISUAL.seasons;
@@ -369,7 +376,7 @@ export class MapView {
     }
     this.lights.sync(s, (b) => HEIGHT[keyOf(b)] ?? 20, this.degraded);
     this.chimneys = s.buildings
-      .filter((b) => b.kind === 'house')
+      .filter((b) => b.kind === 'house' && b.level >= 1)
       .map((b) => {
         const c = footCenter(b.x, b.y, b.w, b.h);
         return { x: c.x, y: c.y - (HEIGHT[keyOf(b)] ?? 20) * 0.85 };
@@ -403,6 +410,7 @@ export class MapView {
 
   /** The texture to show for a drawing: its snowy copy while snow lies, once it is drawn. */
   private dress(key: string) {
+    ensureTexture(this.scene, key);
     if (!this.snowy) return key;
     if (hasSnowTexture(this.scene, key)) return `${key}-snow`;
     this.snowDirty = true;
@@ -491,12 +499,13 @@ export class MapView {
     }
     const key = this.keyFor(b);
     if (v.key !== key) {
-      // A house going up a level shows the scaffold briefly, then its new drawing.
-      if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
+      // A house or a service building going up a level shows the scaffold briefly, then its new
+      // drawing (people moving into an empty house that kept its level just open the door).
+      if (this.ready && shownLevel(b) > v.level && !v.scaffold && (b.kind === 'house' || levelCount(b.kind) > 1)) this.raise(v, b, VISUAL.build.upgradeMs);
       v.key = key;
       if (!v.scaffold) setTex(v.main, this.dress(key));
     }
-    v.level = b.level;
+    v.level = shownLevel(b);
     v.shade = applyLook(v.main, b);
     v.main.setTint(mulColor(v.shade, this.tints.build));
   }
@@ -528,7 +537,7 @@ export class MapView {
 
   /** Texture of a standing building: the granary shows the stores. */
   private keyFor(b: Building) {
-    return b.kind === 'granary' ? TEX.building('granary', 0, false, this.stock) : keyOf(b);
+    return b.kind === 'granary' ? TEX.building('granary', b.level, false, this.stock) : keyOf(b);
   }
 
   private createView(b: Building): BuildingView {
@@ -539,7 +548,7 @@ export class MapView {
     const main = setTex(sc.add.image(0, 0, key), this.dress(key));
     root.add(main);
     const grain = b.kind === 'field' && SV.crops.grains.includes(b.variant ?? 0);
-    const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: b.level };
+    const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: shownLevel(b) };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       view.byRiver = byRiver(this.state, b);

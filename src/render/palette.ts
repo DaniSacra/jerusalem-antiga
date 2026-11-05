@@ -80,6 +80,8 @@ export const C = {
   demolish: { soft: 0xffb4a4, strong: 0xff6a52 },
   /** Places that would solve a need (e.g. "where to put a market"): fill, edge and inner glow. */
   solve: { fill: 0xcfe07a, edge: 0xf6dc8c, glow: 0xfff6c8 },
+  /** An empty house that kept its level: a dusty, slightly faded tint over its drawing. */
+  vacant: 0xcbc1b3,
   /** Dust raised when something is demolished (the pebbles use the rock colours). */
   dust: 0xd9c49a,
   /** Granary stock: burlap grain sacks, the grain itself and the wooden pallets under them. */

@@ -3,6 +3,8 @@ import { clearCell, placeSpots } from './actions';
 import { serviceOf } from './coverage';
 import { computeEconomy, round2, type Economy } from './economy';
 import { birthBlock, type BirthBlock } from './life';
+import { roomIn } from './families';
+import { ageOf, household, isBirthday, isWalking } from './people';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
@@ -153,3 +155,49 @@ export function foodLostIfRemoved(s: GameState, x: number, y: number): number {
   if (!clearCell(copy, x, y).ok) return 0;
   return round2(Math.max(0, s.food - foodCapacity(copy)));
 }
+
+/** Why the couple of a house can or cannot have a child now (the house balloon's line). */
+export type HouseBirths = 'ok' | 'full' | BirthBlock;
+
+/**
+ * Whether a married couple living in this house can have a child now: null when there is none (no
+ * married couple living together with the wife in the fertile ages). Famine first, then a full
+ * house, then the city's food (`birthBlock`). The gap between two children is left out ("ok").
+ */
+export function houseBirths(s: GameState, b: Building, block: BirthBlock | null = birthBlock(s)): HouseBirths | null {
+  if (b.kind !== 'house' || b.level === 0) return null;
+  const [min, max] = RULES.people.fertileAges;
+  const couple = s.people.some((p) => {
+    if (p.sex !== 'f' || p.houseId !== b.id || p.engaged !== null || isWalking(s, p.id)) return false;
+    const age = ageOf(p, s.week);
+    return age >= min && age <= max && s.people.some((o) => o.id === p.spouseId && o.houseId === b.id && !isWalking(s, o.id));
+  });
+  if (!couple) return null;
+  if (block === 'famine') return 'famine';
+  if (roomIn(s, b) <= 0) return 'full';
+  return block ?? 'ok';
+}
+
+/** A house with people and its family name (the clan of the eldest, as when a family leaves). */
+export interface Household {
+  house: Building;
+  clan: number;
+  people: number;
+}
+
+/** Houses with people living in them, the fullest first (ties: the oldest house). */
+export function householdsOf(s: GameState): Household[] {
+  const out: Household[] = [];
+  for (const b of s.buildings) {
+    if (b.kind !== 'house' || b.level === 0) continue;
+    const all = household(s, b.id);
+    if (!all.length) continue;
+    const eldest = all.reduce((a, p) => (p.birthWeek < a.birthWeek ? p : a));
+    out.push({ house: b, clan: eldest.clan, people: all.length });
+  }
+  return out.sort((a, b) => b.people - a.people || a.house.id - b.house.id);
+}
+
+/** The person born in the city who came of age this week (the "virou adulta" milestone), if any. */
+export const grownUpThisWeek = (s: GameState) =>
+  s.people.find((p) => p.caravan === null && isBirthday(p, s.week) && ageOf(p, s.week) === RULES.people.adultAge) ?? null;

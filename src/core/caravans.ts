@@ -6,23 +6,30 @@ import { foodCapacity } from './harvest';
 import { pickClan } from './names';
 import { addPerson, ageBand, wed } from './people';
 import { between } from './rng';
-import type { GameEvent, GameState, Person, Rng, Sex } from './types';
+import type { CaravanPlan, GameEvent, GameState, Person, Rng, Sex } from './types';
 
 /** The caravans: the families that found the city and the rare later ones (see rules.json > caravans). */
 
 const C = RULES.caravans;
 const P = RULES.people;
 
-/** A family template index drawn by weight. */
-export function pickTemplate(rng: Rng): number {
-  const total = P.templates.reduce((a, t) => a + t.weight, 0);
+/** A family template index drawn by weight (`engaged` false: never a young engaged pair, as in the founding caravan). */
+export function pickTemplate(rng: Rng, engaged = true): number {
+  const weight = (k: number) => (engaged || !P.templates[k].engaged ? P.templates[k].weight : 0);
+  const total = P.templates.reduce((a, _, k) => a + weight(k), 0);
   let r = rng() * total;
+  let last = 0;
   for (let k = 0; k < P.templates.length; k++) {
-    r -= P.templates[k].weight;
+    if (!weight(k)) continue;
+    last = k;
+    r -= weight(k);
     if (r < 0) return k;
   }
-  return P.templates.length - 1;
+  return last;
 }
+
+/** Index of the young engaged pair's template. */
+export const ENGAGED_TEMPLATE = P.templates.findIndex((t) => t.engaged);
 
 export interface FamilyOptions {
   template: number;
@@ -38,17 +45,22 @@ export interface FamilyOptions {
 
 /**
  * A new family from a template: a married couple of a new family name, with their child or the
- * husband's father or mother. Returns its people, father first.
+ * husband's father or mother; or a young engaged pair (`engaged` template), she of another
+ * family name, who marry when they take a house. Returns its people, father first.
  */
 export function makeFamily(s: GameState, o: FamilyOptions, rng: Rng): Person[] {
+  const template = P.templates[o.template];
   const clan = pickClan(s, rng);
   const base = { houseId: o.houseId, caravan: o.caravan, clan };
   const out: Person[] = [];
   let father: Person | undefined;
   let mother: Person | undefined;
-  for (const m of P.templates[o.template].members) {
+  for (const m of template.members) {
     if (m.role === 'father') out.push((father = addPerson(s, { ...base, sex: 'm', age: between(rng, m.age) }, rng)));
-    else if (m.role === 'mother') out.push((mother = addPerson(s, { ...base, sex: 'f', age: between(rng, m.age) }, rng)));
+    else if (m.role === 'mother') {
+      const hers = template.engaged ? pickClan(s, rng, clan) : clan;
+      out.push((mother = addPerson(s, { ...base, clan: hers, sex: 'f', age: between(rng, m.age) }, rng)));
+    }
     else if (m.role === 'child') {
       const sex = o.childSex ?? (rng() < 0.5 ? 'm' : 'f');
       out.push(addPerson(s, { ...base, sex, age: between(rng, o.childAge ?? m.age), fatherId: father?.id, motherId: mother?.id }, rng));
@@ -58,7 +70,10 @@ export function makeFamily(s: GameState, o: FamilyOptions, rng: Rng): Person[] {
       out.push(elder);
     }
   }
-  if (father && mother) wed(father, mother);
+  if (father && mother) {
+    wed(father, mother);
+    if (template.engaged) father.engaged = mother.engaged = s.week;
+  }
   return out;
 }
 
@@ -67,15 +82,15 @@ export const plainEating = (people: Person[], week: number) => people.reduce((a,
 
 /**
  * The founding caravan's people, one family per tent: the first two from the couple's template
- * with a son and a daughter of `couple.age`, engaged (`start.couple`); the children of the others
- * alternate between son and daughter. Returns everyone.
+ * with a son and a daughter of `couple.age`, engaged (`start.couple`); the others from any template
+ * but the engaged pair, their children alternating between son and daughter. Returns everyone.
  */
 export function foundPeople(s: GameState, tents: number[], rng: Rng): Person[] {
   const all: Person[] = [];
   const couple: Person[] = [];
   tents.forEach((houseId, k) => {
     const isCouple = k < 2;
-    const template = isCouple ? P.couple.template : pickTemplate(rng);
+    const template = isCouple ? P.couple.template : pickTemplate(rng, false);
     const childSex: Sex = k % 2 === 0 ? 'm' : 'f';
     const family = makeFamily(s, { template, houseId, caravan: 0, childSex, childAge: isCouple ? P.couple.age : undefined }, rng);
     if (isCouple) couple.push(family.find((p) => p.fatherId !== null)!);
@@ -95,14 +110,19 @@ export function foundPeople(s: GameState, tents: number[], rng: Rng): Person[] {
 export function rollCaravans(s: GameState, rng: Rng) {
   s.caravans = C.later.map((c) => {
     const come = rng() < c.chance;
-    return { week: between(rng, c.weeks), families: between(rng, c.families), warn: between(rng, C.warnWeeks), status: come ? 'planned' : 'skipped', housed: 0, left: 0 };
+    const families = between(rng, c.families);
+    const plan: CaravanPlan = { week: between(rng, c.weeks), families, warn: between(rng, C.warnWeeks), status: come ? 'planned' : 'skipped', housed: 0, left: 0 };
+    if (c.engaged) plan.engaged = Math.min(c.engaged, families);
+    return plan;
   });
 }
 
 /**
  * A later caravan arrives: each family takes the best empty house (`freeHouses` from the entrance)
- * and walks to it from the entrance; families without a house go on at once. The caravan brings
- * `foodWeeks` weeks of the eating of those who stay, cut by the stores.
+ * and walks to it from the entrance; families without a house go on at once. The first `engaged`
+ * families are young engaged pairs (they marry on reaching the house); the rest are drawn. The caravan brings
+ * `foodWeeks` weeks of the eating of those who stay, cut by the stores, and restarts the debt count
+ * of a city in debt (one week, so the debt warning stays).
  */
 function arrive(s: GameState, index: number, rng: Rng, events: GameEvent[]) {
   const c = s.caravans[index];
@@ -111,7 +131,7 @@ function arrive(s: GameState, index: number, rng: Rng, events: GameEvent[]) {
   for (let k = 0; k < c.families; k++) {
     const houses = from ? freeHouses(s, from) : [];
     const before = s.people.length;
-    const family = houses.length ? makeFamily(s, { template: pickTemplate(rng), houseId: null, caravan: index + 1 }, rng) : [];
+    const family = houses.length ? makeFamily(s, { template: k < (c.engaged ?? 0) ? ENGAGED_TEMPLATE : pickTemplate(rng), houseId: null, caravan: index + 1 }, rng) : [];
     if (family.length && sendWalking(s, from, houses, family.map((p) => p.id))) {
       stayed.push(...family);
       c.housed++;
@@ -125,6 +145,8 @@ function arrive(s: GameState, index: number, rng: Rng, events: GameEvent[]) {
   s.food = Math.max(s.food, Math.min(foodCapacity(s), round2(s.food + food)));
   events.push({ type: 'caravanArrived', housed: c.housed, left: c.left, x: s.entrance.x, y: s.entrance.y });
   if (c.housed > 0) reach(s, 'firstCaravan', events);
+  // The newcomers restart the debt count (a city in debt waited for them: see `caravanSpares`).
+  if (c.housed > 0) s.debtWeeks = Math.min(s.debtWeeks, 1);
 }
 
 /** Announces each later caravan `warn` weeks before it comes, and brings it in its week. */
