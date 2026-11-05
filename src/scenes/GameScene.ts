@@ -14,12 +14,10 @@ import {
   foodLostIfRemoved,
   type CityReadout,
   foodSpot,
-  gatherYield,
   houseHint,
   lumberSpot,
   lackingMaterial,
   missingMaterial,
-  placeSpots,
   productOf,
   type FoodSpot,
   inBounds,
@@ -27,6 +25,7 @@ import {
   indexOf,
   place,
   RULES,
+  gatherSpots,
   spotsServing,
   stepWeek,
   templeSpotsNear,
@@ -78,28 +77,11 @@ const TOUCH_BUILD_DELAY = 150;
 /** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
 const TOUCH_LIFT = 90;
 const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
-/** "Onde pôr um lenhador": spots bringing at least this share of the best one are shown. */
-const GOOD_GATHER = 0.75;
-
 /** The material a lumber or quarry makes (null for any other kind). */
 const materialOf = (kind: BuildableKind): Material | null => {
   const p = productOf(kind);
   return p === 'wood' || p === 'stone' ? p : null;
 };
-
-/**
- * Free spots next to the network where a lumber or quarry brings the most (at least GOOD_GATHER of
- * the best, never 0): the "Onde pôr um lenhador / uma pedreira" of a house waiting for material.
- */
-function gatherSpots(s: GameState, kind: BuildableKind): Cell[] {
-  const { w, h } = dimsOf(kind);
-  const spots = placeSpots(s, kind).map((c) => ({
-    ...c,
-    n: gatherYield(s, { id: -1, kind, ...c, w, h, level: 0, upStreak: 0, downStreak: 0, upWeeks: 0, emptyLevel: 0, connected: true, variant: 0, mirrored: false, built: s.week }),
-  }));
-  const best = Math.max(0, ...spots.map((c) => c.n));
-  return best > 0 ? spots.filter((c) => c.n >= best * GOOD_GATHER) : [];
-}
 
 /** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
 function orthoSteps(a: Cell, b: Cell): Cell[] {

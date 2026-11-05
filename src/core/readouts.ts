@@ -144,6 +144,19 @@ export interface Spot extends Cell {
 }
 
 /**
+ * Free spots next to the network where a lumber or quarry brings the most (at least
+ * `goodGatherShare` of the best, never 0): the "Onde pôr um lenhador / uma pedreira" of a house
+ * waiting for material (every spot touches the network, so the ghost counts as connected). Empty
+ * for kinds that gather nothing.
+ */
+export function gatherSpots(s: GameState, kind: BuildableKind): Cell[] {
+  const rect = dimsOf(kind);
+  const spots = placeSpots(s, kind).map((c) => ({ ...c, n: gatherYield(s, { ...newBuilding(-1, kind, { ...c, ...rect }, s.week), connected: true }) }));
+  const best = Math.max(0, ...spots.map((c) => c.n));
+  return best > 0 ? spots.filter((c) => c.n >= best * RULES.goodGatherShare).map(({ x, y }) => ({ x, y })) : [];
+}
+
+/**
  * Where a building of this kind fits (free land touching the connected roads, silver ignored)
  * with its radius reaching the given building. Both orientations for non-square kinds.
  */

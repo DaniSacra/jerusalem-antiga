@@ -52,6 +52,8 @@ Mantidos:
 - Decidido pelo usuário (2026-11-04): A2 passa a ser "Comum vence 50–80%, Distraído ≤ 20%, derrotas
   do Comum ≤ 5%"; Celeiro, Mercado e Oficina pedem pedra para subir (20 no nível 2, 40 no nível 3)
   já no P3. Daqui em diante, as opções recomendadas entram sem perguntar: entregar e ajustar depois.
+- W4 (pedra parada no fim) segue falhando com 20/40: aceito no P3; vai para o P4 com uma regra nova
+  (manutenção em pedra ou limite de estoque).
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
 1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·

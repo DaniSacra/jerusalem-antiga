@@ -74,3 +74,9 @@ Os testes visuais de `materials` são atualizados e o `GAME_DESIGN.md` também (
 ## Decisão do usuário (2026-11-04)
 - A2: aprovada a troca para "Comum 50–80%, Distraído ≤ 20%, derrotas ≤ 5%".
 - W4: aprovada a pedra nos níveis de serviço (20/40) antes do merge; feita no commit "Service levels cost stone".
+
+## Depois da rodada "pedra nos níveis" (2026-11-04)
+- 20/40 fica: ritmo bom (A1 74%, A2 novo OK, A3 OK). W4 continua falhando (sobra 49 por 100 no Comum).
+- Níveis mais caros (80/160, 100/200) não chegam a ≤ 10 e fazem o bot erguer celeiros a mais (A8/A11 caem): não entram.
+- O P3 sai assim (o usuário prefere entregar e ajustar). A pedra parada vai para o P4: uma regra nova
+  (manutenção em pedra ou limite de estoque), a escolher pelo game-director.

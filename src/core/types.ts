@@ -249,6 +249,8 @@ export interface Rules {
   startMaterials: Record<Material, number>;
   /** Weeks a free stump takes to grow back into its tree. */
   treeRegrowWeeks: number;
+  /** "Onde pôr um lenhador": spots bringing at least this share of the best one are shown. */
+  goodGatherShare: number;
   weekSeconds: number;
   /** Weeks in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
   weeksPerSeason: number;

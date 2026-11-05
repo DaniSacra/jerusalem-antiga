@@ -281,3 +281,69 @@ madeira (feito). Com regra nova (fora deste pacote): pedra nos níveis de servi�
 "guarda-florestal" ou plantio para o bosque (P4), e menos comida por trabalhador do Campo para que o
 custo da criança pese de verdade (hoje `harvest` 468 → 300 quase não muda nada porque a prata compra
 mais campos e sobra trabalhador).
+
+## Rodada pedra nos níveis (Celeiro, Mercado e Oficina: nível 2 = 20 de pedra, nível 3 = 40)
+
+
+Bots (`tools/sim/survival.ts`): `upgradeGranary` virou `upgrade(kind)` e confere a pedra do nível,
+guardando o material das casas que esperam e do Templo (`materialKeep`) **mais 10 de pedra**
+(`UPGRADE_STONE_RESERVE`, para a próxima casa de pedra). Passo novo **8** (só quando nada mais é
+preciso): com prata e pedra sobrando, sobe uma Oficina enquanto o bônus do campo está abaixo do teto, ou
+o Mercado de nível mais baixo. O Distraído não procura níveis. `run.ts`: a linha da pedra mostra também
+o estoque no fim e a **pedra que sobra por 100 extraídas** (`per 100 made`).
+
+Mesmos scripts e seeds da Etapa 5 (`--brief --weeks 700`; 60 seeds Eficiente e Pescador, 100 Comum e
+Distraído). "Antes" = Etapa 5 (sem pedra nos níveis); "Depois" = regra nova com os números do usuário
+(20/40), nenhum número de `src/data` mudado.
+
+| # | Alvo | Antes | Depois (20/40) | |
+|---|---|---|---|---|
+| A1 | Comum 25–35 min | 80%, 32,9 min | **74%, 32,6 min** (30,7–34,9) | ✅ |
+| A2 (novo) | Comum vence 50–80%, Distraído ≤ 20%, derrotas do Comum ≤ 5% | – | **Co 74%, Di 4%, derrotas Co 0%** (Ef 95%, Pe 87%) | ✅ |
+| A3 | Ef > Co > Di, Ef mais cedo | 98 > 80 > 4 | **95% (532 sem) > 74% (611) > 4%** | ✅ |
+| A4 | nenhum ano > 2× | Co 10%, Di 1% (melhor ano) | **Co 9%, Di 1%** | ⚠️ Co (igual) |
+| A5 | pior objetivo ≤ 75 sem | 68 (g15) | **88 (g8)**; por partida 108 | ❌ (o g8 oscila 72–91 entre rodadas; não vem da regra) |
+| A6 | fome 40–60%, derrotas ≤ 5% | 62% / 0% | **56% / 0%** | ✅ |
+| A7 | dívida Ano 2 < 15% | 0% | **0%** | ✅ |
+| A8 | 15 casas com ≤ 1 celeiro | 100% | **99%** | ✅ |
+| A9 | Ano 2 ≥ 3 casamentos, ≥ 5 nascimentos | 3 / 9 | **2 / 9**; caravanas 87%; 555/657 ficam | ⚠️ (casamentos 2) |
+| A10 | Distraído: crise e recuperação | 73% / 69%, 0 < 150 | **73% / 69%, 0 < 150** | ✅ |
+| A11 | Comum > 3 celeiros | 0 | **0** (máx 2) | ✅ |
+| W1 | casa esperando material ≥ 60% | 100% | **100%** | ✅ |
+| W2 | maior espera ≤ 26 | 25 | **25** (1 > 52) | ✅ |
+| W3 | Ano 1 obra travada por madeira ≤ 4 | 2 | **2** | ✅ |
+| W4 | pedra > 300 por > 52 sem antes do Templo ≤ 10/100 | 100/100 | **100/100** | ❌ |
+| W4b | pedra que sobra no fim por 100 extraídas ≤ 10 | ~61 | **49** (p75 57); Ef 35, Pe 37, Di 80 | ❌ |
+| W5/W6 | | 0 / 10% | **0 / 9%** | – / ✅ |
+
+Pedra do Comum: feita 2.210, gasta em obras e níveis de serviço 580 (antes 325), em níveis de casa 550,
+fim 1.057. O Comum já sobe **tudo** que dá (mediana: 6 níveis de Mercado, 2 de Celeiro, 1 de Oficina =
+270 de pedra): os níveis com 20/40 não têm tamanho para a pilha (~1.000 sobrando).
+
+Variantes medidas (Comum, 30 seeds, só em memória com `--set`):
+
+| Variante | Vitória | W2 | W4 (/30) | Sobra/100 | Obs. |
+|---|---|---|---|---|---|
+| 20/40 (regra) | 73% | 25 | 30 | 49 | |
+| níveis 40/80 | 83% | 25 | 26 | 33 | |
+| níveis 60/120 | 83% | 25 | 17 | 25 | |
+| níveis 80/160 | 80% | 25 | 11 | 21 | |
+| níveis 100/200 | 80% | 25 | **4** | **17** | |
+| Templo pedra 300 → 700 / 900 | 77% / 73% | 25 | 30 / 30 | 31 / 33 | o bot faz mais Pedreiras para o Templo; não mexe na pilha antes dele |
+| Pedreira `max` 2 → 1,6 | 77% | **29** ❌ | 30 | 35 | |
+| 80/160 + Pedreira 1,6 | 80% | **29** ❌ | 6 | 15 | |
+| Casa grande pedra 10 → 20 + Templo 600 | **53%** ❌ | **40** ❌ | 29 | 47 | |
+
+Níveis 100/200 nos 4 bots (60/100 seeds): Ef 88%, Pe 90%, **Co 81% (32,8 min)**, Di 4%; W4 Ef 2/60,
+Pe 6/60, **Co 20/100**, Di 95/100; sobra por 100: Ef 7, Pe 12, **Co 18**, Di 80; W2 25. Efeito colateral:
+o nível fica caro em pedra, o bot não sobe o Celeiro e constrói outro: **A8 cai de 99% para 41%** e A11
+aparece (Comum 2 partidas com 4 celeiros; Eficiente 9/60). Por isso **não apliquei** nenhum número.
+
+Decisão para o game-director:
+1. A regra com 20/40 está boa para o ritmo (A1–A3, A6, A10, A11, W1–W3 passam) mas **não resolve W4**:
+   a pilha é ~1.000 e os níveis só levam 270.
+2. Se o W4 importa, o único botão de `src/data` que chega perto sem quebrar W2 é **níveis bem mais
+   caros** (80/160 → W4 37/100, sobra 21; 100/200 → W4 20/100, sobra 18), com o custo de mais celeiros
+   (A8/A11). Nenhuma variante chega a ≤ 10/100 no Comum. A sobra no fim vem das 2 Pedreiras que nunca
+   param; um consumo contínuo (manutenção em pedra, P4) ou um limite de estoque resolveria de vez.
+3. Alternativa: relaxar W4 para "pedra parada < 300 no Ano 8" (hoje 824 com 20/40; 268 com 100/200).

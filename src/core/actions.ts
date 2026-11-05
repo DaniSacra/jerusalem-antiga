@@ -211,7 +211,7 @@ export function clearCell(s: GameState, x: number, y: number): ActionResult {
   return r;
 }
 
-/** Checks raising the service building at (x, y) one level: it must have a next level and the silver for it. */
+/** Checks raising the service building at (x, y) one level: it must have a next level, and the silver and materials for it. */
 export function checkUpgrade(s: GameState, x: number, y: number): ActionResult {
   const b = inBounds(s, x, y) ? s.grid[indexOf(s, x, y)] : null;
   const next = b && nextLevelOf(b);

@@ -208,6 +208,8 @@ const fertileFull = (s: GameState, h: Building) => roomIn(s, h) <= 0 && househol
 /** The goal that unlocks the temple (the Eficiente reserves its ground and silver from then on). */
 const TEMPLE_UNLOCK = GOALS.findIndex((g) => g.unlock === 'temple');
 /** Kinds the temple savings never hold back. */
+/** Stone a bot keeps for the next stone house before raising a service level. */
+const UPGRADE_STONE_RESERVE = 10;
 const SAVINGS_FREE: ReadonlySet<BuildableKind> = new Set<BuildableKind>(['fisher', 'gatherer', 'field', 'granary', 'house', 'temple']);
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -404,6 +406,8 @@ export class SurvivalBot {
     if (need > 0 && this.houses(s, need)) return true;
     // 7. Planner: grow food ahead of growth.
     if (this.p.planner && this.plannerGrowth(s)) return true;
+    // 8. Spare silver and stone: service levels.
+    if (this.upgradeServices(s)) return true;
     void season;
     return false;
   }
@@ -663,13 +667,30 @@ export class SurvivalBot {
 
   /** Raises the lowest granary one level when the silver allows it. */
   private upgradeGranary(s: GameState): boolean {
-    const g = s.buildings.filter((b) => b.kind === 'granary' && nextLevelOf(b)).sort((a, b) => a.level - b.level)[0];
+    return this.upgrade(s, 'granary');
+  }
+
+  /**
+   * Raises the lowest building of this kind one level when the silver and the materials allow it
+   * (levels cost stone; the bot keeps the stone its houses and the temple wait for, see `materialKeep`).
+   */
+  private upgrade(s: GameState, kind: 'granary' | 'market' | 'workshop'): boolean {
+    const g = s.buildings.filter((b) => b.kind === kind && nextLevelOf(b)).sort((a, b) => a.level - b.level)[0];
     const next = g && nextLevelOf(g);
-    if (!g || !next || s.silver < next.cost || !this.spends(s, 'granary')) return false;
-    if (!this.affords(s, 'granary', next.cost, (next.upkeep ?? 0) - statOf(g, 'upkeep'))) return false;
+    if (!g || !next || s.silver < next.cost || !this.spends(s, kind)) return false;
+    if (!this.affords(s, kind, next.cost, (next.upkeep ?? 0) - statOf(g, 'upkeep'))) return false;
+    const cost = next.materials ?? {};
+    if (MATERIALS.some((m) => (cost[m] ?? 0) > 0 && s[m] - cost[m]! < this.materialKeep(s, m) + UPGRADE_STONE_RESERVE)) return false;
     const ok = upgradeBuilding(s, g.x, g.y).ok;
-    if (ok) this.stats.built.granaryUp = (this.stats.built.granaryUp ?? 0) + 1;
+    if (ok) this.stats.built[`${kind}Up`] = (this.stats.built[`${kind}Up`] ?? 0) + 1;
     return ok;
+  }
+
+  /** Spare silver and stone: raises a market, or a workshop while the field bonus is below its cap. */
+  private upgradeServices(s: GameState): boolean {
+    if (this.p.foodOnlyInFamine) return false; // the distracted player does not look for upgrades
+    if (fieldBonus(s) < (BUILDINGS.workshop.fieldBonusMax ?? 0) && this.upgrade(s, 'workshop')) return true;
+    return this.upgrade(s, 'market');
   }
 
   private service(s: GameState, kind: ServiceBuilding, targets: Building[]) {
@@ -919,6 +940,8 @@ export interface MatResult {
   made: Record<Material, number>;
   spentBuild: Record<Material, number>;
   spentLevel: Record<Material, number>;
+  /** Stock at the end of the run (victory, defeat or the week limit). */
+  end: Record<Material, number>;
   /** Stock at the end of each year. */
   byYear: Record<Material, number[]>;
   /** What the temple waited for last (silver, wood or stone), and weeks from its unlock to its building. */
@@ -965,7 +988,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     endBands: { child: 0, adult: 0, elder: 0 }, endUnemployed: 0, deathAge: NaN, endResidents: 0, marks: {},
     mat: {
       lumbers: 0, quarries: 0, waitWeeks: { wood: 0, stone: 0 }, houseWaitMax: 0, woodBlockedY1: 0, blocked: { wood: 0, stone: 0 }, idle300: 0, unemployed200: NaN,
-      stumps260: 0, stumps520: 0, cut: 0, made: { wood: 0, stone: 0 }, spentBuild: { wood: 0, stone: 0 }, spentLevel: { wood: 0, stone: 0 },
+      stumps260: 0, stumps520: 0, cut: 0, made: { wood: 0, stone: 0 }, spentBuild: { wood: 0, stone: 0 }, spentLevel: { wood: 0, stone: 0 }, end: { wood: 0, stone: 0 },
       byYear: { wood: [], stone: [] }, templeLast: null, templeWait: NaN,
     },
   };
@@ -1146,6 +1169,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     const best = Math.max(start, ...ry.slice(0, y));
     if (best > 0) res.growthPeak = Math.max(Number.isNaN(res.growthPeak) ? 0 : res.growthPeak, ry[y] / best);
   }
+  res.mat.end = { wood: s.wood, stone: s.stone };
   res.endBands = bandCounts(s);
   res.endUnemployed = unemployed(s);
   const ages = s.departed.filter((p) => p.end?.cause === 'age').map((p) => ageOf(p, p.end!.week)).sort((a, b) => a - b);

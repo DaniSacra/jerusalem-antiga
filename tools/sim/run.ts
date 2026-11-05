@@ -85,7 +85,7 @@ function materialLines(rs: Result[]): string[] {
   const line = (k: 'wood' | 'stone', prod: string, count: (r: Result) => number) =>
     `  ${k.padEnd(5)} ${prod} med ${m(count)} max ${Math.max(...rs.map(count))} | stock ${years.map((y) => `Y${y} ${m((r) => r.mat.byYear[k][y - 1] ?? NaN)}`).join(' ')}` +
     ` | houses waiting: runs ${pc(rs.filter((r) => r.mat.waitWeeks[k] > 0).length, n)} weeks med ${m((r) => r.mat.waitWeeks[k])} p75 ${f(qt(rs.map((r) => r.mat.waitWeeks[k]), 0.75))}` +
-    ` | builds blocked wks med ${m((r) => r.mat.blocked[k])} | made ${m((r) => r.mat.made[k])} spent build ${m((r) => r.mat.spentBuild[k])} levels ${m((r) => r.mat.spentLevel[k])}`;
+    ` | builds blocked wks med ${m((r) => r.mat.blocked[k])} | made ${m((r) => r.mat.made[k])} spent build ${m((r) => r.mat.spentBuild[k])} levels ${m((r) => r.mat.spentLevel[k])} | end ${m((r) => r.mat.end[k])} per 100 made ${m((r) => (100 * r.mat.end[k]) / Math.max(1, r.mat.made[k]))} p75 ${f(qt(rs.map((r) => (100 * r.mat.end[k]) / Math.max(1, r.mat.made[k])), 0.75))}`;
   const food = (k: 'field' | 'fisher' | 'gatherer') => rs.reduce((a, r) => a + r.food[k], 0);
   const last = (k: string) => rs.filter((r) => r.mat.templeLast === k).length;
   const anyWait = rs.filter((r) => r.mat.waitWeeks.wood + r.mat.waitWeeks.stone > 0).length;
