@@ -1,0 +1,237 @@
+import type { Cell } from '../core';
+import { T } from '../render/strings';
+import { DRAG_TOOLS, isPlaceTool } from '../render/tools';
+import { orthoSteps, sameCell } from './placement';
+import { newDrag, type DragMemo, type Session } from './session';
+
+/** A press moves this far (screen px) before it is a drag, not a tap. */
+export const TAP_SLOP = 10;
+/** A touch drag only starts building after this long with one finger, so a pinch never builds. */
+export const TOUCH_BUILD_DELAY = 150;
+/** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
+export const TOUCH_LIFT = 90;
+
+/** One pointer event, the same for every view (screen px, ms). */
+export interface PointerIn {
+  id: number;
+  sx: number;
+  sy: number;
+  touch: boolean;
+  /** 0 left (or a finger), 1 middle, 2 right. */
+  button: number;
+  t: number;
+}
+
+/** What the gestures need from the view: where things are on screen, and its camera. */
+export interface GestureView {
+  /** The map cell under a screen point (null off the map). */
+  cellAt(sx: number, sy: number): Cell | null;
+  /** The point is over the interface (the map ignores it). */
+  overUi(sx: number, sy: number): boolean;
+  readonly modalOpen: boolean;
+  /** Camera: move by screen px, zoom about a screen point (`zoom` is the view's own scale), turn by radians. */
+  panBy(dx: number, dy: number): void;
+  readonly zoom: number;
+  zoomAt(sx: number, sy: number, zoom: number): void;
+  turnBy?(radians: number): void;
+  /** The player moved the camera: any glide (tutorial, temple) stops. */
+  stopGlide(): void;
+  /** The cursor may change (open hand, closed hand). */
+  cursorChanged(): void;
+  /** The hovered cell changed (the interface shows it). */
+  hoverChanged(cell: Cell | null): void;
+}
+
+interface Press extends DragMemo {
+  id: number;
+  start: Cell | null;
+  last: Cell | null;
+  downX: number;
+  downY: number;
+  downAt: number;
+  touch: boolean;
+  lastX: number;
+  lastY: number;
+  moved: boolean;
+  applied: boolean;
+  cancelled: boolean;
+  /** The drag went over the interface after building: it stopped there (a toast says so). */
+  cutByUi: boolean;
+}
+
+interface Pinch {
+  dist: number;
+  angle: number;
+  zoom: number;
+  midX: number;
+  midY: number;
+}
+
+/**
+ * Touch, mouse and pen on the map, for every view: taps open balloons, drags build roads, houses,
+ * fields and Demolir, single buildings drop on release, one finger or the left button moves the
+ * map with Mover, two fingers pinch (and turn), the right or middle button always moves the map.
+ */
+export class Gestures {
+  press: Press | null = null;
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: Pinch | null = null;
+  private rightPan: { id: number; x: number; y: number } | null = null;
+  /** The mouse is over the interface (no open hand there). */
+  pointerOverUi = false;
+  /** The last press came from a finger (the tutorial arrow aims above it). */
+  lastTouch = false;
+
+  constructor(private session: Session, private view: GestureView) {}
+
+  private get tool() {
+    return this.session.tool;
+  }
+
+  /** Dragging the map now (the closed hand). */
+  get panning(): boolean {
+    return !!this.rightPan || (this.tool === 'view' && !!this.press && this.press.moved && !this.press.touch);
+  }
+
+  /** The mouse cursor: open hand over the map with Mover, closed while dragging it. */
+  get cursor(): 'open' | 'grab' | null {
+    return this.panning ? 'grab' : this.tool === 'view' && !this.pointerOverUi ? 'open' : null;
+  }
+
+  /** Cell a pointer aims at: lifted above the finger for single buildings on touch; none if the
+   * finger or the aimed point is under the interface (the preview is never hidden by it). */
+  aimAt(p: PointerIn): Cell | null {
+    const lift = p.touch && isPlaceTool(this.tool) && !DRAG_TOOLS.has(this.tool) ? TOUCH_LIFT : 0;
+    if (this.view.overUi(p.sx, p.sy) || (lift && this.view.overUi(p.sx, p.sy - lift))) return null;
+    return this.view.cellAt(p.sx, p.sy - lift);
+  }
+
+  private hover(cell: Cell | null) {
+    if (this.session.setHover(cell)) this.view.hoverChanged(cell);
+  }
+
+  down(p: PointerIn) {
+    if (this.view.modalOpen || this.view.overUi(p.sx, p.sy)) return;
+    this.lastTouch = p.touch;
+    if (p.button === 1 || p.button === 2) {
+      this.rightPan = { id: p.id, x: p.sx, y: p.sy };
+      this.view.cursorChanged();
+      return;
+    }
+    this.touches.set(p.id, { x: p.sx, y: p.sy });
+    if (this.touches.size >= 2) {
+      if (this.press) this.press.cancelled = true;
+      const [a, b] = [...this.touches.values()];
+      this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), angle: Math.atan2(b.y - a.y, b.x - a.x), zoom: this.view.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+      return;
+    }
+    const cell = this.aimAt(p);
+    this.press = { ...newDrag(), id: p.id, start: cell, last: cell, downX: p.sx, downY: p.sy, downAt: p.t, touch: p.touch, lastX: p.sx, lastY: p.sy, moved: false, applied: false, cancelled: false, cutByUi: false };
+    if (this.tool !== 'view') this.hover(cell);
+  }
+
+  /** `isDown`: a button or finger is pressed (a mouse moving freely hovers). */
+  move(p: PointerIn, isDown: boolean) {
+    const v = this.view;
+    if (this.rightPan?.id === p.id) {
+      v.stopGlide();
+      v.panBy(p.sx - this.rightPan.x, p.sy - this.rightPan.y);
+      this.rightPan.x = p.sx;
+      this.rightPan.y = p.sy;
+      return;
+    }
+    if (this.touches.has(p.id)) this.touches.set(p.id, { x: p.sx, y: p.sy });
+
+    const pinch = this.pinch;
+    if (pinch && this.touches.size >= 2) {
+      const [a, b] = [...this.touches.values()];
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      v.stopGlide();
+      v.panBy(midX - pinch.midX, midY - pinch.midY);
+      v.zoomAt(midX, midY, (pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / Math.max(1, pinch.dist));
+      if (v.turnBy) {
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        let d = angle - pinch.angle;
+        if (d > Math.PI) d -= 2 * Math.PI;
+        if (d < -Math.PI) d += 2 * Math.PI;
+        v.turnBy(d);
+        pinch.angle = angle;
+      }
+      pinch.midX = midX;
+      pinch.midY = midY;
+      return;
+    }
+
+    const g = this.press;
+    if (!g || g.id !== p.id || !isDown) {
+      if (!isDown && !p.touch) {
+        this.pointerOverUi = v.overUi(p.sx, p.sy);
+        this.hover(this.pointerOverUi ? null : v.cellAt(p.sx, p.sy));
+        v.cursorChanged();
+      }
+      return;
+    }
+    if (g.cancelled) return;
+    if (Math.hypot(p.sx - g.downX, p.sy - g.downY) > TAP_SLOP) g.moved = true;
+
+    if (this.tool === 'view') {
+      if (g.moved) {
+        v.cursorChanged();
+        v.stopGlide();
+        v.panBy(p.sx - g.lastX, p.sy - g.lastY);
+      }
+    } else {
+      const cell = this.aimAt(p);
+      this.hover(cell);
+      if (!cell && g.applied && v.overUi(p.sx, p.sy)) g.cutByUi = true;
+      // Never build under the UI, and give a second finger time to land before a touch drag builds.
+      const ready = g.moved && (!g.touch || p.t - g.downAt >= TOUCH_BUILD_DELAY);
+      if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
+        const s = this.session;
+        s.batch(() => {
+          if (!g.applied && g.start) s.apply(g.start, true, g.touch, g);
+          for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) s.apply(c, false, g.touch, g);
+        });
+        g.last = cell;
+        g.applied = true;
+      }
+    }
+    g.lastX = p.sx;
+    g.lastY = p.sy;
+  }
+
+  up(p: PointerIn) {
+    if (this.rightPan?.id === p.id) {
+      this.rightPan = null;
+      this.view.cursorChanged();
+      return;
+    }
+    this.touches.delete(p.id);
+    if (this.touches.size < 2) this.pinch = null;
+    const g = this.press;
+    if (!g || g.id !== p.id) return;
+    this.press = null;
+    if (g.moved && this.tool === 'view') this.view.cursorChanged();
+    const s = this.session;
+    if (!g.cancelled) {
+      if (this.tool === 'view') {
+        if (!g.moved && g.start) s.select(g.start);
+      } else if (!g.applied) {
+        // Single-placement tools drop where the finger is released, so the preview can be adjusted.
+        // Releasing a single building over the UI cancels it.
+        const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
+        if (cell) s.apply(cell, true, g.touch);
+      }
+      s.warnLooseRoads(g.roads);
+      if (g.cutByUi && this.tool === 'road') s.say(T.roadUnderUi, 'bad');
+    }
+    if (p.touch) this.hover(null);
+  }
+
+  /** The mouse wheel: zoom about the cursor (`dy` > 0 zooms out). */
+  wheel(sx: number, sy: number, dy: number) {
+    this.view.stopGlide();
+    this.view.zoomAt(sx, sy, this.view.zoom * (dy > 0 ? 0.9 : 1.1));
+  }
+}

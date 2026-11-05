@@ -190,7 +190,8 @@ export class Session {
     else this.view?.out(o);
   }
 
-  private toast(msg: string, tone: Tone = 'info') {
+  /** A toast from the session (hints, failures, warnings). */
+  say(msg: string, tone: Tone = 'info') {
     this.view?.toast(msg, tone);
   }
 
@@ -253,7 +254,7 @@ export class Session {
       return;
     }
     if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
-      this.toast(T.lockedHint(tool));
+      this.say(T.lockedHint(tool));
       return;
     }
     this.tool = tool;
@@ -262,7 +263,7 @@ export class Session {
     this.drawSpots();
     this.refresh();
     if (tool !== 'temple') return;
-    if (!this.templeAreas.some((a) => a.ready)) this.toast(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, 'bad');
+    if (!this.templeAreas.some((a) => a.ready)) this.say(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, 'bad');
     // The camera goes to the best area, so it is never off screen.
     const first = this.templeAreas[0];
     if (first) this.view?.glideTo({ x: first.x, y: first.y, ...dimsOf('temple') });
@@ -285,7 +286,7 @@ export class Session {
     const all = categoryKinds(c);
     const open = all.filter((k) => this.state.unlocked.includes(k));
     if (!open.length) {
-      this.toast(T.lockedHint(all[0]));
+      this.say(T.lockedHint(all[0]));
       return;
     }
     const k = open.indexOf(this.tool as BuildableKind);
@@ -309,7 +310,7 @@ export class Session {
     if (this.tool !== kind || kind === 'road') return;
     this.spots = { kind, target };
     const m = materialMadeBy(kind);
-    if (!this.drawSpots()) this.toast(m ? T.nova.noGatherSpot(m) : T.nova.inspect.noSpot, 'bad');
+    if (!this.drawSpots()) this.say(m ? T.nova.noGatherSpot(m) : T.nova.inspect.noSpot, 'bad');
   }
 
   /** The highlighted places now (null when there is nothing to show). */
@@ -336,7 +337,7 @@ export class Session {
     const r = upgradeBuilding(this.state, cell.x, cell.y, events);
     if (!r.ok) {
       const say = r.reason === 'silver' && next ? T.missingSilver(next.cost) : r.reason === 'materials' && lack ? T.lackingAmount(lack, next?.materials?.[lack] ?? 0, this.state[lack]) : T.fail[r.reason];
-      this.toast(say, 'bad');
+      this.say(say, 'bad');
       return;
     }
     if (b) this.emit({ do: 'upgraded', building: b });
@@ -348,7 +349,7 @@ export class Session {
   demolishAt(cell: Cell) {
     const r = this.demolish(cell);
     if (!r.ok) {
-      this.toast(T.fail[r.reason], 'bad');
+      this.say(T.fail[r.reason], 'bad');
       return;
     }
     this.selected = null;
@@ -435,7 +436,7 @@ export class Session {
         else if (drag && !drag.toastedFood) {
           // A drag passes over it: say why it stayed.
           drag.toastedFood = true;
-          this.toast(T.demolishKeepsFood, 'bad');
+          this.say(T.demolishKeepsFood, 'bad');
         }
         return;
       }
@@ -456,7 +457,7 @@ export class Session {
         this.emit({ do: 'placed', ...(b ? { x: b.x, y: b.y, w: b.w, h: b.h } : { x: o.x, y: o.y, w: 1, h: 1 }), temple: this.tool === 'temple' });
       }
       // A temple built before goal 9: the victory waits for it (and says what it is).
-      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.toast(T.templeEarly, 'good');
+      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.say(T.templeEarly, 'good');
       if (this.spots && this.tool !== 'road') {
         this.spots = null;
         this.drawSpots();
@@ -470,16 +471,16 @@ export class Session {
       if (drag?.toastedSilver) return;
       if (drag) drag.toastedSilver = true;
       const m = isPlaceTool(this.tool) ? missingMaterial(s, this.tool) : null;
-      this.toast(r.reason === 'materials' && m ? T.lacking(m) : T.fail[r.reason], 'bad');
+      this.say(r.reason === 'materials' && m ? T.lacking(m) : T.fail[r.reason], 'bad');
     } else if (first) {
-      this.toast(r.reason === 'invalid' ? whyInvalid(s, this.tool, o, this.rotated) : T.fail[r.reason], 'bad');
+      this.say(r.reason === 'invalid' ? whyInvalid(s, this.tool, o, this.rotated) : T.fail[r.reason], 'bad');
     }
   }
 
   /** Warns once if any road just built is not connected to the altar. */
   warnLooseRoads(cells: Cell[]) {
     const s = this.state;
-    if (cells.some((c) => !s.network[indexOf(s, c.x, c.y)])) this.toast(T.looseRoad, 'bad');
+    if (cells.some((c) => !s.network[indexOf(s, c.x, c.y)])) this.say(T.looseRoad, 'bad');
   }
 
   /** Whether the tool builds by dragging (Rua, Casa, Campo, Demolir). */
@@ -514,7 +515,7 @@ export class Session {
     const guide = this.guide;
     if (!guide) return;
     const change = guide.update(this.state);
-    if (change === 'done') this.toast(T.tutorial.done, 'good');
+    if (change === 'done') this.say(T.tutorial.done, 'good');
     const step = guide.step;
     if (!step) {
       this.view?.setTutorial(null);

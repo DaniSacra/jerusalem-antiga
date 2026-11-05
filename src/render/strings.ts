@@ -556,6 +556,8 @@ export const T = {
     label: (season: Season, year: number) => `${T.nova.seasonName[season]} · Ano ${year}`,
     /** The view lowered its quality to stay smooth. */
     lowered: 'Qualidade reduzida para ficar mais leve',
+    classic: '2D',
+    classicHint: 'Voltar ao mapa clássico em 2D',
   },
 };
 

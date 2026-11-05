@@ -4,10 +4,12 @@ export interface Settings {
   dayNight: boolean;
   /** Blurred top and bottom edges (miniature look). */
   miniature: boolean;
+  /** Which game opens: the new 3D one or the classic 2D (plan B while the 3D gets parity). */
+  view: '2d' | '3d';
 }
 
 const KEY = 'jerusalem-antiga.settings';
-const DEFAULTS: Settings = { dayNight: true, miniature: true };
+const DEFAULTS: Settings = { dayNight: true, miniature: true, view: '2d' };
 
 function load(): Settings {
   try {

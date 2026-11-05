@@ -1829,6 +1829,10 @@ async function toastsOverTutorial(page) {
  * at night and a snowy winter; "Voltar" (Esc on PC the second time) gives the speed and the 2D back.
  * Opened and closed twice.
  */
+/**
+ * The playable 3D from the 2D's 3D button: the same game goes on in 3D (the weeks run, the day
+ * too), the HTML interface over it builds, and "2D" comes back to the same session.
+ */
 async function view3dScenario(page, suffix) {
   await startGame(page);
   await buildTown(page);
@@ -1851,9 +1855,10 @@ async function view3dScenario(page, suffix) {
     window.core.sendWalking(s, window.core.startCell(s), [empty], members);
     const f = s.families[s.families.length - 1];
     f.step = Math.max(0, f.path.length - 10);
+    s.silver = 900;
     window.game.refresh();
   });
-  await setSpeed(page, 3);
+  await setSpeed(page, 1);
   const phone = suffix === 'phone';
   const { tap } = phone ? await touchInput(page) : { tap: null };
   const press3d = async () => {
@@ -1861,7 +1866,13 @@ async function view3dScenario(page, suffix) {
     if (tap) await tap(p);
     else await page.mouse.click(...(await gameToPage(page, ...p)));
   };
-  const opened = () => page.waitForFunction(() => window.view3d?.frames > 3, null, { timeout: 180000 });
+  /** Taps (phone) or clicks (PC) a page point. */
+  const hit = (x, y) => (phone ? cdpTapPage(page, x, y) : page.mouse.click(x, y));
+  const spotOf = (sel) =>
+    page.evaluate((sel) => {
+      const b = document.querySelector(sel).getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height];
+    }, sel);
   const look = async (o, name) => {
     await page.evaluate((o) => window.view3d.view(o), o);
     const f0 = await page.evaluate(() => window.view3d.frames);
@@ -1869,18 +1880,22 @@ async function view3dScenario(page, suffix) {
     await page.screenshot({ path: `${OUT}/${name}.png` });
   };
   for (const round of [1, 2]) {
-    const week = await page.evaluate(() => window.state.week);
     await press3d();
-    await opened();
-    const st = await page.evaluate(() => ({ speed: window.game.speed, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length, label: window.view3d.info().label }));
-    assert(st.speed === 0, `the game is paused while the 3D is open (speed ${st.speed})`);
+    await page.waitForFunction(() => window.view3d?.frames > 3, null, { timeout: 180000 });
+    const st = await page.evaluate(() => ({ attached: window.view3d.game.session === window.session, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length, label: window.view3d.info().label }));
+    assert(st.attached, 'the 3D plays the same session as the 2D');
     assert(!st.running, 'the 2D loop sleeps while the 3D is open');
     assert(st.canvases === 2, `one 3D canvas over the game (${st.canvases})`);
     assert(/ · Ano \d+$/.test(st.label), `season and year label (${st.label})`);
     if (round === 1) {
-      await page.screenshot({ path: `${OUT}/view3d-${suffix}.png` });
       const inf = await page.evaluate(() => window.view3d.info());
       assert(inf.families === 1, `the caravan family walks home as a group (${inf.families})`);
+      // The weeks go on in the 3D (other families may arrive meanwhile).
+      const week = await page.evaluate(() => window.state.week);
+      await page.waitForFunction((w) => window.state.week > w, week, { timeout: 60000 });
+      await page.evaluate(() => window.session.setSpeed(0));
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}.png` });
       // The 3D is turned like the 2D (the camera on the side the 2D looks from).
       const rot2d = await page.evaluate(() => window.iso.getRotation());
       const yawWant = Math.PI / 4 + (rot2d * Math.PI) / 2;
@@ -1901,49 +1916,140 @@ async function view3dScenario(page, suffix) {
       await page.evaluate(([home, yaw]) => window.view3d.rig.set({ yaw, pitch: 0.9, dist: 30, ...home }), [home, inf.yaw]);
       // The middle of the next summer and winter (looks only: the state's week is untouched).
       const mid = (season) =>
-        page.evaluate(([week, season]) => {
+        page.evaluate((season) => {
           const { seasonOf, RULES } = window.core;
-          let w = week;
+          let w = window.state.week;
           while (seasonOf(w) !== season) w++;
           return w + Math.floor(RULES.weeksPerSeason / 2) + 0.3;
-        }, [week, season]);
+        }, season);
       const summer = await mid('summer');
       await look({ pos: summer, day: 0.27 }, `view3d-${suffix}-day`);
       await look({ pos: summer, day: 0.72 }, `view3d-${suffix}-night`);
       await look({ pos: await mid('winter'), day: 0.3, force: { snow: true }, weather: { rain: 0.6, snowing: true, overcast: 0.8, wet: 0, puddles: 0, wind: 0.2 } }, `view3d-${suffix}-winter`);
       const labels = await page.evaluate(() => window.view3d.info().label);
       assert(labels.startsWith('Inverno'), `the label follows the season shown (${labels})`);
-      // Turn with the button and zoom in on the town.
       await page.evaluate(() => window.view3d.view({ pos: window.state.week + 0.3, day: 0.25 }));
-      if (phone) {
-        const r = await page.evaluate(() => {
-          const b = document.querySelector('[data-turn="1"]').getBoundingClientRect();
-          return [b.x + b.width / 2, b.y + b.height / 2];
-        });
-        await cdpTapPage(page, ...r);
-      } else await page.click('[data-turn="1"]');
+
+      // Build a house in 3D: pick Casa in the column, tap a free spot beside a road.
+      const before = await page.evaluate(() => window.state.buildings.length);
+      const b = await spotOf('[data-spot="build-house"]');
+      assert(b[2] >= 44 && b[3] >= 40, `the Casa button is thumb-sized (${b[2]}x${b[3]})`);
+      await hit(b[0], b[1]);
+      await page.waitForFunction(() => window.session.tool === 'house', null, { timeout: 5000 });
+      const cell = await page.evaluate(() => {
+        const s = window.state;
+        for (let y = 20; y < 36; y++)
+          for (let x = 14; x < 40; x++) if (window.core.checkPlace(s, 'house', x, y).ok && !window.core.onlyNeedsRoad(s, 'house', x, y)) return { x, y };
+        return null;
+      });
+      assert(cell, 'a free house spot beside a road');
+      // Picking a building may glide the camera to a suggested spot: stop it before aiming.
+      await page.evaluate((c) => {
+        window.view3d.game.stopGlide();
+        window.view3d.rig.set({ dist: 18, x: c.x + 0.5, z: c.y + 0.5 });
+      }, cell);
+      await page.waitForTimeout(500);
+      const p = await page.evaluate((c) => window.view3d.cellPoint(c.x, c.y), cell);
+      if (!phone) {
+        await page.mouse.move(p.x, p.y);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: `${OUT}/view3d-${suffix}-ghost.png` });
+      }
+      // Casa builds by drag (as Rua and Campo), so a touch aims right under the finger.
+      await hit(p.x, p.y);
+      await page.waitForFunction((n) => window.state.buildings.length > n, before, { timeout: 5000 });
+      assert(await page.evaluate((c) => window.state.grid[c.y * window.state.cols + c.x]?.kind === 'house', cell), 'the house stands on the aimed cell');
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}-built.png` });
+
+      // Mover, then a tap on the house: its balloon (Demolir) points at it.
+      const mover = await spotOf('[data-spot="tool-view"]');
+      await hit(mover[0], mover[1]);
+      await page.waitForFunction(() => window.session.tool === 'view', null, { timeout: 5000 }).catch(() => {});
+      assert((await page.evaluate(() => window.session.tool)) === 'view', `Mover is picked (${await page.evaluate(() => window.session.tool)})`);
+      const q = await page.evaluate((c) => window.view3d.cellPoint(c.x, c.y), cell);
+      await hit(q.x, q.y);
+      await page.waitForFunction(() => window.session.selected && !document.querySelector('.balloon').classList.contains('hidden'), null, { timeout: 5000 }).catch(() => {});
+      const sel = await page.evaluate(([x, y]) => ({ selected: window.session.selected, at: window.view3d.cellAt(x, y), balloon: !document.querySelector('.balloon').classList.contains('hidden') }), [q.x, q.y]);
+      assert(sel.selected && sel.balloon, `a tap on the house opens its balloon (${JSON.stringify({ ...sel, cell, q })})`);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}-balloon.png` });
+      await page.evaluate(() => window.session.deselect());
+
+      // Turn with the button and zoom in on the town.
+      const turn = await spotOf('[aria-label="Girar para a esquerda"]');
+      await hit(turn[0], turn[1]);
       await page.evaluate(() => window.view3d.rig.set({ dist: 14 }));
       await page.waitForTimeout(1500);
       await page.screenshot({ path: `${OUT}/view3d-${suffix}-close.png` });
+      await page.evaluate(() => window.session.setSpeed(1));
     }
-    assert((await page.evaluate(() => window.state.week)) === week, 'the weeks do not run while the 3D is open');
-    if (round === 2 && !phone) await page.keyboard.press('Escape');
-    else if (phone) {
-      const r = await page.evaluate(() => {
-        const b = document.querySelector('.v3d-back').getBoundingClientRect();
-        return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height];
-      });
-      assert(r[2] >= 44 && r[3] >= 44, `Voltar is thumb-sized (${r[2]}x${r[3]})`);
-      await cdpTapPage(page, r[0], r[1]);
-    } else await page.click('.v3d-back');
-    await page.waitForFunction(() => !window.view3d && !document.querySelector('.v3d'), null, { timeout: 20000 });
+    // "2D" comes back to the same game, at the speed it runs at.
+    const r = await spotOf('[data-spot="exit3d"]');
+    assert(r[2] >= 44 && r[3] >= 44, `the 2D button is thumb-sized (${r[2]}x${r[3]})`);
+    await hit(r[0], r[1]);
+    await page.waitForFunction(() => !window.view3d && !document.querySelector('.g3d'), null, { timeout: 20000 });
     await page.waitForTimeout(400);
     const back = await page.evaluate(() => ({ speed: window.game.speed, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length }));
-    assert(back.speed === 3, `Voltar gives the speed back (${back.speed})`);
+    assert(back.speed === 1, `the game keeps its speed (${back.speed})`);
     assert(back.running, 'the 2D loop runs again');
     assert(back.canvases === 1, `the 3D canvas is gone (${back.canvases})`);
   }
   await shot(page, `view3d-${suffix}-back`);
+}
+
+/**
+ * The 3D game on its own (`?view=3d`): no Phaser at all, the HTML interface over the map, the
+ * tutorial's first step and its marked road, and a road pulled by drag along the marked cells.
+ */
+async function play3dScenario(page, suffix) {
+  const phone = suffix === 'phone';
+  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.waitForTimeout(1500);
+  const st = await page.evaluate(() => ({ phaser: !!window.Phaser || !!window.game?.scene || performance.getEntriesByType('resource').some((e) => /phaser/i.test(e.name)), canvases: document.querySelectorAll('canvas').length, form: document.querySelector('#hud').dataset.form, tutorial: !document.querySelector('.tutorial').classList.contains('hidden') }));
+  assert(!st.phaser, 'the 3D game loads no Phaser');
+  assert(st.canvases === 1, `one canvas (${st.canvases})`);
+  assert(st.form === (phone ? 'phone' : 'pc'), `the interface is laid out for the ${suffix} (${st.form})`);
+  assert(st.tutorial, 'the first game opens the tutorial');
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}.png` });
+  // Nothing of the interface spills off the screen.
+  const out = await page.evaluate(() =>
+    [...document.querySelectorAll('#hud .pill, #hud button')].filter((e) => {
+      const r = e.getBoundingClientRect();
+      return r.width && (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) && !e.closest('.column');
+    }).map((e) => e.textContent),
+  );
+  assert(!out.length, `the interface fits the screen (${out.join(' | ')})`);
+  // The tutorial road step: Rua, then drag along the marked road.
+  await page.evaluate(() => window.session.selectTool('road'));
+  const cells = await page.evaluate(() => window.session.guideGhost.filter((c) => !window.state.roads[c.y * window.state.cols + c.x]).slice(0, 4));
+  assert(cells.length >= 2, `a marked road to pull (${cells.length})`);
+  await page.evaluate((c) => window.view3d.rig.set({ dist: 16, x: c.x + 0.5, z: c.y + 0.5 }), cells[1]);
+  await page.waitForTimeout(600);
+  const pts = await page.evaluate((cells) => cells.map((c) => window.view3d.cellPoint(c.x, c.y)), cells);
+  const roads = () => page.evaluate(() => window.state.roads.filter(Boolean).length);
+  const before = await roads();
+  if (phone) {
+    const cdp = await page.context().newCDPSession(page);
+    const t = (type, p) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y, id: 0 }] : [] });
+    await t('touchStart', pts[0]);
+    await page.waitForTimeout(220);
+    for (const p of pts.slice(1)) {
+      await t('touchMove', p);
+      await page.waitForTimeout(80);
+    }
+    await t('touchEnd');
+  } else {
+    await page.mouse.move(pts[0].x, pts[0].y);
+    await page.mouse.down();
+    for (const p of pts.slice(1)) await page.mouse.move(p.x, p.y, { steps: 4 });
+    await page.mouse.up();
+  }
+  await page.waitForFunction((n) => window.state.roads.filter(Boolean).length > n, before, { timeout: 10000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}-road.png` });
+  assert((await roads()) >= before + pts.length - 1, `the drag built the road (${before} → ${await roads()})`);
 }
 
 const scenarios = {
@@ -2253,6 +2359,8 @@ const scenarios = {
   /** The 3D view of the city (button in the left column), phone and PC. */
   view3d: { context: PHONE, run: (page) => view3dScenario(page, 'phone') },
   'view3d-pc': { context: PC, run: (page) => view3dScenario(page, 'pc') },
+  play3d: { context: PHONE, run: (page) => play3dScenario(page, 'phone') },
+  'play3d-pc': { context: PC, run: (page) => play3dScenario(page, 'pc') },
 
   async 'town-art'(page) {
     await startGame(page);
@@ -3123,14 +3231,14 @@ async function novaScenario(page, suffix) {
     await press('side-3d');
     const closed = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open, selected: window.game.selected }));
     assert(!closed.panel && !closed.balloon && !closed.selected, `the 3D button closes the panel and the balloon (${JSON.stringify(closed)})`);
-    await page.waitForFunction(() => window.view3d?.frames > 3 && document.querySelector('.v3d-back'), null, { timeout: 180000 });
+    await page.waitForFunction(() => window.view3d?.frames > 3 && document.querySelector('[data-spot="exit3d"]'), null, { timeout: 180000 });
     const r = await page.evaluate(() => {
-      const b = document.querySelector('.v3d-back').getBoundingClientRect();
+      const b = document.querySelector('[data-spot="exit3d"]').getBoundingClientRect();
       return [b.x + b.width / 2, b.y + b.height / 2];
     });
     if (tap) await cdpTapPage(page, r[0], r[1]);
-    else await page.click('.v3d-back');
-    await page.waitForFunction(() => !window.view3d && !document.querySelector('.v3d'), null, { timeout: 20000 });
+    else await page.mouse.click(r[0], r[1]);
+    await page.waitForFunction(() => !window.view3d && !document.querySelector('.g3d'), null, { timeout: 20000 });
     await page.waitForTimeout(300);
     const back = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open }));
     assert(!back.panel && !back.balloon, `nothing is open on the way back from the 3D (${JSON.stringify(back)})`);
@@ -3215,19 +3323,31 @@ const server = await createServer({ server: { port: PORT, strictPort: true, hmr:
 await server.listen();
 const launch = () => chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let browser = await launch();
+/** A fresh browser (the old one may still look connected for a moment after it was killed). */
+const relaunch = async () => {
+  await browser.close().catch(() => {});
+  return launch();
+};
 /** Another process on the machine killed the browser (not a failure of the scenario). */
 const killed = (e) => /has been closed|Browser closed|Target closed/.test(String(e?.message ?? e));
 
 let failed = 0;
 for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
-  if (filter && !name.includes(filter)) continue;
+  if (filter && !filter.split(',').some((f) => name.includes(f))) continue;
   if (k % SHARD_N !== SHARD_K) continue;
   const run = typeof def === 'function' ? def : def.run;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     // Another process may have killed the browser (other projects' scripts kill every headless Chrome).
-    if (!browser.isConnected()) browser = await launch();
-    const context = await browser.newContext(def.context ?? { viewport: { width: GAME_W, height: GAME_H } });
-    const page = await context.newPage();
+    if (!browser.isConnected()) browser = await relaunch();
+    let context, page;
+    try {
+      context = await browser.newContext(def.context ?? { viewport: { width: GAME_W, height: GAME_H } });
+      page = await context.newPage();
+    } catch (e) {
+      if (attempt === 2 || !killed(e)) throw e;
+      browser = await relaunch();
+      continue;
+    }
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -3237,8 +3357,9 @@ for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
       assert(errors.length === 0, `no page errors (${errors.join(' | ')})`);
       console.log(`✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
     } catch (e) {
-      if (attempt === 0 && killed(e)) {
+      if (attempt < 2 && killed(e)) {
         console.log(`↻ ${name}: the browser was killed from outside; running it again`);
+        browser = await relaunch();
         continue;
       }
       failed++;

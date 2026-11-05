@@ -15,41 +15,18 @@ import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { generateUiArt, setHandCursor } from '../render/uiArt';
-import { CATEGORY_KEYS, DRAG_TOOLS, isPlaceTool, SPEEDS, TOOL_KEYS, type Speed, type Tool } from '../render/tools';
+import { type Speed, type Tool } from '../render/tools';
 import { launch3D } from '../render/view3d';
 import { Walkers } from '../render/Walkers';
 import { mulColor, SeasonClock } from '../render/Seasons';
 import type { Weather } from '../render/Weather';
 import type { GameOut } from '../game/events';
-import { orthoSteps, sameCell } from '../game/placement';
-import { newDrag, Session, type DragMemo, type SessionView } from '../game/session';
+import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/gestures';
+import { keyCommand, runKey } from '../game/keys';
+import { Session, type SessionView } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
 import { tutorialSeen } from '../game/tutorial';
 import type { UIScene, UiHost } from './UIScene';
-
-const TAP_SLOP = 10;
-/** A touch drag only starts building after this long with one finger, so a pinch never builds. */
-const TOUCH_BUILD_DELAY = 150;
-/** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
-const TOUCH_LIFT = 90;
-
-interface Gesture extends DragMemo {
-  id: number;
-  start: Cell | null;
-  last: Cell | null;
-  downX: number;
-  downY: number;
-  /** Time of the press (ms), for TOUCH_BUILD_DELAY. */
-  downAt: number;
-  touch: boolean;
-  lastX: number;
-  lastY: number;
-  moved: boolean;
-  applied: boolean;
-  cancelled: boolean;
-  /** The drag went over the interface after building: it stopped there (a toast says so). */
-  cutByUi: boolean;
-}
 
 /** Dev builds: `?seed=N` fixes the map (the visual tests use it); null otherwise. */
 function devSeed(): number | null {
@@ -59,7 +36,7 @@ function devSeed(): number | null {
 }
 
 /** The 2D (Phaser) view of a game: draws the session (src/game) and passes the player's input to it. */
-export class GameScene extends Phaser.Scene implements UiHost, SessionView {
+export class GameScene extends Phaser.Scene implements UiHost, SessionView, GestureView {
   session!: Session;
   private map!: MapView;
   private walkers!: Walkers;
@@ -81,13 +58,10 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
   private followed = false;
   /** The camera glides to a place (a new tutorial step, a temple area): a world point. */
   private pan: { x: number; y: number } | null = null;
-  private gesture: Gesture | null = null;
-  private touches = new Map<number, { x: number; y: number }>();
-  private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
-  private rightPan: { id: number; x: number; y: number } | null = null;
-  /** Mouse cursor shown now (see updateCursor), and whether the mouse is over the interface. */
+  /** Touch, mouse and pen on the map (shared with the 3D view). */
+  private gestures!: Gestures;
+  /** Mouse cursor shown now (see updateCursor). */
   private cursor: 'open' | 'grab' | null = null;
-  private pointerOverUi = false;
 
   constructor() {
     super('game');
@@ -161,9 +135,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
     this.pan = null;
     this.ui = null;
     this.cursor = null;
-    this.pointerOverUi = false;
     this.weather = null;
-    this.gesture = null;
 
     setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
@@ -182,6 +154,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
     const altar = footCenter(a.x, a.y, a.w, a.h);
     this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, VIEW_CY);
     this.session.attach(this);
+    this.gestures = new Gestures(this.session, this);
 
     this.setupInput();
     this.scene.launch('weather', { host: this });
@@ -237,7 +210,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
     this.walkers.update(delta, this.state, this.eco.residents, speed, session.weekFrac, light.walkers * (this.weather?.walkers ?? 1));
     this.haulers.update(delta / 1000, speed);
     if (this.guide) this.updateTutorial(delta);
-    else if (this.pan && (this.gesture || this.glide(this.pan, delta))) this.pan = null; // the camera going to a temple area
+    else if (this.pan && (this.gestures.press || this.glide(this.pan, delta))) this.pan = null; // the camera going to a temple area
     this.ui?.setSlow(this.dayNight.degraded);
     this.ui?.setDrought(look.drought);
   }
@@ -451,31 +424,26 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
   }
 
   /**
-   * The 3D button: the city in 3D over the game. The game pauses (the speed is kept for the way
-   * back) and Phaser's loop sleeps, so only one view draws; closing it wakes the loop and gives the
-   * speed back. The state is only read.
+   * The 3D button: the playable 3D takes over this game (the same session) and Phaser's loop
+   * sleeps, so only one view draws and takes input. "2D" in the 3D comes back here, where the
+   * session is given back and redrawn as it is now.
    */
   open3D() {
     if (this.modalOpen) return;
-    // Nothing stays open under the 3D view (nor is still open on the way back).
+    // Nothing stays open under the 3D (nor is still open on the way back).
     this.ui?.closeAll();
     if (this.selected) this.deselect();
     const session = this.session;
-    const speed = this.speed;
     const input = this.game.input;
     // The 3D opens on the cell at the centre of the 2D camera, turned like the 2D view.
     const mid = this.cameras.main.midPoint;
     const g = worldToGrid(mid.x, mid.y);
     void launch3D({
-      state: this.state,
-      seed: this.seed,
+      session,
       start: { focus: { x: g.x, y: g.y }, rotation: getRotation() },
-      weekFrac: session.weekFrac,
       dayT: this.dayNight.current.t,
       pause: () => {
-        session.speedIndex = SPEEDS.indexOf(0);
-        session.refresh();
-        // Keys and touches go to the 3D view only (Q/E, Esc would also act on the sleeping map).
+        // Keys and touches go to the 3D only (Q/E, Esc would also act on the sleeping map).
         input.enabled = false;
         if (input.keyboard) input.keyboard.enabled = false;
         this.game.loop.sleep();
@@ -485,9 +453,10 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
         if (input.keyboard) input.keyboard.enabled = true;
         this.game.loop.resetDelta();
         this.game.loop.wake();
-        session.speedIndex = SPEEDS.indexOf(speed);
+        session.attach(this);
         session.refresh();
       },
+      restart: (sameMap) => this.restart(sameMap),
       fail: () => this.ui?.toast(T.view3d.failed, 'bad'),
     });
   }
@@ -529,8 +498,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
 
   /** Mouse only: the open hand over the map with Mover, the closed hand while dragging the map. */
   private updateCursor() {
-    const panning = !!this.rightPan || (this.tool === 'view' && !!this.gesture && this.gesture.moved && !this.gesture.touch);
-    const mode = panning ? 'grab' : this.tool === 'view' && !this.pointerOverUi ? 'open' : null;
+    const mode = this.gestures.cursor;
     if (mode === this.cursor) return;
     this.cursor = mode;
     setHandCursor(this, mode);
@@ -543,7 +511,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
       this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
       this.followed = true;
     }
-    if (this.gesture) this.pan = null; // a press on the map (a road being dragged) stops the glide under it
+    if (this.gestures.press) this.pan = null; // a press on the map (a road being dragged) stops the glide under it
     if (this.follow) {
       const p = this.walkers.familyPos(this.follow.id);
       if (!p || this.time.now > this.follow.until) this.follow = null;
@@ -601,23 +569,39 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
     return { x: (wx - cam.scrollX - cx) * cam.zoom + cx, y: (wy - cam.scrollY - cy) * cam.zoom + cy };
   }
 
-  // ---------- input ----------
+  // ---------- input (GestureView) ----------
 
-  private overUi(sx: number, sy: number) {
+  overUi(sx: number, sy: number) {
     return this.ui?.isOverUi(sx, sy) ?? false;
-  }
-
-  /** Cell a pointer aims at: lifted above the finger for single buildings on touch; none if the
-   * finger or the aimed point is under the interface (the preview is never hidden by it). */
-  private aimAt(p: Phaser.Input.Pointer): Cell | null {
-    const lift = p.wasTouch && isPlaceTool(this.tool) && !DRAG_TOOLS.has(this.tool) ? TOUCH_LIFT : 0;
-    if (this.overUi(p.x, p.y) || (lift && this.overUi(p.x, p.y - lift))) return null;
-    return this.cellAt(p.x, p.y - lift);
   }
 
   cellAt(sx: number, sy: number): Cell | null {
     const w = this.rig.toWorld(sx, sy);
     return worldToCell(w.x, w.y);
+  }
+
+  panBy(dx: number, dy: number) {
+    this.rig.panBy(dx, dy);
+  }
+
+  get zoom() {
+    return this.rig.zoom;
+  }
+
+  zoomAt(sx: number, sy: number, zoom: number) {
+    this.rig.zoomAt(sx, sy, zoom);
+  }
+
+  stopGlide() {
+    this.pan = null;
+  }
+
+  cursorChanged() {
+    this.updateCursor();
+  }
+
+  hoverChanged(cell: Cell | null) {
+    this.ui?.setHover(cell);
   }
 
   setHover(cell: Cell | null) {
@@ -631,154 +615,29 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView {
 
   /** Uses the current tool on a cell (the visual tests call it). */
   apply(cell: Cell, first: boolean, touch = false) {
-    this.session.apply(cell, first, touch, this.gesture);
+    this.session.apply(cell, first, touch, this.gestures.press);
   }
 
   private setupInput() {
     this.input.mouse?.disableContextMenu();
     this.input.addPointer(1);
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onDown(p));
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.onMove(p));
-    this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.onUp(p));
-    this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.onUp(p));
-    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      this.pan = null; // the player moves the camera: the tutorial leaves it there
-      this.rig.zoomAt(p.x, p.y, this.rig.zoom * (dy > 0 ? 0.9 : 1.1));
-    });
-    const keys = this.input.keyboard;
-    const digit = (n: string) => `keydown-${['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][Number(n)]}`;
-    for (const [t, n] of Object.entries(TOOL_KEYS) as [Tool, string][]) keys?.on(digit(n), () => this.selectTool(t));
-    for (const [c, n] of Object.entries(CATEGORY_KEYS) as [BuildingCategory, string][]) keys?.on(digit(n), () => this.pickCategory(c));
-    keys?.on('keydown-SPACE', () => this.cycleSpeed());
-    keys?.on('keydown-R', () => this.rotate());
-    keys?.on('keydown-Q', () => this.turnMap(-1));
-    keys?.on('keydown-E', () => this.turnMap(1));
-    // Esc closes the open panel or balloon first, then goes back to Mover.
-    keys?.on('keydown-ESC', () => {
-      if (this.ui?.closeTop()) return;
-      if (this.tool === 'view' && this.selected) this.deselect();
-      else this.selectTool('view');
-    });
-  }
-
-  private onDown(p: Phaser.Input.Pointer) {
-    if (this.modalOpen || this.overUi(p.x, p.y)) return;
-    if (p.rightButtonDown() || p.middleButtonDown()) {
-      this.rightPan = { id: p.id, x: p.x, y: p.y };
-      this.updateCursor();
-      return;
-    }
-    this.touches.set(p.id, { x: p.x, y: p.y });
-    if (this.touches.size >= 2) {
-      if (this.gesture) this.gesture.cancelled = true;
-      const [a, b] = [...this.touches.values()];
-      this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.rig.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
-      return;
-    }
-    const cell = this.aimAt(p);
-    this.gesture = {
-      ...newDrag(),
+    const at = (p: Phaser.Input.Pointer): PointerIn => ({
       id: p.id,
-      start: cell,
-      last: cell,
-      downX: p.x,
-      downY: p.y,
-      downAt: this.time.now,
+      sx: p.x,
+      sy: p.y,
       touch: p.wasTouch,
-      lastX: p.x,
-      lastY: p.y,
-      moved: false,
-      applied: false,
-      cancelled: false,
-      cutByUi: false,
-    };
-    if (this.tool !== 'view') this.setHover(cell);
-  }
-
-  private onMove(p: Phaser.Input.Pointer) {
-    if (this.rightPan?.id === p.id) {
-      this.pan = null;
-      this.rig.panBy(p.x - this.rightPan.x, p.y - this.rightPan.y);
-      this.rightPan.x = p.x;
-      this.rightPan.y = p.y;
-      return;
-    }
-    if (this.touches.has(p.id)) this.touches.set(p.id, { x: p.x, y: p.y });
-
-    if (this.pinch && this.touches.size >= 2) {
-      const [a, b] = [...this.touches.values()];
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      this.pan = null;
-      this.rig.panBy(midX - this.pinch.midX, midY - this.pinch.midY);
-      this.rig.zoomAt(midX, midY, (this.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / Math.max(1, this.pinch.dist));
-      this.pinch.midX = midX;
-      this.pinch.midY = midY;
-      return;
-    }
-
-    const g = this.gesture;
-    if (!g || g.id !== p.id || !p.isDown) {
-      if (!p.isDown && !p.wasTouch) {
-        this.pointerOverUi = this.overUi(p.x, p.y);
-        this.setHover(this.pointerOverUi ? null : this.cellAt(p.x, p.y));
-        this.updateCursor();
-      }
-      return;
-    }
-    if (g.cancelled) return;
-    if (Math.hypot(p.x - g.downX, p.y - g.downY) > TAP_SLOP) g.moved = true;
-
-    if (this.tool === 'view') {
-      if (g.moved) {
-        this.updateCursor();
-        this.pan = null;
-        this.rig.panBy(p.x - g.lastX, p.y - g.lastY);
-      }
-    } else {
-      const cell = this.aimAt(p);
-      this.setHover(cell);
-      if (!cell && g.applied && this.overUi(p.x, p.y)) g.cutByUi = true;
-      // Never build under the UI, and give a second finger time to land before a touch drag builds.
-      const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
-      if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
-        const s = this.session;
-        s.batch(() => {
-          if (!g.applied && g.start) s.apply(g.start, true, g.touch, g);
-          for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) s.apply(c, false, g.touch, g);
-        });
-        g.last = cell;
-        g.applied = true;
-      }
-    }
-    g.lastX = p.x;
-    g.lastY = p.y;
-  }
-
-  private onUp(p: Phaser.Input.Pointer) {
-    if (this.rightPan?.id === p.id) {
-      this.rightPan = null;
-      this.updateCursor();
-      return;
-    }
-    this.touches.delete(p.id);
-    if (this.touches.size < 2) this.pinch = null;
-    const g = this.gesture;
-    if (!g || g.id !== p.id) return;
-    this.gesture = null;
-    if (g.moved && this.tool === 'view') this.updateCursor();
-    if (!g.cancelled) {
-      if (this.tool === 'view') {
-        if (!g.moved && g.start) this.select(g.start);
-      } else if (!g.applied) {
-        // Single-placement tools drop where the finger is released, so the preview can be adjusted.
-        // Releasing a single building over the UI cancels it.
-        const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
-        if (cell) this.session.apply(cell, true, g.touch);
-      }
-      this.session.warnLooseRoads(g.roads);
-      if (g.cutByUi && this.tool === 'road') this.ui?.toast(T.roadUnderUi, 'bad');
-    }
-    if (p.wasTouch) this.setHover(null);
+      button: p.rightButtonDown() ? 2 : p.middleButtonDown() ? 1 : 0,
+      t: this.time.now,
+    });
+    const g = this.gestures;
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => g.down(at(p)));
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => g.move(at(p), p.isDown));
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => g.up(at(p)));
+    this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => g.up(at(p)));
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => g.wheel(p.x, p.y, dy));
+    this.input.keyboard?.on('keydown', (e: KeyboardEvent) => {
+      const c = keyCommand(e.key);
+      if (c) runKey(c, this.session, { closeTop: () => this.ui?.closeTop() ?? false, turnMap: (d) => this.turnMap(d) });
+    });
   }
 }

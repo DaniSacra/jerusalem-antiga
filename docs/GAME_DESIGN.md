@@ -650,25 +650,40 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     objetivo é cumprido ou uma casa vira Casa grande, o botão 3D pulsa de leve com a borda dourada
     por uns 4 s (convite; nunca abre sozinho). Abrir o 3D fecha antes o painel aberto, a ficha e o
     balão da construção tocada (nada fica aberto embaixo nem na volta).
-- **Visão 3D** (`src/render3d/view.ts`, Three.js): uma camada de tela cheia sobre o jogo, com o
-  `GameState` vivo só para leitura. Mostra todas as construções (casas por nível; casa vazia que
-  guardou o nível com o desenho desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e
-  oficina mais altos e com acabamento de pedra nos níveis 2 e 3, com estandartes no 3), ruas,
-  árvores, tocos onde se cortou árvore (com muda quando ela volta a crescer) e moradores andando
-  pelas ruas. Dia e noite correm num relógio próprio (90 s, começando na hora do 2D); a estação é a
-  da semana atual e o clima vem do mesmo relógio de estações com a semente do mapa. Modelos: os do
-  Meshy (`public/models/meshy`) onde existem, o resto feito por código.
-  - **O jogo pausa** enquanto ela está aberta: a velocidade é guardada, vai a 0 e o laço do Phaser
-    dorme (só uma visão desenha). Ao fechar, o laço acorda e a velocidade volta.
-  - Controles: arrastar move; pinça ou roda dá zoom; dois dedos girando, os dois botões redondos de
-    girar (canto inferior direito) ou Q/E no PC giram; WASD/setas movem no PC. Começa enquadrada no
-    altar.
-  - "Voltar" (canto superior esquerdo, 52 px de altura) ou Esc no PC fecha. Rótulo no alto: "Outono · Ano 1".
+- **Jogo em 3D** (`src/render3d/game3d.ts`, Three.js, com a interface em HTML em `src/ui`): o
+  **mesmo jogo** (a mesma `Session`) desenhado em 3D. O botão 3D do 2D passa a partida para ele e o
+  laço do Phaser dorme (só uma visão desenha); o botão "2D" no alto à direita volta para o 2D na
+  mesma partida, que é redesenhado como está. `?view=3d` (ou a opção de visão 3D) abre o jogo direto
+  em 3D, sem baixar o Phaser.
+  - **O jogo continua correndo** no 3D: semanas, velocidade (botão dourado no alto à direita,
+    Espaço no PC) e o dia (o mesmo ciclo do 2D: 240 s a 1x, parado na pausa).
+  - Mostra todas as construções (casas por nível; casa vazia que guardou o nível com o desenho
+    desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e oficina mais altos e com
+    acabamento de pedra nos níveis 2 e 3), ruas, árvores, tocos (com muda quando volta a crescer),
+    moradores e famílias andando; estação e clima do mesmo relógio da semente do mapa. A cidade é
+    redesenhada quando muda (no máximo a cada 0,25 s durante um arrasto de rua).
+  - Interface HTML (Fase 1): barra do topo (nível com anel do objetivo, pílulas de prata, comida,
+    madeira/pedra, moradores e alegria, objetivo, estação, velocidade), dois botões de girar à
+    esquerda, Mover/Rua/Demolir embaixo à esquerda, a coluna com as 12 construções à direita (preço
+    ou "objetivo N"), toasts no meio embaixo, a frase do tutorial com "Pular tutorial" e a seta, o
+    balão da construção tocada (nome, ligada à rua, nível, Melhorar e Demolir), a pílula sobre a
+    prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. Painéis,
+    ficha de pessoa, engrenagem e tela inicial vêm na Fase 2.
+  - No chão: a prévia da ferramenta como no 2D (o modelo translúcido em branco, amarelo "falta
+    ligar à rua" ou vermelho, a área do serviço e as casas que ele atenderia, o que já está coberto),
+    a rua marcada do tutorial, as áreas do Templo, os lugares de "Onde construir" e, com Demolir, a
+    construção sob o cursor em vermelho.
+  - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; com Rua,
+    Demolir ou Campo arrastar constrói; construção única no soltar (no toque, mirada 90 px acima do
+    dedo); pinça ou roda dá zoom em volta do dedo/cursor; dois dedos girando giram; botão direito ou
+    do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os botões giram um quarto de volta. A
+    inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
+  - Começa na célula do centro da tela do 2D e girada como ele (ou no altar, direto em 3D).
   - O Three.js vem num pedaço separado (import dinâmico): a primeira carga do 2D não cresce. Enquanto
     ele e os modelos baixam aparece "Carregando a cidade em 3D…". Sem WebGL 2: toast "Seu aparelho
     não abre o 3D" e o jogo continua no 2D.
   - Qualidade automática: abaixo de 30 qps por duas janelas de 2,5 s, a resolução, as sombras e as
-    partículas descem um nível ("Qualidade reduzida para ficar mais leve").
+    partículas descem um nível.
   - Offline: o service worker guarda o pedaço do 3D e os modelos no primeiro uso; depois de abrir o
     3D uma vez com internet, ele abre sem internet.
 - **Inferior esquerdo** (botões redondos com nome embaixo; no PC com a tecla, ex. "Mover · 1"):

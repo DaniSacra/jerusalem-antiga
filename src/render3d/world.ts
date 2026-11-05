@@ -13,8 +13,8 @@ export const MAX_HANDS = 2;
 
 /**
  * The drawn city at one moment of the GameState: ground, river, every building, road and tree
- * (instanced, from `cityPlan`), smoke sources, fire spots, field hands, walkers and the families walking home. Built once
- * when the view opens (the game is paused meanwhile); everything per frame lives in `update`.
+ * (instanced, from `cityPlan`), smoke sources, fire spots, field hands, walkers and the families walking home. Built when
+ * the view opens and again when the city changes (`Stage.cityChanged`); everything per frame lives in `update`.
  */
 export class World {
   readonly group = new THREE.Group();
@@ -114,9 +114,23 @@ export class World {
     this.group.add(...this.walkers.objects, ...this.families.objects, this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, this.puddles);
   }
 
+  /**
+   * Frees the instance buffers, geometries and textures (the city is drawn again). Materials are
+   * kept: their shader programs are shared with the next build, which would compile them again.
+   */
   dispose() {
+    const done = new Set<object>();
+    const free = (o: { dispose(): void } | null | undefined) => {
+      if (!o || done.has(o)) return;
+      done.add(o);
+      o.dispose();
+    };
     this.group.traverse((o) => {
-      if (o instanceof THREE.InstancedMesh) o.dispose();
+      if (o instanceof THREE.InstancedMesh) free(o);
+      const m = o as THREE.Mesh;
+      if (m.geometry) free(m.geometry);
+      for (const mat of m.material ? (Array.isArray(m.material) ? m.material : [m.material]) : [])
+        for (const v of Object.values(mat)) if (v instanceof THREE.Texture) free(v);
     });
     this.group.removeFromParent();
   }

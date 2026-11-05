@@ -382,10 +382,11 @@ Cada fase termina com `npm test`, `npx tsc --noEmit`, `npm run build` e `npm run
 o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo testes e revisão.
 
 ### Fase 0 — Costuras (sem mudança visível) · 7–9 h
-- **Andamento (2026-11-05):** feito `game/placement`, `toastQueue`, `events`, `tutorial` e `session`;
-  o `GameScene` desenha a `Session` (atalhos `game.tool`, `game.selected`… mantidos para os cenários) e
-  `window.session` existe em dev. Faltam `gestures`, `keys`, `model/*`, `app/main` com a chave de visão
-  e os ajudantes do `run.mjs` nos ganchos novos.
+- **Feita (2026-11-05):** `game/placement`, `toastQueue`, `events`, `tutorial`, `session`, `gestures`,
+  `keys`; `app/main` escolhe a visão (`app/view.ts`: URL, opção, WebGL 2) e carrega só o código dela;
+  `window.session` em dev; o `run.mjs` roda um cenário de novo quando o Chrome é morto de fora. Os
+  `model/*` saem do Phaser conforme a interface HTML precisa deles (`preview` e `topbar` já; o resto
+  na Fase 2).
 - **Entra:** `src/game/` (session, gestures, keys, events, placement, tutorial, toastQueue, model/*);
   `GameScene`, `UIScene` e a Nova passam a usar esses módulos (desenham igual); `app/main.ts` com
   `import()` dinâmico e a chave `settings.view` (3D ainda abre a visão de hoje); ganchos
@@ -399,6 +400,14 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
 - **Risco:** conflito com outros agentes em `src/render` e `src/scenes`; fazer com a árvore parada.
 
 ### Fase 1 — Mapa jogável em 3D com HUD mínimo · 10–13 h
+- **Andamento (2026-11-05):** o botão 3D do 2D abre o **jogo em 3D na mesma sessão** (no lugar da
+  visão só de olhar, que saiu) e `?view=3d` abre direto. Feitos: `render3d/stage.ts` (cena, luz,
+  clima, partículas e qualidade, saídos de `view.ts`), `game3d.ts` (SessionView + GestureView,
+  ponteiro → `Gestures`, teclas com WASD), `marks.ts` + `overlay.ts` (prévia no chão e fantasma),
+  câmera guiada pelo jogo (`panBy`, `zoomAt`, `turnBy`, inclinação pelo zoom), `World` redesenhado
+  quando `diff` acusa mudança; `ui/hud.ts` (barra do topo, ferramentas, coluna, toasts, tutorial e
+  seta, balão com Melhorar/Demolir, pílula da prévia, vitória e derrota, textos subindo). Faltam
+  para fechar a fase: tela inicial e engrenagem em HTML, `touch3d`, `input3d-pc` e `hud3d-*`.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar
