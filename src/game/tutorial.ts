@@ -2,25 +2,6 @@ import { markTutorial, TUTORIAL_EXTRAS, TUTORIAL_STEPS, tutorialHoldsClock, tuto
 
 /** The first-game tutorial's progress (pure; the views draw its bubble and arrow). */
 
-const KEY = 'jerusalem.tutorialDone';
-
-/** True once the player finished or skipped the tutorial (false if the storage is blocked). */
-export function tutorialSeen(): boolean {
-  try {
-    return localStorage.getItem(KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function saveSeen() {
-  try {
-    localStorage.setItem(KEY, '1');
-  } catch {
-    // Blocked storage: the tutorial simply comes back next game.
-  }
-}
-
 /**
  * Where the tutorial is: the six main steps (the clock stands still on the build steps), then waiting for
  * the market to unlock, then its short step, then off.
@@ -35,7 +16,8 @@ export class TutorialGuide {
   /** The market unlocked while the main steps were still running: its step follows them. */
   private extrasPending = false;
 
-  constructor(s: GameState) {
+  /** `seen` remembers that the player finished or skipped it (the app stores it). */
+  constructor(s: GameState, private seen: () => void = () => {}) {
     this.mark = markTutorial(s);
   }
 
@@ -70,7 +52,7 @@ export class TutorialGuide {
 
   /** Ends the tutorial for good. */
   skip() {
-    saveSeen();
+    this.seen();
     this.phase = 'off';
   }
 
@@ -83,7 +65,7 @@ export class TutorialGuide {
     this.k++;
     this.mark = markTutorial(s);
     if (this.phase === 'steps' && this.k >= TUTORIAL_STEPS.length) {
-      saveSeen();
+      this.seen();
       this.start(this.extrasPending ? 'extras' : 'wait');
       return 'done';
     }

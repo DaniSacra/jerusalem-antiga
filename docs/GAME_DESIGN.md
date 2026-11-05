@@ -650,7 +650,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     objetivo é cumprido ou uma casa vira Casa grande, o botão 3D pulsa de leve com a borda dourada
     por uns 4 s (convite; nunca abre sozinho). Abrir o 3D fecha antes o painel aberto, a ficha e o
     balão da construção tocada (nada fica aberto embaixo nem na volta).
-- **Jogo em 3D** (`src/render3d/game3d.ts`, Three.js, com a interface em HTML em `src/ui`): o
+- **Jogo em 3D** (`src/app/play3d.ts` e `src/render3d/scene3d.ts`, Three.js, com a interface em HTML em `src/ui`): o
   **mesmo jogo** (a mesma `Session`) desenhado em 3D. O botão 3D do 2D passa a partida para ele e o
   laço do Phaser dorme (só uma visão desenha); o botão "2D" no alto à direita volta para o 2D na
   mesma partida, que é redesenhado como está. `?view=3d` (ou a opção de visão 3D) abre o jogo direto

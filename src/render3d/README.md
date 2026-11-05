@@ -1,15 +1,17 @@
 # Visão 3D (Three.js)
 
-O botão **3D** da coluna esquerda abre a cidade do jogador em 3D, numa camada de tela cheia sobre o
-jogo (`view.ts`, `open3D(state, seed, onClose)`). Ela lê o `GameState` vivo e nunca o muda; o jogo
-fica pausado e o laço do Phaser dorme enquanto ela está aberta (`src/render/view3d.ts` e
-`GameScene.open3D`). O Three.js e este código vêm num pedaço separado (import dinâmico). Veja a
-seção "Visão 3D" de `docs/GAME_DESIGN.md`. Veio da prova `spike/threejs` (sem o bot, o modo
-demonstração, a cidade de teste e o 2D na mesma página).
+O jogo em 3D: a mesma `Session` do 2D desenhada com Three.js sob a interface em HTML (`src/ui`).
+`?view=3d` abre direto (`src/app/start3d.ts`); o botão 3D do 2D passa a partida para cá
+(`src/render/view3d.ts`). Quem cuida da página, da interface e da entrada é `src/app/play3d.ts`
+(`Play3D`); aqui fica só a cena. O Three.js e este código vêm num pedaço separado (import dinâmico).
+Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitetura-3d.md`.
 
 | Arquivo | O que faz |
 |---|---|
-| `view.ts` | abre e fecha a visão: camada, renderizador, laço, qualidade automática, botões, `close()` que libera tudo |
+| `scene3d.ts` | a cena sem página: palco, câmera, marcas no chão, efeitos; célula sob o ponteiro, ponto da tela sobre uma célula (retângulo do canvas medido no `resize`), câmera deslizando, um quadro |
+| `stage.ts` | renderizador, céu e luz, clima, partículas, qualidade automática e o `World` refeito por camada (cidade a cada 250 ms no máximo; moradores só com a cidade parada 600 ms) |
+| `marks.ts`, `overlay.ts` | **puro e testado** / desenho: prévia no chão, fantasma, áreas e destaques |
+| `picking.ts`, `diff.ts` | **puros e testados**: raio até o chão e caixas das construções; o que mudou na cidade (camadas) |
 | `plan.ts` | **puro e testado**: o que se desenha do `GameState` (modelo por tipo e nível, casa vazia desbotada com portão trancado, acréscimos dos níveis 2–3 por tipo, frente para a rua, árvores, tocos e mudas, número de moradores, giro da câmera igual ao do 2D) |
 | `crowd.ts` | **puro e testado**: roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), ordem da família ao andar e o seu caminho até a casa |
 | `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), jumento de carga e as famílias e caravanas andando em grupo (`s.families`) |

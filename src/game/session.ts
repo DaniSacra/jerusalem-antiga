@@ -91,6 +91,8 @@ export interface SessionOptions {
   /** Forces the tutorial ("Ver tutorial de novo"); otherwise it runs while `seen` is false. */
   tutorial: boolean;
   seen: boolean;
+  /** Called when the tutorial ends or is skipped (the app stores it). */
+  saveSeen?: () => void;
 }
 
 /**
@@ -141,7 +143,7 @@ export class Session {
     this.seed = o.seed;
     this.rng = createRng(o.seed);
     this.state = createGame(this.rng);
-    this.guide = o.tutorial || !o.seen ? new TutorialGuide(this.state) : null;
+    this.guide = o.tutorial || !o.seen ? new TutorialGuide(this.state, o.saveSeen) : null;
     this.spot = this.guide ? foodSpot(this.state) : null;
     this.ghost = this.spot?.road ?? [];
     this.city = readCity(this.state);

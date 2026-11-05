@@ -184,7 +184,7 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
   dos controles). A interface fica em `window.game.ui.view` (`top`, `column`, `tools`, `panels`,
   `inspector`, `toasts` com `list` e `queue`, `tag` a pílula sobre a célula sob o cursor);
   `window.game.ui.milestone(id, semana)` mostra a frase de um marco.
-- `window.view3d` — só com o jogo em 3D aberto (`window.game.open3D()`, o botão 3D ou `?view=3d`): `game` (o `Game3D`), `cellPoint(x, y)` (ponto da tela do centro de uma célula), `cellAt(sx, sy)`, `frames`
+- `window.view3d` — só com o jogo em 3D aberto (`window.game.open3D()`, o botão 3D ou `?view=3d`): `game` (o `Play3D`, com `scene`), `cellPoint(x, y)` (ponto da tela do centro de uma célula), `cellAt(sx, sy)`, `frames`
   (quadros já desenhados), `fps()`, `info()` (qualidade, chamadas, triângulos, moradores, rótulo),
   `rig` (câmera: `rig.set({ yaw, pitch, dist, x, z })`), `quality('high'|'low'|'min')`, `close()` (volta ao 2D) e
   `view({ pos, day, weather, force } | null)`: mostra outra semana (`pos`, semana com fração), hora

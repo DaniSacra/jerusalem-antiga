@@ -40,8 +40,8 @@ export async function launch3D(o: Launch3D): Promise<void> {
     o.resume();
   };
   try {
-    const { Game3D } = await import('../render3d/game3d');
-    const g: { close(): void } = await Game3D.open(o.session, {
+    const { Play3D } = await import('../app/play3d');
+    const g: { close(): void } = await Play3D.open(o.session, {
       dayT: o.dayT,
       start: o.start,
       exit: () => {

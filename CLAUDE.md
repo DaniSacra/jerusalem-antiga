@@ -95,7 +95,7 @@ the change have been looked at.
 - Families (`families.ts`) are dispatched to empty plots and walk the network from the entrance;
   `step` advances `familyCellsPerMonth` per month. Render interpolates with the month fraction.
 - `stepMonth()` returns events; the scene turns them into effects and toasts.
-- 3D: `src/render3d` (see its README and `docs/arquitetura-3d.md`): `view.ts` (entry), `world.ts`,
+- 3D: `src/render3d` (see its README and `docs/arquitetura-3d.md`): `scene3d.ts` (the scene; the page, HUD and input are `src/app/play3d.ts`), `stage.ts`, `world.ts`,
   `plan.ts` (pure: what to draw per state), `models.ts` (code models + Meshy pack), `terrain.ts`,
   `camera.ts`, `life.ts`/`crowd.ts`/`figures.ts` (people), `time/` (day, season, weather).
 - Legacy 2D render: `iso.ts` (projection, depth = x + y of the footprint center), `textures.ts` (all art

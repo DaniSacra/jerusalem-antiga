@@ -25,7 +25,7 @@ import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/
 import { keyCommand, runKey } from '../game/keys';
 import { Session, type SessionView } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
-import { tutorialSeen } from '../game/tutorial';
+import { saveTutorialSeen, tutorialSeen } from '../render/tutorialStore';
 import type { UIScene, UiHost } from './UIScene';
 
 /** Dev builds: `?seed=N` fixes the map (the visual tests use it); null otherwise. */
@@ -128,7 +128,7 @@ export class GameScene extends Phaser.Scene implements UiHost, SessionView, Gest
     generateTextures(this);
     generateUiArt(this);
     const seed = data?.seed ?? devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
-    this.session = new Session({ seed, tutorial: !!data?.tutorial, seen: tutorialSeen() });
+    this.session = new Session({ seed, tutorial: !!data?.tutorial, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
     this.seasons = new SeasonClock(seed);
     this.follow = null;
     this.followed = false;

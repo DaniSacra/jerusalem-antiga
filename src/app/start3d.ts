@@ -1,5 +1,5 @@
 import { Session } from '../game/session';
-import { tutorialSeen } from '../game/tutorial';
+import { saveTutorialSeen, tutorialSeen } from '../render/tutorialStore';
 import { T } from '../render/strings';
 import { showTitle } from '../ui/title';
 
@@ -17,9 +17,9 @@ function devSeed(): number | null {
  */
 export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0, title = true) {
   // The title screen shows while Three.js and the models download.
-  const [{ Game3D }, { tutorial }] = await Promise.all([import('../render3d/game3d'), title ? showTitle() : { tutorial: false }]);
-  const session = new Session({ seed, tutorial, seen: tutorialSeen() });
-  const game = await Game3D.open(session, {
+  const [{ Play3D }, { tutorial }] = await Promise.all([import('./play3d'), title ? showTitle() : { tutorial: false }]);
+  const session = new Session({ seed, tutorial, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
+  const game = await Play3D.open(session, {
     exit: null,
     restart: (sameMap) => {
       game.close();

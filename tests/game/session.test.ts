@@ -152,6 +152,20 @@ describe('session (one game, without drawing)', () => {
     expect(s.rotated).toBe(true);
   });
 
+  it('skipping the tutorial asks the app to remember it, once; a game without tutorial never does', () => {
+    let saved = 0;
+    const s = new Session({ seed: 5, tutorial: true, seen: false, saveSeen: () => saved++ });
+    s.attach(recorder().view);
+    expect(s.guide).not.toBeNull();
+    s.skipTutorial();
+    s.skipTutorial();
+    expect(s.guide).toBeNull();
+    expect(saved).toBe(1);
+    const quiet = new Session({ seed: 5, tutorial: false, seen: true, saveSeen: () => saved++ });
+    quiet.skipTutorial();
+    expect(saved).toBe(1);
+  });
+
   it('a closed view lets go of the session; another view attached stays', () => {
     const s = new Session({ seed: 3, tutorial: false, seen: true });
     const said: string[] = [];

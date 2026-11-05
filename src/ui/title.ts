@@ -1,6 +1,6 @@
 import { install, installOffer, onInstallChange } from '../render/install';
 import { T } from '../render/strings';
-import { tutorialSeen } from '../game/tutorial';
+import { tutorialSeen } from '../render/tutorialStore';
 import { formOf, h, onTap } from './dom';
 import { NOVA_CSS, NOVA_FONT } from '../render/palette';
 import './ui.css';

@@ -410,8 +410,10 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   tela inicial (`ui/title.ts`) e engrenagem em HTML (dia e noite, Mapa 3D/2D). Faltam para fechar a
   fase: `hud3d-*` e os passos da revisão (seção 11). Já feitos da revisão: mundo por camada
   (`World.sync`: terra uma vez, relevo ajustado no lugar, cidade e pessoas à parte), `Session.detach`,
-  `game/model/build.ts` e `inspect.ts`; `touch3d` e `input3d-pc` escritos; os outros passos, que entram
-  antes da Fase 2.
+  `game/model/build.ts` e `inspect.ts`; `touch3d` e `input3d-pc` escritos; efeitos do mundo
+  (`fx.ts`); passo 3 da revisão: `Game3D` dividido em `render3d/scene3d.ts` (a cena, sem DOM de página
+  nem `Hud`) e `app/play3d.ts` (página, `Hud`, `Gestures`, teclas, `SessionView`); o tutorial recebe
+  `saveSeen` do app (`render/tutorialStore.ts`), sem `localStorage` em `src/game`.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar
