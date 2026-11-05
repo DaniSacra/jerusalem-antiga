@@ -1145,6 +1145,28 @@ async function assertTopFits(page, when) {
 }
 
 /**
+ * PC top bar with a grown city's stock (4-digit silver, 3-digit wood and stone, the Alegria pill on):
+ * the stat pills shorten (`MAX_FIT`) and end left of the speed buttons; the Alegria pill can be tapped.
+ */
+async function topFitScenario(page, suffix) {
+  await startGame(page);
+  const r = await page.evaluate(() => {
+    const { state: s, game } = window;
+    game.setSpeed(0);
+    s.unlocked.push('quarry', 'park');
+    Object.assign(s, { silver: 9876, wood: 987, stone: 876 });
+    game.refresh();
+    const top = game.ui.view.top;
+    const pills = [top.silver, top.food, ...top.mats, top.people, top.joy].filter((p) => p?.root.visible).map((p) => p.rect);
+    const joy = top.joy.rect;
+    return { right: Math.max(...pills.map((q) => q.x + q.w)), speed: top.speedRect.x, joyHit: game.ui.isOverUi(joy.x + joy.w / 2, joy.y + joy.h / 2) };
+  });
+  assert(r.right < r.speed && r.joyHit, `the stat pills end left of the speed buttons with a big stock (${JSON.stringify(r)})`);
+  await assertTopFits(page, 'with a big stock');
+  await shot(page, `top-fit${suffix}`);
+}
+
+/**
  * Pacote 3 materials: the Materiais pill (wood only, then the stone with its unlock toast), a house
  * waiting for stone (red ⚠ in the pill, "Pronta para virar…: falta N de pedra", "Onde pôr uma
  * pedreira"), the Materiais section of the statistics, the quarry balloon short of wood and its toast.
@@ -1155,7 +1177,8 @@ async function materialsScenario(page, suffix) {
   await page.evaluate(() => window.game.setSpeed(0));
   await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 20000 }); // the opening sentence goes away
   const start = await pillText(page, 'materials');
-  assert(start && start.includes('20'), `the caravan brings 20 wood to the pill (${start})`);
+  const wood = await page.evaluate(() => String(window.core.RULES.startMaterials.wood));
+  assert(start && start.includes(wood), `the caravan brings ${wood} wood to the pill (${start})`);
   if (!phone) assert((await pillText(page, 'stone')) === null, 'no stone pill before the quarry');
   assert(start && !start.includes('Pedra'), `no stone before the quarry (${start})`);
   await assertTopFits(page, 'with the wood');
@@ -1210,6 +1233,9 @@ async function materialsScenario(page, suffix) {
   assert(lines.some((l) => l === 'Pronta para virar Casa de pedra: falta 7 de pedra'), `the house says what it waits for (${lines})`);
   const label = await page.evaluate(() => window.game.ui.view.inspector.card.action?.label);
   assert(label === 'Onde pôr uma pedreira', `the main action finds a quarry spot (${label})`);
+  // The toast that was on screen steps out while the balloon is open (it waits at the head of the line).
+  const behind = await page.evaluate(() => ({ shown: window.game.ui.view.toasts.list.length, waiting: window.game.ui.view.toasts.queue.map((t) => t.msg) }));
+  assert(behind.shown === 0 && behind.waiting.some((m) => m.startsWith('1 casa esperando pedra')), `no toast behind the open balloon; it waits in line (${JSON.stringify(behind)})`);
   await shot(page, `house-waiting-stone${suffix}`);
   await page.evaluate(() => window.game.ui.view.inspector.host.act(window.game.ui.view.inspector.card.action));
   await page.waitForTimeout(250);
@@ -1734,6 +1760,8 @@ const scenarios = {
   materials: { context: PHONE, run: (page) => materialsScenario(page, '') },
   'materials-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => materialsScenario(page, '-wide') },
   'materials-pc': { context: PC, run: (page) => materialsScenario(page, '-pc') },
+  'top-fit': { context: PC, run: (page) => topFitScenario(page, '') },
+  'top-fit-1280': { context: { viewport: { width: 1280, height: 720 } }, run: (page) => topFitScenario(page, '-1280') },
   'lumber-shared': { context: PHONE, run: (page) => lumberShared(page, '') },
   'lumber-shared-pc': { context: PC, run: (page) => lumberShared(page, '-pc') },
   'harvest-countdown': { context: PHONE, run: (page) => harvestCountdown(page, '') },

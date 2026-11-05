@@ -13,7 +13,7 @@ import { darkPanel, icon, ntext, picture, RoundButton } from './widgets';
 
 const DROUGHT_HUD = VISUAL.seasons.drought.hud;
 /** Most shortening steps of the stat pills (see `pills`). */
-const MAX_FIT = 3;
+const MAX_FIT = 5;
 /** The stock shows "38/40" from this share of the store limit up (food about to spoil). */
 const STOCK_SHOWN = 0.75;
 
@@ -51,6 +51,19 @@ class Pill {
       const size = this.h * 0.62;
       this.icon.setTexture(key).setScale(size / Math.max(this.icon.width, this.icon.height));
     }
+  }
+
+  /** Last parts measured by `widthOf` and their full width. */
+  private natural = { key: '', w: 0 };
+
+  /** Full width of these parts, uncut (lays them out once when they change; then cached). */
+  widthOf(parts: Part[]): number {
+    const key = JSON.stringify(parts);
+    if (key !== this.natural.key) {
+      this.set(parts);
+      this.natural = { key, w: this.w };
+    }
+    return this.natural.w;
   }
 
   /** Sets the parts; returns true if the width changed. */
@@ -309,12 +322,14 @@ export class TopBar {
 
   /**
    * Silver, food, materials, residents and (PC) happiness. `fit` shortens them when the row is too
-   * long: 1 drops the material names, 2 every name, 3 the materials' "+N/sem" (the phone has none).
+   * long: 1 drops the material names, 2 every name, 3 the materials' "+N/sem", 4 the "/sem" of the
+   * silver and food, 5 the food forecast's words (green promise gone, red as "⚠ N sem"). The phone has none.
    */
   private pills(s: GameState, { eco, forecast: out }: CityReadout, fit: number) {
     const N = T.nova;
     const label = (t: string): Part[] => (PHONE || fit >= 2 ? [] : [{ text: t, color: NOVA_CSS.muted }]);
-    const delta = (d: number): Part => ({ text: signed(d) + (PHONE ? '' : N.perWeek), color: d < 0 ? NOVA_CSS.bad : NOVA_CSS.good, size: S.text });
+    const short = PHONE || fit >= 5;
+    const delta = (d: number): Part => ({ text: signed(d) + (PHONE || fit >= 4 ? '' : N.perWeek), color: d < 0 ? NOVA_CSS.bad : NOVA_CSS.good, size: S.text });
     const debt = s.silver < 0;
     const silverColor = debt ? NOVA_CSS.bad : eco.silverDelta < 0 ? NOVA_CSS.warn : NOVA_CSS.text;
     const sv = label(N.silver).length;
@@ -325,14 +340,14 @@ export class TopBar {
     const cap = foodCapacity(s);
     const food = Math.floor(s.food);
     const full = food >= cap * STOCK_SHOWN;
-    const dot = PHONE ? '' : '· ';
+    const dot = short ? '' : '· ';
     const forecast: Part[] = s.famine
       ? [{ text: N.famine, color: NOVA_CSS.bad }]
       : !lasts
-        ? [{ text: PHONE ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
+        ? [{ text: short ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
         : s.spoiled > 0
           ? [{ text: dot + N.full, color: NOVA_CSS.warn }]
-          : PHONE || eco.residents === 0 ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }]; // nobody eats: no promise
+          : short || eco.residents === 0 ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }]; // nobody eats: no promise
     const fv = label(N.food).length;
     this.food.set([
       ...label(N.food),
@@ -373,7 +388,11 @@ export class TopBar {
     if (!PHONE) this.mats[1].show(shown.length > 1);
   }
 
-  /** Pills left to right; the season pill moves under the speed if it would touch them; the goal fits what is left. */
+  /**
+   * Pills left to right. The season pill sits left of the speed buttons: on the first row if it fits,
+   * else on the goal row (when the whole goal still fits beside it), else under the speed buttons
+   * (a third row: the last resort, it makes the bar taller and the free map shorter).
+   */
   private layout(s: GameState) {
     let x = S.margin + S.level + S.gap;
     const y = S.margin;
@@ -385,39 +404,43 @@ export class TopBar {
     const pillsRight = x - S.gap;
     const leftOfButtons = this.speedRect.x - S.gap;
     const by = S.margin + S.btn / 2;
-    let seasonRow2 = false;
-    if (leftOfButtons - this.season.w >= pillsRight + S.gap) this.season.root.setPosition(leftOfButtons - this.season.w, by - this.season.h / 2);
-    else {
-      seasonRow2 = true;
-      this.season.root.setPosition(this.right - S.gap - this.season.w, S.margin + S.btn + S.gap);
-    }
-
     const goalY = S.margin + S.pillH + S.gap * 0.7;
     const gx = S.margin + S.level + S.gap;
-    const seasonTop = this.season.root.y;
-    const blocked = seasonRow2 && goalY + S.goalH > seasonTop ? this.season.root.x : this.speedRect.y + this.speedRect.h > goalY ? this.speedRect.x : this.right;
-    const maxW = blocked - S.gap - gx;
+    const goal = this.goalParts(s);
+    const besideGoal = leftOfButtons - this.season.w;
+    let blocked: number;
+    if (besideGoal >= pillsRight + S.gap) {
+      this.season.root.setPosition(besideGoal, by - this.season.h / 2);
+      blocked = this.speedRect.y + this.speedRect.h > goalY ? this.speedRect.x : this.right;
+    } else if (this.goal.widthOf(goal) <= besideGoal - S.gap - gx) {
+      // Bottom-aligned with the goal pill, so the bar is no taller than the goal row.
+      this.season.root.setPosition(besideGoal, goalY + S.goalH - this.season.h);
+      blocked = besideGoal;
+    } else {
+      const seasonTop = S.margin + S.btn + S.gap;
+      this.season.root.setPosition(this.right - S.gap - this.season.w, seasonTop);
+      blocked = goalY + S.goalH > seasonTop ? this.season.root.x : this.speedRect.y + this.speedRect.h > goalY ? this.speedRect.x : this.right;
+    }
+    this.goal.set(goal, blocked - S.gap - gx);
+    this.goal.root.setPosition(gx, goalY);
+  }
+
+  /** The goal pill: its number, text, progress bar (PC), count and the temple savings. */
+  private goalParts(s: GameState): Part[] {
     const goal = currentGoal(s);
     const N = T.nova;
-    if (!goal) this.goal.set([{ text: T.allGoals, color: NOVA_CSS.gold }], maxW);
-    else {
-      const p = goalProgress(s, goal);
-      const target = goalTarget(s, goal);
-      const head = PHONE ? N.goal : N.goalOf(s.goalIndex + 1, goalCount());
-      const progress = N.goalProgress(goal, p, target);
-      const save = templeSavings(s);
-      this.goal.set(
-        [
-          { text: head, color: NOVA_CSS.gold, size: S.small },
-          { text: N.goalText(goal) },
-          ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
-          ...(progress ? [{ text: progress, color: NOVA_CSS.gold }] : []),
-          ...(save ? [{ text: '· ' + N.templeSavingsPill(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold }] : []),
-        ],
-        maxW,
-      );
-    }
-    this.goal.root.setPosition(gx, goalY);
+    if (!goal) return [{ text: T.allGoals, color: NOVA_CSS.gold }];
+    const p = goalProgress(s, goal);
+    const target = goalTarget(s, goal);
+    const progress = N.goalProgress(goal, p, target);
+    const save = templeSavings(s);
+    return [
+      { text: PHONE ? N.goal : N.goalOf(s.goalIndex + 1, goalCount()), color: NOVA_CSS.gold, size: S.small },
+      { text: N.goalText(goal) },
+      ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
+      ...(progress ? [{ text: progress, color: NOVA_CSS.gold }] : []),
+      ...(save ? [{ text: '· ' + N.templeSavingsPill(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold }] : []),
+    ];
   }
 
   setDrought(d: number) {

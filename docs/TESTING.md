@@ -90,8 +90,9 @@ outro agente durante a rodada não recarrega a página no meio de um cenário.
 | `drag-release-on-button-pc` | o mesmo no PC 1366 x 768, com o mouse | `drag-release-on-button-pc` |
 | `preview-food-after` | celular: rua até o lugar de comida e prévia do pescador ou coletora com "Rende N comida/sem" e "Comida depois"; depois o balão do Mercado com mais vagas que trabalhadores | `preview-food-after`, `preview-food-after-market` |
 | `preview-food-after-pc` | o mesmo no PC; o balão do Mercado diz "Comida depois" | as mesmas, com `-pc` no fim |
-| `materials` | celular 844 x 390 (P3), pausado: a pílula Materiais mostra os 20 de madeira da caravana e nenhuma pedra; o Objetivo 6 libera a Pedreira ("Nova construção: Pedreira") e a pedra entra na pílula; nenhuma peça do topo se sobrepõe; uma casa de barro pronta sem pedra espera (pílula vermelha com "⚠ 3", toast "1 casa esperando pedra"), tocada diz "Pronta para virar Casa de pedra: falta 7 de pedra" com a ação "Onde pôr uma pedreira" (sem lugar com rochas junto à rua neste mapa: o toast diz por quê); contando, diz "Ao evoluir: pede 10 de pedra"; Estatísticas com a seção Materiais; a Pedreira sem madeira mostra "40 prata · 10 madeira (tem 4)" e tentar construir dá "Falta madeira: construa um lenhador" | `materials-top`, `materials-top-stone`, `house-waiting-stone`, `house-waiting-stone-spots`, `materials-stats`, `quarry-balloon-lacking`, `toast-lacking-wood` |
+| `materials` | celular 844 x 390 (P3), pausado: a pílula Materiais mostra a madeira da caravana (`startMaterials`) e nenhuma pedra; o Objetivo 6 libera a Pedreira ("Nova construção: Pedreira") e a pedra entra na pílula; nenhuma peça do topo se sobrepõe; uma casa de barro pronta sem pedra espera (pílula vermelha com "⚠ 3", toast "1 casa esperando pedra"), tocada diz "Pronta para virar Casa de pedra: falta 7 de pedra" (o toast sai de trás do balão e espera na fila) com a ação "Onde pôr uma pedreira" (sem lugar com rochas junto à rua neste mapa: o toast diz por quê); contando, diz "Ao evoluir: pede 10 de pedra"; Estatísticas com a seção Materiais; a Pedreira sem madeira mostra "40 prata · 10 madeira (tem 4)" e tentar construir dá "Falta madeira: construa um lenhador" | `materials-top`, `materials-top-stone`, `house-waiting-stone`, `house-waiting-stone-spots`, `materials-stats`, `quarry-balloon-lacking`, `toast-lacking-wood` |
 | `materials-wide` / `materials-pc` | o mesmo em 915 x 412 e no PC 1366 x 768 (no PC uma pílula por material, encurtando os rótulos se a fileira não couber) | as mesmas, com `-wide` ou `-pc` no fim |
+| `top-fit` / `top-fit-1280` | PC 1366 x 768 e 1280 x 720, pausado, com estoque de cidade crescida (prata 9.876, madeira 987, pedra 876, Pedreira e Parque liberados): as pílulas encurtam (`MAX_FIT`) e terminam à esquerda da velocidade, a Alegria fica tocável e nenhuma peça do topo se sobrepõe | `top-fit`, `top-fit-1280` |
 | `lumber-shared` / `lumber-shared-pc` | celular e PC: rua até o `lumberSpot`, uma Coletora no mesmo bosque; a prévia do Lenhador diz "Rende N madeira/sem", "Corta 1 árvore a cada N sem" e "Divide o bosque com a Coletora"; uma tenda pronta sem madeira oferece "Onde pôr um lenhador", que acende os lugares junto ao bosque | `lumber-preview-shared`, `lumber-spots` (com `-pc` no PC) |
 | `harvest-countdown` | celular: pílula da estação com "inverno em N sem" no outono e "primavera em N sem" no inverno, cabendo na tela; na fome a pílula de comida diz "FOME" | `harvest-countdown-autumn`, `harvest-countdown-winter` |
 | `harvest-countdown-pc` | o mesmo no PC 1366 x 768 | as mesmas, com `-pc` no fim |
@@ -296,6 +297,27 @@ Os bots constroem casas para os casais esperando e as famílias da caravana anun
 cheia com casal fértil (praça, mercado ou parque já com 1 casa); o Distraído vê os avisos de casal e
 de caravana com o dobro do atraso (`houseDelayFactor` 2) e não prepara metade das caravanas
 (`caravanSkip` 0,5).
+Pacote 3 (madeira e pedra): os bots nunca tentam construir sem o material e marcam `lacked` (o
+"toast" que viram). Um passo "Materiais" (depois do celeiro) põe Lenhador e Pedreira no lugar de
+melhor rendimento (como Pescador e Coletora, com rua se precisar). Eficiente e Pescador fazem o
+primeiro logo (a Pedreira assim que libera) e outro enquanto a produção fica abaixo da meta
+(`materialNeed`) com o estoque baixo; o Lenhador deles evita o bosque da Coletora (`sharedTrees`). O
+Comum faz o primeiro Lenhador com menos de 15 de madeira, a primeira Pedreira quando o objetivo pede
+casas de pedra (ou ao ver o aviso), e outro só depois de `materialWait` (13) semanas de falta. O
+Distraído só reage ao aviso (casa esperando, obra que falhou) e espera 26 semanas para o segundo.
+Contam só os que rendem ≥ 0,5/sem (no máximo 4 de cada); ao fazer um novo, Eficiente e Comum demolem
+os parados (bosque cortado). O primeiro, ou um para casas esperando, sai mesmo sem trabalhador livre.
+Com reserva (`materialReserve`), obras que não são casa, Lenhador, Pedreira ou Templo não gastam o
+material das casas que esperam (o planejador conta as que sobem em até 4 semanas), 5 (10) de madeira
+para uma casa nova, nem o do Templo depois que ele libera (o Eficiente já guarda metade no objetivo
+que o libera). `trim()` nunca derruba o último Lenhador nem a última Pedreira. Medidas (`mat`):
+Lenhadores e Pedreiras ao mesmo tempo, semanas com casa esperando cada material e a maior espera de
+uma casa, semanas do Ano 1 com obra travada por madeira, maior sequência com madeira ou pedra acima
+de 300 antes de liberar o Templo, sem trabalho na semana 200, tocos nas semanas 260 e 520, árvores
+cortadas, produzido e gasto (obras e níveis de casa), estoque no fim de cada ano e o que o Templo
+esperou por último. O `--brief` ganha as linhas `wood`, `stone` e `W1…W6`; A4 mostra também a razão
+contra o melhor ano anterior ou a caravana fundadora (`growthPeak`, "over best year": separa a
+recuperação depois de uma crise de uma explosão). O `--trace` mostra madeira e pedra.
 M2 (P2 correções): ao liberar o Templo, existe um 6 x 6 livre a no máximo `templeSpotRoadGap` célula
 da rede (`templeSpotsNear`); o `--brief` mostra também quantos tinham lugar pronto (diagnóstico). A
 linha `--brief` resume os critérios do pacote. Ritmo do fim (P2 final): `end` mostra a espera do

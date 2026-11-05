@@ -62,7 +62,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   Os outros filhos alternam filho e filha entre as famílias. A comida inicial vale **18 a 24
   semanas** do consumo das pessoas, cortada no limite sem celeiro (100). Frases na abertura:
   "A caravana chegou com 3 famílias e comida para 14 semanas" (as semanas da previsão) e, fora do
-  tutorial, "Zebadias e Tamar querem se casar". A caravana traz também **20 de madeira** e nenhuma
+  tutorial, "Zebadias e Tamar querem se casar". A caravana traz também **40 de madeira** e nenhuma
   pedra (`startMaterials` em `rules.json`).
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
@@ -75,18 +75,18 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Construção | Custo | Manutenção | Tamanho | Vagas | Produção | Raio | Observações |
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
-| Casa | 40 + 5 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
+| Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
 | Campo | 20 | 0,5/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
 | Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
 | Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
 | Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
-| Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 3 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
-| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 3 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 6 (30 moradores); as rochas não acabam |
+| Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
+| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 3 (primeiro nascimento); as rochas não acabam |
 | Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 2; melhora (veja Níveis) |
 | Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 4; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 5; 6 ofícios (só aparência); melhora |
 | Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 7; casas de pedra no raio viram casas grandes; dá Alegria |
-| Templo | 800 + 300 pedra + 150 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 14 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 17 (175 moradores); não pode ser demolido; o raio só dá Alegria |
+| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 14 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 17 (175 moradores); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -117,11 +117,11 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 ## Madeira e pedra (Pacote 3)
 
 - **Estoque da cidade**, como a prata: `wood` e `stone` no estado, **sem limite e sem depósito**.
-  Começa com **20 de madeira e 0 de pedra** (`startMaterials`). Entra toda semana a produção dos
+  Começa com **40 de madeira e 0 de pedra** (`startMaterials`). Entra toda semana a produção dos
   Lenhadores e Pedreiras ligados × eficiência (`Economy.wood`, `Economy.stone`, o "+N/sem").
   Demolir não devolve material.
-- **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 5 madeira; Celeiro,
-  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 150 madeira. **Não
+- **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 10 madeira; Celeiro,
+  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 300 madeira. **Não
   custam material:** Rua, Campo, Praça, Pescador, Coletora e Lenhador (comida e madeira nunca
   travam por material). Construir exige prata **e** material e paga os dois; sem material, falha
   com a razão `materials` sem gastar nada (a prata é conferida antes). `missingMaterial(s, kind)`
@@ -265,7 +265,7 @@ motivo. Código em `people.ts`, `life.ts`, `families.ts` e `caravans.ts`; númer
 
 - **Idade:** 1 estação (13 semanas, `weeksPerLifeYear`) = 1 ano de vida. Criança até 13 anos,
   adulto de 14 a 49 (`adultAge`), idoso de 50 (`elderAge`). Comida por semana: criança 0,25,
-  adulto 0,2, idoso 0,15 (`people.food`), × o fator do inverno (tenda 1,75, outras casas 1,4).
+  adulto 0,2, idoso 0,15 (`people.food`), × o fator do inverno (tenda 2, outras casas 1,6).
   **Trabalhadores são os adultos** que moram na cidade.
 - **Morte:** no aniversário, chance pela idade (`death`: 2% aos 50, 6% aos 60, 15% aos 70, 35% aos
   80, todos aos 90). Toast "Morreu Abias, aos 72 anos".
@@ -300,8 +300,8 @@ motivo. Código em `people.ts`, `life.ts`, `families.ts` e `caravans.ts`; númer
 ## Caravanas
 
 Além da fundadora, cada partida sorteia no início (`rollCaravans`, `caravans.later`) as caravanas
-seguintes: uma entre as semanas 52 e 98 (Ano 2, **3 famílias: a primeira sempre um casal de noivos
-jovens**, `engaged` 1, e duas sorteadas), uma entre 156 e 260 (Anos 4–5, 2 a 4) e, em metade das partidas,
+seguintes: uma entre as semanas 52 e 98 (Ano 2, **3 famílias: as duas primeiras sempre casais de noivos
+jovens**, `engaged` 2, e uma sorteada), uma entre 156 e 260 (Anos 4–5, 2 a 3) e, em metade das partidas,
 uma entre 312 e 415 (2 a 3). Cada uma é **anunciada 4 a 8 semanas antes**
 (`warnWeeks`): toast "Uma caravana de 3 famílias chega no inverno" e o aviso "Caravana com 3
 famílias em N sem: falta 1 casa vazia". Ao chegar, cada família (de um dos modelos `templates`:
@@ -370,8 +370,8 @@ A cada semana, nesta ordem (`simulation.ts`):
    pescador, coletora e o resto (`isWorking`). Eficiência = trabalhadores / vagas, no máximo 100%
    (100% se não houver vagas). A previsão de comida segue essa eficiência semana a semana.
 3. Comida += colheita (fora do inverno, com o bônus das oficinas) + pesca + coleta (× 0,3 no
-   inverno) − consumo. Cada pessoa come pela idade (veja Pessoas); **no inverno come × 1,4**
-   (`winter.foodFactor`) e quem mora em **tenda come × 1,75** (`winter.tentFoodFactor`). Se a
+   inverno) − consumo. Cada pessoa come pela idade (veja Pessoas); **no inverno come × 1,6**
+   (`winter.foodFactor`) e quem mora em **tenda come × 2** (`winter.tentFoodFactor`). Se a
    comida chega a 0 com saldo negativo: **fome**. A comida nunca fica negativa. Depois, o que
    passa do estoque (100 + celeiros) **estraga**.
 4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (sempre; o campo paga o
@@ -452,11 +452,11 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 |---|---|---|---|---|
 | 1 | Primeiro casamento | marco | +20 | – |
 | 2 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
-| 3 | Primeiro nascimento | marco | +30 | – |
+| 3 | Primeiro nascimento | marco | +30 | Pedreira |
 | 4 | Tenha 3 casas de barro | 3 | +40 | Mercado |
 | 5 | Receba a primeira caravana | marco | +50 | Oficina |
-| 6 | Chegue a 30 moradores | 30 | +50 | Pedreira |
-| 7 | Tenha 3 casas de pedra | 3 | +60 | Parque (e a Alegria) |
+| 6 | Chegue a 30 moradores | 30 | +50 | – |
+| 7 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
 | 8 | Uma criança da cidade virou adulta | marco | +80 | – |
 | 9 | Chegue a 45 moradores | 45 | +80 | – |
 | 10 | Tenha 4 casas grandes | 4 | +80 | – |
@@ -559,7 +559,7 @@ código continuam `goal` e `happiness`; o passo passou a ser `week`.
 ### Interface Nova
 
 - **Abertura:** ao começar, um toast maior (ou balão central que some sozinho em 5 s) com a frase
-  da caravana: "A caravana chegou com N famílias, comida para N semanas e 20 de madeira" (a madeira
+  da caravana: "A caravana chegou com N famílias, comida para N semanas e 40 de madeira" (a madeira
   lida de `startMaterials`).
 
 Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte desenhada em código.
@@ -589,8 +589,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     pedra entra com um brilho dourado (3 piscadas) ao ser liberada. Tocar abre as Estatísticas.
     Se a fileira não couber à esquerda da velocidade, as pílulas encurtam por etapas (`MAX_FIT` em
     `TopBar.ts`): primeiro somem os rótulos dos materiais, depois todos os rótulos, depois o "+N/sem"
-    dos materiais. No celular 844 x 390 a pílula da estação desce para a segunda linha (à direita) e
-    o texto do objetivo é cortado com "…" se faltar espaço; Prata, Comida, Materiais e Moradores
+    dos materiais, depois o "/sem" da prata e da comida, e por fim a previsão da comida vira a curta
+    do celular (some "até a colheita"; vermelho "⚠ N sem"). Assim prata de 4 dígitos com madeira e
+    pedra de 3 cabem em 1280 e 1366 sem encostar na velocidade. Prata, Comida, Materiais e Moradores
     nunca somem;
   - pílula do objetivo: "Objetivo" + texto + "3/5"; no PC "Objetivo 3 de 17", texto, barra e "3/5".
     Tocar abre a lista de Objetivos.
@@ -716,8 +717,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     rua ou construção desligada: "Ligar à rua" escolhe Rua;
   - toasts da Nova ficam acima das ferramentas de baixo; o balão do tutorial fica embaixo, entre as
     ferramentas e a coluna, e cresce para os botões terem 44 px reais;
-  - no PC, se a pílula da estação não couber ao lado da velocidade, ela desce para baixo da
-    velocidade (nunca cobre as pílulas); o texto do objetivo é cortado com "…" se não couber;
+  - a pílula da estação fica à esquerda da velocidade: na primeira linha se couber; senão na linha
+    do objetivo (alinhada pela base dele, então o topo não cresce), se o objetivo inteiro couber ao
+    lado; só em último caso desce para baixo da velocidade (uma terceira linha, que encurta o mapa
+    livre). Nunca cobre as pílulas; o texto do objetivo é cortado com "…" se não couber;
   - Esc fecha primeiro o painel aberto ou a faixa de uma categoria, depois o balão da construção
     tocada, e só então volta para Mover (a dica de Rua/Demolir e o balão da construção escolhida
     somem com a ferramenta: um Esc basta para sair de Demolir);
@@ -728,7 +731,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     painéis terminam acima das ferramentas de baixo;
   - toasts: no máximo 3 na tela; os outros esperam em fila (os vermelhos na frente) e nenhum se
     perde; ficam acima dos balões. Com um **painel aberto** ou o **balão da construção tocada**
-    nenhum toast aparece: eles esperam e entram quando fecha. Toasts iguais viram um. Um toast de
+    nenhum toast aparece: eles esperam e entram quando fecha; os que já estavam na tela saem e voltam
+    para a frente da fila com o tempo que faltava (no mínimo 1,5 s), em vez de ficar meio cobertos
+    atrás do balão. Toasts iguais viram um. Um toast de
     aviso que deixou de valer (o problema sumiu, ou o texto mudou, como "O celeiro libera no
     objetivo 1" depois de liberado) sai da fila e da tela. A frase da caravana é um toast maior, por 5 s, e fica **sozinha**
     (os outros esperam ela sair);

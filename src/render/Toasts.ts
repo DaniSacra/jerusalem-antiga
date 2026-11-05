@@ -9,11 +9,13 @@ const DURATION = 2600;
 const MAX = 3;
 /** Above the balloons and panels (46–50), under the victory and defeat dialogs (100). */
 const DEPTH = 60;
-/** While a panel is open, the toasts already on screen go under it. */
-const UNDER_PANEL = 45;
+/** A toast sent back to the line by an opening panel or balloon comes back for at least this long. */
+const BACK_MS = 1500;
 
 interface Toast {
   msg: string;
+  tone: Tone;
+  opt: ToastOptions;
   big: boolean;
   valid?: () => boolean;
   root: Phaser.GameObjects.Container;
@@ -85,11 +87,24 @@ export class Toasts {
     return this.y0 - this.list.reduce((sum, t) => sum + t.h + px(6), -px(6));
   }
 
-  /** Holds new toasts while a panel is open; when it closes, the waiting ones come in. */
+  /**
+   * Holds the toasts while a panel or a tapped building's balloon is open: the ones on screen step out
+   * (they would sit behind it, half covered) and wait at the head of the line with the time they had
+   * left; when it closes, the line comes in again.
+   */
   hold(on: boolean) {
     if (on === this.held) return;
     this.held = on;
-    for (const t of this.list) t.root.setDepth(on ? UNDER_PANEL : DEPTH);
+    if (on) {
+      // Oldest first, so they come back in the order they came.
+      for (const t of this.list) {
+        // One already fading out (its time is up) just goes.
+        if (!t.timer.hasDispatched) this.queue.unshift({ msg: t.msg, tone: t.tone, opt: { ...t.opt, ms: Math.max(BACK_MS, t.timer.getRemaining()) } });
+        t.timer.remove();
+        this.scene.tweens.add({ targets: t.root, alpha: 0, duration: 120, onComplete: () => t.root.destroy() });
+      }
+      this.list = [];
+    }
     this.flush();
   }
 
@@ -126,7 +141,7 @@ export class Toasts {
     if (opt.big) bg.lineStyle(px(2), NOVA.gold, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
     const root = s.add.container(GAME_W / 2, this.y0 - h / 2, [bg, label]).setDepth(DEPTH).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
-    const toast: Toast = { msg, big: !!opt.big, valid: opt.valid, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
+    const toast: Toast = { msg, tone, opt, big: !!opt.big, valid: opt.valid, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
     this.layout();
   }
