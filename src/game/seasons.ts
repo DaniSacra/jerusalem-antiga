@@ -1,6 +1,13 @@
 import { createRng, RULES, SEASONS, START_SEASON, type Feature, type GameState, type Season } from '../core';
 import VISUAL from '../data/visual.json';
-import { cellHash } from './iso';
+
+/** Stable per-cell hash for picking visual variants. */
+export const cellHash = (x: number, y: number) => {
+  let h = Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  return (h ^ (h >>> 15)) >>> 0;
+};
 
 const S = VISUAL.seasons;
 

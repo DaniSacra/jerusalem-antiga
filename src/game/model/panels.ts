@@ -25,8 +25,8 @@ import {
   type GameState,
   type WeekRecord,
 } from '../../core';
-import type { Notice } from '../../render/nova/notices';
-import { fmt, fmtInt, signed, T } from '../../render/strings';
+import type { Notice } from '../notices';
+import { fmt, fmtInt, signed, T } from '../strings';
 import type { CardTone } from './card';
 
 /**

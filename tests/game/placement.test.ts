@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { indexOf } from '../../src/core';
 import { granaryStock, milestoneSite, orthoSteps, originFor, sameCell, spoilSite, toolDims, whyInvalid } from '../../src/game/placement';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { emptyGame, put, road } from '../helpers';
 
 describe('placement (shared by every view)', () => {

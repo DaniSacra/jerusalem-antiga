@@ -13,8 +13,8 @@ import {
   type MilestoneId,
 } from '../core';
 import VISUAL from '../data/visual.json';
-import { T } from '../render/strings';
-import { isPlaceTool, type Tool } from '../render/tools';
+import { T } from './strings';
+import { isPlaceTool, type Tool } from './tools';
 
 /** Where on the map things go, the same for every view (pure: no Phaser, Three or DOM). */
 

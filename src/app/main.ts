@@ -1,15 +1,17 @@
-import { watchInstall } from '../render/install';
-import { chooseView } from './view';
+import { T } from '../game/strings';
+import { watchInstall } from './install';
+import { hasWebGL2 } from './view';
 
-/**
- * Boot: picks the view (2D or 3D) and loads only its code, so who plays in 3D never downloads
- * Phaser and who plays in 2D only downloads Three.js when the 3D button is pressed.
- */
+/** Boot: the 3D game (it needs WebGL 2; without it, a short note instead). */
 watchInstall();
 
-const view = chooseView(location.search);
-if (view === '3d') void import('./start3d').then((m) => m.start3d());
-else void import('./start2d').then((m) => m.start2d());
+if (hasWebGL2()) void import('./start3d').then((m) => m.start3d());
+else {
+  const note = document.createElement('p');
+  note.textContent = T.noWebGL;
+  note.style.cssText = 'font: 18px sans-serif; color: #fff4dc; padding: 24px; text-align: center;';
+  document.body.append(note);
+}
 
 // Installable app: the service worker lets the game open offline (production builds only, so the
 // dev server keeps hot reload).

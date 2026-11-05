@@ -3,8 +3,8 @@ import { buildColumn } from '../game/model/build';
 import { toolCard } from '../game/model/card';
 import { cardLine } from './lines';
 import type { Session } from '../game/session';
-import { T } from '../render/strings';
-import { COLUMN_ORDER, type Tool } from '../render/tools';
+import { T } from '../game/strings';
+import { COLUMN_ORDER, type Tool } from '../game/tools';
 import { h, onTap, setText } from './dom';
 import { iconButton, toolButton } from './parts';
 

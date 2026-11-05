@@ -1,8 +1,8 @@
-import { install, installOffer, onInstallChange } from '../render/install';
-import { T } from '../render/strings';
-import { tutorialSeen } from '../render/tutorialStore';
+import { install, installOffer, onInstallChange } from '../app/install';
+import { T } from '../game/strings';
+import { tutorialSeen } from '../game/tutorialStore';
 import { formOf, h, onTap } from './dom';
-import { NOVA_CSS, NOVA_FONT } from '../render/palette';
+import { NOVA_CSS, NOVA_FONT } from '../game/palette';
 import './ui.css';
 
 /**

@@ -1,7 +1,7 @@
 import { personById } from '../core';
 import { sheetOf, type Kin } from '../game/model/person';
 import type { Session } from '../game/session';
-import { T } from '../render/strings';
+import { T } from '../game/strings';
 import { h, keyed, onTap } from './dom';
 import { figureSvg } from './figure';
 

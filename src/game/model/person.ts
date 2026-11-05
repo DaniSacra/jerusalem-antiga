@@ -1,5 +1,5 @@
 import { calendar, childrenOf, clanName, HOUSE_LEVELS, jobsOf, personById, type AgeBand, type GameState, type Person } from '../../core';
-import { T } from '../../render/strings';
+import { T } from '../strings';
 import { ageNow, bandOf, jobText } from './people';
 
 /** The person sheet as data (pure): name, family, age, work, house, origin and relatives. */

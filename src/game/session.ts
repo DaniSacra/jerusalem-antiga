@@ -44,8 +44,8 @@ import {
   type TutorialStepId,
 } from '../core';
 import VISUAL from '../data/visual.json';
-import { T } from '../render/strings';
-import { categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, type Speed, type Tool } from '../render/tools';
+import { T } from './strings';
+import { categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, type Speed, type Tool } from './tools';
 import { readEvents, type GameOut, type Tally } from './events';
 import { originFor, sameCell, whyInvalid } from './placement';
 import type { ToastOptions, Tone } from './toastQueue';

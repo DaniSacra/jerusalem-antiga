@@ -1,6 +1,6 @@
 import { BUILDINGS, costOf, GOALS, materialsOf, MATERIALS, unlockingGoal, type BuildableKind, type GameState } from '../../core';
-import { T } from '../../render/strings';
-import { COLUMN_ORDER, keyOf, type Tool } from '../../render/tools';
+import { T } from '../strings';
+import { COLUMN_ORDER, keyOf, type Tool } from '../tools';
 
 /** One button of the building column, as data. */
 export interface BuildButton {

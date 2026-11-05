@@ -13,7 +13,7 @@ import {
   type MilestoneId,
   type Placeable,
 } from '../core';
-import { T } from '../render/strings';
+import { T } from './strings';
 import { milestoneSite, spoilSite } from './placement';
 import type { ToastOptions, Tone } from './toastQueue';
 

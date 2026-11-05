@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Building, Cell, GameState, Rect } from '../core';
 import VISUAL from '../data/visual.json';
 import type { GameOut } from '../game/events';
-import { C } from '../render/palette';
+import { C } from '../game/palette';
 import { CameraRig } from './camera';
 import { changedLayers, cityKeys, type CityKeys } from './diff';
 import { WorldFx } from './fx';
@@ -17,8 +17,6 @@ import { canRun3D, PACK, Stage, type Level } from './stage';
 import { advanceDay, dayTime, nightness } from './time/day';
 
 export interface Scene3DOptions {
-  /** Where the camera starts: a grid cell and the 2D view's quarter turns (default the altar, turn 0). */
-  start?: { focus: Cell; rotation: number };
   /** Time of day to start at (0..1). */
   dayT?: number;
   /** Model pack manifest (null: code models only). */
@@ -60,10 +58,10 @@ export class Scene3D {
     this.stage = stage;
     this.dayT = dayTime(opts.dayT ?? LOOK.day.start);
     const altar = s.buildings.find((b) => b.kind === 'altar');
-    const f = opts.start?.focus;
-    const centre = f ? new THREE.Vector3(f.x + 0.5, 0, f.y + 0.5) : new THREE.Vector3((altar?.x ?? s.cols / 2) + (altar?.w ?? 0) / 2, 0, (altar?.y ?? s.rows / 2) + (altar?.h ?? 0) / 2);
-    this.rig = new CameraRig(stage.el, centre, { min: new THREE.Vector2(-4, -4), max: new THREE.Vector2(s.cols + 4, s.rows + 4) }, false);
-    this.rig.set({ yaw: yawOfRotation(opts.start?.rotation ?? 0) });
+    // The camera starts over the altar.
+    const centre = new THREE.Vector3((altar?.x ?? s.cols / 2) + (altar?.w ?? 0) / 2, 0, (altar?.y ?? s.rows / 2) + (altar?.h ?? 0) / 2);
+    this.rig = new CameraRig(stage.el, centre, { min: new THREE.Vector2(-4, -4), max: new THREE.Vector2(s.cols + 4, s.rows + 4) });
+    this.rig.set({ yaw: yawOfRotation(0) });
     const height = (x: number, z: number) => this.stage.world.ground.height(x, z);
     this.overlay = new Overlay(height, models);
     this.fx = new WorldFx(height, (x, y, dy, st) => this.stage.world.lift(x, y, dy, st));

@@ -1,5 +1,5 @@
-import { saveSettings, settings } from '../render/settings';
-import { T } from '../render/strings';
+import { saveSettings, settings } from '../game/settings';
+import { T } from '../game/strings';
 import { h, onTap } from './dom';
 
 /** The gear's panel: day and night. */

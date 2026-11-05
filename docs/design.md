@@ -65,7 +65,8 @@ Mantidos:
   Pedreira param e não cortam árvores. A manutenção em pedra foi descartada. Motivo: é a lenha que
   o usuário pediu, sem recurso nem construção novos. O limite copia a regra da comida e é o mais
   simples dos dois caminhos que o usuário aceitou para o W4.
-- 2026-11-05 (usuário, plano do architect): o jogo inteiro migra para 3D: mapa em Three.js e
+- 2026-11-05 (usuário, plano do architect; **concluído no mesmo dia**: o jogo é só 3D, o Phaser
+  saiu, tag `ultimo-2d` e branch `backup/phaser-2d` guardam o último 2D): o jogo inteiro migra para 3D: mapa em Three.js e
   interface em HTML/CSS, celular e PC por igual, sem Phaser no fim. Plano em `docs/arquitetura-3d.md`:
   6 fases (0 costuras, 1 mapa jogável, 2 interface, 3 tutorial/Templo/efeitos, 4 3D padrão, 5 Phaser
   sai), ~42–57 h, cada fase publicável com o 2D atrás de uma chave até a paridade. Decisões abertas

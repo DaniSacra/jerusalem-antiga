@@ -1,5 +1,5 @@
 import { ageBand, ageOf, craftOf, type Building, type BuildingKind, type GameState, type Person } from '../../core';
-import { T } from '../../render/strings';
+import { T } from '../strings';
 
 /** People as the interface tells them (pure): age band, age, work and a house's residents. */
 

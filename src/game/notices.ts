@@ -1,5 +1,5 @@
-import { alerts, seasonOf, type CityReadout, type GameState } from '../../core';
-import { T } from '../strings';
+import { alerts, seasonOf, type CityReadout, type GameState } from '../core';
+import { T } from './strings';
 
 /** One line of the Avisos list (and of the statistics problems): the core's alerts. */
 export interface Notice {

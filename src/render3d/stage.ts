@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { calendar, type GameState } from '../core';
-import { SeasonClock } from '../render/Seasons';
-import { T } from '../render/strings';
+import { SeasonClock } from '../game/seasons';
+import { T } from '../game/strings';
 import { Atmosphere } from './atmosphere';
 import type { CameraRig } from './camera';
 import { COLORS, CROPS, materialOf, type ModelKey, type Prototype } from './models';

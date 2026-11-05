@@ -1,6 +1,6 @@
 import type { Rect } from '../core';
 import VISUAL from '../data/visual.json';
-import { C } from '../render/palette';
+import { C } from '../game/palette';
 import LOOK from './look3d.json';
 
 /**

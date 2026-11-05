@@ -1,7 +1,7 @@
 import type { Rect } from '../core';
 import type { Session } from '../game/session';
-import { T } from '../render/strings';
-import type { Tool } from '../render/tools';
+import { T } from '../game/strings';
+import type { Tool } from '../game/tools';
 import type { Anchors } from './anchors';
 import { h, onTap, setText } from './dom';
 import { ICONS } from './icons';

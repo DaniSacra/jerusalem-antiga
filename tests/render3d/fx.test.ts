@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../../src/core';
-import { C } from '../../src/render/palette';
+import { C } from '../../src/game/palette';
 import {
   celebrateRecipe,
   countFor,

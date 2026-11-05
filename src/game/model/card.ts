@@ -50,8 +50,8 @@ import {
   type Rect,
   type Sex,
 } from '../../core';
-import { treeKind } from '../../render/Seasons';
-import { T } from '../../render/strings';
+import { treeKind } from '../seasons';
+import { T } from '../strings';
 import { ageNow, bandOf, jobText, residentsOf } from './people';
 
 /**

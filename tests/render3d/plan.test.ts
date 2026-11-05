@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, yawOfRotation, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, VACANT_TINT, walkerCount } from '../../src/render3d/plan';
-import { setRotation, toView } from '../../src/render/iso';
+import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, VACANT_TINT, walkerCount } from '../../src/render3d/plan';
 import { emptyGame, put } from '../helpers';
 
 const house = (level: number, emptyLevel = 0) => ({ kind: 'house' as const, level, emptyLevel, variant: 0, w: 2, h: 2 });
@@ -131,21 +130,5 @@ describe('what the 3D view draws', () => {
     for (const [k, x, y] of spots) put(s, k, x, y);
     const keys = cityPlan(s).buildings.map((p) => p.key);
     for (const [k] of spots) expect(keys).toContain(k);
-  });
-
-  it('turns the 3D camera to the side the 2D view looks from, for each quarter turn', () => {
-    const at = { x: 20, y: 20 };
-    for (const r of [0, 1, 2, 3]) {
-      setRotation(r);
-      const yaw = yawOfRotation(r);
-      const v0 = toView(at.x, at.y);
-      // The camera stands toward the screen bottom of the 2D (view x + y grows)...
-      const cam = toView(at.x + Math.sin(yaw), at.y + Math.cos(yaw));
-      expect(cam.x + cam.y - v0.x - v0.y).toBeGreaterThan(1.3);
-      // ...and its right is the 2D screen's right (view x - y grows).
-      const right = toView(at.x + Math.cos(yaw), at.y - Math.sin(yaw));
-      expect(right.x - right.y - (v0.x - v0.y)).toBeGreaterThan(1.3);
-    }
-    setRotation(0);
   });
 });

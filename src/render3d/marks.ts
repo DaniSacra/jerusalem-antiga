@@ -1,7 +1,7 @@
 import { dimsOf, footprint, indexOf, plazaHouseSpots, serviceOf, type Building, type Cell, type GameState, type Rect, type TempleSpot } from '../core';
 import { previewOf, coveredCells, type Preview } from '../game/model/preview';
-import { C } from '../render/palette';
-import { isPlaceTool, type Tool } from '../render/tools';
+import { C } from '../game/palette';
+import { isPlaceTool, type Tool } from '../game/tools';
 
 /** Cells painted on the ground (a translucent colour). */
 export interface Fill {

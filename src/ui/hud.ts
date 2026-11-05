@@ -1,14 +1,14 @@
 import type { Rect } from '../core';
 import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
-import { NOVA_CSS, NOVA_FONT } from '../render/palette';
-import { T } from '../render/strings';
+import { NOVA_CSS, NOVA_FONT } from '../game/palette';
+import { T } from '../game/strings';
 import { Anchors, type Free } from './anchors';
 import { CardBalloon } from './cardBalloon';
 import { Panels, type PanelKind } from './panels';
 import { PersonSheet } from './sheet';
 import { ProblemLabels } from './labels';
-import { notices, type Notice } from '../render/nova/notices';
+import { notices, type Notice } from '../game/notices';
 import { iconButton } from './parts';
 import { formOf, h, setText } from './dom';
 import { Modal } from './modal';
@@ -25,8 +25,6 @@ export interface HudHost {
   /** Screen point of the top centre of a footprint (null when behind the camera). */
   screenOf(r: Rect, top?: number): { x: number; y: number } | null;
   turn(dir: 1 | -1): void;
-  /** Back to the classic 2D game (null when there is none behind). */
-  exit: (() => void) | null;
   /** A new game: the same map or a new one. */
   restart(sameMap: boolean): void;
   /** The camera's zoom (1 at the opening distance). */
@@ -80,7 +78,7 @@ export class Hud {
     const s = host.session;
     this.anchors = new Anchors((r, top) => host.screenOf(r, top));
     this.settings = new SettingsPanel();
-    this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats') });
+    this.top = new TopBar(s, { settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats') });
     this.tools = new Tools(s, (d) => host.turn(d));
     this.sheet = new PersonSheet(s, (id) => this.showHouse(id));
     this.labels = new ProblemLabels(this.anchors, () => host.zoom, () => this.free);

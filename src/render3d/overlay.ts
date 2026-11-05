@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { C } from '../render/palette';
+import { C } from '../game/palette';
 import type { Rect } from '../core';
 import type { Marks } from './marks';
 import type { ModelKey, Prototype } from './models';

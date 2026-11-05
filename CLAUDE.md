@@ -2,11 +2,10 @@
 
 3D city builder for phone (landscape) and PC. TypeScript + Vite, tests with Vitest.
 
-**The game is migrating to 3D** (user decision, 2026-11-05): the city in Three.js (`src/render3d`)
-and the UI in HTML/CSS, phone and PC alike. Plan and phases: `docs/arquitetura-3d.md` (architect).
-The game opens in 3D. The Phaser 2D (`src/render`, `src/scenes`) is **frozen** (user decision,
-2026-11-05): only `?view=2d` or a device without WebGL 2 opens it; no adaptations, no 2D test runs;
-it is removed at the end of migration phase 3.
+**The game is 3D**: the city in Three.js (`src/render3d`) and the UI in HTML/CSS (`src/ui`), phone and
+PC alike. Architecture: `docs/arquitetura-3d.md` (architect). The migration finished on 2026-11-05 and
+the Phaser 2D was removed; its last code is the git tag `ultimo-2d` (reference only). Without WebGL 2
+the page shows a short note.
 
 ## Read first
 - `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
@@ -19,7 +18,7 @@ matching doc in the same change.
 ## Commands
 - `npm run dev` — dev server (also on the LAN for phones)
 - `npm test` — unit tests for `src/core`
-- `npm run test:visual` — the 3D Playwright scenarios, screenshots in `screenshots/` (`-- <name>` to filter; `VISUAL_2D=1` for the frozen 2D ones)
+- `npm run test:visual` — the Playwright scenarios, screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
 - `npm run test:pwa` — after a build: the app is installable and opens offline (PWA)
 
@@ -48,7 +47,7 @@ While building:
 - `test-reviewer` — makes sure every `src/core` rule has good, seeded tests; may write missing
   tests, never production code. Use after creating or changing a game rule.
 - `copywriter` — on-screen texts only (goals, tool hints, info line, balloons, toasts, alerts,
-  title/victory/defeat screens) in `src/render/strings.ts` and `goals.json`. No story or verses.
+  title/victory/defeat screens) in `src/game/strings.ts` and `goals.json`. No story or verses.
 - `code-reviewer` — reviews architecture rules, DRY/KISS, typing, strings/palette and per-frame
   cost; runs typecheck, tests and build. Use before every commit.
 
@@ -75,16 +74,16 @@ belong to the `copywriter`.
 the change have been looked at.
 
 ## Rules of the codebase
-- `src/core`: the whole simulation in pure TypeScript. Never import Three.js, the DOM or Phaser
-  here. The grid is square and flat in the core; 3D (and the legacy isometry) exist only in the
-  render layers.
+- `src/core`: the whole simulation in pure TypeScript. Never import Three.js or the DOM here. The
+  grid is square and flat in the core; 3D exists only in `src/render3d`.
 - `src/data`: balance numbers in JSON (costs, jobs, radii, house levels, goals, rules).
-- `src/render3d` (3D world) and the HTML UI: drawing, animation and input only. Pure look and UI
-  logic lives in modules without Three.js or DOM and has Vitest tests. Game rules belong in core.
-- `src/render` and `src/scenes` (legacy Phaser 2D): frozen; only keep it compiling. `src/render/strings.ts`
-  and the pure helpers there are still shared.
+- `src/render3d` (3D world), `src/ui` (HTML interface) and `src/app` (page, boot): drawing, animation
+  and input only. Pure look and UI logic lives in modules without Three.js or DOM (`src/game`, the
+  pure files of `src/render3d` and `src/ui`) and has Vitest tests. Game rules belong in core.
+- `src/game`: the session, gestures, keys, view models (`model/`), on-screen text (`strings.ts`),
+  colours (`palette.ts`), seasons look (`seasons.ts`), settings and notices. No Three.js, no DOM.
 - Every new or changed rule in core needs Vitest tests in `tests/`.
-- Code, comments and commits in English; on-screen text in Portuguese (`src/render/strings.ts`).
+- Code, comments and commits in English; on-screen text in Portuguese (`src/game/strings.ts`).
 - DRY and KISS. Do not add story, verses or mechanics that were not requested.
 
 ## Architecture notes
@@ -100,8 +99,5 @@ the change have been looked at.
 - 3D: `src/render3d` (see its README and `docs/arquitetura-3d.md`): `scene3d.ts` (the scene; the page, HUD and input are `src/app/play3d.ts`), `stage.ts`, `world.ts`,
   `plan.ts` (pure: what to draw per state), `models.ts` (code models + Meshy pack), `terrain.ts`,
   `camera.ts`, `life.ts`/`crowd.ts`/`figures.ts` (people), `time/` (day, season, weather).
-- Legacy 2D render: `iso.ts` (projection, depth = x + y of the footprint center), `textures.ts` (all art
-  generated in code as named textures with anchors in `ORIGIN`/`HEIGHT`, swappable for sprites),
-  `MapView.ts` (world), `Walkers.ts`, `CameraRig.ts`. The UI overlay is a separate `UIScene`
-  so camera zoom does not affect it.
-- In dev builds `window.game`, `window.state` and `window.core` are exposed for debugging.
+- In dev builds `window.session`, `window.state`, `window.core` and `window.view3d` are exposed for
+  debugging and the visual tests.

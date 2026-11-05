@@ -1,6 +1,6 @@
 import { RULES, SEASONS, START_SEASON, type Season } from '../../core';
 import VISUAL from '../../data/visual.json';
-import type { SeasonLook } from '../../render/Seasons';
+import type { SeasonLook } from '../../game/seasons';
 import LOOK from '../look3d.json';
 import { hex, lerp, mixColor, smooth } from './color';
 

@@ -1,4 +1,4 @@
-import { mixColor, mulColor } from '../../render/Seasons';
+import { mixColor, mulColor } from '../../game/seasons';
 
 export { mixColor, mulColor };
 

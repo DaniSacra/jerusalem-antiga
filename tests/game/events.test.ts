@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_HOUSE_LEVEL, type GameEvent } from '../../src/core';
 import { readEvents, type GameOut, type Tally } from '../../src/game/events';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { emptyGame, person, put } from '../helpers';
 
 const read = (events: GameEvent[], tally: Tally = { births: 0, weddings: 0 }) => readEvents(emptyGame(), events, tally);

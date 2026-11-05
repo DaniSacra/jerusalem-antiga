@@ -14,10 +14,9 @@ export function pitchFor(dist: number): number {
 }
 
 /**
- * City-builder camera: looks down at a target point on the ground from a tilted angle.
- * Mouse: left drag moves, right drag (or Shift + drag) turns and tilts, wheel zooms.
- * Touch: one finger moves, two fingers pinch to zoom, twist to turn and slide up/down to tilt.
- * Keys: WASD / arrows move, Q/E turn. Buttons: `turn` (a smooth quarter-ish turn).
+ * City-builder camera: looks down at a target point on the ground from a tilted angle that follows
+ * the zoom. It reads no input itself: the game drives it through `panBy`, `zoomAt`, `turnBy` and
+ * `turn` (the gestures and keys in `src/game`).
  */
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
@@ -25,53 +24,15 @@ export class CameraRig {
   private yaw = -Math.PI / 4;
   private pitch = 0.9;
   private dist = DIST0;
-  private pointers = new Map<number, { x: number; y: number }>();
-  private gesture: { d: number; a: number; y: number } | null = null;
-  private keys = new Set<string>();
-  private turning = false;
 
   /** Yaw the view is turning to (the turn buttons), approached smoothly in `update`. */
   private yawGoal: number | null = null;
-  /** Removes every listener (see dispose). */
-  private off: (() => void)[] = [];
 
-  /**
-   * `listen` false: the rig reads no input itself (the playable game drives it through `panBy`,
-   * `zoomAt` and `turnBy` from the shared gestures) and the tilt follows the zoom.
-   */
-  constructor(private el: HTMLElement, centre: THREE.Vector3, private bounds: { min: THREE.Vector2; max: THREE.Vector2 }, private listen = true) {
+  constructor(private el: HTMLElement, centre: THREE.Vector3, private bounds: { min: THREE.Vector2; max: THREE.Vector2 }) {
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.5, 400);
     this.target.copy(centre);
-    if (!listen) {
-      this.pitch = pitchFor(this.dist);
-      this.apply();
-      return;
-    }
-    const on = (t: EventTarget, type: string, f: (e: never) => void, o?: AddEventListenerOptions) => {
-      t.addEventListener(type, f as EventListener, o);
-      this.off.push(() => t.removeEventListener(type, f as EventListener, o));
-    };
-    on(el, 'pointerdown', (e: PointerEvent) => this.down(e));
-    on(el, 'pointermove', (e: PointerEvent) => this.move(e));
-    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) on(el, t, (e: PointerEvent) => this.up(e));
-    on(el, 'wheel', (e: WheelEvent) => {
-      e.preventDefault();
-      this.zoomBy(Math.exp(e.deltaY * 0.0012));
-      this.apply();
-    }, { passive: false });
-    on(el, 'contextmenu', (e: Event) => e.preventDefault());
-    on(window, 'keydown', (e: KeyboardEvent) => this.keys.add(e.key.toLowerCase()));
-    on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase()));
-    on(window, 'blur', () => this.keys.clear());
+    this.pitch = pitchFor(this.dist);
     this.apply();
-  }
-
-  /** Removes the listeners (the view closes). */
-  dispose() {
-    for (const f of this.off) f();
-    this.off = [];
-    this.keys.clear();
-    this.pointers.clear();
   }
 
   /** Turns the view a quarter around its focus to the next standard view, smoothly (the turn buttons). */
@@ -99,7 +60,7 @@ export class CameraRig {
   zoomAt(sx: number, sy: number, zoom: number) {
     const before = this.groundAt(sx, sy);
     this.dist = THREE.MathUtils.clamp(DIST0 / zoom, DIST_MIN, DIST_MAX);
-    if (!this.listen) this.pitch = pitchFor(this.dist);
+    this.pitch = pitchFor(this.dist);
     this.apply();
     const after = this.groundAt(sx, sy);
     if (before && after) {
@@ -157,53 +118,6 @@ export class CameraRig {
     this.target.z = THREE.MathUtils.clamp(this.target.z, this.bounds.min.y, this.bounds.max.y);
   }
 
-  private zoomBy(k: number) {
-    this.dist = THREE.MathUtils.clamp(this.dist * k, DIST_MIN, DIST_MAX);
-  }
-
-  private tilt(d: number) {
-    this.pitch = THREE.MathUtils.clamp(this.pitch + d, 0.45, 1.35);
-  }
-
-  private down(e: PointerEvent) {
-    this.el.setPointerCapture(e.pointerId);
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    this.turning = e.pointerType === 'mouse' && (e.button === 2 || e.shiftKey);
-    this.gesture = this.pointers.size === 2 ? this.twoFinger() : null;
-  }
-
-  private twoFinger() {
-    const [a, b] = [...this.pointers.values()];
-    return { d: Math.hypot(b.x - a.x, b.y - a.y), a: Math.atan2(b.y - a.y, b.x - a.x), y: (a.y + b.y) / 2 };
-  }
-
-  private move(e: PointerEvent) {
-    const p = this.pointers.get(e.pointerId);
-    if (!p) return;
-    const dx = e.clientX - p.x;
-    const dy = e.clientY - p.y;
-    p.x = e.clientX;
-    p.y = e.clientY;
-    if (this.pointers.size === 2 && this.gesture) {
-      const g = this.twoFinger();
-      this.zoomBy(this.gesture.d / Math.max(g.d, 1));
-      this.yaw += g.a - this.gesture.a;
-      this.tilt((g.y - this.gesture.y) * 0.004);
-      this.gesture = g;
-    } else if (this.pointers.size === 1) {
-      if (this.turning) {
-        this.yaw -= dx * 0.006;
-        this.tilt(dy * 0.004);
-      } else this.pan(dx, dy);
-    }
-    this.apply();
-  }
-
-  private up(e: PointerEvent) {
-    this.pointers.delete(e.pointerId);
-    this.gesture = this.pointers.size === 2 ? this.twoFinger() : null;
-  }
-
   update(dt: number) {
     if (this.yawGoal !== null) {
       const d = this.yawGoal - this.yaw;
@@ -213,21 +127,7 @@ export class CameraRig {
         this.yawGoal = null;
       }
     }
-    if (this.listen) this.keyMove(dt);
     this.apply();
-  }
-
-  /** The look-only view's own keys: WASD / arrows move, Q/E turn while held. */
-  private keyMove(dt: number) {
-    const k = this.keys;
-    const step = 600 * dt;
-    if (k.has('a') || k.has('arrowleft')) this.pan(step, 0);
-    if (k.has('d') || k.has('arrowright')) this.pan(-step, 0);
-    if (k.has('w') || k.has('arrowup')) this.pan(0, step);
-    if (k.has('s') || k.has('arrowdown')) this.pan(0, -step);
-    if (k.has('q')) this.yaw += 1.6 * dt;
-    if (k.has('e')) this.yaw -= 1.6 * dt;
-    if (k.has('q') || k.has('e')) this.yawGoal = null;
   }
 
   /** A quarter turn is still on its way. */

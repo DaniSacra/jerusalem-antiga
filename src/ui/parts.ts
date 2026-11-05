@@ -1,5 +1,5 @@
 import type { Part, Tone as PartTone } from '../game/model/topbar';
-import { toolName, type Tool } from '../render/tools';
+import { toolName, type Tool } from '../game/tools';
 import { h, keyed, onTap } from './dom';
 import { ICONS } from './icons';
 

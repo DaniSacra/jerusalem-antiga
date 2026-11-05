@@ -537,6 +537,9 @@ número cai abaixo de 6.
 
 ## Aparência e moradores
 
+> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
+> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
+
 Só aparência: nenhuma regra de economia depende disso.
 
 - **Variantes:** casas têm 6 desenhos por nível (tenda, barro, pedra, casa grande) e 2 de terreno
@@ -567,7 +570,7 @@ Só aparência: nenhuma regra de economia depende disso.
   nas costas); uma família de caravana (alguém ainda sem casa) vem com o pai puxando um jumento
   carregado de trouxas, a mãe com uma trouxa na cabeça e uma criança; os outros (um idoso
   mudando para a casa de um filho) aparecem como a família simples.
-- **Gente da comida** (só desenho, `src/render/Haulers.ts`, números em `visual.json` > `haulers`):
+- **Gente da comida** (só desenho, `src/render3d/life.ts`, números em `visual.json` > `haulers`):
   na colheita, de cada campo que colhe (até 8) sai um carregador com saco nas costas pelas ruas
   até o celeiro ligado mais perto (ao altar quando não há celeiro) e volta de mãos vazias; o ano
   todo, o pescador sai da cabana com a rede no ombro e o cesto até a margem do rio mais perto e
@@ -587,6 +590,9 @@ visuais dela).
 código continuam `goal` e `happiness`; o passo passou a ser `week`.
 
 ### Interface Nova
+
+> Escrita para a interface Nova do 2D; a interface HTML do 3D segue os mesmos textos, regras e
+> tamanhos (veja "Jogo em 3D" abaixo). Detalhes de posição em px do 2D são históricos.
 
 - **Abertura:** ao começar, um toast maior (ou balão central que some sozinho em 5 s) com a frase
   da caravana: "A caravana chegou com N famílias, comida para N semanas e 40 de madeira" (a madeira
@@ -644,19 +650,12 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     tristes e motivos), **materiais** (madeira e pedra: estoque e "+N/sem", em vermelho com
     "Casas esperando madeira/pedra ⚠ N" quando há casa esperando, e o número de tocos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
-  - **3D** (botão redondo com "3D", embaixo das Estatísticas): abre a **cidade do jogador em 3D**
-    (veja Visão 3D). Em telas baixas (celular 800 x 360) os quatro botões da coluna ficam mais
-    juntos (no mínimo 6 px) para o 3D ficar sempre a 15 px ou mais acima do Mover. Quando um
-    objetivo é cumprido ou uma casa vira Casa grande, o botão 3D pulsa de leve com a borda dourada
-    por uns 4 s (convite; nunca abre sozinho). Abrir o 3D fecha antes o painel aberto, a ficha e o
-    balão da construção tocada (nada fica aberto embaixo nem na volta).
 - **Jogo em 3D** (`src/app/play3d.ts` e `src/render3d/scene3d.ts`, Three.js, com a interface em HTML em `src/ui`): o
-  **mesmo jogo** (a mesma `Session`) desenhado em 3D. O botão 3D do 2D passa a partida para ele e o
-  laço do Phaser dorme (só uma visão desenha); o botão "2D" no alto à direita volta para o 2D na
-  mesma partida, que é redesenhado como está. **Desde 2026-11-05 o jogo abre em 3D** (sem baixar o
-  Phaser); o 2D é legado congelado e só abre com `?view=2d` ou num aparelho sem WebGL 2.
+  jogo é 3D (a `Session` de `src/game` desenhada com Three.js). O 2D em Phaser foi removido em
+  2026-11-05 (último código na tag `ultimo-2d`). Sem WebGL 2 a página mostra só um aviso curto:
+  "Este navegador não consegue desenhar o jogo em 3D…".
   - **O jogo continua correndo** no 3D: semanas, velocidade (botão dourado no alto à direita,
-    Espaço no PC) e o dia (o mesmo ciclo do 2D: 240 s a 1x, parado na pausa).
+    Espaço no PC) e o dia (240 s a 1x, parado na pausa).
   - Mostra todas as construções (casas por nível; casa vazia que guardou o nível com o desenho
     desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e oficina mais altos e com
     acabamento de pedra nos níveis 2 e 3), ruas, árvores, tocos (com muda quando volta a crescer),
@@ -676,7 +675,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     Demolir com "Certeza?" e ✕; no celular, a parte do nível vai numa segunda coluna e os botões
     ficam sob os moradores. Tocar num morador abre a **ficha** (parentes que abrem a ficha deles,
     "Voltar"; a casa leva a câmera até ela). O **anel do nível e a pílula do objetivo** abrem
-    Objetivos (como no 2D); na lateral, sob os botões de girar, ficam **Avisos** (selo e pulso a cada
+    Objetivos; na lateral, sob os botões de girar, ficam **Avisos** (selo e pulso a cada
     aviso novo, que também vira toast) e **Estatísticas** (Agora, Povo e Histórico; uma família do
     Povo leva até a casa dela). Os painéis e a ficha terminam acima das ferramentas. Escolher uma
     construção na coluna mostra o balão dela ao lado do botão (custo, manutenção, efeito, "Saldo
@@ -689,28 +688,28 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     de nenhum lado (a casa com moradores no celular), a câmera desliza uma vez para tirar a
     construção de baixo dele. No tutorial, a câmera leva o lugar de cada passo ao meio do mapa livre
     (acima do balão do tutorial; no toque, com espaço para o dedo abaixo dele) e só desliza depois que
-    o dedo solta; a coluna rola até o botão que a seta aponta. A pílula sobre a prévia diz o que a construção dá ali, como no 2D:
+    o dedo solta; a coluna rola até o botão que a seta aponta. A pílula sobre a prévia diz o que a construção dá ali:
     "Rende N…", "Corta 1 árvore a cada N sem", "Divide o bosque…", "Comida depois", "Sem rua ao
     lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
     ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
-    fica salvo). Esc fecha. (A troca para o 2D saiu: o 2D está congelado.)
-  - **Tela inicial em HTML** (3D aberto direto): nome, como jogar, controles, "Começar" (Enter no
+    fica salvo). Esc fecha.
+  - **Tela inicial em HTML**: nome, como jogar, controles, "Começar" (Enter no
     PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
     enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do
     pacote (Meshy) quando eles chegam.
-  - **Vida e efeitos no 3D** (como no 2D): a gente da comida (carregadores com saco do campo ao
+  - **Vida e efeitos no 3D**: a gente da comida (carregadores com saco do campo ao
     celeiro ou ao altar na época de colheita, pescador com o cesto na margem do rio, coletora com o
     cesto na cabeça sob a árvore mais perto; param na pausa) e o andaime de madeira com poeira em
     toda construção nova por 1,5 s (menos campos) e na casa que sobe de nível por 0,6 s.
   - **Bateria:** com o jogo pausado e nada se mexendo, o 3D desenha 10 quadros por segundo; qualquer
     toque, tecla ou acontecimento volta ao ritmo normal. Se o celular perde o contexto gráfico (ao
     voltar de outro app), a cidade é redesenhada quando ele volta.
-  - No chão: a prévia da ferramenta como no 2D (o modelo translúcido em branco, amarelo "falta
+  - No chão: a prévia da ferramenta (o modelo translúcido em branco, amarelo "falta
     ligar à rua" ou vermelho, a área do serviço e as casas que ele atenderia, o que já está coberto),
     a rua marcada do tutorial, as áreas do Templo, os lugares de "Onde construir" e, com Demolir, a
     construção sob o cursor em vermelho.
-  - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; só a Rua
+  - Controles (`src/game/gestures.ts`): arrastar com Mover move; só a Rua
     constrói arrastando; as outras construções e Demolir agem uma vez, ao soltar (no toque, as
     construções miram 90 px acima do dedo; Demolir age sob o dedo); pinça ou roda dá zoom em volta do dedo/cursor (a roda pelo quanto rolou: ~14% por dente,
     e o touchpad fica suave); dois dedos girando giram só depois de ~12° de torção (uma pinça de zoom
@@ -718,14 +717,13 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     botões giram até a próxima das 4 vistas padrão (desfazem um giro livre). Tocar no mapa com um
     painel ou a ficha aberta só fecha o que está aberto. A
     inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
-  - Começa na célula do centro da tela do 2D e girada como ele (ou no altar, direto em 3D).
-  - O Three.js vem num pedaço separado (import dinâmico): a primeira carga do 2D não cresce. Enquanto
-    ele e os modelos baixam aparece "Carregando a cidade em 3D…". Sem WebGL 2: toast "Seu aparelho
-    não abre o 3D" e o jogo continua no 2D.
+  - Começa centrada no altar, na vista padrão.
+  - O Three.js vem num pedaço separado (import dinâmico) que baixa enquanto a tela inicial está
+    aberta; o jogo abre com os modelos em código e troca pelos do Meshy quando chegam.
   - Qualidade automática: abaixo de 30 qps por duas janelas de 2,5 s, a resolução, as sombras e as
     partículas descem um nível.
-  - Offline: o service worker guarda o pedaço do 3D e os modelos no primeiro uso; depois de abrir o
-    3D uma vez com internet, ele abre sem internet.
+  - Offline: o service worker guarda o jogo e os modelos no primeiro uso; depois de abrir uma vez
+    com internet, ele abre sem internet.
 - **Inferior esquerdo** (botões redondos com nome embaixo; no PC com a tecla, ex. "Mover · 1"):
   - **Mover** (mão): arrastar move o mapa; tocar numa construção abre o balão dela;
   - **Rua**: arrastar constrói, como hoje;
@@ -950,7 +948,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 Roda na primeira partida até ser concluído ou pulado (fica gravado no navegador em
 `jerusalem.tutorialDone`; se o armazenamento estiver bloqueado, ele volta na próxima partida e
 pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
-`src/core/tutorial.ts`, tela em `src/render/Tutorial.ts`.
+`src/core/tutorial.ts`, tela em `src/ui/tutorial.ts` e `src/app/play3d.ts`.
 
 - Um balão com **uma frase** fica embaixo, entre as ferramentas e a coluna, com o botão "Pular tutorial".
   Uma **seta dourada** que balança aponta onde tocar: o botão da ferramenta do passo até ela ser
@@ -1015,7 +1013,7 @@ começando no **outono**: outono, inverno, primavera, verão. As regras das esta
 (primavera), o inverno com fome (tendas saem mais) e a seca (veja Colheita). O core diz a estação
 da semana (`src/core/seasons.ts`), avisa quando uma começa (evento `season`) e diz se o ano é
 seco; cores, fases e chances visuais ficam em `visual.json` (`seasons`, fases em semanas de 1 a
-13) e o desenho em `src/render/Seasons.ts`, `Weather.ts` e `MapView.ts`. O ciclo segue o da região
+13) e o desenho em `src/game/seasons.ts` e `src/render3d/time/`. O ciclo segue o da região
 de Jerusalém: inverno chuvoso e verde, verão seco.
 
 - **Campos pela estação** (só desenho, lendo o core: `harvestsIn` na primavera do ano agrícola):
@@ -1097,6 +1095,9 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
 
 ## Vida na cidade
 
+> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
+> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
+
 - Moradores andando **só pelas ruas**, com rota por busca em largura até uma construção conectada
   aleatória. Quantidade = moradores / 5, no máximo 60. Roupas variadas, balanço ao andar. Param
   quando o jogo está pausado e andam mais rápido em 3x.
@@ -1142,6 +1143,9 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   altar sem celeiro). Começo da colheita: anel dourado em cada campo que colhe.
 
 ## Arte
+
+> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
+> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
 - **Acabamento de imagem** (só no mapa, WebGL, `FinishPipeline.ts`): vinheta suave e efeito
   maquete (desfoque leve que cresce para as bordas de cima e de baixo; a faixa do meio fica nítida),
   numa passada só. Se a média ficar abaixo de 40 quadros por segundo por 4 s, o efeito maquete

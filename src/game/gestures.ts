@@ -1,6 +1,6 @@
 import type { Cell } from '../core';
-import { T } from '../render/strings';
-import { DRAG_TOOLS, isPlaceTool } from '../render/tools';
+import { T } from './strings';
+import { DRAG_TOOLS, isPlaceTool } from './tools';
 import { orthoSteps, sameCell } from './placement';
 import { newDrag, type DragMemo, type Session } from './session';
 

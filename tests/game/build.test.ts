@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { costOf } from '../../src/core';
 import { buildColumn } from '../../src/game/model/build';
-import { T } from '../../src/render/strings';
-import { COLUMN_ORDER } from '../../src/render/tools';
+import { T } from '../../src/game/strings';
+import { COLUMN_ORDER } from '../../src/game/tools';
 import { emptyGame } from '../helpers';
 
 describe('building column as data', () => {

@@ -1,5 +1,5 @@
 import type { BuildingCategory } from '../core';
-import { CATEGORY_KEYS, TOOL_KEYS, type Tool } from '../render/tools';
+import { CATEGORY_KEYS, TOOL_KEYS, type Tool } from './tools';
 import type { Session } from './session';
 
 /** What a key does (PC): the same table for every view. */

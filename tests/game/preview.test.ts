@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { harvestsIn, indexOf, RULES, refreshCity } from '../../src/core';
 import { outputOf, previewOf } from '../../src/game/model/preview';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { EAST, emptyGame, put } from '../helpers';
 
 describe('tool preview as data (every view)', () => {

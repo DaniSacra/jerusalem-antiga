@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GOALS, readCity, refreshCity } from '../../src/core';
 import { alertsPanel, goalsPanel, statsPanel, type StatsData } from '../../src/game/model/panels';
-import { notices } from '../../src/render/nova/notices';
-import { T } from '../../src/render/strings';
+import { notices } from '../../src/game/notices';
+import { T } from '../../src/game/strings';
 import { emptyGame, put, ROADSIDE } from '../helpers';
 
 const data = (s: ReturnType<typeof emptyGame>): StatsData => {

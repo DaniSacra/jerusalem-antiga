@@ -1,8 +1,7 @@
 # Visão 3D (Three.js)
 
-O jogo em 3D: a mesma `Session` do 2D desenhada com Three.js sob a interface em HTML (`src/ui`).
-`?view=3d` abre direto (`src/app/start3d.ts`); o botão 3D do 2D passa a partida para cá
-(`src/render/view3d.ts`). Quem cuida da página, da interface e da entrada é `src/app/play3d.ts`
+O jogo: a `Session` de `src/game` desenhada com Three.js sob a interface em HTML (`src/ui`).
+`src/app/start3d.ts` abre o jogo depois da tela inicial. Quem cuida da página, da interface e da entrada é `src/app/play3d.ts`
 (`Play3D`); aqui fica só a cena. O Three.js e este código vêm num pedaço separado (import dinâmico).
 Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitetura-3d.md`.
 
@@ -12,7 +11,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `stage.ts` | renderizador, céu e luz, clima, partículas, qualidade automática e o `World` refeito por camada (cidade a cada 250 ms no máximo; moradores só com a cidade parada 600 ms) |
 | `marks.ts`, `overlay.ts` | **puro e testado** / desenho: prévia no chão, fantasma, áreas e destaques |
 | `picking.ts`, `diff.ts` | **puros e testados**: raio até o chão e caixas das construções; o que mudou na cidade (camadas) |
-| `plan.ts` | **puro e testado**: o que se desenha do `GameState` (modelo por tipo e nível, casa vazia desbotada com portão trancado, acréscimos dos níveis 2–3 por tipo, frente para a rua, árvores, tocos e mudas, número de moradores, giro da câmera igual ao do 2D) |
+| `plan.ts` | **puro e testado**: o que se desenha do `GameState` (modelo por tipo e nível, casa vazia desbotada com portão trancado, acréscimos dos níveis 2–3 por tipo, frente para a rua, árvores, tocos e mudas, número de moradores) |
 | `crowd.ts` | **puro e testado**: roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), ordem da família ao andar e o seu caminho até a casa |
 | `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), jumento de carga e as famílias e caravanas andando em grupo (`s.families`) |
 | `world.ts` | a cidade a partir do `plan`: chão, rio, construções e árvores instanciadas, fumaça, fogueiras, gente nos campos, moradores e famílias chegando |
@@ -23,7 +22,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas, campos crescendo, cores do chão por estação |
 | `atmosphere.ts` | sol e lua com sombras, céu, neblina |
 | `particles.ts` | chuva, respingos, neve, folhas, pétalas e poeira na GPU |
-| `fx.ts` | momentos do mundo (como o `Effects` do 2D): anel de luz no chão, poeira e pedrinhas ao demolir, festa do templo, brilho e faíscas do marco, mofo com moscas, árvore cortada tombando, pulinho da construção (`World.lift`); tudo em pool, 3 chamadas de desenho |
+| `fx.ts` | momentos do mundo : anel de luz no chão, poeira e pedrinhas ao demolir, festa do templo, brilho e faíscas do marco, mofo com moscas, árvore cortada tombando, pulinho da construção (`World.lift`); tudo em pool, 3 chamadas de desenho |
 | `fxMath.ts` | **puro e testado** (`tests/render3d/fx.test.ts`): raio e esmaecer do anel, pulinho, queda da árvore e as partículas de cada efeito |
 | `camera.ts` | arrastar move; pinça/roda dá zoom; dois dedos ou botões giram; Q/E e WASD no PC |
 | `time/` | **puro e testado** (`tests/render3d`): hora do dia e sol, estações contínuas e campos, clima pela semente, luz do quadro |
@@ -75,13 +74,9 @@ forno (`KILN` em `plan.ts`, de onde saem também a fumaça e o fogo da noite).
 Casa vazia que guardou o nível: tom `VACANT_TINT` (< 0,8), que os shaders desbotam (cinza empoeirado)
 e apagam as janelas, sem fumaça, e o portão `closed` diante da porta (`CLOSED_AT`).
 
-## Início alinhado ao 2D
+## Início
 
-`open3D(state, seed, onClose, { start: { focus: {x, y}, rotation } })`: `focus` é a célula do grid no
-centro da tela 2D e `rotation` é `iso.getRotation()`. A câmera abre centrada nessa célula e girada por
-`yawOfRotation(rotation)`, do mesmo lado do mapa que o 2D, então uma rua que desce para a esquerda no 2D
-desce para a esquerda no 3D. Sem `start`: o altar, giro 0. `src/render/view3d.ts` repassa `start` do
-`Launch3D`; quem chama (`GameScene.open3D`) precisa preencher.
+A câmera abre centrada no altar, na vista padrão (`yawOfRotation(0)`).
 
 ## Medir
 

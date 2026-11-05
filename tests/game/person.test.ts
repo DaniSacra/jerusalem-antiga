@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sheetOf } from '../../src/game/model/person';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { emptyGame, person, put, ROADSIDE } from '../helpers';
 
 describe('the person sheet as data', () => {

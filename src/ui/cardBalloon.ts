@@ -1,7 +1,7 @@
 import type { BuildableKind, Cell, Rect } from '../core';
 import { cardOf, type Card, type CardAction } from '../game/model/card';
 import type { Session } from '../game/session';
-import { T } from '../render/strings';
+import { T } from '../game/strings';
 import { besideX, type Anchors, type Free } from './anchors';
 import { h, onTap } from './dom';
 import { cardLine } from './lines';

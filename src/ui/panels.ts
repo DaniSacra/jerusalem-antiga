@@ -1,8 +1,8 @@
 import { readCity } from '../core';
 import { alertsPanel, goalsPanel, STATS_TABS, statsPanel, type PanelSection, type StatsTab } from '../game/model/panels';
 import type { Session } from '../game/session';
-import type { Notice } from '../render/nova/notices';
-import { T } from '../render/strings';
+import type { Notice } from '../game/notices';
+import { T } from '../game/strings';
 import { h, keyed, onTap, resetKey } from './dom';
 import { panelLine } from './lines';
 

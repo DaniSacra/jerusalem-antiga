@@ -3,7 +3,7 @@ import { indexOf, type Cell } from '../../src/core';
 import { Gestures, TAP_SLOP, TOUCH_BUILD_DELAY, TOUCH_LIFT, snapTurn, type GestureView, type PointerIn } from '../../src/game/gestures';
 import { keyCommand, runKey } from '../../src/game/keys';
 import { Session, type SessionView } from '../../src/game/session';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 
 /** 10 screen px per cell, no camera: cell (x, y) is at (10x + 5, 10y + 5). The UI covers sy >= 900. */
 const CELL = 10;

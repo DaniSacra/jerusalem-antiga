@@ -1,5 +1,5 @@
 import type { PanelChart } from '../game/model/panels';
-import { NOVA } from '../render/palette';
+import { NOVA } from '../game/palette';
 
 const css = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 const W = 200;

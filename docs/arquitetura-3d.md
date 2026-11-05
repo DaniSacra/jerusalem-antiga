@@ -4,6 +4,11 @@ Mantido pelo `architect`. Decisão do usuário (2026-11-05): "A cidade em 3D é 
 já pode planejar para migrar tudo para 3D de maneira que tenha uma boa arquitetura e que pense tanto
 no PC quanto no mobile".
 
+> **Migração concluída (2026-11-05, Fase 5):** o jogo é só 3D; o Phaser, `src/scenes` e `src/render`
+> saíram. O último 2D está na tag `ultimo-2d` (e na branch `backup/phaser-2d`). O plano abaixo fica
+> como histórico; o que vale hoje está em `CLAUDE.md`, `src/render3d/README.md` e na seção "Jogo em 3D"
+> de `docs/GAME_DESIGN.md`.
+
 **Destino:** o mapa em Three.js e a interface em HTML/CSS, sem Phaser no fim. `src/core`, `src/data`,
 `strings.ts` e a lógica pura da interface são reaproveitados. O 2D fica como plano B, atrás de uma
 chave, até o 3D cobrir tudo (lista de paridade na seção 8). Cada fase termina com o jogo jogável e
@@ -534,6 +539,12 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   chave de visão, `phaser` do `package.json`, cenários só do 2D. `strings.ts`, `settings.ts`,
   `palette.ts`, `tools.ts`, `Seasons.ts`, `RoadWear.ts`, `install.ts` vão para `src/game` ou `src/ui`.
 - **Pronto quando:** build sem Phaser, `CLAUDE.md` e os docs sem 2D, todos os testes passando.
+- **Feito (2026-11-05):** com a aprovação do usuário (backup: tag `ultimo-2d`, branch
+  `backup/phaser-2d`). Saíram `src/scenes`, `src/render`, `app/start2d.ts`, a chave de visão e o
+  botão 2D/3D, `phaser` do `package.json` e os cenários visuais do 2D (ficam `title` e os 3D).
+  `strings`, `palette`, `tools`, `seasons`, `notices`, `settings` e `tutorialStore` foram para
+  `src/game`; `install` para `src/app`. `main.ts` abre o 3D ou, sem WebGL 2, um aviso curto.
+  `palette.ts` e `strings.ts` perderam o que só o 2D usava; a câmera perdeu o caminho "só olhar".
 
 ---
 

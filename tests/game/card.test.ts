@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, readCity, refreshCity } from '../../src/core';
 import { cardOf, levelStatOf } from '../../src/game/model/card';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { EAST, emptyGame, put, ROADSIDE } from '../helpers';
 
 const N = T.nova.inspect;

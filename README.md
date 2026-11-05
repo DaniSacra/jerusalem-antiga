@@ -1,7 +1,8 @@
 # Jerusalém Antiga
 
-Construtor de cidade isométrico para celular (tela deitada) e PC.
-Phaser 3 + TypeScript + Vite, testes com Vitest. Toda a arte é desenhada por código.
+Construtor de cidade em 3D para celular (tela deitada) e PC.
+Three.js + TypeScript + Vite, interface em HTML/CSS, testes com Vitest e Playwright. Os modelos são
+feitos por código e alguns no Meshy (`public/models/meshy`).
 
 Documentação completa:
 - [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md) — regras, números, interface, controles e arte
@@ -41,11 +42,13 @@ Instalado, o jogo abre em tela cheia, deitado, e funciona sem internet. A instal
 
 | Ação | Celular | PC |
 |---|---|---|
-| Mover o mapa | arrastar com "Ver", ou dois dedos com qualquer ferramenta | arrastar com "Ver", ou botão direito |
+| Mover o mapa | arrastar com "Mover", ou dois dedos com qualquer ferramenta | arrastar com "Mover", botão direito ou WASD/setas |
 | Zoom | pinça | roda do mouse |
-| Construir | tocar; Rua, Casa, Campo e Limpar podem ser arrastados | clicar / arrastar |
+| Girar | dois dedos girando, ou ↺ ↻ | Q e E, ou ↺ ↻ |
+| Construir | Rua: arrastar; o resto: tocar e soltar | clicar / arrastar |
 
-Atalhos no PC: teclas 1–9 escolhem a ferramenta, Espaço alterna a velocidade, Esc volta para "Ver".
+Atalhos no PC: 1 Mover, 2 Rua, 3–6 categorias, 0 Demolir, R gira a construção, Espaço troca a
+velocidade, Esc fecha o balão ou painel. Detalhes em `docs/GAME_DESIGN.md`.
 
 ## Como funciona
 
@@ -68,20 +71,21 @@ O build é um site estático (`dist/`) com caminhos relativos, então funciona e
 
 ```
 src/
-  core/     simulação em TypeScript puro (sem Phaser): mapa, ruas, cobertura, economia,
-            casas, famílias, metas, ações e relógio
+  core/     simulação em TypeScript puro: mapa, ruas, cobertura, economia, casas, famílias,
+            pessoas, metas, ações e relógio
   data/     JSON com custos, vagas, raios, níveis das casas, metas e regras
-  render/   desenho isométrico, animação, câmera e interface
-  scenes/   telas do Phaser (início, jogo e interface) e entrada
-tests/      testes unitários do core
+  game/     sessão, gestos, teclas, modelos de tela, textos (strings.ts) e cores (palette.ts)
+  render3d/ o mundo em Three.js: terreno, modelos, pessoas, luz, estações, clima, efeitos, câmera
+  ui/       a interface em HTML/CSS sobre o 3D
+  app/      a página: início, jogo 3D, instalação
+tests/      testes unitários (core, game, render3d e ui puros)
 scripts/visual/  testes visuais com Playwright
 docs/       design do jogo e guia de testes
 ```
 
 Para ajustar o balanço do jogo, edite os arquivos em `src/data/`.
 
-### Trocar a arte por sprites
+### Trocar modelos
 
-Todas as imagens são texturas com nome, geradas em `src/render/textures.ts` (veja `TEX`).
-Para usar sprites, carregue imagens com as mesmas chaves e mantenha os pontos de ancoragem
-em `ORIGIN` (ponto do chão no centro da construção) e `HEIGHT` (altura para os balões).
+Os modelos por código estão em `src/render3d/models.ts`; o pacote do Meshy em
+`public/models/meshy/manifest.json` substitui os que tiverem um `.glb` (veja `src/render3d/README.md`).

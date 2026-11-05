@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkClear, indexOf } from '../../src/core';
-import { C } from '../../src/render/palette';
+import { C } from '../../src/game/palette';
 import { pitchFor } from '../../src/render3d/camera';
 import { FIT_COLOR, marksOf, type MarksInput } from '../../src/render3d/marks';
 import { emptyGame, put } from '../helpers';

@@ -22,8 +22,8 @@ import {
   type Rect,
   type ServiceKind,
 } from '../../core';
-import { T } from '../../render/strings';
-import { isPlaceTool, type Tool } from '../../render/tools';
+import { T } from '../strings';
+import { isPlaceTool, type Tool } from '../tools';
 import { originFor, toolDims } from '../placement';
 
 /** `ok` fits now, `road` fits but needs a road (yellow), `bad` something is in the way or no silver (red). */

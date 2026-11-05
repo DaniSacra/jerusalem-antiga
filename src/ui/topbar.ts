@@ -1,11 +1,11 @@
 import { topBar } from '../game/model/topbar';
 import type { Session } from '../game/session';
-import { T } from '../render/strings';
+import { T } from '../game/strings';
 import { h, keyed, onTap, setText } from './dom';
 import { iconButton, iconEl, partsTo } from './parts';
 
 /**
- * The top bar: level ring, resource pills, the goal, the season, speed, back to 2D and the gear. The
+ * The top bar: level ring, resource pills, the goal, the season, speed and the gear. The
  * level ring and the goal open Objetivos (as in the 2D), the other pills Estatísticas; the goal
  * follows the pills on their row when it fits, else on the next one.
  */
@@ -17,7 +17,7 @@ export class TopBar {
   private season = h('div.pill.season');
   private speed: HTMLButtonElement;
 
-  constructor(private s: Session, o: { exit: (() => void) | null; settings: () => void; goals: () => void; stats: () => void }) {
+  constructor(private s: Session, o: { settings: () => void; goals: () => void; stats: () => void }) {
     this.speed = h('button.round.gold', { 'data-spot': 'speed', 'aria-label': T.nova.buttons.speed });
     onTap(this.speed, () => s.cycleSpeed());
     onTap(this.level, o.goals);
@@ -25,11 +25,6 @@ export class TopBar {
     onTap(this.pills, o.stats);
     onTap(this.season, o.stats);
     const right = h('div.right', {}, this.season, this.speed);
-    if (o.exit) {
-      const exit = h('button.round.pill', { 'data-spot': 'exit3d', 'aria-label': T.view3d.classicHint }, T.view3d.classic);
-      onTap(exit, () => o.exit?.());
-      right.append(exit);
-    }
     right.append(iconButton('gear', T.nova.buttons.settings, o.settings, 'settings'));
     this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.goal)), right);
   }

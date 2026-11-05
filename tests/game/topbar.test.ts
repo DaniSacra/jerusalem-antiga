@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readCity } from '../../src/core';
 import { topBar, type Part } from '../../src/game/model/topbar';
-import { T } from '../../src/render/strings';
+import { T } from '../../src/game/strings';
 import { emptyGame } from '../helpers';
 
 const texts = (parts: Part[]) => parts.filter((p): p is { text: string } => 'text' in p).map((p) => p.text);

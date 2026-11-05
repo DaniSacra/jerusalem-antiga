@@ -22,7 +22,7 @@ import {
   type Mood,
   type Season,
 } from '../../core';
-import { fmt, fmtInt, signed, T } from '../../render/strings';
+import { fmt, fmtInt, signed, T } from '../strings';
 
 /** A role, not a colour: each view turns it into its palette. */
 export type Tone = 'text' | 'good' | 'bad' | 'warn' | 'muted' | 'gold';

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createRng, type Rect } from '../core';
-import { C } from '../render/palette';
+import { C } from '../game/palette';
 import { COLORS, materialOf } from './models';
 import {
   celebrateRecipe,

@@ -1,6 +1,6 @@
 import { Session } from '../game/session';
-import { saveTutorialSeen, tutorialSeen } from '../render/tutorialStore';
-import { T } from '../render/strings';
+import { saveTutorialSeen, tutorialSeen } from '../game/tutorialStore';
+import { T } from '../game/strings';
 import { showTitle } from '../ui/title';
 
 /** Dev builds: `?seed=N` fixes the map (the visual tests use it). */
@@ -11,16 +11,14 @@ function devSeed(): number | null {
 }
 
 /**
- * The 3D game on its own (`?view=3d`, or the 3D setting): a new session drawn by Three.js under the
- * HTML interface, no Phaser at all, after the HTML title screen. A defeat starts a new session in
- * place (no title).
+ * The game: a new session drawn by Three.js under the HTML interface, after the HTML title screen.
+ * A defeat starts a new session in place (no title).
  */
 export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0, title = true) {
   // The title screen shows while Three.js and the models download.
   const [{ Play3D }, { tutorial }] = await Promise.all([import('./play3d'), title ? showTitle() : { tutorial: false }]);
   const session = new Session({ seed, tutorial, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
   const game = await Play3D.open(session, {
-    exit: null,
     restart: (sameMap) => {
       game.close();
       void start3d(sameMap ? seed : (Math.random() * 2 ** 32) >>> 0, false);

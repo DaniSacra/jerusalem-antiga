@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { indexOf, RULES, type Rect } from '../../src/core';
 import type { GameOut } from '../../src/game/events';
 import { newDrag, Session, type SessionView } from '../../src/game/session';
-import { T } from '../../src/render/strings';
-import { SPEEDS } from '../../src/render/tools';
+import { T } from '../../src/game/strings';
+import { SPEEDS } from '../../src/game/tools';
 
 /** A view that only records what the session asks of it. */
 function recorder() {

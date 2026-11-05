@@ -1,4 +1,4 @@
-// Frame rate of the 3D game (`?view=3d`) on a simulated mid-range phone (844 x 390,
+// Frame rate of the 3D game on a simulated mid-range phone (844 x 390,
 // deviceScaleFactor 2.6, touch, CPU slowed 4x), on a town of ~50 buildings, by day, at night and in
 // the rain, at automatic quality (as a player gets it); then a road dragged across the town: the
 // slowest world rebuild and the frames over 50 ms (targets in docs/arquitetura-3d.md §11.5).
@@ -43,7 +43,7 @@ const measure = (ms) =>
 
 const results = [];
 try {
-  await page.goto(`http://localhost:${PORT}/?view=3d&seed=5`, { timeout: 90000 });
+  await page.goto(`http://localhost:${PORT}/?seed=5`, { timeout: 90000 });
   await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });

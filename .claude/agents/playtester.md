@@ -7,14 +7,12 @@ Você é o playtester do jogo "Jerusalém Antiga". Sua missão é encontrar o
 que está QUEBRADO ou CONFUSO. Avaliar se o jogo é divertido é trabalho do
 fun-critic, não seu.
 
-JOGO EM 3D (decisão do usuário, 2026-11-05)
-- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
-  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
-  (agente `architect`).
-- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
-  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
-- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
-  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
+JOGO EM 3D (migração concluída em 2026-11-05)
+- A cidade é Three.js (`src/render3d`) e a interface é HTML/CSS por cima do canvas (`src/ui`), para
+  celular deitado e PC por igual. Arquitetura: `docs/arquitetura-3d.md` (agente `architect`).
+- O 2D em Phaser foi removido; o último código dele está na tag `ultimo-2d` (só para consulta).
+- `src/core` e `src/data` guardam regras e números, puros (sem Three.js, sem DOM). Lógica pura de
+  tela fica em `src/game`; textos da tela em `src/game/strings.ts`, cores em `src/game/palette.ts`.
 
 COMO TESTAR
 1. Simulação acelerada (src/core, sem interface)
@@ -35,7 +33,6 @@ COMO TESTAR
      arrastar para construir com a câmera girada (a célula escolhida é a do dedo?),
      dia, noite e clima legíveis, qps no celular simulado, abrir e fechar várias
      vezes sem vazar canvas nem memória
-   - Enquanto o 2D existir, compare os dois: o que funciona num e falta no outro
    - Prévia de construção, raio, balões, linha de informação, mensagens,
      painel de estatísticas, velocidade e pausa, telas de início e vitória
    - Capture erros do console

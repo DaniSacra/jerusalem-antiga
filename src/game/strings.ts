@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
@@ -18,6 +18,8 @@ export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
   houseDown: (delta: number, famine: boolean, cold = false) => (cold ? `Frio ${delta}` : famine ? `Fome ${delta}` : `${delta}`),
   title: 'Jerusalém Antiga',
+  /** No WebGL 2 in this browser: the game cannot draw. */
+  noWebGL: 'Este navegador não consegue desenhar o jogo em 3D. Atualize o navegador ou abra em outro aparelho.',
   start: 'Começar',
   howTo: [
     'Guarde comida para o inverno: pesque, colete e plante campos.',
@@ -40,8 +42,6 @@ export const T = {
   caravan: (families: number, foodWeeks: number) => 
     `A caravana chegou com ${families} ${families === 1 ? 'família' : 'famílias'}, comida para ${weeks(foodWeeks)}` +
     (RULES.startMaterials.wood ? ` e ${RULES.startMaterials.wood} de madeira` : ''),
-  /** Second line of the opening: the engaged couple of the caravan. */
-  wantToMarry: (a: string, b: string) => `${a} e ${b} querem se casar`,
   /** People events (toasts). */
   wedding: (a: string, b: string) => `${a} e ${b} se casaram!`,
   birth: (name: string, female: boolean, father: string, mother: string) => `Nasceu ${name}, ${female ? 'filha' : 'filho'} de ${father} e ${mother}`,
@@ -87,12 +87,6 @@ export const T = {
     food: 'Sem nascimentos: a comida não dura até a primavera',
     storage: 'Sem nascimentos: o estoque é pequeno',
   } satisfies Record<BirthBlock, string>,
-  /** Why no child is born; "storage" names the store size and how to get a granary. */
-  birthsText(block: BirthBlock, s: GameState): string {
-    if (block !== 'storage') return T.births[block];
-    const granary = s.unlocked.includes('granary') ? 'Construa um celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
-    return `Sem nascimentos: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
-  },
   /** A family left its tent: famine, or the tent lost its road. */
   familyLeft: (reason: LeaveReason, name: string) =>
     `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
@@ -281,10 +275,6 @@ export const T = {
     fieldTurn: (turn: { season: 'winter' | 'spring'; weeks: number }) => `${turn.season === 'winter' ? 'inverno' : 'primavera'} em ${turn.weeks} sem`,
     /** The phone drops the season's name too: its icon shows it. */
     calendarPhone: (year: number, turn: { season: 'winter' | 'spring'; weeks: number }) => `Ano ${year} · ${T.nova.fieldTurn(turn)}`,
-    /** Name of a bottom tool, with its key on PC ("Mover · 1"). */
-    withKey: (name: string, key: string) => `${name} · ${key}`,
-    /** Price and key inside a PC column button. */
-    costKey: (cost: number, key: string) => `${cost} · tecla ${key}`,
     lockedGoal: (n: number, year?: number) => `objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     unlocksAt: (n: number, year?: number) => `Libera no objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     category: { home: 'Moradia', supply: 'Comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
@@ -481,18 +471,9 @@ export const T = {
       close: 'Fechar',
     },
     settings: {
-      turn: 'Girar a visão',
       dayNight: 'Dia e noite',
-      miniature: 'Efeito maquete',
       on: 'ligado',
       off: 'desligado',
-      slow: 'aparelho lento',
-      /** Which map the game opens with (3D or the classic 2D). */
-      view: 'Mapa',
-      view3d: 'em 3D',
-      view2d: 'em 2D (clássico)',
-      /** Switching from the 3D started on its own starts a new game in 2D. */
-      viewNewGame: 'O 2D começa uma partida nova',
     },
     inspect: {
       next: (cur: string, next: string) => `${cur} → ${next}`,
@@ -551,19 +532,10 @@ export const T = {
   },
   /** The city in 3D (the 3D button of the left column and its view). */
   view3d: {
-    /** Text inside the round button. */
-    badge: '3D',
-    back: 'Voltar',
-    loading: 'Carregando a cidade em 3D…',
-    failed: 'Seu aparelho não abre o 3D',
     turnLeft: 'Girar para a esquerda',
     turnRight: 'Girar para a direita',
     /** Label over the 3D view: "Primavera · Ano 2". */
     label: (season: Season, year: number) => `${T.nova.seasonName[season]} · Ano ${year}`,
-    /** The view lowered its quality to stay smooth. */
-    lowered: 'Qualidade reduzida para ficar mais leve',
-    classic: '2D',
-    classicHint: 'Voltar ao mapa clássico em 2D',
   },
 };
 

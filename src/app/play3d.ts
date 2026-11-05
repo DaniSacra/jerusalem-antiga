@@ -4,8 +4,8 @@ import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/
 import { keyCommand, runKey } from '../game/keys';
 import type { Session, SessionView } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
-import { NOVA_CSS } from '../render/palette';
-import { settings } from '../render/settings';
+import { NOVA_CSS } from '../game/palette';
+import { settings } from '../game/settings';
 import { Scene3D, type Scene3DOptions } from '../render3d/scene3d';
 import type { Level, ViewOverride } from '../render3d/stage';
 import { Hud, type HudHost } from '../ui/hud';
@@ -14,23 +14,19 @@ import { Hud, type HudHost } from '../ui/hud';
 const IDLE_FRAME_MS = 100;
 
 export interface Play3DOptions extends Scene3DOptions {
-  /** Back to the 2D game (null when there is none). */
-  exit: (() => void) | null;
   /** A new game after a defeat: the same map or a new one. */
   restart(sameMap: boolean): void;
 }
 
 /**
- * The playable city in 3D: the same Session the 2D plays, drawn by `Scene3D` under the HTML
- * interface. This owns the page: its root element, the interface, pointer and keys (through the
- * shared Gestures and key commands, so building, demolishing and the tutorial behave as in the 2D).
+ * The playable city in 3D: the Session drawn by `Scene3D` under the HTML interface. This owns the
+ * page: its root element, the interface, pointer and keys (through Gestures and the key commands).
  * The game keeps running (the day too).
  */
 export class Play3D implements SessionView, GestureView, HudHost {
   readonly root: HTMLDivElement;
   readonly hud: Hud;
   readonly gestures: Gestures;
-  readonly exit: (() => void) | null;
   private start = performance.now();
   private last = performance.now();
   private off: (() => void)[] = [];
@@ -46,7 +42,6 @@ export class Play3D implements SessionView, GestureView, HudHost {
     readonly scene: Scene3D,
     private opts: Play3DOptions,
   ) {
-    this.exit = opts.exit;
     const root = (this.root = document.createElement('div'));
     root.className = 'g3d';
     root.style.cssText = `position:fixed;inset:0;z-index:5;background:${NOVA_CSS.bg};overflow:hidden;touch-action:none;`;
@@ -344,7 +339,6 @@ export class Play3D implements SessionView, GestureView, HudHost {
         /** Screen point of a cell's centre (tests tap there). */
         cellPoint: (x: number, y: number) => g.screenOf({ x, y, w: 1, h: 1 }),
         cellAt: (sx: number, sy: number) => g.cellAt(sx, sy),
-        close: () => g.exit?.(),
       },
     });
   }
