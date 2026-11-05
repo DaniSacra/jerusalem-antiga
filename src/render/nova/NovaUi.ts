@@ -181,7 +181,7 @@ export class NovaUi {
     this.list = notices(s, city, tutorial);
     // A warning toast waiting in line (or on screen) goes away once its problem is gone.
     for (const n of this.tools.newAlerts(this.list))
-      if (n.toast) this.toasts.show(n.text, n.bad ? 'bad' : 'info', { valid: () => this.list.some((o) => o.key === n.key) });
+      if (n.toast) this.toasts.show(n.text, n.bad ? 'bad' : 'info', { alert: () => this.list.findIndex((o) => o.key === n.key) });
     this.toasts.prune();
     this.tools.refresh(tool, this.list, this.panels.open);
     this.panels.refresh({ s, e: city.eco, forecast: city.forecast, notices: this.list });

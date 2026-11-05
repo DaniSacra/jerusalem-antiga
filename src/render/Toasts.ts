@@ -9,7 +9,7 @@ const DURATION = 2600;
 const MAX = 3;
 /** Above the balloons and panels (46–50), under the victory and defeat dialogs (100). */
 const DEPTH = 60;
-/** A toast sent back to the line by an opening panel or balloon comes back for at least this long. */
+/** The warning that comes back when a panel or balloon closes stays at least this long. */
 const BACK_MS = 1500;
 
 interface Toast {
@@ -17,7 +17,7 @@ interface Toast {
   tone: Tone;
   opt: ToastOptions;
   big: boolean;
-  valid?: () => boolean;
+  alert?: () => number;
   root: Phaser.GameObjects.Container;
   h: number;
   timer: Phaser.Time.TimerEvent;
@@ -30,9 +30,15 @@ export type Tone = 'info' | 'bad' | 'good' | 'quiet';
 export interface ToastOptions {
   big?: boolean;
   ms?: number;
-  /** A warning that can stop being true: dropped from the line, or taken off the screen, once it is not. */
-  valid?: () => boolean;
+  /**
+   * A warning: its place in `alerts()` (0 is the most important), -1 once it no longer holds. It leaves
+   * the line and the screen when it stops holding, and only warnings come back after a balloon or panel.
+   */
+  alert?: () => number;
 }
+
+/** News always holds; a warning holds while it is still in `alerts()`. */
+const holds = (o: { alert?: () => number }) => !o.alert || o.alert() >= 0;
 
 interface Waiting {
   msg: string;
@@ -89,37 +95,48 @@ export class Toasts {
 
   /**
    * Holds the toasts while a panel or a tapped building's balloon is open: the ones on screen step out
-   * (they would sit behind it, half covered) and wait at the head of the line with the time they had
-   * left; when it closes, the line comes in again.
+   * (they would sit behind it, half covered) and new ones wait. When it closes, at most one comes back:
+   * the most important warning that still holds. Past news (a birth, a goal, a failed tap) is dropped;
+   * it stays in the Avisos, Objetivos and Povo panels.
    */
   hold(on: boolean) {
     if (on === this.held) return;
     this.held = on;
     if (on) {
-      // Oldest first, so they come back in the order they came.
       for (const t of this.list) {
-        // One already fading out (its time is up) just goes.
-        if (!t.timer.hasDispatched) this.queue.unshift({ msg: t.msg, tone: t.tone, opt: { ...t.opt, ms: Math.max(BACK_MS, t.timer.getRemaining()) } });
+        // A warning on screen may be the one that comes back; one already fading out (its time is up) just goes.
+        if (t.alert && !t.timer.hasDispatched) this.queue.unshift({ msg: t.msg, tone: t.tone, opt: { ...t.opt, ms: Math.max(BACK_MS, t.timer.getRemaining()) } });
         t.timer.remove();
         this.scene.tweens.add({ targets: t.root, alpha: 0, duration: 120, onComplete: () => t.root.destroy() });
       }
       this.list = [];
-    }
+    } else this.queue = this.mostUrgent();
     this.flush();
+  }
+
+  /** The warning that still holds and comes first in `alerts()`, alone (or nothing). */
+  private mostUrgent(): Waiting[] {
+    let best: Waiting | null = null;
+    let rank = Infinity;
+    for (const q of this.queue) {
+      const r = q.opt.alert?.() ?? -1;
+      if (r >= 0 && r < rank) [best, rank] = [q, r];
+    }
+    return best ? [best] : [];
   }
 
   private flush() {
     while (this.queue.length && this.list.length < this.room()) {
       const next = this.queue.shift()!;
-      if (next.opt.valid && !next.opt.valid()) continue;
+      if (!holds(next.opt)) continue;
       this.add(next.msg, next.tone, next.opt);
     }
   }
 
   /** After the city changes: warnings that no longer hold leave the line and the screen. */
   prune() {
-    this.queue = this.queue.filter((q) => !q.opt.valid || q.opt.valid());
-    for (const t of this.list) if (t.valid && !t.valid()) this.dismiss(t);
+    this.queue = this.queue.filter((q) => holds(q.opt));
+    for (const t of this.list) if (!holds(t)) this.dismiss(t);
   }
 
   private add(msg: string, tone: Tone, opt: ToastOptions) {
@@ -141,7 +158,7 @@ export class Toasts {
     if (opt.big) bg.lineStyle(px(2), NOVA.gold, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, px(16)));
     const root = s.add.container(GAME_W / 2, this.y0 - h / 2, [bg, label]).setDepth(DEPTH).setAlpha(0);
     s.tweens.add({ targets: root, alpha: 1, duration: 150 });
-    const toast: Toast = { msg, tone, opt, big: !!opt.big, valid: opt.valid, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
+    const toast: Toast = { msg, tone, opt, big: !!opt.big, alert: opt.alert, root, h, timer: s.time.delayedCall(opt.ms ?? DURATION, () => this.dismiss(toast)) };
     this.list.unshift(toast);
     this.layout();
   }

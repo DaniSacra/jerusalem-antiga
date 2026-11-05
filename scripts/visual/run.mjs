@@ -555,7 +555,7 @@ const inspectorLines = (page) => page.evaluate(() => {
 
 /**
  * Pacote 2 interface: a mud-brick house balloon with the locked market (lock on the map, "libera no
- * objetivo 3" in the balloon), toasts held while that balloon is open (a stale one is dropped), Demolir
+ * objetivo 3" in the balloon), toasts held while that balloon is open (only the first warning that still holds comes back), Demolir
  * aimed at a full granary ("Perde N de comida"), and the Moradia strip with Praça and Parque.
  */
 async function p2Interface(page, suffix) {
@@ -597,23 +597,27 @@ async function p2Interface(page, suffix) {
   assert(await page.evaluate(() => !window.game.ui.view.inspector.card.action), 'no "Onde pôr" action for a locked building');
   await shot(page, `balloon-locked-house${suffix}`);
 
-  // Toasts wait while the balloon is open; one that is no longer true is dropped.
+  // Toasts wait while the balloon is open; on closing, only the first warning that still holds comes back
+  // (past news and a warning that stopped holding are dropped).
   await page.evaluate(() => {
-    window.__valid = true;
-    window.game.ui.toast('Teste: aviso com o balão aberto', 'info');
-    window.game.ui.toast('Teste: aviso que deixa de valer', 'bad', { valid: () => window.__valid });
+    window.__first = 0;
+    window.game.ui.toast('Teste: notícia com o balão aberto', 'good');
+    window.game.ui.toast('Teste: aviso que deixa de valer', 'bad', { alert: () => window.__first });
+    window.game.ui.toast('Teste: aviso menos importante', 'info', { alert: () => 5 });
+    window.game.ui.toast('Teste: aviso que continua', 'info', { alert: () => 2 });
   });
   await page.waitForTimeout(300);
   const held = await page.evaluate(() => window.game.ui.view.toasts.list.length);
   assert(held === 0, `no toast over the open balloon (${held})`);
   await shot(page, `toast-inspector${suffix}`);
   await page.evaluate(() => {
-    window.__valid = false;
+    window.__first = -1;
     window.game.deselect();
   });
   await page.waitForTimeout(400);
   const after = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
-  assert(after.length === 1 && after[0] === 'Teste: aviso com o balão aberto', `the toast comes when the balloon closes, the stale one does not (${after})`);
+  assert(after.length === 1 && after[0] === 'Teste: aviso que continua', `only the first warning that still holds comes when the balloon closes (${after})`);
+  assert((await page.evaluate(() => window.game.ui.view.toasts.queue.length)) === 0, 'nothing else waits in line');
   await shot(page, `toast-inspector-closed${suffix}`);
 
   // Demolir aimed at a full granary: "Perde N de comida" over it.
@@ -1233,7 +1237,7 @@ async function materialsScenario(page, suffix) {
   assert(lines.some((l) => l === 'Pronta para virar Casa de pedra: falta 7 de pedra'), `the house says what it waits for (${lines})`);
   const label = await page.evaluate(() => window.game.ui.view.inspector.card.action?.label);
   assert(label === 'Onde pôr uma pedreira', `the main action finds a quarry spot (${label})`);
-  // The toast that was on screen steps out while the balloon is open (it waits at the head of the line).
+  // The toast that was on screen steps out while the balloon is open (a warning: it may come back).
   const behind = await page.evaluate(() => ({ shown: window.game.ui.view.toasts.list.length, waiting: window.game.ui.view.toasts.queue.map((t) => t.msg) }));
   assert(behind.shown === 0 && behind.waiting.some((m) => m.startsWith('1 casa esperando pedra')), `no toast behind the open balloon; it waits in line (${JSON.stringify(behind)})`);
   await shot(page, `house-waiting-stone${suffix}`);
@@ -1243,6 +1247,9 @@ async function materialsScenario(page, suffix) {
   // The spots by the rocks light up, or (none next to a road) the toast says to take a road there.
   const where = await page.evaluate(() => ({ lit: window.game.map.solve.visible, toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((x) => x.msg) }));
   assert(where.lit || where.toasts.some((m) => m.startsWith('Nenhum lugar com rochas')), `the quarry spots light up, or the toast says why (${JSON.stringify(where)})`);
+  // Closing the balloon brings back one toast at most: the stone warning, which still holds.
+  const back = where.toasts.filter((m) => !m.startsWith('Nenhum lugar com rochas'));
+  assert(back.length === 1 && back[0].startsWith('1 casa esperando pedra'), `only the stone warning comes back after the balloon (${JSON.stringify(back)})`);
   await shot(page, `house-waiting-stone-spots${suffix}`);
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.game.selectTool('view'));
@@ -1766,21 +1773,25 @@ const scenarios = {
   'lumber-shared-pc': { context: PC, run: (page) => lumberShared(page, '-pc') },
   'harvest-countdown': { context: PHONE, run: (page) => harvestCountdown(page, '') },
   'harvest-countdown-pc': { context: PC, run: (page) => harvestCountdown(page, '-pc') },
-  /** A toast that comes while a panel is open waits until the panel closes. */
+  /** Toasts that come while a panel is open wait; on closing, the warning comes back and the news does not. */
   async 'toast-panel'(page) {
     await startGame(page);
     await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 90000 }); // the opening sentence goes away
     await clickUi(page, 'side-stats');
     await page.waitForTimeout(200);
     assert(await page.evaluate(() => window.game.ui.view.panels.open === 'stats'), 'the statistics are open');
-    await page.evaluate(() => window.game.ui.toast('Teste: um aviso chegando', 'info'));
+    await page.evaluate(() => {
+      window.game.ui.toast('Teste: uma notícia chegando', 'good');
+      window.game.ui.toast('Teste: um aviso chegando', 'info', { alert: () => 0 });
+    });
     await page.waitForTimeout(300);
     const over = await page.evaluate(() => window.game.ui.view.toasts.list.map((t) => t.msg));
     assert(over.length === 0, `no toast over the open panel (${over})`);
     await shot(page, 'toast-panel-open');
     await clickUi(page, 'side-stats');
     await page.waitForTimeout(400);
-    assert((await page.evaluate(() => window.game.ui.view.toasts.list.length)) === 1, 'the toast comes when the panel closes');
+    const back = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+    assert(back.length === 1 && back[0] === 'Teste: um aviso chegando', `only the warning comes back when the panel closes (${back})`);
     await shot(page, 'toast-panel-closed');
   },
   /** Pacote 2: lock on the house balloon, toasts held by the tapped balloon, Demolir on a granary, Praça and Parque. */
