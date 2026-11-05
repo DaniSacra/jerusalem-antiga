@@ -27,6 +27,9 @@ Defined in `.claude/agents/`. None of them commit or push (see Git).
 Before building:
 - `game-director` — guards the game vision and pillars. Use before any new feature to scope the
   package, and to decide which recommendations from other agents go in. Keeps `docs/design.md`.
+- `architect` — software architecture and the migration to 3D (Three.js map + HTML UI, phone and PC
+  alike). Use before big structural changes and to plan or review each migration phase. Keeps
+  `docs/arquitetura-3d.md`.
 
 While building:
 - `sprite-artist` — code-drawn art in `src/render`: buildings, terrain, roads, walkers, effects
