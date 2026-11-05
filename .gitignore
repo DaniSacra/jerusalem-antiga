@@ -6,3 +6,4 @@ screenshots
 # Local secrets (API keys)
 .env.local
 .env.*.local
+logs/
