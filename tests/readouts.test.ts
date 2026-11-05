@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  templeSavings,
   foodLostIfRemoved,
   balanceAfter,
   BUILDINGS,
   calendar,
   fieldBonus,
-  foodPerResident,
+  foodOf,
   HOUSE_LEVELS,
   checkPlace,
   cityLevel,
   computeEconomy,
-  familyBlock,
+  birthBlock,
   foodAfter,
   foodForecast,
   goalCount,
@@ -49,10 +50,11 @@ describe('city level and goal progress', () => {
   });
 
   it('a goal met before its fromYear never shows a full bar; from that year on it does', () => {
-    const i = GOALS.findIndex((g) => g.fromYear);
+    const i = GOALS.findIndex((g) => g.type === 'residents');
     const goal = GOALS[i];
     const target = goal.target;
-    goal.target = HOUSE_LEVELS[HOUSE_LEVELS.length - 1].residents * 2; // fits the test map; restored below
+    goal.target = HOUSE_LEVELS[HOUSE_LEVELS.length - 1].capacity * 2; // fits the test map; restored below
+    goal.fromYear = 3; // no goal waits for a year in the data now: set one for the test
     try {
       const s = emptyGame({ goalIndex: i, week: 0 });
       meetGoal(s, goal);
@@ -62,18 +64,19 @@ describe('city level and goal progress', () => {
       expect(goalFraction(s)).toBe(1);
     } finally {
       goal.target = target;
+      delete goal.fromYear;
     }
   });
 
   it('progress of the food goal follows the shrinking target, and is 1 once the spring came', () => {
     const W = RULES.weeksPerSeason;
-    const s = emptyGame({ goalIndex: 0, food: 6 });
+    const s = emptyGame({ goalIndex: GOALS.findIndex((g) => g.type === 'foodUntilSpring'), food: 6 });
     put(s, 'house', ROADSIDE, 27, 1);
     /** Whole weeks 6 food lasts one tent from `week` (the winter weeks eat more). */
     const lasts = (week: number) => {
       let food = 6;
       let k = 0;
-      while ((food = Math.round((food - HOUSE_LEVELS[1].residents * foodPerResident(1, week + k)) * 100) / 100) > 0) k++;
+      while ((food = Math.round((food - HOUSE_LEVELS[1].capacity * foodOf('adult', 1, week + k)) * 100) / 100) > 0) k++;
       return k;
     };
     expect(lasts(0)).toBeLessThan(2 * W);
@@ -92,7 +95,7 @@ describe('city level and goal progress', () => {
 });
 
 describe('city readout', () => {
-  it('bundles the economy, the food forecast and the family gate of the same state', () => {
+  it('bundles the economy, the food forecast and the birth gate of the same state', () => {
     const s = emptyGame({ food: 6 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29);
@@ -100,7 +103,7 @@ describe('city readout', () => {
     expect(r.eco).toEqual(computeEconomy(s));
     expect(r.forecast).toEqual(foodForecast(s));
     expect(r.forecast).not.toBeNull();
-    expect(r.block).toBe(familyBlock(s));
+    expect(r.births).toEqual(birthBlock(s));
   });
 });
 
@@ -123,12 +126,7 @@ describe('balance after building', () => {
     const s = emptyGame();
     const now = computeEconomy(s).silverDelta;
     expect(balanceAfter(s, 'plaza')).toBeCloseTo(now - BUILDINGS.plaza.upkeep!);
-    expect(balanceAfter(s, 'temple')).toBeCloseTo(now - 10);
-  });
-
-  it('counts no upkeep before upkeep is charged', () => {
-    const s = emptyGame({ goalIndex: 0 });
-    expect(balanceAfter(s, 'plaza')).toBe(computeEconomy(s).silverDelta);
+    expect(balanceAfter(s, 'temple')).toBe(now); // the temple has no upkeep
   });
 
   it('a workshop only costs its upkeep: it makes no silver', () => {
@@ -148,15 +146,15 @@ describe('balance after building', () => {
 });
 
 describe('food after building', () => {
-  /** One tent and a fisher by the river that its workers keep busy. */
+  /** One tent with a couple and a fisher by the river that they keep busy. */
   const town = () => {
     const s = emptyGame({ week: 0 }); // autumn: fields give food
-    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 27, 1, false, 2);
     put(s, 'fisher', besideRiver(s, 30), 30);
     return s;
   };
 
-  const workers = Math.floor(HOUSE_LEVELS[1].residents * RULES.workerShare);
+  const workers = 2; // a couple in a tent: both work
 
   it('a workplace that takes the workers lowers the food: every food building brings less', () => {
     const s = town();
@@ -235,26 +233,17 @@ describe('houses served', () => {
 });
 
 describe('house upgrade gain', () => {
-  it('gives the residents, tax and food gained on the next level, at the week\'s rate (winter factors)', () => {
-    const winter = RULES.weeksPerSeason; // first winter week
-    expect(seasonOf(winter)).toBe('winter');
+  it('gives the room and the tax gained on the next level', () => {
     for (let level = 0; level < HOUSE_LEVELS.length - 1; level++) {
       const cur = HOUSE_LEVELS[level];
       const next = HOUSE_LEVELS[level + 1];
-      for (const week of [0, winter]) {
-        expect(upgradeGain(level, week)).toEqual({
-          residents: next.residents - cur.residents,
-          tax: next.tax - cur.tax,
-          food: expect.closeTo(next.residents * foodPerResident(level + 1, week) - cur.residents * foodPerResident(level, week)),
-          materials: next.materials ?? {},
-        });
-      }
-      expect(upgradeGain(level, winter)!.food).not.toBe(upgradeGain(level, 0)!.food); // the winter factors apply
+      expect(upgradeGain(level)).toEqual({ capacity: next.capacity - cur.capacity, tax: expect.closeTo(next.tax - cur.tax), materials: next.materials ?? {} });
+      expect(upgradeGain(level)!.capacity).toBeGreaterThan(0);
     }
   });
 
   it('is null at the top level', () => {
-    expect(upgradeGain(HOUSE_LEVELS.length - 1, 0)).toBeNull();
+    expect(upgradeGain(HOUSE_LEVELS.length - 1)).toBeNull();
   });
 });
 
@@ -308,7 +297,7 @@ describe('food made and eaten', () => {
     put(s, 'field', EAST, 27);
     s.week = 2 * RULES.weeksPerSeason; // first spring: the field built in autumn harvests
     const e = computeEconomy(s);
-    expect(e.foodEaten).toBeCloseTo(HOUSE_LEVELS[2].residents * HOUSE_LEVELS[2].food);
+    expect(e.foodEaten).toBeCloseTo(HOUSE_LEVELS[2].capacity * foodOf('adult', 2, s.week));
     expect(e.foodMade).toBeCloseTo(e.foodDelta + e.foodEaten);
     expect(e.foodMade).toBeGreaterThan(0);
   });
@@ -356,5 +345,20 @@ describe('food lost if removed (Demolir preview)', () => {
     const s = full();
     s.silver = -50;
     expect(foodLostIfRemoved(s, EAST, 30)).toBe(G);
+  });
+});
+
+describe('temple savings', () => {
+  it('shows the silver toward the temple only from its unlock until it stands, never below 0', () => {
+    const s = emptyGame({ silver: 312 });
+    s.unlocked = s.unlocked.filter((k) => k !== 'temple');
+    expect(templeSavings(s)).toBeNull();
+    s.unlocked.push('temple');
+    expect(templeSavings(s)).toEqual({ silver: 312, cost: BUILDINGS.temple.cost });
+    s.silver = -20.5;
+    expect(templeSavings(s)!.silver).toBe(0);
+    s.silver = 1e4;
+    put(s, 'temple', EAST, 30);
+    expect(templeSavings(s)).toBeNull();
   });
 });

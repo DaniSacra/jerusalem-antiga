@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
-import { atHarvest, constRng, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, refreshCity, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
+import { atHarvest, constRng, EAST, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
-const UP = RULES.weeksToUpgrade;
+const UP = UP_WEEKS;
 const DOWN = RULES.weeksToDowngrade;
-const gain = (level: number) => HOUSE_LEVELS[level].residents - HOUSE_LEVELS[level - 1].residents;
+const gain = (level: number) => HOUSE_LEVELS[level].capacity - HOUSE_LEVELS[level - 1].capacity;
 /** Steps the weeks; unless `hungry`, the food is topped up before each week so no famine gets in the way. */
 const run = (s: GameState, weeks: number, rng = never, hungry = false) => {
   const events = [];
@@ -140,7 +140,7 @@ describe('house evolution', () => {
     run(t, UP + 1);
     expect(tent.level).toBe(2); // no market: stays mud-brick
     put(t, 'market', westOf('market'), 34);
-    run(t, UP);
+    run(t, tent.upWeeks); // drawn again at the new level
     expect(tent.level).toBe(3);
   });
 
@@ -209,7 +209,32 @@ describe('house evolution', () => {
     const events = run(s, 1, constRng(chance - 0.01), true);
     expect(tent.level).toBe(0);
     expect(events).toContainEqual({ type: 'houseDown', x: ROADSIDE, y: 32, level: 0, delta: -gain(1), famine: true });
-    expect(events).toContainEqual({ type: 'familyLeft', x: ROADSIDE, y: 32 });
+    expect(events).toContainEqual(expect.objectContaining({ type: 'familyLeft', x: ROADSIDE, y: 32, reason: 'famine' }));
+  });
+
+  it('a tent that loses its road drops to a plot and its family leaves (reason road)', () => {
+    const s = emptyGame({ food: 1000 });
+    const tent = put(s, 'house', ROADSIDE - 1, 30, 1);
+    road(s, [[ROADSIDE + 1, 30]]);
+    expect(tent.connected).toBe(true);
+    s.roads[indexOf(s, ROADSIDE + 1, 30)] = false;
+    refreshCity(s);
+    const events = run(s, DOWN);
+    expect(tent.level).toBe(0);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'familyLeft', x: ROADSIDE - 1, y: 30, reason: 'road' }));
+    expect(events.filter((e) => e.type === 'familyLeft')).toHaveLength(1);
+  });
+
+  it('a stone house that loses its road only sends its family away when it reaches a plot', () => {
+    const s = emptyGame({ food: 1000 });
+    const house = put(s, 'house', ROADSIDE - 1, 30, 3);
+    road(s, [[ROADSIDE + 1, 30]]);
+    s.roads[indexOf(s, ROADSIDE + 1, 30)] = false;
+    refreshCity(s);
+    const drops = run(s, 2 * DOWN);
+    expect(house.level).toBe(1);
+    expect(drops.some((e) => e.type === 'familyLeft')).toBe(false);
+    expect(run(s, DOWN)).toContainEqual(expect.objectContaining({ type: 'familyLeft', x: ROADSIDE - 1, y: 30, reason: 'road' }));
   });
 
   it('without famine tents are never abandoned', () => {
@@ -281,7 +306,8 @@ describe('house info and balloons', () => {
     expect(houseInfo(s, b)).toEqual({
       level: 2,
       name: HOUSE_LEVELS[2].name,
-      residents: HOUSE_LEVELS[2].residents,
+      residents: HOUSE_LEVELS[2].capacity,
+      capacity: HOUSE_LEVELS[2].capacity,
       tax: HOUSE_LEVELS[2].tax, // content: the plain tax
       happiness: houseHappiness(s, b, idleShare(s)),
       next: {
@@ -331,8 +357,8 @@ describe('house info and balloons', () => {
       { kind: 'park', ok: false },
     ]);
     expect(s.unlocked).not.toContain('park');
-    expect(unlockingGoal('market')).toBe(3);
-    expect(unlockingGoal('park')).toBe(5);
+    expect(unlockingGoal('market')).toBe(4);
+    expect(unlockingGoal('park')).toBe(7);
   });
 
   it('needLocked: only a service need whose building is still locked', () => {
@@ -370,7 +396,7 @@ describe('house info and balloons', () => {
     expect(balloonNeed(s, plaza)).toBeNull(); // no jobs
     expect(balloonNeed(s, plot)).toBeNull();
     expect(balloonNeed(s, put(s, 'workshop', 1, 1))).toBe('road'); // no road comes first
-    plot.level = 1; // a tent brings workers
+    put(s, 'house', ROADSIDE, 37, 1); // a tent brings workers
     expect(balloonNeed(s, field)).toBeNull();
   });
 });

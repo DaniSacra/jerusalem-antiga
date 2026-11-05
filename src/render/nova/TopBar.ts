@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, housesWaiting, moodOf, lastsToHarvest, type CityReadout, type GameState, type Material, type Season } from '../../core';
+import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, housesWaiting, templeSavings, moodOf, lastsToHarvest, type CityReadout, type GameState, type Material, type Season } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { fmt, fmtInt, signed, T } from '../strings';
@@ -280,7 +280,7 @@ export class TopBar {
       const turn = nextFieldTurn(s.week);
       const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
       this.season.set([
-        ...(PHONE ? [{ text: N.calendarPhone(season, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
+        ...(PHONE ? [{ text: N.calendarPhone(season, year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
         ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
       ]);
     }
@@ -332,7 +332,7 @@ export class TopBar {
         ? [{ text: PHONE ? N.foodShortPhone(out!.weeks) : dot + N.foodForecast(out!, seasonOf(s.week)), color: NOVA_CSS.bad }]
         : s.spoiled > 0
           ? [{ text: dot + N.full, color: NOVA_CSS.warn }]
-          : PHONE ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }];
+          : PHONE || eco.residents === 0 ? [] : [{ text: dot + N.foodToHarvest, color: NOVA_CSS.good }]; // nobody eats: no promise
     const fv = label(N.food).length;
     this.food.set([
       ...label(N.food),
@@ -405,12 +405,14 @@ export class TopBar {
       const target = goalTarget(s, goal);
       const head = PHONE ? N.goal : N.goalOf(s.goalIndex + 1, goalCount());
       const progress = N.goalProgress(goal, p, target);
+      const save = templeSavings(s);
       this.goal.set(
         [
           { text: head, color: NOVA_CSS.gold, size: S.small },
           { text: N.goalText(goal) },
           ...(PHONE ? [] : [{ bar: goalFraction(s), w: px(80) } as Part]),
           ...(progress ? [{ text: progress, color: NOVA_CSS.gold }] : []),
+          ...(save ? [{ text: '· ' + N.templeSavingsPill(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold }] : []),
         ],
         maxW,
       );

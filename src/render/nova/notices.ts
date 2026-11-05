@@ -1,7 +1,7 @@
 import { alerts, seasonOf, type CityReadout, type GameState } from '../../core';
 import { T } from '../strings';
 
-/** One line of the Avisos list (and of the statistics problems): the core's alerts plus why no family comes. */
+/** One line of the Avisos list (and of the statistics problems): the core's alerts. */
 export interface Notice {
   /** Same key while the same problem lasts (one toast per episode); a waiting toast is dropped once its key is gone. */
   key: string;
@@ -10,15 +10,18 @@ export interface Notice {
   bad: boolean;
   /** Shown as a toast when it starts. */
   toast: boolean;
-  /** Why no family comes (the tutorial bubble says it instead of a toast). */
-  family?: boolean;
 }
 
-/** The standing warnings, most urgent first. "No plot" is a normal state, so it never toasts. */
-export function notices(s: GameState, { eco, block }: CityReadout): Notice[] {
+/** Warnings about the couples and births: the tutorial bubble already speaks of them while it runs. */
+const PEOPLE_KINDS = new Set(['couples', 'noBirths']);
+
+/** The standing warnings, most urgent first (`tutorial`: the first-game tutorial is running). */
+export function notices(s: GameState, { eco }: CityReadout, tutorial = false): Notice[] {
   // The food warning stands all year; it toasts only when it starts in the summer (the last call before the winter).
-  const out: Notice[] = alerts(s, eco).map((a) => ({ key: a.kind === 'spoiling' ? `spoiling-${a.locked}` : a.kind === 'material' ? `material-${a.material}` : a.kind, text: T.alert(a), bad: a.kind === 'debt' || a.kind === 'foodShort', toast: a.kind !== 'foodShort' || seasonOf(s.week) === 'summer' }));
-  // "No plot" while a family walks in would be wrong: one is coming.
-  if (block && block !== 'wait' && !(block === 'noPlot' && s.families.length > 0)) out.push({ key: `family-${block}`, text: T.familyBlockText(block, s), bad: block === 'famine', toast: block !== 'noPlot', family: true });
-  return out;
+  return alerts(s, eco).map((a) => ({
+    key: a.kind === 'spoiling' ? `spoiling-${a.locked}` : a.kind === 'material' ? `material-${a.material}` : a.kind,
+    text: T.alert(a),
+    bad: a.kind === 'debt' || a.kind === 'foodShort',
+    toast: (a.kind !== 'foodShort' || seasonOf(s.week) === 'summer') && !(tutorial && PEOPLE_KINDS.has(a.kind)),
+  }));
 }

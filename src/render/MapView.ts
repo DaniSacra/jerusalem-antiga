@@ -5,16 +5,19 @@ import {
   balloonNeed,
   needLocked,
   BUILDINGS,
+  HOUSE_LEVELS,
   checkClear,
   checkPlace,
+  costOf,
   computeEconomy,
   footprint,
   indexOf,
   placeSize,
   roadMask,
   serviceOf,
-  placeSpots,
+  onlyNeedsRoad,
   plazaHouseSpots,
+  type TempleSpot,
   servedHouses,
   type Building,
   type BuildingKind,
@@ -36,7 +39,7 @@ import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, hasSnowTexture, scaffoldTexture, setTex, snowTexture } from './textures';
+import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, ensureTexture, hasSnowTexture, levelCount, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
 import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
@@ -101,8 +104,13 @@ export function originFor(kind: Tool, cell: Cell, rotated = false): Cell {
 /** Balloon size on screen relative to zoom 1 (they are scaled up when zoomed out). */
 const BALLOON_SCREEN_SCALE = 1.2;
 
-const keyOf = (b: Rect & { kind: BuildingKind; level?: number; variant?: number; mirrored?: boolean }) =>
-  TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
+const keyOf = (b: Rect & { kind: BuildingKind; level?: number; emptyLevel?: number; variant?: number; mirrored?: boolean }) =>
+  b.kind === 'house' && !b.level && (b.emptyLevel ?? 0) >= 2
+    ? TEX.emptyHouse(b.emptyLevel!, (b.variant ?? 0) % HOUSE_LEVELS[0].variants, b.mirrored ?? false)
+    : TEX.building(b.kind, b.level ?? 0, canRotate(b.kind) && viewDims(b.w, b.h).w !== dimsOf(b.kind).w, b.variant ?? 0, b.mirrored ?? false);
+
+/** Level a building's drawing shows: an empty house shows the level it kept. */
+const shownLevel = (b: Building) => (b.kind === 'house' && b.level === 0 ? b.emptyLevel : b.level);
 
 /** Houses get a small per-plot nudge and a slightly different shade of mud or stone (returned). */
 function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
@@ -110,7 +118,8 @@ function applyLook(img: Phaser.GameObjects.Image, b: Building): number {
   const h = cellHash(b.x, b.y);
   const grey = Math.round(255 * (0.9 + ((h >>> 5) % 11) * 0.01));
   img.setPosition((h % 5) - 2, ((h >>> 3) % 3) - 1);
-  return (grey << 16) | (grey << 8) | grey;
+  const look = (grey << 16) | (grey << 8) | grey;
+  return b.level === 0 && b.emptyLevel >= 2 ? mulColor(look, C.vacant) : look;
 }
 
 const SV = VISUAL.seasons;
@@ -174,8 +183,12 @@ export class MapView {
   private looseRoads: Phaser.GameObjects.Graphics;
   private overlay: Phaser.GameObjects.Graphics;
   private preview: Phaser.GameObjects.Image;
-  /** "Atende N casas" above the preview of a plaza, market or park. */
+  /** Above the preview: "Atende N casas" (a plaza, market or park), the temple's Alegria, "Cabe aqui: falta ligar à rua". */
   private serves: Phaser.GameObjects.Text;
+  /** Where the temple fits (green) or a road is missing (yellow), drawn while it is chosen. */
+  private templeAreas: readonly TempleSpot[] = [];
+  /** The road to the temple area when none is near the network (drawn like the tutorial's road). */
+  private templeRoad: readonly Cell[] = [];
   /** Game-speed clock in seconds for work animations (stops when paused). */
   private work = 0;
   /** Ground tiles, diorama sides and river banks (rebuilt only with the whole view). */
@@ -368,7 +381,7 @@ export class MapView {
     }
     this.lights.sync(s, (b) => HEIGHT[keyOf(b)] ?? 20, this.degraded);
     this.chimneys = s.buildings
-      .filter((b) => b.kind === 'house')
+      .filter((b) => b.kind === 'house' && b.level >= 1)
       .map((b) => {
         const c = footCenter(b.x, b.y, b.w, b.h);
         return { x: c.x, y: c.y - (HEIGHT[keyOf(b)] ?? 20) * 0.85 };
@@ -405,6 +418,7 @@ export class MapView {
 
   /** The texture to show for a drawing: its snowy copy while snow lies, once it is drawn. */
   private dress(key: string) {
+    ensureTexture(this.scene, key);
     if (!this.snowy) return key;
     if (hasSnowTexture(this.scene, key)) return `${key}-snow`;
     this.snowDirty = true;
@@ -493,12 +507,13 @@ export class MapView {
     }
     const key = this.keyFor(b);
     if (v.key !== key) {
-      // A house going up a level shows the scaffold briefly, then its new drawing.
-      if (this.ready && b.kind === 'house' && b.level > v.level && !v.scaffold) this.raise(v, b, VISUAL.build.upgradeMs);
+      // A house or a service building going up a level shows the scaffold briefly, then its new
+      // drawing (people moving into an empty house that kept its level just open the door).
+      if (this.ready && shownLevel(b) > v.level && !v.scaffold && (b.kind === 'house' || levelCount(b.kind) > 1)) this.raise(v, b, VISUAL.build.upgradeMs);
       v.key = key;
       if (!v.scaffold) setTex(v.main, this.dress(key));
     }
-    v.level = b.level;
+    v.level = shownLevel(b);
     v.shade = applyLook(v.main, b);
     v.main.setTint(mulColor(v.shade, this.tints.build));
   }
@@ -530,7 +545,7 @@ export class MapView {
 
   /** Texture of a standing building: the granary shows the stores. */
   private keyFor(b: Building) {
-    return b.kind === 'granary' ? TEX.building('granary', 0, false, this.stock) : keyOf(b);
+    return b.kind === 'granary' ? TEX.building('granary', b.level, false, this.stock) : keyOf(b);
   }
 
   private createView(b: Building): BuildingView {
@@ -541,7 +556,7 @@ export class MapView {
     const main = setTex(sc.add.image(0, 0, key), this.dress(key));
     root.add(main);
     const grain = b.kind === 'field' && SV.crops.grains.includes(b.variant ?? 0);
-    const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: b.level };
+    const view: BuildingView = { kind: b.kind, root, main, key, shade: 0xffffff, grain, wheat: [], level: shownLevel(b) };
     if (b.kind === 'field') {
       view.wheat = cropImages(sc, 0, 0, 1, b.variant, b.mirrored);
       view.byRiver = byRiver(this.state, b);
@@ -745,11 +760,11 @@ export class MapView {
   }
 
   /**
-   * Free spots in green with a light dotted outline around the area, so they read over the
-   * green grass of winter and spring as well as over sand and dry grass.
+   * Free spots in green (or `color`) with a light dotted outline around the area, so they read over
+   * the green grass of winter and spring as well as over sand and dry grass.
    */
-  private spots(cells: Cell[]) {
-    this.fillCells(cells, C.fits, 0.45);
+  private spots(cells: Cell[], color: number = C.fits) {
+    this.fillCells(cells, color, 0.45);
     const inside = new Set(cells.map((c) => c.y * COLS + c.x));
     const g = this.overlay;
     g.lineStyle(2, C.cream, 0.95);
@@ -773,14 +788,18 @@ export class MapView {
     }
   }
 
-  /** Cells covered by every spot where a building of this kind fits next to the network. */
-  private spotsArea(s: GameState, kind: 'temple' | 'house'): Cell[] {
+  /** Cells covered by every house spot of the tutorial: next to the network and near a plaza (a tent there becomes a mud house). */
+  private houseSpotsArea(s: GameState): Cell[] {
     const seen = new Set<number>();
-    const { w, h } = dimsOf(kind);
-    // The tutorial's house spots are the ones a plaza reaches (a tent there becomes a mud house).
-    const spots = kind === 'house' ? plazaHouseSpots(s) : placeSpots(s, kind);
-    for (const o of spots) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
+    const { w, h } = dimsOf('house');
+    for (const o of plazaHouseSpots(s)) for (const c of footprint(o.x, o.y, w, h)) seen.add(indexOf(s, c.x, c.y));
     return [...seen].map((i) => ({ x: i % s.cols, y: Math.floor(i / s.cols) }));
+  }
+
+  /** The temple areas shown while the temple is chosen (set by the scene on picking it and on each refresh). */
+  setTempleAreas(areas: readonly TempleSpot[], road: readonly Cell[] = []) {
+    this.templeAreas = areas;
+    this.templeRoad = road;
   }
 
   private coverageCells(s: GameState, covered: boolean[]): Cell[] {
@@ -798,8 +817,9 @@ export class MapView {
     g.clear();
     this.preview.setVisible(false);
     this.serves.setVisible(false);
-    if (guide?.ghost.length) {
-      const ghost = guide.ghost.filter((c) => !s.roads[indexOf(s, c.x, c.y)]);
+    const ghostRoad = tool === 'temple' && this.templeRoad.length ? this.templeRoad : guide?.ghost ?? [];
+    if (ghostRoad.length) {
+      const ghost = ghostRoad.filter((c) => !s.roads[indexOf(s, c.x, c.y)]);
       this.fillCells(ghost, C.ui.goldLight, 0.45);
       g.lineStyle(2, C.ui.goldDark, 0.9);
       for (const c of ghost) g.strokePoints(rectCorners(c.x, c.y, 1, 1), true, true);
@@ -831,12 +851,18 @@ export class MapView {
     if (tool === 'house') this.fillCells(this.coverageCells(s, s.coverage.plaza), C.need.plaza, 0.14);
     if (service) this.fillCells(this.coverageCells(s, s.coverage[service]), C.need[service], 0.16);
 
-    if (tool === 'temple') this.spots(this.spotsArea(s, 'temple'));
-    if (tool === 'house' && guide?.houseSpots) this.spots(this.spotsArea(s, 'house'));
+    // Temple: each area on its own, green where it can be built now, yellow where a road is missing.
+    if (tool === 'temple') {
+      const { w, h } = dimsOf('temple');
+      for (const a of this.templeAreas) this.spots(footprint(a.x, a.y, w, h), a.ready ? C.fits : C.needsRoad);
+    }
+    if (tool === 'house' && guide?.houseSpots) this.spots(this.houseSpotsArea(s));
 
     if (!hover) return;
     const o = originFor(tool, hover, rotated);
     const { w, h } = toolDims(tool, rotated);
+    /** Lines above the preview: the houses a service reaches, and "falta ligar à rua". */
+    const label: string[] = [];
     if (service && isPlaceTool(tool) && tool !== 'road') {
       const r = BUILDINGS[tool].radius ?? 0;
       const x0 = Math.max(0, o.x - r);
@@ -848,18 +874,21 @@ export class MapView {
       g.fillPoints(area, true);
       g.lineStyle(3, C.need[service], 0.9);
       g.strokePoints(area, true, true);
-      // The houses it would serve, outlined, and how many above the preview.
+      // The houses it would serve, outlined (how many goes above the preview).
       const served = servedHouses(s, tool, o.x, o.y, rotated);
       g.lineStyle(3, C.need[service], 1);
       for (const b of served) g.strokePoints(rectCorners(b.x, b.y, b.w, b.h), true, true);
-      const top = footCenter(o.x, o.y, w, h);
-      this.serves
-        .setText(T.serves(served.length))
-        .setPosition(top.x, top.y - (HEIGHT[keyOf({ kind: tool, ...o, w, h })] ?? 40) - 6)
-        .setVisible(true);
+      label.push(tool === 'temple' ? T.templeServes(served.length) : T.serves(served.length));
     }
-    const ok = (isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y)).ok;
-    const color = ok ? 0xfff3b0 : C.famine;
+    // Yellow: it fits and only the road is missing; red: something is in the way (or no silver).
+    const roadOnly = isPlaceTool(tool) && onlyNeedsRoad(s, tool, o.x, o.y, rotated);
+    const check = isPlaceTool(tool) ? checkPlace(s, tool, o.x, o.y, rotated) : checkClear(s, o.x, o.y);
+    const ok = !roadOnly && check.ok;
+    if (roadOnly) label.push(T.needsRoad);
+    // Red only for lack of silver: say so, or the red looks like a bad spot.
+    else if (!check.ok && isPlaceTool(tool) && (check.reason === 'silver' || check.reason === 'debt'))
+      label.push(check.reason === 'silver' ? T.missingSilver(costOf(tool)) : T.fail.debt);
+    const color = roadOnly ? C.needsRoad : ok ? 0xfff3b0 : C.famine;
     this.fillCells(footprint(o.x, o.y, w, h), color, 0.3);
     g.lineStyle(2, color, 0.9);
     g.strokePoints(rectCorners(o.x, o.y, w, h), true, true);
@@ -868,7 +897,8 @@ export class MapView {
     const c = footCenter(o.x, o.y, w, h);
     setTex(this.preview, key).setPosition(c.x, c.y).setAlpha(0.7).setVisible(true);
     if (ok) this.preview.clearTint();
-    else this.preview.setTint(0xff6a5a);
+    else this.preview.setTint(roadOnly ? C.needsRoad : 0xff6a5a);
+    if (label.length) this.serves.setText(label.join('\n')).setPosition(c.x, c.y - (HEIGHT[key] ?? 40) - 6).setVisible(true);
   }
 
   /**

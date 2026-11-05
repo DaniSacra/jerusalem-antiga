@@ -9,7 +9,6 @@ import {
   computeEconomy,
   createGame,
   createRng,
-  familyBlock,
   foodAfter,
   gatherCells,
   gatherYield,
@@ -36,10 +35,10 @@ import {
   type GameState,
   type Placeable,
 } from '../src/core';
-import { constRng, EAST, emptyGame, meetGoal, put, ROADSIDE, westOf } from './helpers';
+import { constRng, EAST, emptyGame, meetGoal, put, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
-const UP = RULES.weeksToUpgrade;
+const UP = UP_WEEKS;
 const lumber = BUILDINGS.lumber.gather!;
 const quarry = BUILDINGS.quarry.gather!;
 const EVERY = BUILDINGS.lumber.cutEvery!;
@@ -74,9 +73,9 @@ const lumberAt = (s: GameState) => put(s, 'lumber', EAST, 30);
 
 describe('materials data', () => {
   it('lumber and quarry: work buildings gathering wood from trees and stone from rocks', () => {
-    expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 1, w: 2, h: 2, jobs: 2, cutEvery: 10 });
+    expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 0.5, w: 2, h: 2, jobs: 2, cutEvery: 10 });
     expect(lumber).toEqual({ source: 'tree', radius: 3, perCell: 0.25, max: 3, product: 'wood' });
-    expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 2, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
+    expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 1, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
     expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.4, max: 3, product: 'stone' });
   });
 
@@ -91,25 +90,25 @@ describe('materials data', () => {
 
   it('house levels: tents are free, then mud 5 wood, stone 10 stone, big 10 stone and 5 wood', () => {
     expect(HOUSE_LEVELS.map((l) => l.materials ?? {})).toEqual([{}, {}, { wood: 5 }, { stone: 10 }, { stone: 10, wood: 5 }]);
-    expect(upgradeGain(1, 0)!.materials).toEqual({ wood: 5 });
-    expect(upgradeGain(3, 0)!.materials).toEqual({ stone: 10, wood: 5 });
+    expect(upgradeGain(1)!.materials).toEqual({ wood: 5 });
+    expect(upgradeGain(3)!.materials).toEqual({ stone: 10, wood: 5 });
   });
 
-  it('the caravan brings 20 wood and no stone; the lumber is open from the start, the quarry from goal 2', () => {
+  it('the caravan brings 20 wood and no stone; the lumber is open from the start, the quarry from goal 6 (30 residents)', () => {
     const s = createGame(createRng(7));
     expect([s.wood, s.stone]).toEqual([20, 0]);
     expect(s.stumps).toEqual([]);
     expect(s.unlocked).toContain('lumber');
     expect(s.unlocked).not.toContain('quarry');
-    expect(unlockingGoal('quarry')).toBe(2);
+    expect(unlockingGoal('quarry')).toBe(6);
     expect(checkPlace(s, 'quarry', 0, 0).ok).toBe(false);
   });
 
-  it('goal 2 unlocks the quarry', () => {
-    const s = emptyGame({ goalIndex: 1, unlocked: ['road', 'house'] });
-    meetGoal(s, GOALS[1]);
+  it('goal 6 (30 residents) unlocks the quarry', () => {
+    const s = emptyGame({ goalIndex: 5, unlocked: ['road', 'house'] });
+    meetGoal(s, GOALS[5]);
     checkGoal(s, []);
-    expect(s.goalIndex).toBe(2);
+    expect(s.goalIndex).toBe(6);
     expect(s.unlocked).toContain('quarry');
   });
 });
@@ -132,7 +131,7 @@ describe('lumber and quarry yield', () => {
 
   it('lumber: capped at max, and scaled by the worker efficiency', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 1); // a tent: 2 workers
+    put(s, 'house', ROADSIDE, 27, 1, false, 2); // a tent with 2 workers
     const b = lumberAt(s);
     put(s, 'field', 1, 1); // disconnected: no jobs
     for (let y = 27; y <= 34; y++) plant(s, 'olive', [[27, y], [28, y]]);
@@ -343,7 +342,7 @@ describe('houses waiting for material', () => {
     expect(housesWaiting(s)).toEqual({ wood: 0, stone: 2 });
     s.stone = 12;
     const events = run(s, 1);
-    expect(events).toContainEqual({ type: 'houseUp', x: EAST, y: 27, level: 3, delta: HOUSE_LEVELS[3].residents - HOUSE_LEVELS[2].residents });
+    expect(events).toContainEqual({ type: 'houseUp', x: EAST, y: 27, level: 3, delta: HOUSE_LEVELS[3].capacity - HOUSE_LEVELS[2].capacity });
     expect(a.level).toBe(3);
     expect(a.waiting).toBeUndefined();
     expect(s.stone).toBe(2);
@@ -408,7 +407,8 @@ describe('houses waiting for material', () => {
     run(s, UP);
     s.food = 0;
     s.silver = 50;
-    put(s, 'temple', EAST, 40); // upkeep 10: a negative balance
+    // Disconnected quarries far away: their upkeep makes the balance negative.
+    for (let k = 0; computeEconomy(s).silverDelta >= 0; k++) put(s, 'quarry', 2 + 3 * k, 2);
     const list = alerts(s);
     const kinds = list.map((a) => a.kind);
     expect(list).toContainEqual({ kind: 'material', material: 'stone', count: 2 });
@@ -418,11 +418,6 @@ describe('houses waiting for material', () => {
     expect(alerts(s)[0].kind).toBe('debt');
   });
 
-  it('the families door ignores materials', () => {
-    const s = emptyGame({ wood: 0, stone: 0 });
-    put(s, 'house', ROADSIDE, 27);
-    expect(familyBlock(s)).toBeNull();
-  });
 });
 
 describe('material readouts and tutorial', () => {
@@ -454,9 +449,9 @@ describe('material readouts and tutorial', () => {
     expect(foodAfter(s, 'gatherer', { x: EAST, y: 30, rotated: false }).product).toBe('food');
   });
 
-  it('the lumber step comes right after the family step, with a spot found like the food spot', () => {
+  it('the lumber step comes right after the wedding step, with a spot found like the food spot', () => {
     const ids = TUTORIAL_STEPS.map((t) => t.id);
-    expect(ids.slice(-2)).toEqual(['family', 'lumber']);
+    expect(ids.slice(-2)).toEqual(['wedding', 'lumber']);
     const s = createGame(createRng(3));
     const spot = lumberSpot(s)!;
     expect(spot.kind).toBe('lumber');

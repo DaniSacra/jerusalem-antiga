@@ -1,10 +1,16 @@
 import Phaser from 'phaser';
 import {
+  announcedCaravan,
+  bandCounts,
   BUILDINGS,
   calendar,
+  clanName,
+  householdsOf,
+  waitingCouples,
   foodCapacity,
   gatherYield,
   goalProgress,
+  templeSavings,
   goalTarget,
   GOALS,
   happinessOn,
@@ -44,12 +50,19 @@ interface Chart {
   limit?: number[];
 }
 
-/** A panel line: parts in a row, one wrapped text (`wrap`) or a chart. */
+/** A 44 px parchment capsule in a panel (a family of the Povo tab). */
+interface PChip {
+  label: string;
+  press: () => void;
+}
+
+/** A panel line: parts in a row, one wrapped text (`wrap`), a chart or wrapping capsules (`chips`). */
 interface PLine {
   parts: Part[];
   gap?: number;
   wrap?: boolean;
   chart?: Chart;
+  chips?: PChip[];
 }
 /** Lines that stay together in one column. */
 type Section = PLine[];
@@ -66,6 +79,8 @@ const CHART_H = px(PHONE ? 46 : 64);
 export interface PanelHandlers {
   onTurn(dir: 1 | -1): void;
   onSettings(): void;
+  /** A family of the Povo tab was tapped: go to its house. */
+  onHouse(houseId: number): void;
 }
 
 /** Where a panel opens: its top-left corner and the room it has. */
@@ -86,7 +101,8 @@ export interface PanelData {
   notices: Notice[];
 }
 
-type StatsTab = 'now' | 'history';
+type StatsTab = 'now' | 'people' | 'history';
+const TABS: StatsTab[] = ['now', 'people', 'history'];
 
 /**
  * One panel at a time, over the map: Objetivos (done, current with progress, next), Avisos (the
@@ -173,9 +189,9 @@ export class Panels {
   /** The two stats tabs (round capsules, the open one gold); returns the height they take. */
   private tabs(root: Phaser.GameObjects.Container, pad: number): number {
     const N = T.nova.tabs;
-    const capW = px(120);
+    const capW = px(PHONE ? 104 : 120);
     const gap = px(8);
-    (['now', 'history'] as const).forEach((tab, k) => {
+    TABS.forEach((tab, k) => {
       const t = ntext(this.scene, 0, 0, N[tab], S.text, NOVA_CSS.ink).setOrigin(0.5);
       const b = new RoundButton(this.scene, pad + capW / 2 + k * (capW + gap), pad + S.btn / 2, capW, S.btn, [t], () =>
         this.scene.time.delayedCall(0, () => {
@@ -187,7 +203,7 @@ export class Panels {
       root.add(b.root);
       this.spot(`stats-${tab}`, b, capW);
     });
-    this.tabsW = 2 * capW + gap;
+    this.tabsW = TABS.length * capW + (TABS.length - 1) * gap;
     return S.btn + px(10);
   }
 
@@ -203,9 +219,28 @@ export class Panels {
       let sy = 0;
       let sw = 0;
       const lines = sec.map((l) => {
-        const out: (Phaser.GameObjects.Text | Phaser.GameObjects.Graphics)[] = [];
+        const out: (Phaser.GameObjects.Text | Phaser.GameObjects.Graphics | Phaser.GameObjects.Container)[] = [];
         let lx = 0;
         let lh = 0;
+        if (l.chips) {
+          const room = Math.min(maxW, px(PHONE ? 320 : 460));
+          let cx = 0;
+          let cy = 0;
+          l.chips.forEach((c, k) => {
+            const t = ntext(this.scene, 0, 0, c.label, S.text, NOVA_CSS.ink).setOrigin(0.5);
+            const w = Math.max(S.btn, t.width + px(24));
+            if (cx > 0 && cx + w > room) {
+              cx = 0;
+              cy += S.btn + px(6);
+            }
+            const b = new RoundButton(this.scene, cx + w / 2, cy + S.btn / 2, w, S.btn, [t], () => this.scene.time.delayedCall(0, c.press));
+            this.spot(`family-${k}`, b, w);
+            out.push(b.root);
+            cx += w + px(6);
+            lx = Math.max(lx, cx);
+          });
+          lh = cy + S.btn;
+        }
         if (l.chart) {
           out.push(this.chart(l.chart));
           lx = CHART_W + px(6);
@@ -232,7 +267,7 @@ export class Panels {
         colW = 0;
       }
       for (const { out, ly } of lines) for (const t of out) {
-        t.setPosition(x + t.x, y + ly);
+        t.setPosition(x + t.x, y + ly + t.y);
         root.add(t);
       }
       colW = Math.max(colW, sw);
@@ -291,16 +326,55 @@ export class Panels {
           gap: cur ? px(2) : 0,
         });
       });
-      // Two halves, so a short screen lays them out in two columns.
-      const half = Math.ceil(lines.length / 2);
-      return [[title(N.buttons.goals), ...lines.slice(0, half)], lines.slice(half)];
+      const save = templeSavings(s);
+      if (save) lines.push({ parts: [{ text: N.goals.templeSavings(save.silver, save.cost), color: save.silver >= save.cost ? NOVA_CSS.good : NOVA_CSS.gold, bold: true }], gap: px(2) });
+      // As many lines per column as the panel height holds (at least two columns), so a short screen lays them out side by side.
+      const a = this.area('goals');
+      const fit = Math.floor((a.maxH - 2 * px(14) - lineH(S.num) - px(2)) / (lineH(S.text) + px(2)));
+      const per = Math.max(1, Math.min(Math.ceil(lines.length / 2), fit));
+      const cols: Section[] = [];
+      for (let k = 0; k < lines.length; k += per) cols.push(lines.slice(k, k + per));
+      cols[0]?.unshift(title(N.buttons.goals));
+      return cols;
     }
     if (kind === 'alerts') {
       // One section per warning, so a long list flows into a second column instead of past the bottom.
       const [first, ...rest] = this.noticeLines(d.notices);
       return [[title(N.buttons.alerts), first], ...rest.map((l) => [l])];
     }
-    return this.tab === 'history' ? this.history(d) : this.numbers(d);
+    return this.tab === 'history' ? this.history(d) : this.tab === 'people' ? this.people(d) : this.numbers(d);
+  }
+
+  /** Estatísticas, tab "Povo": the people by age, this year's births, deaths and weddings, couples waiting, the next caravan and the families. */
+  private people({ s }: PanelData): Section[] {
+    const st = T.nova.stats;
+    const bands = bandCounts(s);
+    const y = s.yearStats;
+    // Label and number pairs on one line each, so the numbers, the caravan and the families fit a phone.
+    const pairs = (list: [string, number][]): PLine => ({ parts: list.flatMap(([label, n]) => [{ text: label, color: NOVA_CSS.muted, bold: false }, { text: fmtInt(n) }]) });
+    const couples = waitingCouples(s);
+    const caravan = announcedCaravan(s);
+    const at = caravan && calendar(caravan.week);
+    const out: Section[] = [];
+    out.push([
+      title(st.people),
+      pairs((['child', 'adult', 'elder'] as const).map((b) => [st.bands[b], bands[b]])),
+      title(st.thisYear),
+      pairs([[st.births, y.births], [st.deaths, y.deaths], [st.weddings, y.weddings]]),
+      row(st.couples, fmtInt(couples.length), couples.length ? NOVA_CSS.warn : NOVA_CSS.text),
+      // Phone: the names are in Avisos (no room here).
+      ...(couples.length && !PHONE ? [note(couples.map((c) => `${c.man.name} e ${c.woman.name}`).join(' · '))] : []),
+      title(st.caravan),
+      { parts: [{ text: at ? st.caravanAt(at.season, at.year, caravan.families) : st.noCaravan, color: at ? NOVA_CSS.text : NOVA_CSS.muted, bold: !!at }] },
+    ]);
+    const all = householdsOf(s);
+    const max = PHONE ? 6 : 12;
+    const fams: PLine[] = [title(st.families)];
+    if (!all.length) fams.push(note(st.noFamilies));
+    else fams.push({ parts: [], chips: all.slice(0, max).map((f) => ({ label: st.family(clanName(f.clan), f.people), press: () => this.h.onHouse(f.house.id) })) });
+    if (all.length > max) fams.push(note(st.moreFamilies(all.length - max)));
+    out.push(fams);
+    return out;
   }
 
   /** The warnings, one wrapped line each (always with the ⚠ mark, never only the color). */

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_W, px } from './layout';
-import { NOVA } from './palette';
+import { NOVA, NOVA_CSS } from './palette';
 import { lineH, S } from './nova/metrics';
 import { darkPanel, ntext } from './nova/widgets';
 
@@ -21,7 +21,8 @@ interface Toast {
   timer: Phaser.Time.TimerEvent;
 }
 
-export type Tone = 'info' | 'bad' | 'good';
+/** `quiet`: grey and discreet (a death of old age). */
+export type Tone = 'info' | 'bad' | 'good' | 'quiet';
 
 /** Options of one toast: `big` for the opening sentence (larger, longer on screen). */
 export interface ToastOptions {
@@ -44,8 +45,15 @@ export class Toasts {
   /** A panel is open: new toasts wait in line until it closes (they would cover it). */
   private held = false;
 
-  /** `y0`: bottom edge of the newest toast; `maxW`: widest a toast may be (it wraps). */
+  /** `y0`: bottom edge of the newest toast (see `setBottom`); `maxW`: widest a toast may be (it wraps). */
   constructor(private scene: Phaser.Scene, private y0: number, private maxW = px(520)) {}
+
+  /** Moves the bottom edge (e.g. above the tutorial bubble while it shows); the toasts glide there. */
+  setBottom(y: number) {
+    if (Math.abs(y - this.y0) < 0.5) return;
+    this.y0 = y;
+    this.layout();
+  }
 
   show(msg: string, tone: Tone = 'info', opt: ToastOptions = {}) {
     const existing = this.list.find((t) => t.msg === msg);
@@ -103,7 +111,7 @@ export class Toasts {
     const s = this.scene;
     const size = opt.big ? S.num * 1.2 : S.num;
     const pad = px(opt.big ? 16 : 12);
-    const label = ntext(s, 0, 0, msg, size)
+    const label = ntext(s, 0, 0, msg, size, tone === 'quiet' ? NOVA_CSS.muted : NOVA_CSS.text, tone !== 'quiet')
       .setOrigin(0.5)
       .setAlign('center')
       .setWordWrapWidth(this.maxW - 2 * pad)

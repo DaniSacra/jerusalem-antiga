@@ -1,4 +1,28 @@
-import { HOUSE_LEVELS, RULES, campRoad, createGame, createRng, dimsOf, indexOf, place, refreshCity, ROAD_X, type BuildableKind, type GameState, type GoalDef, type Rng } from '../src/core';
+import {
+  GOALS,
+  HOUSE_LEVELS,
+  RULES,
+  addPerson,
+  wed,
+  campRoad,
+  createGame,
+  createRng,
+  dimsOf,
+  indexOf,
+  place,
+  refreshCity,
+  ROAD_X,
+  type BuildableKind,
+  type Building,
+  type GameState,
+  type GoalDef,
+  type Person,
+  type Rng,
+  type Sex,
+} from '../src/core';
+
+/** A goal no test city reaches by accident (the first one asking for 100 residents): tests of goals set goalIndex. */
+export const QUIET_GOAL = GOALS.findIndex((g) => g.type === 'residents' && g.target >= 100);
 
 /**
  * A fresh game with sand everywhere (except the river), no rocks or trees, plenty of silver, wood
@@ -8,8 +32,10 @@ import { HOUSE_LEVELS, RULES, campRoad, createGame, createRng, dimsOf, indexOf, 
  */
 export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   const s = createGame(createRng(1));
-  // No caravan: only the altar, and a fixed food stock (tests of the caravan use createGame).
+  // No caravan: only the altar, nobody living, no later caravans and a fixed food stock (tests of the caravans use createGame).
   s.buildings = s.buildings.filter((b) => b.kind === 'altar');
+  s.people = [];
+  s.caravans = [];
   s.grid = s.grid.map((b) => (b?.kind === 'altar' ? b : null));
   for (const c of campRoad()) s.roads[indexOf(s, c.x, c.y)] = false; // no camp road without the caravan
   s.food = 30;
@@ -19,23 +45,55 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
   s.wood = 100_000;
   s.stone = 100_000;
   s.unlocked = ['road', 'house', 'field', 'plaza', 'market', 'workshop', 'park', 'temple'];
-  s.goalIndex = RULES.upkeepStartsAfterGoal; // upkeep is charged (tests of the first goals set goalIndex)
+  s.goalIndex = QUIET_GOAL; // no goal reward moves the silver (tests of goals set goalIndex)
   Object.assign(s, overrides);
   refreshCity(s);
   return s;
 }
 
-/** Places a building (top-left at x, y) without charging silver or materials, optionally at a given house level. */
-export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0, rotated = false) {
+/**
+ * Places a building (top-left at x, y) without charging silver or materials, optionally at a given
+ * house level: a house with people is filled to its capacity with adults (`fill`) unless `people`
+ * says how many.
+ */
+export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0, rotated = false, people?: number) {
   const { silver, wood, stone, unlocked } = s;
   Object.assign(s, { silver: 1e9, wood: 1e9, stone: 1e9, unlocked: [kind] });
   const r = place(s, kind, x, y, rotated);
   Object.assign(s, { silver, wood, stone, unlocked });
   if (!r.ok) throw new Error(`cannot place ${kind} at ${x},${y}: ${r.reason}`);
   const b = s.grid[indexOf(s, x, y)]!;
-  b.level = level;
+  b.upWeeks = UP_WEEKS; // a fixed climb (the drawn one is tested in levels.test.ts)
+  if (kind === 'house' && level > 0) {
+    b.level = level;
+    fill(s, b, people ?? HOUSE_LEVELS[level].capacity);
+  }
   return b;
 }
+
+/**
+ * Adds `n` adults to a house: married couples (man, woman) of `age` years. The default 41 is past
+ * the marriage and fertile ages and far from the elder age, so they only eat, work and pay: no
+ * wedding, birth or death for the next 8 years of life (104 weeks).
+ */
+export function fill(s: GameState, b: Building, n: number, age = 41): Person[] {
+  const out = Array.from({ length: n }, (_, k) => person(s, { houseId: b.id, sex: k % 2 ? 'f' : 'm', age }));
+  for (let k = 0; k + 1 < out.length; k += 2) wed(out[k], out[k + 1]);
+  return out;
+}
+
+/** Adds a person born exactly `age` years ago this week (birthday this week), of the founding caravan unless told. */
+export function person(s: GameState, o: { houseId: number | null; sex?: Sex; age?: number; caravan?: number | null; fatherId?: number; motherId?: number }): Person {
+  const p = addPerson(s, { sex: o.sex ?? 'm', age: o.age ?? 30, houseId: o.houseId, caravan: o.caravan === undefined ? 0 : o.caravan, clan: 0, fatherId: o.fatherId, motherId: o.motherId }, () => 0);
+  p.birthWeek = s.week - (o.age ?? 30) * RULES.people.weeksPerLifeYear;
+  return p;
+}
+
+/** Weeks a house put by a test needs to climb a level (the shortest of `weeksToUpgrade`). */
+export const UP_WEEKS = RULES.weeksToUpgrade[0];
+
+/** Weeks of game per year of life. */
+export const LIFE_YEAR = RULES.people.weeksPerLifeYear;
 
 /** Lays road cells without charging silver. */
 export function road(s: GameState, cells: [number, number][]) {
@@ -87,7 +145,7 @@ export function meetGoal(s: GameState, goal: GoalDef, y = 27) {
   let level: number;
   if (goal.type === 'residents') {
     level = top;
-    count = Math.ceil(goal.target / HOUSE_LEVELS[top].residents);
+    count = Math.ceil(goal.target / HOUSE_LEVELS[top].capacity);
   } else if (goal.type === 'houses') {
     level = goal.level ?? 1;
     count = goal.target;

@@ -28,6 +28,7 @@ import {
   type TutorialStepId,
 } from '../src/core';
 import TUTORIAL from '../src/data/tutorial.json';
+
 import { constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
 
 const step = (id: TutorialStepId) => [...TUTORIAL_STEPS, ...TUTORIAL_EXTRAS].find((s) => s.id === id)!;
@@ -40,20 +41,17 @@ describe('tutorial steps', () => {
       ['field', 'field', 1],
       ['plaza', 'plaza', 1],
       ['house', 'house', 1],
-      ['family', null, 1],
+      ['wedding', null, 1],
       ['lumber', 'lumber', 1],
     ]);
     expect(step('gather').alt).toBe('gatherer');
     expect(TUTORIAL_STEPS.filter((s) => s.alt)).toHaveLength(1);
-    expect(TUTORIAL_EXTRAS.map((s) => [s.id, s.tool])).toEqual([
-      ['upkeep', null],
-      ['market', 'market'],
-    ]);
+    expect(TUTORIAL_EXTRAS.map((s) => [s.id, s.tool])).toEqual([['market', 'market']]);
   });
 
-  it('holds the clock on the build steps and lets it run while a family is on its way', () => {
-    for (const st of TUTORIAL_STEPS) expect(tutorialHoldsClock(st)).toBe(st.id !== 'family');
-    expect(tutorialHoldsClock(step('upkeep'))).toBe(false);
+  it('holds the clock on the build steps and lets it run while the couple walks to its house', () => {
+    for (const st of TUTORIAL_STEPS) expect(tutorialHoldsClock(st)).toBe(st.id !== 'wedding');
+    expect(tutorialHoldsClock(step('market'))).toBe(true);
     expect(tutorialHoldsClock(null)).toBe(false);
   });
 
@@ -63,7 +61,7 @@ describe('tutorial steps', () => {
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29);
     put(s, 'house', 1, 1); // not connected
-    expect(markTutorial(s)).toEqual({ roads, houses: 2, ghost: ghostRoad(s) });
+    expect(markTutorial(s)).toEqual({ roads, houses: 2, ghost: ghostRoad(s), week: s.week });
   });
 
   it('road: done once the suggested road is built, or as many new joined road cells elsewhere', () => {
@@ -108,22 +106,36 @@ describe('tutorial steps', () => {
     expect(tutorialStepDone(tree, step('gather'), markTutorial(tree))).toBe(true);
   });
 
-  it('family: done by the first new family (the milestone), not by a tent', () => {
+  it('wedding: done by the first wedding (the milestone), not by a new house', () => {
     const s = emptyGame();
     const mark = markTutorial(s);
     put(s, 'house', ROADSIDE, 27, 1);
-    expect(tutorialStepDone(s, step('family'), mark)).toBe(false);
-    s.milestones.push('firstFamily');
-    expect(tutorialStepDone(s, step('family'), mark)).toBe(true);
+    expect(tutorialStepDone(s, step('wedding'), mark)).toBe(false);
+    s.milestones.push('firstWedding');
+    expect(tutorialStepDone(s, step('wedding'), mark)).toBe(true);
   });
 
-  it('family: done once a family really arrives in the simulation', () => {
-    const s = emptyGame();
+  it('wedding: done once the opening couple really moves into the new house in the simulation', () => {
+    for (const seed of [1, 5, 9]) {
+      const s = createGame(createRng(seed));
+      put(s, 'house', ROADSIDE, 30); // the house step: an empty house by the road
+      const mark = markTutorial(s);
+      for (let k = 0; k < TUTORIAL.weddingStepMaxWeeks && !s.milestones.includes('firstWedding'); k++) stepWeek(s, constRng(0.99));
+      expect(s.milestones, `seed ${seed}`).toContain('firstWedding');
+      expect(tutorialStepDone(s, step('wedding'), mark)).toBe(true);
+    }
+  });
+
+  it(`wedding: ends by itself after weddingStepMaxWeeks (${TUTORIAL.weddingStepMaxWeeks}) weeks with no wedding`, () => {
+    expect(TUTORIAL.weddingStepMaxWeeks).toBe(6);
+    const s = emptyGame({ week: 3 });
     const mark = markTutorial(s);
-    put(s, 'plaza', EAST, 27);
-    put(s, 'house', ROADSIDE, 27);
-    for (let k = 0; k < 8 && !tutorialStepDone(s, step('family'), mark); k++) stepWeek(s, constRng(0));
-    expect(tutorialStepDone(s, step('family'), mark)).toBe(true);
+    expect(mark.week).toBe(3);
+    s.week = 3 + TUTORIAL.weddingStepMaxWeeks - 1;
+    expect(tutorialStepDone(s, step('wedding'), mark)).toBe(false);
+    s.week++;
+    expect(tutorialStepDone(s, step('wedding'), mark)).toBe(true);
+    expect(s.milestones).not.toContain('firstWedding');
   });
 
   it('field, plaza and market: done by one connected building of the kind', () => {
@@ -140,7 +152,6 @@ describe('tutorial steps', () => {
     expect(done('market')).toBe(false);
     put(s, 'market', EAST, 30);
     expect(done('market')).toBe(true);
-    expect(done('upkeep')).toBe(false); // only a tap ends it
   });
 });
 

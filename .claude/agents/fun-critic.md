@@ -61,3 +61,11 @@ REGRAS
 - Use os números do último relatório do sim-tester quando falar de
   ritmo; não meça você mesmo
 - Nunca faça commit nem push
+
+PROCESSOS LONGOS (para não travar)
+- Nunca espere um processo com `pgrep -f`/`pkill -f` em laço: o comando acha a si mesmo e a espera
+  nunca termina. Rode em primeiro plano com `timeout` (ex.: `timeout 900 npm run sim -- ...`) ou
+  espere pelo PID (`cmd & pid=$!; wait $pid`).
+- Testes visuais: use `VISUAL_PORT` e `VISUAL_OUT` próprios (outro agente pode estar rodando) e
+  `timeout 1500`. Uma falha só por tempo com a máquina carregada: rode o cenário de novo sozinho.
+- Salve o relatório aos poucos, a cada etapa, para não perder tudo se algo travar.

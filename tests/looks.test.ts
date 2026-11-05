@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, RULES, stepWeek } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { BUILDINGS, clearCell, craftOf, createRng, HOUSE_LEVELS, place, rollLook, sendWalking, startCell, stepWeek } from '../src/core';
+import { constRng, EAST, emptyGame, person, put, ROADSIDE } from './helpers';
 
 describe('house looks', () => {
   it('draws variant and mirroring from the injected rng, deterministically', () => {
@@ -62,20 +62,21 @@ describe('house looks', () => {
     expect(b.variant).toBe(0);
   });
 
-  it('draws a new look at every level change, including when a family arrives', () => {
+  it('draws a new look at every level change, including when people move into an empty plot', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 30, 1);
     put(s, 'plaza', ROADSIDE, 32);
     b.variant = 0;
     b.mirrored = true;
-    for (let k = 0; k < RULES.weeksToUpgrade; k++) stepWeek(s, constRng(0.99));
+    for (let k = 0; k < b.upWeeks; k++) stepWeek(s, constRng(0.99));
     expect(b).toMatchObject({ level: 2, variant: 5, mirrored: false });
 
     const t = emptyGame();
     put(t, 'plaza', EAST, 27); // a plaza by the plot
     const plot = put(t, 'house', ROADSIDE, 27);
     plot.variant = 1;
-    for (let k = 0; k < 8 && plot.level === 0; k++) stepWeek(t, constRng(0)); // the family walks ~20 cells, 6 per week
+    sendWalking(t, startCell(t), [plot], [person(t, { houseId: null }).id]);
+    for (let k = 0; k < 8 && plot.level === 0; k++) stepWeek(t, constRng(0)); // ~20 cells, 6 per week
     expect(plot).toMatchObject({ level: 1, variant: 0, mirrored: true });
   });
 });

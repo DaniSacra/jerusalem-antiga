@@ -28,7 +28,17 @@ import {
   RULES,
   spotsServing,
   stepWeek,
-  templeSpots,
+  templeSpotsNear,
+  templeRoadSpot,
+  templeWaitsForGoal,
+  personById,
+  seasonOf,
+  upgradeBuilding,
+  nextLevelOf,
+  grownUpThisWeek,
+  type TutorialStepId,
+  BUILDINGS,
+  type TempleSpot,
   type ActionResult,
   type BuildableKind,
   type BuildingCategory,
@@ -84,7 +94,7 @@ function gatherSpots(s: GameState, kind: BuildableKind): Cell[] {
   const { w, h } = dimsOf(kind);
   const spots = placeSpots(s, kind).map((c) => ({
     ...c,
-    n: gatherYield(s, { id: -1, kind, ...c, w, h, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: s.week }),
+    n: gatherYield(s, { id: -1, kind, ...c, w, h, level: 0, upStreak: 0, downStreak: 0, upWeeks: 0, emptyLevel: 0, connected: true, variant: 0, mirrored: false, built: s.week }),
   }));
   const best = Math.max(0, ...spots.map((c) => c.n));
   return best > 0 ? spots.filter((c) => c.n >= best * GOOD_GATHER) : [];
@@ -117,6 +127,8 @@ interface Gesture {
   applied: boolean;
   cancelled: boolean;
   toastedSilver: boolean;
+  /** A touch drag of Demolir skipped something that would lose food (said once). */
+  toastedFood: boolean;
   /** Road cells placed during this gesture, checked for connection when it ends. */
   roads: Cell[];
   /** The drag went over the interface after building: it stopped there (a toast says so). */
@@ -175,6 +187,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** The camera follows the first family for a moment (family step). */
   private follow: { id: number; until: number } | null = null;
   private followed = false;
+  /** Births and weddings of this game (the victory screen tells them). */
+  private births = 0;
+  private weddings = 0;
   /** The camera glides to the place of a new tutorial step (world point), and which step it did it for. */
   private pan: { x: number; y: number } | null = null;
   private pannedFor: string | null = null;
@@ -182,6 +197,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Inside a drag step: builds wait and the city refreshes once at the end. */
   private batching = false;
   private pending = false;
+  /** Where the temple fits while it is chosen (see updateTempleAreas). */
+  private templeAreas: TempleSpot[] = [];
   /** "Onde pôr um mercado": the places where this kind would reach the target are highlighted. */
   private spots: { kind: BuildableKind; target: Building } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
@@ -215,6 +232,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.lumberHint = null;
     this.follow = null;
     this.followed = false;
+    this.births = 0;
+    this.weddings = 0;
     this.pan = null;
     this.pannedFor = null;
     this.city = readCity(this.state);
@@ -266,7 +285,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     // The weeks are the forecast's, the same the food pill and goal 1 show.
     const c = this.state.start;
     const weeks = this.city.forecast?.weeks ?? c.foodWeeks;
-    if (this.state.week === 0) ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
+    if (this.state.week === 0) {
+      ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
+      // The tutorial's house step speaks of the couple; out of it, a toast names them.
+      const [a, b] = c.couple.map((id) => personById(this.state, id)?.name);
+      if (a && b && !this.guide) ui.toast(T.wantToMarry(a, b), 'good', { ms: 5000 });
+    }
     this.selectTool('view');
   }
 
@@ -297,6 +321,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.weekSeconds, light.walkers * (this.weather?.walkers ?? 1));
     this.haulers.update(delta / 1000, speed);
     if (this.guide) this.updateTutorial(delta);
+    else if (this.pan && (this.gesture || this.glide(this.pan, delta))) this.pan = null; // the camera going to a temple area
     this.ui?.setSlow(this.dayNight.degraded);
     this.ui?.setDrought(look.drought);
   }
@@ -305,6 +330,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   private refresh() {
     this.city = readCity(this.state);
+    this.updateTempleAreas();
     this.map.sync(this.state, this.eco);
     this.ambient.sync(this.state);
     this.haulers.sync(this.state);
@@ -313,19 +339,24 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.ui?.refresh(this.state, this.city, this.speed, this.tool, this.guide?.running ?? false, this.selected);
   }
 
+  /** A house that grew (a level or a baby): it hops, a ring of light spreads and the gain floats up. */
+  private cheerHouse(x: number, y: number, gain: string) {
+    const b = this.state.grid[indexOf(this.state, x, y)];
+    const c = footCenter(x, y);
+    this.map.bounce(this.state, x, y);
+    this.fx.ring(c.x, c.y);
+    this.fx.floatText(c.x, c.y - (b ? this.map.heightOf(b) : 20) - 8, gain);
+  }
+
   private handleEvents(events: GameEvent[]) {
     /** Where houses rose this week, by level (a milestone celebrates the house that reached it). */
     const ups = new Map<number, Cell>();
     for (const e of events) {
       switch (e.type) {
-        case 'houseUp': {
-          const c = footCenter(e.x, e.y);
+        case 'houseUp':
           ups.set(e.level, { x: e.x, y: e.y });
-          this.map.bounce(this.state, e.x, e.y);
-          this.fx.ring(c.x, c.y);
-          this.fx.floatText(c.x, c.y - (HEIGHT[TEX.building('house', e.level)] ?? 20) - 8, `+${e.delta}`);
+          this.cheerHouse(e.x, e.y, `+${e.delta}`);
           break;
-        }
         case 'houseDown': {
           const c = footCenter(e.x, e.y);
           this.fx.floatText(c.x, c.y - 30, T.houseDown(e.delta, e.famine), CSS.bad);
@@ -336,15 +367,16 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'goal':
           this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
+          if (e.unlock === 'market') this.guide?.marketUnlocked();
           if (e.unlock && T.unlocked[e.unlock]) this.ui?.toast(T.unlocked[e.unlock]!, 'good');
           if (e.unlock) this.ui?.unlocked(e.unlock);
           break;
         case 'victory':
-          this.ui?.showVictory(e.week, e.residents);
+          this.ui?.showVictory(e.week, e.residents, this.births, this.weddings);
           break;
         case 'familyLeft':
           this.walkers.leave(this.state, e.x, e.y);
-          this.ui?.toast(T.familyLeft, 'bad');
+          this.ui?.toast(T.familyLeft(e.reason, e.name), 'bad');
           break;
         case 'debtStart':
           this.ui?.toast(T.debtStart, 'bad');
@@ -363,7 +395,10 @@ export class GameScene extends Phaser.Scene implements UiHost {
           const b = milestoneSite(this.state, e.id, ups);
           this.map.shine(b.id);
           this.fx.milestone(this.state, b, this.map.heightOf(b));
-          this.ui?.milestone(e.id);
+          // The first child of the city to come of age is named.
+          const grown = e.id === 'firstGrownUp' ? grownUpThisWeek(this.state) : null;
+          if (grown) this.ui?.toast(T.grownUp(grown.name, grown.sex === 'f'), 'good');
+          else this.ui?.milestone(e.id);
           break;
         }
         case 'spoilStart': {
@@ -383,9 +418,34 @@ export class GameScene extends Phaser.Scene implements UiHost {
         case 'treeCut':
           this.map.fell(e.x, e.y);
           break;
-        case 'upkeepStart':
-          if (!this.guide?.upkeepStarted()) this.ui?.toast(T.upkeepStart, 'info');
+        case 'wedding':
+          this.weddings++;
+          this.ui?.toast(T.wedding(this.nameOf(e.a), this.nameOf(e.b)), 'good');
           break;
+        case 'birth': {
+          this.births++;
+          const p = personById(this.state, e.id);
+          if (p) this.ui?.toast(T.birth(p.name, p.sex === 'f', this.nameOf(p.fatherId), this.nameOf(p.motherId)), 'info');
+          this.cheerHouse(e.x, e.y, '+1');
+          break;
+        }
+        case 'death':
+          this.ui?.toast(T.death(this.nameOf(e.id), e.age), 'quiet');
+          break;
+        case 'coupleLeft':
+          this.ui?.toast(T.coupleLeft(this.nameOf(e.a), this.nameOf(e.b)), 'bad');
+          break;
+        case 'caravanAnnounced':
+          this.ui?.toast(T.caravanAnnounced(e.families, seasonOf(e.week)), 'info');
+          break;
+        case 'caravanArrived':
+          this.ui?.toast(T.caravanArrived(e.housed, e.left), e.left ? 'info' : 'good');
+          break;
+        case 'buildingUp': {
+          const b = this.state.grid[indexOf(this.state, e.x, e.y)];
+          if (b) this.ui?.toast(T.buildingUp(BUILDINGS[b.kind].name, e.level), 'good');
+          break;
+        }
       }
     }
   }
@@ -406,8 +466,33 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.selected = null;
     this.spots = null;
     this.drawSpots();
-    if (tool === 'temple' && templeSpots(this.state).length === 0) this.ui?.hint(T.noTempleSpot, true);
     this.refresh();
+    if (tool !== 'temple') return;
+    if (!this.templeAreas.some((a) => a.ready)) this.ui?.hint(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, true);
+    // The camera goes to the best area, so it is never off screen.
+    const first = this.templeAreas[0];
+    if (first) this.pan = footCenter(first.x, first.y, dimsOf('temple').w, dimsOf('temple').h);
+  }
+
+  /**
+   * While the temple is chosen: where it fits (nearest the altar first), at most
+   * `maxTempleSpots` areas that do not overlap. Redone on each refresh, never per frame.
+   */
+  private updateTempleAreas() {
+    const areas: TempleSpot[] = [];
+    if (this.tool === 'temple') {
+      const { w, h } = dimsOf('temple');
+      const apart = (a: Cell, b: Cell) => Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h;
+      for (const a of templeSpotsNear(this.state)) {
+        if (areas.length >= VISUAL.temple.maxTempleSpots) break;
+        if (areas.every((b) => apart(a, b))) areas.push(a);
+      }
+    }
+    // None near the roads: the free place a road can reach soonest, with that road marked.
+    const far = this.tool === 'temple' && !areas.length ? templeRoadSpot(this.state) : null;
+    if (far) areas.push(far);
+    this.templeAreas = areas;
+    this.map.setTempleAreas(areas, far?.road ?? []);
   }
 
   /** Screen point of the center of a grid footprint (UI coordinates) and the camera zoom. */
@@ -439,20 +524,73 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   /** Demolishes what is on a cell (Demolir in the tapped building's balloon). */
+  /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */
+  upgradeAt(cell: Cell) {
+    const events: GameEvent[] = [];
+    const b = this.state.grid[indexOf(this.state, cell.x, cell.y)];
+    const cost = b ? nextLevelOf(b)?.cost : undefined;
+    const r = upgradeBuilding(this.state, cell.x, cell.y, events);
+    if (!r.ok) {
+      this.ui?.toast(r.reason === 'silver' && cost !== undefined ? T.missingSilver(cost) : T.fail[r.reason], 'bad');
+      return;
+    }
+    if (b) {
+      const c = footCenter(b.x, b.y, b.w, b.h);
+      this.map.bounce(this.state, b.x, b.y);
+      this.fx.ring(c.x, c.y, C.ui.goldLight, Math.max(b.w, b.h));
+    }
+    this.handleEvents(events);
+    this.refresh();
+  }
+
   demolishAt(cell: Cell) {
-    const s = this.state;
-    const b = s.grid[indexOf(s, cell.x, cell.y)];
-    const lost = foodLostIfRemoved(s, cell.x, cell.y);
-    const r = clearCell(s, cell.x, cell.y);
+    const r = this.demolish(cell);
     if (!r.ok) {
       this.ui?.toast(T.fail[r.reason], 'bad');
       return;
     }
-    const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(cell.x, cell.y);
-    this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
-    if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
     this.selected = null;
     this.refresh();
+  }
+
+  /**
+   * Removes what is on a cell (a building, a road or a tree) with its dust, and floats what it cost:
+   * the silver of a tree or the food that spoils (a granary, or the road to one). No refresh.
+   */
+  private demolish(cell: Cell): ActionResult {
+    const s = this.state;
+    if (!inBounds(s, cell.x, cell.y)) return clearCell(s, cell.x, cell.y);
+    const i = indexOf(s, cell.x, cell.y);
+    // Read before it is gone: what is removed (the size of the dust) and the food that spoils.
+    const b = s.grid[i];
+    const tree = !b && !s.roads[i] && !!s.feature[i];
+    const lost = foodLostIfRemoved(s, cell.x, cell.y);
+    const r = clearCell(s, cell.x, cell.y);
+    if (!r.ok) return r;
+    const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(cell.x, cell.y);
+    this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
+    if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
+    else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
+    return r;
+  }
+
+  /** Moves the camera to a house (at once) and opens its balloon (person sheet, Povo tab). */
+  showHouse(houseId: number) {
+    const b = this.state.buildings.find((o) => o.id === houseId);
+    if (!b) return;
+    if (this.tool !== 'view') this.selectTool('view');
+    const at = this.ui?.freeCenter() ?? { x: this.cameras.main.width / 2, y: VIEW_CY };
+    const c = footCenter(b.x, b.y, b.w, b.h);
+    this.rig.centerAt(c.x, c.y, at.x, at.y);
+    this.pan = null;
+    this.selected = { x: b.x, y: b.y };
+    this.refresh();
+  }
+
+  /** The tapped building's balloon is too wide beside it: the camera glides so the building goes `dx` screen px sideways. */
+  nudge(dx: number) {
+    const at = this.ui?.freeCenter() ?? { x: this.cameras.main.width / 2, y: VIEW_CY };
+    this.pan = this.rig.toWorld(at.x - dx, at.y);
   }
 
   /** Closes the tapped building's balloon. */
@@ -533,15 +671,26 @@ export class GameScene extends Phaser.Scene implements UiHost {
 
   skipTutorial() {
     if (!this.guide) return;
-    if (this.guide.skip()) this.ui?.toast(T.upkeepStart, 'info');
+    this.guide.skip();
     this.guide = null;
     this.ui?.setTutorial(null);
     this.refresh();
   }
 
   tutorialOk() {
-    this.guide?.tap(this.state);
     this.refresh();
+  }
+
+  /** A tutorial sentence; the house and wedding steps name the caravan's engaged couple. */
+  private stepText(id: TutorialStepId): string {
+    const [a, b] = this.state.start.couple.map((p) => this.nameOf(p));
+    if ((id === 'house' || id === 'wedding') && a && b) return T.tutorial.couple[id](a, b);
+    return T.tutorial.step[id];
+  }
+
+  /** Name of a person alive or in the records ('' when unknown). */
+  private nameOf(id: number | null): string {
+    return personById(this.state, id)?.name ?? '';
   }
 
   private drawOverlay() {
@@ -578,13 +727,9 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.ui?.setTutorial(null);
       return;
     }
-    // The family step says why no family can come (the other steps keep their own sentence).
-    const block = step.id === 'family' ? this.city.block : null;
-    const stuck = block !== null && block !== 'wait' && this.state.families.length === 0;
     if (step.id === 'house') this.houseHint = houseHint(this.state);
     if (step.id !== this.pannedFor && step.id === 'lumber') this.lumberHint = lumberSpot(this.state);
-    const sentence = stuck ? T.familyBlockText(block!, this.state) : this.lumberRoadLeft() ? T.tutorial.lumberRoad : T.tutorial.step[step.id];
-    this.ui?.setTutorial(sentence, step.id === 'upkeep');
+    this.ui?.setTutorial(this.lumberRoadLeft() ? T.tutorial.lumberRoad : this.stepText(step.id), false);
     if (step.id !== this.pannedFor) {
       this.pannedFor = step.id;
       if (step.id === 'field') this.fieldHint = fieldHint(this.state);
@@ -619,7 +764,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Per frame: the arrow follows the map under the camera, and the camera follows the first family. */
   private updateTutorial(delta: number) {
     const step = this.guide!.step;
-    if (step?.id === 'family' && !this.followed && this.state.families.length) {
+    if (step?.id === 'wedding' && !this.followed && this.state.families.length) {
       this.follow = { id: this.state.families[0].id, until: this.time.now + VISUAL.tutorial.followSeconds * 1000 };
       this.followed = true;
     }
@@ -650,7 +795,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
   private tutorialTarget(): TutorialTarget | null {
     const step = this.guide!.step!;
-    if (step.id === 'upkeep') return this.ui?.anchor('silver') ?? null;
     // A marked road to follow: the road step's, or the one to a lumber spot past the grove's edge (Rua first).
     const road = step.id === 'road' ? this.ghost : this.lumberRoadLeft() ? this.lumberHint!.road : null;
     const tool = road ? 'road' : step.tool;
@@ -770,6 +914,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       applied: false,
       cancelled: false,
       toastedSilver: false,
+      toastedFood: false,
       roads: [],
       cutByUi: false,
     };
@@ -824,8 +969,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
       const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
       if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
         this.batching = true;
-        if (!g.applied && g.start) this.apply(g.start, true);
-        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false);
+        if (!g.applied && g.start) this.apply(g.start, true, g.touch);
+        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false, g.touch);
         this.batching = false;
         if (this.pending) {
           this.pending = false;
@@ -858,7 +1003,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
         // Releasing a single building over the UI cancels it.
         const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
-        if (cell) this.apply(cell, true);
+        if (cell) this.apply(cell, true, g.touch);
       }
       this.warnLooseRoads(g.roads);
       if (g.cutByUi && this.tool === 'road') this.ui?.toast(T.roadUnderUi, 'bad');
@@ -881,31 +1026,45 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.refresh();
   }
 
-  private apply(cell: Cell, first: boolean) {
+  /** Uses the current tool on a cell; `first` for the first cell of a gesture, `touch` when a finger did it. */
+  private apply(cell: Cell, first: boolean, touch = false) {
     if (this.tool === 'view') return;
     const s = this.state;
     const o = originFor(this.tool, cell, this.rotated);
     // Continuing a road from an existing one: nothing to build there, and nothing wrong either.
     if (this.tool === 'road' && s.roads[indexOf(s, o.x, o.y)]) return;
-    // What is demolished (for the size of the dust): read before it is gone.
-    const removed = this.tool === 'clear' ? s.grid[indexOf(s, o.x, o.y)] : null;
-    const tree = this.tool === 'clear' && inBounds(s, o.x, o.y) && !removed && !s.roads[indexOf(s, o.x, o.y)] && isTree(s.feature[indexOf(s, o.x, o.y)]);
-    // Food that spoils because a granary (or the road to one) goes: said where it happens.
-    const lost = this.tool === 'clear' && inBounds(s, o.x, o.y) ? foodLostIfRemoved(s, o.x, o.y) : 0;
-    const r: ActionResult = isPlaceTool(this.tool) ? place(s, this.tool, o.x, o.y, this.rotated, this.rng) : clearCell(s, o.x, o.y);
+    if (this.tool === 'clear') {
+      // On touch, Demolir never removes what would spoil food at once: the first touch opens the
+      // building's balloon ("Perde N de comida" and its own Demolir, with a second tap).
+      if (touch && inBounds(s, o.x, o.y) && foodLostIfRemoved(s, o.x, o.y) > 0) {
+        if (first) this.select(o);
+        else if (this.gesture && !this.gesture.toastedFood) {
+          // A drag passes over it: say why it stayed.
+          this.gesture.toastedFood = true;
+          this.ui?.toast(T.demolishKeepsFood, 'bad');
+        }
+        return;
+      }
+      // Any other touch or click with Demolir closes a balloon it opened.
+      if (first && this.selected) {
+        this.selected = null;
+        this.refresh();
+      }
+    }
+    const r: ActionResult = this.tool === 'clear' ? this.demolish(o) : place(s, this.tool, o.x, o.y, this.rotated, this.rng);
     if (r.ok) {
       if (this.tool === 'road') {
         if (this.gesture) this.gesture.roads.push(o);
         else this.warnLooseRoads([o]); // a tap ends the gesture before placing
       }
-      const b = removed ?? s.grid[indexOf(s, o.x, o.y)];
-      const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
-      if (this.tool === 'clear') this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
-      // Cutting a tree costs silver: the price floats up from it.
-      if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
-      else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
-      else if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
-      else this.fx.ring(c.x, c.y);
+      if (this.tool !== 'clear') {
+        const b = s.grid[indexOf(s, o.x, o.y)];
+        const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
+        if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
+        else this.fx.ring(c.x, c.y);
+      }
+      // A temple built before goal 9: the victory waits for it (and says what it is).
+      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.ui?.toast(T.templeEarly, 'good');
       if (this.spots && this.tool !== 'road') {
         this.spots = null;
         this.drawSpots();

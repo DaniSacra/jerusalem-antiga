@@ -3,7 +3,14 @@ import { computeEconomy, idleShare, type Economy } from './economy';
 import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
 import { gatherCells, isWorking } from './harvest';
-import type { BalloonKind, Building, GameState, Material, Materials, NeedKind } from './types';
+import { household } from './people';
+import { between } from './rng';
+import type { BalloonKind, Building, GameState, Material, Materials, NeedKind, Rng } from './types';
+
+/** Draws the weeks a house needs at its level to climb to the next one (`weeksToUpgrade`). */
+export const rollUpWeeks = (b: Building, rng: Rng) => {
+  b.upWeeks = between(rng, RULES.weeksToUpgrade);
+};
 
 /** Road: the building is connected. Services: any cell of its footprint is covered. */
 export function needMet(s: GameState, b: Building, need: NeedKind): boolean {
@@ -17,7 +24,9 @@ export const hasNeeds = (s: GameState, b: Building, needs: readonly NeedKind[]) 
 export interface HouseInfo {
   level: number;
   name: string;
+  /** People living there and the most it holds. */
   residents: number;
+  capacity: number;
   /** Tax with the happiness factor applied. */
   tax: number;
   /** Only for houses with a family. */
@@ -36,7 +45,8 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
   return {
     level: b.level,
     name: cur.name,
-    residents: cur.residents,
+    residents: household(s, b.id).length,
+    capacity: cur.capacity,
     tax: happiness ? cur.tax * taxFactor(happiness.value) : cur.tax,
     happiness,
     next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })), materials: next.materials ?? {} } : null,
@@ -64,7 +74,7 @@ export function targetLevel(s: GameState, b: Building): number {
 export function weeksToNextLevel(s: GameState, b: Building): number | null {
   const next = HOUSE_LEVELS[b.level + 1];
   if (b.kind !== 'house' || b.level === 0 || !next || !hasNeeds(s, b, HOUSE_LEVELS[b.level].needs) || !hasNeeds(s, b, next.needs)) return null;
-  return Math.max(1, RULES.weeksToUpgrade - b.upStreak);
+  return Math.max(1, b.upWeeks - b.upStreak);
 }
 
 /**

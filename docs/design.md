@@ -6,7 +6,11 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 Plano do usuário: `docs/revisoes/2026-11-04/plano-sobrevivencia.md`. Plano do diretor, com o
 roteiro e o Pacote 1 "Ritmo": `docs/revisoes/2026-11-04/plano.md`.
 - Partida de ~30 min (~10 anos de jogo, 1 ano = 2,5–3 min a 1x); cerca de 30% dos jogadores vencem
-- Vitória: o Templo, liberado a partir do Ano 8 e com 500 moradores
+- Vitória: o Templo com cerca de 150 moradores, umas 25 casas (no main ainda: 500 moradores a partir
+  do Ano 8; muda com o Pacote Povo)
+- Apego às famílias (2026-11-04, pedido do usuário): o jogador acompanha as mesmas famílias por
+  gerações; a cidade cresce por dentro (casamentos e nascimentos) e o cuidado do jogador decide o
+  ritmo. Famílias de fora só chegam em 2–3 caravanas anunciadas
 - Casas difíceis: crescer por qualidade (evoluir) antes de quantidade (casas novas)
 - Ciclo: preparar (primavera, verão, outono) → resistir (inverno) → recuperar → crescer
 - Fases: Ano 1 só o inverno; Ano 2 casamentos; Ano 3 seca; Ano 4 doenças; Ano 5+ eventos (cada
@@ -31,6 +35,19 @@ Mantidos:
 11. Uma mecânica nova por vez. Exceção: o P1 "Ritmo" como bloco (várias regras pequenas a serviço
     do ritmo; nenhuma é sistema novo), aceita quando o usuário aprovou seguir o roteiro (04/11).
 
+## Decisões tomadas
+- 2026-11-04 (usuário): Pacote Povo antes de Madeira e pedra. Motivo: o Povo muda capacidade,
+  crescimento e meta do templo; calibrar materiais antes obrigaria a refazer a conta
+- 2026-11-04 (diretor): a casa vazia guarda o nível (`emptyLevel`) e "nível ≥ 1" continua querendo
+  dizer "tem gente". Motivo: preserva o invariante usado em ~20 lugares do código (KISS)
+- 2026-11-04 (diretor): "terceira geração" = filho de alguém nascido na cidade. Motivo: os jovens da
+  caravana já são filhos de fundadores; "neto da caravana" aconteceria no Ano 1–2
+
+## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
+1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·
+5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
+10. Doenças · 11. Eventos da época · 12. Incêndio
+
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje
 por cima das seções abaixo:
@@ -51,9 +68,45 @@ por cima das seções abaixo:
   vence 98%; tutorial perde 0 de 16. Mas a partida dura ~2,5 min, as metas 1–4 caem em 9 semanas,
   o campo dá 89% da comida e 19–42% estraga
 
-## Próximo: Pacote 3 "Madeira e pedra" (especificado em 2026-11-04, falta a aprovação do usuário)
-Especificação completa: `docs/revisoes/2026-11-04/plano-p3.md`. Mecânica nova (uma): **materiais de
-obra**. Resumo:
+## Agora: Pacote "Povo" (pedido do usuário em 2026-11-04, especificado no mesmo dia)
+Pedido: `docs/revisoes/2026-11-05/pedido-povo.md`. Especificação completa (números, dados, telas,
+bots, testes, ordem e estimativa): `docs/revisoes/2026-11-05/plano.md`. Vem **antes** do P3, porque
+muda a capacidade das casas, o crescimento e a meta do templo.
+
+Mecânica nova (uma): **o povo**. Junto, por pedido do usuário, ajustes de ritmo (exceção à regra de
+uma mecânica por vez, como o P1). Resumo:
+- Cada morador é uma pessoa (nome judaico da época, sexo, nascimento, idade, profissão, casa, pais,
+  cônjuge, filhos). Criança 0–13 (come 0,25), adulto 14–49 (trabalha, 0,2), idoso 50+ (0,15).
+  Trabalhadores = adultos (sai `workerShare`). 1 estação = 1 ano de vida (recomendação)
+- Morte só por idade (2% aos 50, até 35% aos 80), aviso discreto. Fome e falta de rua continuam
+  levando a família inteira
+- Noivado de solteiros 18–40 de casas diferentes; o casal só se casa ao achar casa vazia (senão
+  "Casal esperando casa"); nascimentos com casal na própria casa, casa com lugar, comida até a
+  primavera e alegria; casa cheia não tem filho
+- Sai a porta das famílias (`familyChance`, `familyIntervalWeeks`, `familyBlock`); a caravana
+  inicial fica, com noivos já na abertura; 2–3 caravanas raras (Ano 2–3, Ano 5–6, Ano 7–8 com 50%),
+  anunciadas 4–8 semanas antes; família sem casa segue viagem
+- Casas: capacidade 3/4/6/8, imposto 1,25/1,75/2,5/3,25, sobem em 11–15 semanas (sorteado por casa).
+  Casa vazia guarda o nível
+- Um mecanismo de níveis (1–3) para celeiro (300/600/1000; estoque base 100), mercado (raio 5/6/7)
+  e oficina (+10/20/30%), com custo e manutenção por nível
+- Manutenção desde a construção (sai `upkeepStartsAfterGoal`), 0,5 nas construções 2 x 2 do começo
+- Pescador e Coletora a 30% no inverno
+- 15 objetivos (tipo novo `milestone`): casamento, comida, nascimento, barro, 30, caravana, pedra,
+  60, criança da cidade adulta, casas grandes, terceira geração, 100 (libera o Templo), 5 casas
+  grandes, 150, Templo. Medir a meta do templo com 120, 150 e 200
+- Telas: balão da casa com os moradores, ficha da pessoa, "Melhorar" nos serviços, aba Povo,
+  avisos de casal e de caravana
+- Estimativa: ~35–43 h de uma pessoa (~12–15 h numa sessão)
+- Decisões em aberto: seção 10 do plano (escala de idade, casal que desiste em 52 semanas, viúvos,
+  idoso com o filho, noivos na abertura, imposto por casa, caravanas, templo 150)
+
+## Depois do Povo: Pacote 3 "Madeira e pedra" (estacionado; recalibrar antes de implementar)
+Especificação: `docs/revisoes/2026-11-04/plano-p3.md`, feita para o jogo de 500 moradores. Antes de
+implementar, refazer com o Povo no main (seção 11 do plano do Povo): nova linha de base, gasto de
+madeira e pedra para ~25 casas, materiais nos níveis de serviço, números dos objetivos, critério B
+fora, W5 com trabalhadores = adultos. Mecânica nova (uma): **materiais de obra**. Resumo (números
+antigos):
 - Lenhador (início; 25 prata, manutenção 1, 2 x 2, 2 vagas, 0,25 por árvore no raio 3, teto 3/sem) e
   Pedreira (objetivo 2; 40 prata + 10 madeira, manutenção 2, 2 x 2, 3 vagas, 0,4 por rocha no raio 2,
   teto 3/sem), com a regra da Coletora. Trabalham o ano todo
@@ -67,13 +120,41 @@ obra**. Resumo:
 - Topo: uma pílula Materiais entre Comida e Moradores (pedra só depois do objetivo 2), vermelha
   quando há casa esperando. Materiais fora da porta das famílias. O inverno não consome material
   (lenha é o P4)
-- Antes da linha de base: ajustes do P2 que as revisões confirmarem (`familyFoodReserveWeeks` 2 → 1
-  para a fome no inverno; templo sem lugar)
+- Linha de base: o main com as "P2 correções" (abaixo), e não mais da5a8bb
+- Alavancas novas, depois das da seção 9, uma por rodada: objetivo 8 6 → 12 casas grandes (se J3 > 250
+  ou objetivos 7 e 8 a < 13 sem); prêmio do objetivo 9 (antecipado para o pacote final P2, ver Decisões);
+  Coletora `perCell` 0,3 → 0,2 (se a Coletora > 16% da comida)
+- Também no P3: toasts que cobrem o balão da ferramenta no celular (ui-designer)
+
+## Feito: "P2 correções" (2026-11-04, no main até 5499aa1)
+
+Decisão do usuário (2026-11-04): o fim fica como está no P2. A linha "Templo 312/800" fica no jogo,
+e o objetivo 9 continua com 500 moradores e prêmio 200. O sim-tester mediu (`sim-tester-p2-fim.md`):
+nenhum prêmio passa. Quem guarda prata para o Templo (`--profile savesTemple=true`) vence 98% das
+partidas em cerca de 21 min. Alavanca preferida para o P3: objetivo 9 com 700 moradores (quem guarda
+vence em ~27 min; o Comum, 46% em ~31 min). Decidir com o que o usuário sentir jogando.
+
+Especificação: `docs/revisoes/2026-11-04/plano-p2-correcoes.md`. Nenhuma mecânica nova.
+- Templo: `upkeep` 10 → 0; dica "Vence o jogo após o objetivo 9…"; toast ao erguer antes do 9
+- Objetivo 1 exige moradores (família a caminho não basta)
+- Ao escolher o Templo: áreas 6x6 verdes (prontas) e amarelas (a ≤ `templeSpotRoadGap` 1 da rede);
+  prévia amarela "Cabe aqui: falta ligar à rua" em toda construção quando só falta rua
+- Tutorial: seta do passo da família segue o motivo da porta (`storage` → celeiro, `food` → campo; no inverno → pescador);
+  o passo termina em `familyStepMaxWeeks` 8
+- Celular: Demolir em construção com perda de comida abre o balão em vez de demolir
+- Textos: Templo "+10 de Alegria em N casas"; "Uma família foi embora: casa sem rua"
+- Testes visuais estáveis; bots sem tabela copiada; Eficiente reserva o terreno do templo
+- Medição em 3 rodadas: R0 correções; R1 `drought.harvestFactor` 0,4 → 0,25; R2
+  `familyFoodReserveWeeks` 2 → 1 (fica só se passar). M2 redefinido: 6x6 livre a ≤ 1 célula da rede,
+  ≥ 95% no Comum
+- Medido: R1 (seca 0,25) aprovada, R2 (reserva 1) reprovada. Pacote final "ritmo do fim": linha
+  "Junte 800 para o Templo" e prêmio do objetivo 9 200 → 400 (R1 do pacote final), ver Decisões
 
 ## Feito: Pacote 2 "Água sai e mapa" (no main: f9dfc4c..da5a8bb)
 Especificação: `docs/revisoes/2026-11-04/plano-p2.md`. Medido (sim-tester, d901a12): Comum 46% de
 vitórias em ~27 min, 0 derrotas, prata parada 3/100. Abertos: fome no inverno ~11% (alvo 25–60%) e
-templo sem lugar ao ser liberado (M2 ~26%, parece o bot). Revisões do P2 em andamento.
+templo sem lugar ao ser liberado (M2 ~26%; existe 6x6 a ≤ 1 célula da rede em 99%). Revisões
+terminadas; o que entra está em "P2 correções".
 Nenhuma regra nova: a Praça troca o Poço, o Parque troca o Jardim e o raio do altar. Resumo (atual →
 novo):
 - Poço sai (dados, código, arte e textos). Sai a porta `water` e o objetivo `water`. Não há saves a
@@ -654,6 +735,27 @@ das casas, então o bairro bom fica visivelmente mais cheio). Risco para o 1
   jogador posiciona (jardins são do candidato 1), qualquer regra nova
 
 ## Decisões
+- 2026-11-04 — Pacote final P2, ritmo do fim: entra a linha "Junte 800 para o Templo: N/800" do
+  objetivo 8 até o templo (só UI), e o prêmio do objetivo 9 200 → 400 é antecipado do P3 (R1). Se
+  falhar, R2a prêmio 600; R2b `fromYear` 8 → 7 só com vitória mediana ≥ 520 sem. `fromYear` 6 FORA
+  (vitória ~22 min, abaixo do piso de 25); objetivo 8 → 10/12 continua no P3; praça 40/raio 5
+  DEPOIS. Motivo: 38/40 Comuns chegam ao 9 e só 20 vencem; do 9 à vitória a mediana é 190 sem.
+  Espera sem meta visível não é desafio. Vitórias aceitas até 55% nesta medição. Especificação:
+  `docs/revisoes/2026-11-04/plano-p2-correcoes.md`, "Pacote final P2 — ritmo do fim".
+- 2026-11-04: o templo fica sem manutenção (10 → 0) e o texto deixa de prometer a vitória antes do
+  objetivo 9. Motivo: 15 de 25 Distraídos erguiam o templo cedo e 10 entravam em dívida esperando. A
+  liberação no objetivo 8 (decisão do usuário) continua.
+- 2026-11-04: o M2 passa a ser "6x6 livre a ≤ 1 célula da rede" (≥ 95% no Comum). O jogo mostra as
+  áreas em amarelo. A rua fantasma fica para DEPOIS. Motivo: o lugar existe em 99% das partidas; o
+  que falta é o jogo mostrar onde. Templo 5x5, liberar antes e mexer no mapa não resolvem.
+- 2026-11-04: fome no inverno em duas rodadas. Primeiro a seca, `harvestFactor` 0,25 (já medida:
+  C2 28%, vitória 49%). Depois a reserva da porta, 2 → 1, para o Ano 1. Motivo: uma mudança de número
+  por vez; a seca faz a camada do Ano 3 morder, a reserva mira o primeiro inverno.
+- 2026-11-04: aceitas as quedas do Eficiente e do Pescador e a subida do Distraído (23%, metade do
+  Comum, 0 derrotas cedo). Motivo: Pescador é perfil de teste; o Eficiente cai por causa do bot,
+  que é corrigido para reservar o templo. Se mesmo assim ficar abaixo do Comum, eu reabro no P3.
+- 2026-11-04: objetivo 8 → 12 e prêmio do 9 → 400 viram alavancas do P3. `treeClearCost` 10 fica
+  NÃO, casa grande 3,5 vai para o P9 e "poucos trabalhadores" fica para DEPOIS.
 - 2026-11-04 — P3: madeira e pedra num estoque da cidade sem limite e sem depósito. Motivo: um
   limite pediria uma construção nova (segunda mecânica); o freio é o teto da produção e o bosque
   que encolhe. Limite só no P4, se o material parado falhar (W4).

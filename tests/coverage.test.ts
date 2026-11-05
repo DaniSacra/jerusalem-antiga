@@ -14,7 +14,7 @@ describe('coverage', () => {
   });
 
   it('the plaza and the park have the data of plan P2, and each covers only its own service', () => {
-    expect(BUILDINGS.plaza).toMatchObject({ category: 'home', cost: 25, upkeep: 1, w: 2, h: 2, jobs: 0, radius: 4 });
+    expect(BUILDINGS.plaza).toMatchObject({ category: 'home', cost: 25, upkeep: 0.5, w: 2, h: 2, jobs: 0, radius: 4 });
     expect(BUILDINGS.park).toMatchObject({ category: 'home', cost: 60, upkeep: 1, w: 2, h: 2, jobs: 0, radius: 4 });
     expect('well' in BUILDINGS).toBe(false);
     expect('garden' in BUILDINGS).toBe(false);

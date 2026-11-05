@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILDINGS,
-  checkGoal,
   computeEconomy,
   createRng,
   fieldBonus,
   foodForecast,
-  foodPerResident,
+  foodOf,
   HOUSE_LEVELS,
   foodLastsToHarvest,
   lastsToHarvest,
-  plannedEating,
   RULES,
   stepWeek,
   targetLevel,
@@ -19,12 +17,12 @@ import {
   weeksToHarvest,
   WEEKS_PER_YEAR,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE, weeksOfFood, westOf } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, person, put, ROADSIDE, weeksOfFood, westOf } from './helpers';
 
 const never = constRng(0.99);
 const W = RULES.weeksPerSeason;
-/** Food eaten in week w by `count` houses of a level. */
-const eatAt = (level: number, count: number) => (w: number) => count * HOUSE_LEVELS[level].residents * foodPerResident(level, w);
+/** Food eaten in week w by `count` full houses of a level (adults). */
+const eatAt = (level: number, count: number) => (w: number) => count * HOUSE_LEVELS[level].capacity * foodOf('adult', level, w);
 
 describe('target level of a house', () => {
   it('is the level it settles at with the services it has now', () => {
@@ -45,72 +43,45 @@ describe('target level of a house', () => {
   });
 });
 
-describe('food forecast at the target level', () => {
-  it('a new plaza changes the forecast at once, before the tents climb', () => {
+describe('food forecast with the people of the city', () => {
+  it('counts what the people living here eat now: a new plaza changes nothing until the houses climb', () => {
     const s = emptyGame({ food: 20 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
     const asTents = weeksOfFood(20, 0, eatAt(1, 2));
     expect(foodForecast(s)?.weeks).toBe(asTents);
     put(s, 'plaza', EAST, 27);
-    const asMud = weeksOfFood(20, 0, eatAt(2, 2));
-    expect(asMud).toBeLessThan(asTents);
-    expect(foodForecast(s)?.weeks).toBe(asMud); // two mud-brick houses
-    expect(plannedEating(s).eaten).toBeCloseTo(eatAt(2, 2)(0));
-    expect(computeEconomy(s).foodEaten).toBeCloseTo(eatAt(1, 2)(0)); // the houses still eat as tents today
+    expect(foodForecast(s)?.weeks).toBe(asTents); // a house that climbs brings nobody by itself
   });
 
-  it('counts extra tents (families on the way)', () => {
+  it('people on the way neither count nor eat', () => {
     const s = emptyGame({ food: 20 });
     put(s, 'house', ROADSIDE, 27, 1);
-    expect(plannedEating(s, 2)).toEqual({
-      residents: 3 * HOUSE_LEVELS[1].residents,
-      eaten: expect.closeTo(eatAt(1, 3)(0)),
-      winterEaten: expect.closeTo(eatAt(1, 3)(W)),
-    });
-    expect(foodForecast(s, computeEconomy(s), WEEKS_PER_YEAR, { extraTents: 2 })?.weeks).toBe(weeksOfFood(20, 0, eatAt(1, 3)));
+    const before = foodForecast(s);
+    person(s, { houseId: null, age: 30 });
+    person(s, { houseId: null, age: 5 });
+    expect(foodForecast(s)).toEqual(before);
   });
 
-  it('plans each house at most one level above the current one', () => {
-    const top = HOUSE_LEVELS.length - 1;
-    for (let level = 1; level <= top; level++) {
-      const s = emptyGame();
-      const b = put(s, 'house', ROADSIDE, 27, level);
-      for (const need of ['plaza', 'market', 'park'] as const) s.coverage[need].fill(true); // it could reach the top
-      expect(targetLevel(s, b)).toBe(top);
-      const planned = Math.min(level + 1, top);
-      expect(plannedEating(s), `level ${level}`).toEqual({
-        residents: HOUSE_LEVELS[planned].residents,
-        eaten: expect.closeTo(eatAt(planned, 1)(0)),
-        winterEaten: expect.closeTo(eatAt(planned, 1)(W)),
-      });
-    }
-  });
-
-  it('plans a house that misses its own needs at the level it drops to', () => {
-    const s = emptyGame();
-    const stone = put(s, 'house', ROADSIDE, 27, 3); // no plaza, no market: drops to a tent
-    expect(targetLevel(s, stone)).toBe(1);
-    expect(plannedEating(s).residents).toBe(HOUSE_LEVELS[1].residents);
+  it('children eat more and elders less than adults', () => {
+    const s = emptyGame({ food: 20 });
+    const h = put(s, 'house', ROADSIDE, 27, 2, false, 0);
+    for (let k = 0; k < 4; k++) person(s, { houseId: h.id, age: 5 });
+    const kids = foodForecast(s)!.weeks;
+    s.people = [];
+    for (let k = 0; k < 4; k++) person(s, { houseId: h.id, age: 60 });
+    expect(foodForecast(s)!.weeks).toBeGreaterThan(kids);
   });
 });
 
 describe('winter in the forecast', () => {
   it('eats the winter amount in winter weeks: foodFactor for houses, tentFoodFactor for tents', () => {
-    const s = emptyGame();
+    const s = emptyGame({ food: 30, week: W });
     put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 3);
-    s.coverage.plaza.fill(false);
-    const p = plannedEating(s);
-    // The stone house has no services: it is planned as a tent too.
-    expect(p.residents).toBe(2 * HOUSE_LEVELS[1].residents);
-    expect(p.winterEaten).toBeCloseTo(p.eaten * RULES.winter.tentFoodFactor);
-    const m = emptyGame();
-    put(m, 'plaza', EAST, 27);
-    put(m, 'house', ROADSIDE, 27, 2); // mud-brick, with a plaza: planned as mud-brick (no market)
-    const q = plannedEating(m);
-    expect(q.residents).toBe(HOUSE_LEVELS[2].residents);
-    expect(q.winterEaten).toBeCloseTo(q.eaten * RULES.winter.foodFactor);
+    put(s, 'house', ROADSIDE, 29, 2);
+    const eat = (w: number) => eatAt(1, 1)(w) + eatAt(2, 1)(w);
+    expect(eat(W)).toBeCloseTo(3 * 0.2 * RULES.winter.tentFoodFactor + 4 * 0.2 * RULES.winter.foodFactor);
+    expect(foodForecast(s)?.weeks).toBe(weeksOfFood(30, W, eat));
   });
 
   it('a stock that lasts through the autumn runs out sooner across the winter', () => {
@@ -135,18 +106,33 @@ describe('winter in the forecast', () => {
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
     const eco = computeEconomy(s);
-    const floor = 3 * plannedEating(s).eaten;
+    const floor = 3 * eatAt(1, 2)(0);
     const out = foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: 3 });
     expect(out?.weeks).toBe(weeksOfFood(30, 0, eatAt(1, 2), floor));
     expect(out!.weeks).toBeLessThan(foodForecast(s, eco)!.weeks);
     expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: 0 })).toEqual(foodForecast(s, eco));
+  });
+
+  it('a negative reserveWeeks lets the food run that many weeks of eating past empty', () => {
+    const s = emptyGame({ food: 30 });
+    put(s, 'house', ROADSIDE, 27, 1);
+    put(s, 'house', ROADSIDE, 29, 1);
+    const eco = computeEconomy(s);
+    const floor = -3 * eatAt(1, 2)(0);
+    const out = foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 });
+    expect(out?.weeks).toBe(weeksOfFood(30, 0, eatAt(1, 2), floor));
+    expect(out!.weeks).toBeGreaterThan(foodForecast(s, eco)!.weeks);
+    // With no food at all it still "lasts" about 3 weeks of eating (2 whole weeks before the one it crosses the floor).
+    s.food = 0;
+    expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 })?.weeks).toBeGreaterThanOrEqual(2);
+    expect(foodForecast(s, eco, WEEKS_PER_YEAR, { reserveWeeks: -3 })?.weeks).toBeLessThanOrEqual(3);
   });
 });
 
 describe('workshop bonus in the forecast', () => {
   it('the fields bring more food with workshops: a field short of the eating becomes enough', () => {
     const s = emptyGame({ food: 5, week: 2 * W }); // spring: the field is at work
-    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 4);
+    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 4, false, 20); // crowded: 66 people in all
     for (const y of [33, 35]) put(s, 'house', ROADSIDE, y, 1);
     put(s, 'field', westOf('field'), 38);
     const serve = () => {
@@ -154,7 +140,7 @@ describe('workshop bonus in the forecast', () => {
     };
     serve();
     const base = BUILDINGS.field.harvest! / (3 * W);
-    const eaten = plannedEating(s).eaten;
+    const eaten = computeEconomy(s).foodEaten;
     // The data this test relies on: one field alone falls short, with the full bonus it is enough.
     expect(eaten).toBeGreaterThan(base);
     expect(eaten).toBeLessThan(base * (1 + BUILDINGS.workshop.fieldBonusMax!));
@@ -171,16 +157,6 @@ describe('workshop bonus in the forecast', () => {
 });
 
 describe('food forecast and steps', () => {
-  it('goal 1 is not done in week 1 when the houses will climb and starve before the spring', () => {
-    const s = emptyGame({ food: 40, goalIndex: 0 });
-    put(s, 'house', ROADSIDE, 27, 1);
-    put(s, 'house', ROADSIDE, 29, 1);
-    put(s, 'plaza', EAST, 27); // 40 lasts the tents longer than the mud-brick houses they become
-    expect(weeksOfFood(40, 0, eatAt(2, 2))).toBeLessThan(2 * W);
-    checkGoal(s, []);
-    expect(s.goalIndex).toBe(0);
-  });
-
   it('lastsToHarvest agrees with foodLastsToHarvest, also when nothing runs out', () => {
     for (let seed = 1; seed <= 60; seed++) {
       const rng = createRng(seed);
@@ -210,7 +186,7 @@ describe('food forecast and steps', () => {
       const out = foodForecast(s, computeEconomy(s), 30);
       let famineAt: number | null = null;
       for (let k = 0; k < 30 && famineAt === null; k++) {
-        stepWeek(s, never); // no drought, no family, nobody leaves
+        stepWeek(s, never); // no drought, no birth, nobody leaves
         if (s.famine) famineAt = k;
       }
       expect(famineAt, `seed ${seed}`).toBe(out?.weeks ?? null);
@@ -218,7 +194,6 @@ describe('food forecast and steps', () => {
     }
     expect(starved).toBeGreaterThan(10); // the cases cover both outcomes
     expect(starved).toBeLessThan(70);
-    expect(RULES.familyChance).toBeLessThan(0.99);
     expect(weeksToHarvest(0)).toBeGreaterThan(0);
   });
 });

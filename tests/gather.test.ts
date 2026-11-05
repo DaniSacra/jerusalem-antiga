@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, BUILDINGS, clearCell, computeEconomy, foodPerResident, HOUSE_LEVELS, gatherCells, gatherYield, indexOf, RULES, seasonOf, stepWeek, type Building, type GameState } from '../src/core';
+import { balloonNeed, BUILDINGS, clearCell, computeEconomy, foodOf, HOUSE_LEVELS, gatherCells, gatherYield, indexOf, RULES, seasonOf, stepWeek, type Building, type GameState } from '../src/core';
 import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
@@ -23,11 +23,11 @@ const gathererAt = (s: GameState) => put(s, 'gatherer', EAST, 30);
 describe('fisher and gatherer data', () => {
   it('cost 20, upkeep 1, 1 job, 2x2, in the supply group, unlocked from the start', () => {
     for (const k of ['fisher', 'gatherer'] as const) {
-      expect(BUILDINGS[k]).toMatchObject({ cost: 20, upkeep: 1, jobs: 1, w: 2, h: 2, category: 'supply' });
+      expect(BUILDINGS[k]).toMatchObject({ cost: 20, upkeep: 0.5, jobs: 1, w: 2, h: 2, category: 'supply' });
       expect(RULES.startUnlocked).toContain(k);
     }
-    expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.75, max: 4.5, product: 'food' });
-    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.3, max: 3.5, product: 'food' });
+    expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.75, max: 4.5, winterFactor: 0.3 });
+    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.3, max: 3.5, winterFactor: 0.3 });
   });
 });
 
@@ -72,20 +72,21 @@ describe('fisher', () => {
     expect(balloonNeed(s, b)).toBe('road');
   });
 
-  it('feeds the city every week of the year, scaled by the worker efficiency', () => {
+  it('feeds the city every week of the year (winterFactor in winter), scaled by the worker efficiency', () => {
     const s = emptyGame({ food: 20 });
     const b = put(s, 'fisher', besideRiver(s, 30), 30);
     const caught = gatherYield(s, b);
     expect(computeEconomy(s)).toMatchObject({ workers: 0, efficiency: 0, foodMade: 0 }); // nobody to fish
     put(s, 'house', ROADSIDE, 27, 1); // a tent: enough workers for the 1 job
-    const eats = (week: number) => HOUSE_LEVELS[1].residents * foodPerResident(1, week);
+    const eats = (week: number) => HOUSE_LEVELS[1].capacity * foodOf('adult', 1, week);
+    const winter = (week: number) => (seasonOf(week) === 'winter' ? (BUILDINGS.fisher.gather!.winterFactor ?? 1) : 1);
     for (const week of [0, W, 2 * W, 3 * W]) {
       s.week = week;
       const e = computeEconomy(s);
       expect(e.efficiency).toBe(1);
       expect(e.harvest).toBe(0);
-      expect(e.foodMade).toBeCloseTo(caught);
-      expect(e.foodDelta).toBeCloseTo(caught - eats(week));
+      expect(e.foodMade).toBeCloseTo(caught * winter(week));
+      expect(e.foodDelta).toBeCloseTo(caught * winter(week) - eats(week));
     }
     s.week = 2;
     const before = s.food;

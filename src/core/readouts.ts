@@ -1,8 +1,10 @@
-import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, RULES } from './data';
+import { BUILDINGS, canRotate, dimsOf, GOALS, HOUSE_LEVELS, newBuilding, RULES, statOf } from './data';
 import { clearCell, placeSpots } from './actions';
 import { serviceOf } from './coverage';
-import { computeEconomy, foodPerResident, round2, type Economy } from './economy';
-import { familyBlock, type FamilyBlock } from './families';
+import { computeEconomy, round2, type Economy } from './economy';
+import { birthBlock, type BirthBlock } from './life';
+import { roomIn } from './families';
+import { ageOf, household, isBirthday, isWalking } from './people';
 import { foodForecast, type FoodForecast } from './forecast';
 import { currentGoal, goalOpen, goalProgress, goalTarget, yearOf } from './goals';
 import { borderCells, cellsInRadius, cellsOf, indexOf } from './grid';
@@ -13,18 +15,27 @@ import type { BuildableKind, Building, Cell, GameState, Materials, Product, Seas
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
 
+/**
+ * Silver saved toward the temple, from the goal that unlocks it until it stands (null otherwise):
+ * the "Junte 800 para o Templo" line. The silver is never shown below 0 (a city in debt).
+ */
+export function templeSavings(s: GameState): { silver: number; cost: number } | null {
+  if (!s.unlocked.includes('temple') || s.buildings.some((b) => b.kind === 'temple')) return null;
+  return { silver: Math.max(0, Math.floor(s.silver)), cost: BUILDINGS.temple.cost };
+}
+
 /** What the screen reads about the city, computed once per refresh. */
 export interface CityReadout {
   eco: Economy;
   /** `foodForecast` for a year. */
   forecast: FoodForecast;
-  /** Why no new family comes (`familyBlock`). */
-  block: FamilyBlock | null;
+  /** Why no child can be born (`birthBlock`). */
+  births: BirthBlock | null;
 }
 
 export function readCity(s: GameState): CityReadout {
   const eco = computeEconomy(s);
-  return { eco, forecast: foodForecast(s, eco), block: familyBlock(s, eco) };
+  return { eco, forecast: foodForecast(s, eco), births: birthBlock(s, eco) };
 }
 
 /** City level shown on the HUD: goals done + 1. */
@@ -55,7 +66,7 @@ export function calendar(week: number): { season: Season; year: number; week: nu
  * and production; the new coverage is left out).
  */
 export function balanceAfter(s: GameState, kind: BuildableKind): number {
-  const ghost: Building = { id: -1, kind, x: 0, y: 0, w: 1, h: 1, level: 0, upStreak: 0, downStreak: 0, connected: true, variant: 0, mirrored: false, built: 0 };
+  const ghost = { ...newBuilding(-1, kind, { x: 0, y: 0, w: 1, h: 1 }, 0), connected: true };
   return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
 }
 
@@ -81,7 +92,7 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
   // With no spot the ghost stands off the map: no river or trees around it.
   const { x, y } = at ?? { x: -s.cols, y: -s.rows };
   const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
-  const ghost: Building = { id: -1, kind, x, y, w, h, level: 0, upStreak: 0, downStreak: 0, connected, variant: 0, mirrored: false, built: s.week };
+  const ghost = { ...newBuilding(-1, kind, { x, y, w, h }, s.week), connected };
   const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost] });
   const own = gatherYield(s, ghost) + fieldHarvest(s, ghost, s.week);
   return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), product: productOf(kind) ?? 'food', efficiency: eco.efficiency };
@@ -91,19 +102,18 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
 export function housesServed(s: GameState, b: Building): number | null {
   if (!serviceOf(b.kind)) return null;
   if (!b.connected) return 0;
-  const area = new Set(cellsInRadius(s, b.x, b.y, BUILDINGS[b.kind].radius ?? 0, b.w, b.h));
+  const area = new Set(cellsInRadius(s, b.x, b.y, statOf(b, 'radius'), b.w, b.h));
   return s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
 }
 
 /**
- * What a house gains on its next level (residents and base tax), what it eats more a week at
- * this week's rate (winter included) and the materials it pays to climb, or null at the top level.
+ * What a house gains on its next level (room for more people and base tax) and the materials it
+ * pays to climb, or null at the top level.
  */
-export function upgradeGain(level: number, week: number): { residents: number; tax: number; food: number; materials: Materials } | null {
+export function upgradeGain(level: number): { capacity: number; tax: number; materials: Materials } | null {
   const cur = HOUSE_LEVELS[level];
   const next = HOUSE_LEVELS[level + 1];
-  const eats = (l: number) => HOUSE_LEVELS[l].residents * foodPerResident(l, week);
-  return next ? { residents: next.residents - cur.residents, tax: next.tax - cur.tax, food: round2(eats(level + 1) - eats(level)), materials: levelMaterials(level + 1) } : null;
+  return next ? { capacity: next.capacity - cur.capacity, tax: round2(next.tax - cur.tax), materials: levelMaterials(level + 1) } : null;
 }
 
 /** The tree-gathering kind that shares the groves with this one (gatherer and lumber), or null. */
@@ -169,7 +179,54 @@ export function foodLostIfRemoved(s: GameState, x: number, y: number): number {
   if (!s.buildings.some((o) => o.connected && BUILDINGS[o.kind].storage)) return 0;
   // A copy whose buildings are new objects (refreshing it must not touch `connected` in `s`).
   const twin = new Map(s.buildings.map((o) => [o, { ...o }]));
-  const copy: GameState = { ...s, roads: [...s.roads], grid: s.grid.map((o) => (o ? twin.get(o)! : o)), buildings: [...twin.values()] };
+  // No people: demolishing a house in the copy must not send anyone away in `s`.
+  const copy: GameState = { ...s, people: [], families: [], roads: [...s.roads], grid: s.grid.map((o) => (o ? twin.get(o)! : o)), buildings: [...twin.values()] };
   if (!clearCell(copy, x, y).ok) return 0;
   return round2(Math.max(0, s.food - foodCapacity(copy)));
 }
+
+/** Why the couple of a house can or cannot have a child now (the house balloon's line). */
+export type HouseBirths = 'ok' | 'full' | BirthBlock;
+
+/**
+ * Whether a married couple living in this house can have a child now: null when there is none (no
+ * married couple living together with the wife in the fertile ages). Famine first, then a full
+ * house, then the city's food (`birthBlock`). The gap between two children is left out ("ok").
+ */
+export function houseBirths(s: GameState, b: Building, block: BirthBlock | null = birthBlock(s)): HouseBirths | null {
+  if (b.kind !== 'house' || b.level === 0) return null;
+  const [min, max] = RULES.people.fertileAges;
+  const couple = s.people.some((p) => {
+    if (p.sex !== 'f' || p.houseId !== b.id || p.engaged !== null || isWalking(s, p.id)) return false;
+    const age = ageOf(p, s.week);
+    return age >= min && age <= max && s.people.some((o) => o.id === p.spouseId && o.houseId === b.id && !isWalking(s, o.id));
+  });
+  if (!couple) return null;
+  if (block === 'famine') return 'famine';
+  if (roomIn(s, b) <= 0) return 'full';
+  return block ?? 'ok';
+}
+
+/** A house with people and its family name (the clan of the eldest, as when a family leaves). */
+export interface Household {
+  house: Building;
+  clan: number;
+  people: number;
+}
+
+/** Houses with people living in them, the fullest first (ties: the oldest house). */
+export function householdsOf(s: GameState): Household[] {
+  const out: Household[] = [];
+  for (const b of s.buildings) {
+    if (b.kind !== 'house' || b.level === 0) continue;
+    const all = household(s, b.id);
+    if (!all.length) continue;
+    const eldest = all.reduce((a, p) => (p.birthWeek < a.birthWeek ? p : a));
+    out.push({ house: b, clan: eldest.clan, people: all.length });
+  }
+  return out.sort((a, b) => b.people - a.people || a.house.id - b.house.id);
+}
+
+/** The person born in the city who came of age this week (the "virou adulta" milestone), if any. */
+export const grownUpThisWeek = (s: GameState) =>
+  s.people.find((p) => p.caravan === null && isBirthday(p, s.week) && ageOf(p, s.week) === RULES.people.adultAge) ?? null;

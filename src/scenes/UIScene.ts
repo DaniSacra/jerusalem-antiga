@@ -24,8 +24,14 @@ export interface UiHost {
   showSpots(kind: BuildableKind | 'road', target: Building): void;
   /** Demolishes what is on a cell (the Demolir button of the tapped building's balloon). */
   demolishAt(cell: Cell): void;
+  /** Raises the building on a cell one level (Melhorar in its balloon). */
+  upgradeAt(cell: Cell): void;
   /** Closes the tapped building's balloon. */
   deselect(): void;
+  /** Moves the camera to a house and opens its balloon (person sheet, Povo tab). */
+  showHouse(houseId: number): void;
+  /** Moves the camera so what is at the center goes `dx` screen px sideways (a wide balloon beside its building). */
+  nudge(dx: number): void;
 }
 
 /**
@@ -151,8 +157,9 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: this.famineTint, alpha: on ? 0.22 : 0, duration: 600 });
   }
 
-  showVictory(weeks: number, residents: number) {
-    this.dialog(T.victoryTitle, T.victoryText(weeks, residents), T.keepBuilding, () => {
+  /** `births` and `weddings`: of the whole game (the city's own story, a second line). */
+  showVictory(weeks: number, residents: number, births: number, weddings: number) {
+    this.dialog(T.victoryTitle, `${T.victoryText(weeks, residents)}\n${T.victoryPeople(births, weddings)}`, T.keepBuilding, () => {
       this.modal?.destroy();
       this.modal = null;
     });

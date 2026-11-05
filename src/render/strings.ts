@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, foodCapacity, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type FamilyBlock, type Feature, type GatherSource, type Material, type Materials, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, foodCapacity, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GameState, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
@@ -10,8 +10,6 @@ const MAKER: Record<Material, string> = { wood: 'um lenhador', stone: 'uma pedre
 /** "10 de pedra e 5 de madeira": a materials cost in words (empty when none). */
 const materialsText = (m: Materials) => (['stone', 'wood'] as const).filter((k) => m[k]).map((k) => `${m[k]} de ${PRODUCT[k]}`).join(' e ');
 
-/** Upkeep begins (toast, or the tutorial step for who did not skip it). */
-const UPKEEP_START = 'Começou a manutenção: tudo, menos casas e ruas, custa prata por semana';
 
 /** What a workshop does for the fields ("+10% de comida dos campos, até +30%"). */
 const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100)}% de comida dos campos, até +${Math.round((BUILDINGS.workshop.fieldBonusMax ?? 0) * 100)}%`;
@@ -23,7 +21,7 @@ export const T = {
   start: 'Começar',
   howTo: [
     'Guarde comida para o inverno: pesque, colete e plante campos.',
-    `Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
+    `Casais precisam de casa. Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -39,48 +37,81 @@ export const T = {
   } satisfies Record<Season, string>,
   allGoals: 'Todos os objetivos cumpridos!',
   /** Opening sentence (big toast at the start of a game). */
-  caravan: (families: number, foodWeeks: number) =>
+  caravan: (families: number, foodWeeks: number) => 
     `A caravana chegou com ${families} ${families === 1 ? 'família' : 'famílias'}, comida para ${weeks(foodWeeks)}` +
     (RULES.startMaterials.wood ? ` e ${RULES.startMaterials.wood} de madeira` : ''),
+  /** Second line of the opening: the engaged couple of the caravan. */
+  wantToMarry: (a: string, b: string) => `${a} e ${b} querem se casar`,
+  /** People events (toasts). */
+  wedding: (a: string, b: string) => `${a} e ${b} se casaram!`,
+  birth: (name: string, female: boolean, father: string, mother: string) => `Nasceu ${name}, ${female ? 'filha' : 'filho'} de ${father} e ${mother}`,
+  death: (name: string, age: number) => `Morreu ${name}, aos ${age} anos`,
+  coupleLeft: (a: string, b: string) => `${a} e ${b} foram embora: não havia casa`,
+  caravanAnnounced: (families: number, season: Season) => `Uma caravana de ${families} ${families === 1 ? 'família' : 'famílias'} chega no ${T.season[season]}`,
+  caravanArrived: (housed: number, left: number) =>
+    left === 0
+      ? `Chegou a caravana: ${housed} ${housed === 1 ? 'família ficou' : 'famílias ficaram'}`
+      : `${housed} ${housed === 1 ? 'família ficou' : 'famílias ficaram'}; ${left} ${left === 1 ? 'seguiu' : 'seguiram'} viagem: faltou casa`,
+  buildingUp: (name: string, level: number) => `${name} subiu para o nível ${level}`,
   /** One sentence when a milestone is reached (toast). */
   milestone: {
-    firstFamily: 'Chegou a primeira família nova!',
+    firstWedding: 'Primeiro casamento da cidade!',
+    firstBirth: 'Primeiro bebê nascido em Jerusalém!',
+    firstCaravan: 'A primeira caravana chegou!',
+    firstGrownUp: 'Uma criança nascida aqui virou adulta!',
+    thirdGeneration: 'Terceira geração: nasceu um neto da cidade!',
     firstMud: 'A primeira casa de barro está de pé!',
     firstHarvest: 'Primeira colheita: os campos deram comida!',
     firstWinter: 'Primeiro inverno vencido sem perder ninguém!',
     firstStone: 'A primeira casa de pedra está de pé!',
     yearWithoutFamine: 'Um ano inteiro sem fome!',
   } satisfies Record<MilestoneId, string>,
+  /** The "virou adulta" milestone with the name of who came of age. */
+  grownUp: (name: string, female: boolean) => `${name}, ${female ? 'nascida' : 'nascido'} aqui, ${female ? 'virou adulta' : 'virou adulto'}!`,
   /** Milestone names in the statistics list. */
   milestoneName: {
-    firstFamily: 'Primeira família',
+    firstWedding: 'Primeiro casamento',
+    firstBirth: 'Primeiro nascimento',
+    firstCaravan: 'Primeira caravana',
+    firstGrownUp: 'Primeira criança da cidade adulta',
+    thirdGeneration: 'Terceira geração',
     firstMud: 'Primeira casa de barro',
     firstHarvest: 'Primeira colheita',
     firstWinter: 'Primeiro inverno vencido',
     firstStone: 'Primeira casa de pedra',
     yearWithoutFamine: 'Primeiro ano sem fome',
   } satisfies Record<MilestoneId, string>,
-  /** Why no new family comes (Avisos and the statistics problems). */
-  familyBlock: {
-    famine: 'Nenhuma família vem: falta comida. Pesque ou colete',
-    food: 'Nenhuma família vem: falta sobra de comida para mais uma família. Pesque ou colete',
-    storage: 'Nenhuma família vem: o estoque está cheio',
-    wait: 'Uma nova família pode chegar em breve',
-    noPlot: 'Nenhuma família vem: não há casa vazia. Construa uma ao lado da rua',
-  } satisfies Record<FamilyBlock, string>,
-  /** Why no new family comes; "storage" names the store size and how to get a granary. */
-  familyBlockText(block: FamilyBlock, s: GameState): string {
-    if (block !== 'storage') return T.familyBlock[block];
-    const granary = s.unlocked.includes('granary') ? 'Construa o celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
-    return `Nenhuma família vem: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
+  /** Why no child can be born (Avisos and the statistics problems). */
+  births: {
+    famine: 'Sem nascimentos: fome',
+    food: 'Sem nascimentos: a comida não dura até a primavera',
+    storage: 'Sem nascimentos: o estoque é pequeno',
+  } satisfies Record<BirthBlock, string>,
+  /** Why no child is born; "storage" names the store size and how to get a granary. */
+  birthsText(block: BirthBlock, s: GameState): string {
+    if (block !== 'storage') return T.births[block];
+    const granary = s.unlocked.includes('granary') ? 'Construa um celeiro' : `O celeiro libera no objetivo ${unlockingGoal('granary')}`;
+    return `Sem nascimentos: o estoque só guarda ${Math.floor(foodCapacity(s))}. ${granary}`;
   },
-  familyLeft: 'Uma família foi embora: fome',
+  /** A family left its tent: famine, or the tent lost its road. */
+  familyLeft: (reason: LeaveReason, name: string) =>
+    `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : 'tenda sem rua ligada ao altar'}`,
+  /** The temple was built before the goal the victory waits for (500 and 8 read from goals.json). */
+  templeEarly: `Templo erguido! A vitória vem com ${TEMPLE_GOAL.goal.text.replace(/^Chegue a /, '')}`,
   famine: 'Falta comida: construa pescador ou coletora',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
   roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue',
   noWorkers: 'Sem trabalhadores: faltam moradores',
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
+  /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
+  noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
+  /** Preview of any building that fits but would not touch the road network. */
+  needsRoad: 'Cabe aqui: falta ligar à rua',
+  /** Preview that fits but the city has not the silver yet. */
+  /** A touch drag of Demolir passed over something whose removal would spoil food. */
+  demolishKeepsFood: 'Isso perde comida: toque nele para demolir',
+  missingSilver: (cost: number) => `Falta prata: custa ${cost}`,
   fail: {
     silver: 'Prata insuficiente',
     materials: 'Falta madeira ou pedra',
@@ -110,6 +141,14 @@ export const T = {
     if (a.kind === 'material')
       return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${MAKER[a.material]}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
+    if (a.kind === 'caravan') {
+      const fam = `Caravana com ${a.families} ${a.families === 1 ? 'família' : 'famílias'} em ${weeks(a.weeks)}`;
+      const also = a.couples ? ` (${a.couples} ${a.couples === 1 ? 'casal também espera' : 'casais também esperam'})` : '';
+      return a.missing ? `${fam}: ${a.missing === 1 ? 'falta 1 casa vazia' : `faltam ${a.missing} casas vazias`}${also}` : `${fam}: tem casa para todas`;
+    }
+    if (a.kind === 'couples') return a.count === 1 ? 'Casal esperando casa: construa uma casa' : `${a.count} casais esperando casa: construa casas`;
+    if (a.kind === 'coupleLeaving') return `${a.man} e ${a.woman} vão embora em ${weeks(a.weeks)}: falta casa`;
+    if (a.kind === 'noBirths') return T.births[a.reason];
     if (a.kind === 'spoiling')
       return a.locked
         ? `Estoque cheio (${a.capacity}): o excesso estraga. O celeiro libera no objetivo ${unlockingGoal('granary')}`
@@ -130,28 +169,33 @@ export const T = {
     nothing: 'Nada para demolir aqui',
     rockClear: 'Rochas não podem ser removidas',
   },
-  upkeepStart: UPKEEP_START,
   /** Preview of a plaza, market or park: houses with a family inside its radius. */
   serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
+  /** Preview of the temple: it only gives Alegria (it never makes a house climb). */
+  templeServes: (n: number) => `+${RULES.happiness.sacred} de Alegria em ${n} ${n === 1 ? 'casa' : 'casas'}`,
   tutorial: {
     step: {
       road: 'Puxe uma rua pelo caminho marcado, até onde há comida',
       gather: 'Construa um pescador junto ao rio ou uma coletora perto das árvores',
       field: 'Construa um campo: ele dá comida já, até o inverno congelar',
       plaza: 'Construa uma praça perto das tendas da caravana',
-      house: 'Construa uma casa encostada na rua, perto da praça',
-      family: 'Uma família está chegando!',
+      house: 'Um casal quer se casar: construa uma casa perto da praça',
+      wedding: 'O casal vai para a casa nova!',
       lumber: 'Casas pedem madeira: construa um lenhador perto das árvores',
-      upkeep: UPKEEP_START,
       market: 'Construa um mercado perto das casas de barro: elas viram casas de pedra',
     } satisfies Record<TutorialStepId, string>,
     /** The lumber step when its spot needs the marked road first. */
     lumberRoad: 'Casas pedem madeira: puxe a rua marcada e ponha um lenhador no fim',
-        pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
+    /** The house and wedding steps with the names of the caravan's engaged couple. */
+    couple: {
+      house: (a: string, b: string) => `${a} e ${b} querem se casar: construa uma casa perto da praça`,
+      wedding: (a: string, b: string) => `${a} e ${b} vão para a casa nova!`,
+    },
+    pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
     skip: 'Pular tutorial',
     ok: 'Entendi',
     again: 'Rever o tutorial',
-    done: 'Muito bem! Construa mais casas: cada uma recebe uma família',
+    done: 'Muito bem! Casais novos precisam de casa; casas melhores cabem mais filhos',
   },
   mood: { happy: 'feliz', neutral: 'contente', sad: 'triste' } satisfies Record<Mood, string>,
   happinessPart: {
@@ -173,6 +217,9 @@ export const T = {
   victoryTitle: 'Vitória!',
   victoryText: (played: number, residents: number) =>
     `O Templo foi construído em ${duration(played)}, com ${residents} moradores.`,
+  /** Second line of the victory: the city's own story. */
+  victoryPeople: (births: number, weddings: number) =>
+    `${births} ${births === 1 ? 'nascimento' : 'nascimentos'} · ${weddings} ${weddings === 1 ? 'casamento' : 'casamentos'}`,
   keepBuilding: 'Continuar construindo',
   defeatTitle: 'Jerusalém foi abandonada',
   defeatText: (weeksPlayed: number, peak: number) =>
@@ -221,9 +268,10 @@ export const T = {
     seasonName: { spring: 'Primavera', summer: 'Verão', autumn: 'Outono', winter: 'Inverno' } satisfies Record<Season, string>,
     calendar: (season: Season, year: number, week: number, long: boolean) =>
       `${T.nova.seasonName[season]} · Ano ${year} · ${long ? 'Semana' : 'Sem'} ${week}`,
-    /** The fields' next turn after the calendar ("inverno em 5 sem"); the phone drops the year and week for it. */
+    /** The fields' next turn after the calendar ("inverno em 5 sem"); the phone drops the week for it. */
     fieldTurn: (turn: { season: 'winter' | 'spring'; weeks: number }) => `${turn.season === 'winter' ? 'inverno' : 'primavera'} em ${turn.weeks} sem`,
-    calendarPhone: (season: Season, turn: { season: 'winter' | 'spring'; weeks: number }) => `${T.nova.seasonName[season]} · ${T.nova.fieldTurn(turn)}`,
+    calendarPhone: (season: Season, year: number, turn: { season: 'winter' | 'spring'; weeks: number }) =>
+      `${T.nova.seasonName[season]} · Ano ${year} · ${T.nova.fieldTurn(turn)}`,
     /** Name of a bottom tool, with its key on PC ("Mover · 1"). */
     withKey: (name: string, key: string) => `${name} · ${key}`,
     /** Price and key inside a PC column button. */
@@ -237,7 +285,9 @@ export const T = {
     /** After a cost piece the city lacks: how much it has. */
     have: (n: number) => ` (tem ${Math.floor(n)})`,
     /** Upkeep per week, on its own line under the cost. */
-    upkeep: (upkeep: number, charged: boolean) => T.nova.inspect.upkeep(upkeep, charged),
+    upkeep: (upkeep: number) => T.nova.inspect.upkeep(upkeep),
+    /** Balloon of the chosen building: price and upkeep per week. */
+    price: (cost: number, upkeep: number) => (upkeep ? `${cost} prata · ${fmt2(upkeep)} por semana` : `${cost} prata`),
     jobs: (n: number) => `${n} ${n === 1 ? 'vaga' : 'vagas'}`,
     reach: (n: number) => `alcance ${n}`,
     balanceAfter: (n: number) => `Saldo depois: ${signed(n)}/sem`,
@@ -255,7 +305,7 @@ export const T = {
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
-      temple: 'Vence o jogo. Precisa encostar numa rua ligada ao altar.',
+      temple: `Vence o jogo com o objetivo ${TEMPLE_GOAL.number} cumprido. Encoste numa rua ligada ao altar.`,
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {
@@ -277,6 +327,14 @@ export const T = {
     gatherRule: (source: GatherSource, perCell: number, radius: number, max: number, product: Product = 'food') =>
       `${fmt(perCell)} ${PRODUCT[product]} por ${source === 'river' ? 'trecho de rio' : source === 'rock' ? 'rocha' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
     stores: (n: number) => `Guarda ${n} de comida`,
+    /** The stat a service level changes, short ("guarda 600", "alcance 6", "+20% nos campos"). */
+    levelStat: {
+      storage: (n: number) => `guarda ${n}`,
+      radius: (n: number) => `alcance ${n}`,
+      fieldBonus: (n: number) => `+${Math.round(n * 100)}% nos campos`,
+    },
+    /** Chosen building balloon: the first level and the last ("Guarda 300 · melhora até 1000"). */
+    growsTo: (now: string, top: string) => `${now[0].toUpperCase()}${now.slice(1)} · melhora até ${top.replace(/^guarda |^alcance /, '')}`,
     /** Demolir aimed at a granary (or a road that links one): the food that would spoil. */
     foodLost: (n: number) => `Perde ${fmt(n)} de comida`,
     /** Workshop balloon: its field bonus, the city's total after it and the cap ("no teto" once there). */
@@ -292,12 +350,16 @@ export const T = {
       reward: (reward: number) => `+${reward} prata`,
       victory: 'vitória',
       unlocks: (kind: Placeable) => `libera ${toolName(kind)}`,
+      /** Silver saved for the temple while it is unlocked and not built. */
+      templeSavings: (silver: number, cost: number) => `Junte ${cost} para o Templo: ${Math.min(silver, cost)}/${cost}`,
     },
+    /** The same, short, at the end of the goal pill. */
+    templeSavingsPill: (silver: number, cost: number) => `Templo ${Math.min(silver, cost)}/${cost}`,
     /** A goal's text, with the year it opens ("a partir do Ano 8"). */
     goalText: (g: GoalDef) => (g.fromYear ? `${g.text} a partir do Ano ${g.fromYear}` : g.text),
     noAlerts: 'Nenhum aviso. A cidade vai bem.',
     /** Stats tabs. */
-    tabs: { now: 'Agora', history: 'Histórico' },
+    tabs: { now: 'Agora', people: 'Povo', history: 'Histórico' },
     stats: {
       silver: 'Prata',
       taxes: 'Impostos',
@@ -331,6 +393,78 @@ export const T = {
       houses: 'Casas',
       happiness: 'Alegria',
       why: 'Altar, praça, mercado e parque alegram; fome e desemprego entristecem.',
+      /** Tab Povo. */
+      people: 'Pessoas',
+      bands: { child: 'Crianças', adult: 'Adultos', elder: 'Idosos' } satisfies Record<AgeBand, string>,
+      thisYear: 'Este ano (desde o outono)',
+      births: 'Nascimentos',
+      deaths: 'Mortes',
+      weddings: 'Casamentos',
+      couples: 'Casais esperando casa',
+      caravan: 'Próxima caravana',
+      caravanAt: (season: Season, year: number, families: number) =>
+        `${T.nova.seasonName[season]} do Ano ${year} · ${families} ${families === 1 ? 'família' : 'famílias'}`,
+      noCaravan: 'Nenhuma anunciada',
+      families: 'Famílias',
+      noFamilies: 'Ninguém mora na cidade ainda',
+      /** One family button: family name and people. */
+      family: (clan: string, n: number) => `${clan} · ${n}`,
+      moreFamilies: (n: number) => `e mais ${n} ${n === 1 ? 'família' : 'famílias'}`,
+    },
+    /** People: the house balloon and the person sheet. */
+    people: {
+      band: (band: AgeBand, sex: Sex) =>
+        band === 'child' ? 'criança' : band === 'adult' ? (sex === 'f' ? 'adulta' : 'adulto') : sex === 'f' ? 'idosa' : 'idoso',
+      /** A resident row: name and age. */
+      row: (name: string, age: number) => `${name}, ${age}`,
+      head: (house: string, n: number, cap: number) => `${house} · ${n}/${cap} ${cap === 1 ? 'pessoa' : 'pessoas'}`,
+      /** An empty house that kept its level. */
+      empty: (house: string) => `${house} vazia: espera um casal ou uma família da caravana`,
+      /** People walking to this house. */
+      coming: (names: string) => `A caminho: ${names}`,
+      births: {
+        ok: 'Pode ter filhos',
+        full: 'Sem filhos: casa cheia',
+        famine: 'Sem filhos: fome',
+        food: 'Sem filhos: a comida não dura até a primavera',
+        storage: 'Sem filhos: o estoque é pequeno. Construa um celeiro',
+      } satisfies Record<HouseBirths, string>,
+      /** Work of an adult (by the building; workshops by their craft), for a man and a woman. */
+      job: {
+        field: ['Lavrador', 'Lavradora'],
+        fisher: ['Pescador', 'Pescadora'],
+        gatherer: ['Coletor', 'Coletora'],
+        granary: ['Guarda do celeiro', 'Guarda do celeiro'],
+        market: ['Mercador', 'Mercadora'],
+        temple: ['Levita', 'Cantora do templo'],
+      } as Partial<Record<BuildingKind, [string, string]>>,
+      craft: {
+        pottery: ['Oleiro', 'Oleira'],
+        smithy: ['Ferreiro', 'Ferreira'],
+        carpentry: ['Carpinteiro', 'Carpinteira'],
+        weaving: ['Tecelão', 'Tecelã'],
+        dyeing: ['Tintureiro', 'Tintureira'],
+        tannery: ['Curtidor', 'Curtidora'],
+      } satisfies Record<Craft, [string, string]>,
+      noJob: 'Sem trabalho',
+      walking: 'A caminho',
+      childOf: (name: string, sex: Sex, parent: string) => `${name}, ${sex === 'f' ? 'filha' : 'filho'} de ${parent}`,
+      clan: (clan: string) => `da família de ${clan}`,
+      age: (age: number, band: string) => `${age} ${age === 1 ? 'ano' : 'anos'} · ${band}`,
+      dead: (age: number) => `† aos ${age}`,
+      gone: (year: number) => `foi embora no Ano ${year}`,
+      house: 'Casa',
+      parents: 'Pais',
+      /** The spouse label, by the person's own sex: married, engaged, widowed. */
+      spouse: (state: 'married' | 'engaged' | 'widow', sex: Sex) =>
+        state === 'married' ? (sex === 'f' ? 'Marido' : 'Esposa') : state === 'engaged' ? (sex === 'f' ? 'Noiva de' : 'Noivo de') : sex === 'f' ? 'Viúva de' : 'Viúvo de',
+      children: 'Filhos',
+      none: 'nenhum',
+      founder: 'Chegou com a caravana que fundou a cidade',
+      caravan: (year: number) => `Chegou com a caravana do Ano ${year}`,
+      born: (year: number) => `Nasceu na cidade no Ano ${year}`,
+      back: 'Voltar',
+      close: 'Fechar',
     },
     settings: {
       turn: 'Girar a visão',
@@ -342,10 +476,12 @@ export const T = {
     },
     inspect: {
       next: (cur: string, next: string) => `${cur} → ${next}`,
+      /** Phone house balloon: only the next level. */
+      nextOnly: (next: string) => `Próximo nível: ${next}`,
       top: 'nível máximo',
-      residents: (n: number, tax: number) => `${n} moradores · imposto ${fmt2(tax)}/sem`,
+      tax: (tax: number) => `Imposto ${fmt2(tax)}/sem`,
       evolve: 'Ao evoluir',
-      gain: (residents: number, tax: number, food: number) => `+${residents} moradores · +${fmt2(tax)} de imposto · come ${signed(food)}/sem`,
+      gain: (capacity: number, tax: number) => `+${capacity} ${capacity === 1 ? 'lugar' : 'lugares'} · +${fmt2(tax)} de imposto`,
       /** A missing service that a goal still has to unlock. */
       lockedNeed: (name: string, goal: number) => `${name} (libera no objetivo ${goal})`,
       noRoad: 'sem rua',
@@ -359,9 +495,16 @@ export const T = {
       stump: (weeks: number) => `Toco · vira árvore de novo em ${weeks} sem. Dá para construir em cima`,
       /** The field bonus a connected workshop is giving the city now. */
       fieldBonus: (pct: number) => `Campos da cidade: +${pct}% de comida`,
-      plotNoRoad: 'Sem rua: nenhuma família chega. Ligue à rua',
-      plotComing: 'Uma família está a caminho',
-      plotWaiting: 'Esperando uma família',
+      plotNoRoad: 'Sem rua: ninguém se muda para cá. Ligue à rua',
+      plotWaiting: 'Casa vazia: espera um casal ou uma família da caravana',
+      /** A service building's next level: cost and what it changes. */
+      upgrade: (cost: number) => `Melhorar · ${cost}`,
+      /** The level now, of the last one. */
+      levelOf: (level: number, top: number) => `Nível ${level} de ${top}`,
+      /** What the next level changes: "Nível 2: guarda 600 · 2/sem (hoje 300 · 1/sem)". */
+      nextLevel: (level: number, stat: string, upkeep: number, nowStat: string, nowUpkeep: number) =>
+        `Nível ${level}: ${stat} · ${fmt2(upkeep)}/sem (hoje ${nowStat} · ${fmt2(nowUpkeep)}/sem)`,
+      topLevel: 'Nível máximo',
       harvesting: (n: number) => `Colhendo: ${fmt(n)} comida/sem`,
       frozen: (weeks: number) => `Congelado no inverno: volta em ${weeks} sem`,
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
@@ -369,7 +512,7 @@ export const T = {
       noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra' } satisfies Record<GatherSource, string>,
       happiness: (value: number, mood: Mood, why: string) => `Alegria ${value}, ${T.mood[mood]}${why ? ` (${why})` : ''}`,
       serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
-      upkeep: (n: number, charged: boolean) => `${n} por semana${charged ? '' : ` depois do Objetivo ${RULES.upkeepStartsAfterGoal}`}`,
+      upkeep: (n: number) => `${fmt2(n)} por semana`,
       connected: 'ligado à rua',
       disconnected: 'sem rua: não funciona, mas paga manutenção',
       noWorkers: 'Sem trabalhadores: faltam moradores',

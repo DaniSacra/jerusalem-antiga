@@ -1,4 +1,4 @@
-import { BUILDINGS, RULES } from './data';
+import { BUILDINGS, RULES, statOf } from './data';
 import { borderCells, cellsInRadius, indexOf } from './grid';
 import { seasonOf, WEEKS_PER_YEAR } from './seasons';
 import type { Building, BuildingKind, Feature, GameState, GatherSource, Product, TreeFeature } from './types';
@@ -21,11 +21,10 @@ export const isWorking = (b: Building, week: number) => !BUILDINGS[b.kind].harve
 /** A field touching the river is watered: a dry year does not hurt it. */
 export const byRiver = (s: GameState, b: Building) => borderCells(s, b).some((c) => s.ground[indexOf(s, c.x, c.y)] === 'river');
 
-/** Extra share of food the fields give: `fieldBonus` per connected workshop, at most `fieldBonusMax`. */
+/** Extra share of food the fields give: the `fieldBonus` of every connected workshop at its level, at most `fieldBonusMax`. */
 export function fieldBonus(s: GameState): number {
-  const { fieldBonus: each = 0, fieldBonusMax: max = 0 } = BUILDINGS.workshop;
-  const n = s.buildings.filter((b) => b.kind === 'workshop' && b.connected).length;
-  return Math.min(n * each, max);
+  const sum = s.buildings.reduce((a, b) => a + (b.kind === 'workshop' && b.connected ? statOf(b, 'fieldBonus') : 0), 0);
+  return Math.min(Math.round(sum * 100) / 100, BUILDINGS.workshop.fieldBonusMax ?? 0);
 }
 
 /**
@@ -40,9 +39,8 @@ export function fieldHarvest(s: GameState, b: Building, week: number, drought = 
   return (yearly / FIELD_WEEKS) * share * (1 + bonus);
 }
 
-/** Food the city can keep: a base amount plus every connected granary. */
-export const foodCapacity = (s: GameState) =>
-  RULES.baseFoodStorage + s.buildings.reduce((sum, b) => sum + (b.connected ? (BUILDINGS[b.kind].storage ?? 0) : 0), 0);
+/** Food the city can keep: a base amount plus every connected granary (by its level). */
+export const foodCapacity = (s: GameState) => RULES.baseFoodStorage + s.buildings.reduce((sum, b) => sum + (b.connected ? statOf(b, 'storage') : 0), 0);
 
 /** Weeks from this week until the next spring (when the fields thaw), at least 1 away: the food must last through the winter. */
 export function weeksToHarvest(week: number): number {
@@ -84,11 +82,18 @@ export const productOf = (kind: BuildingKind): Product | null => {
   return g ? (g.product ?? 'food') : null;
 };
 
+/** Food a fisher or gatherer brings in a week before the worker efficiency (0 for other kinds). */
+export const gatherFood = (s: GameState, b: Building, week = s.week): number =>
+  productOf(b.kind) === 'food' ? gatherYield(s, b, week) : 0;
+
 /**
  * What a gathering building (fisher, gatherer, lumber, quarry) brings every week of its product
- * (`productOf`) before the worker efficiency: min(max, cells × perCell), 0 when disconnected.
+ * (`productOf`) before the worker efficiency: min(max, cells × perCell), 0 when disconnected;
+ * in winter only `winterFactor` of it.
  */
-export function gatherYield(s: GameState, b: Building): number {
+export function gatherYield(s: GameState, b: Building, week = s.week): number {
   const g = BUILDINGS[b.kind].gather;
-  return g && b.connected ? Math.min(g.max, gatherCells(s, b) * g.perCell) : 0;
+  if (!g || !b.connected) return 0;
+  const n = Math.min(g.max, gatherCells(s, b) * g.perCell);
+  return seasonOf(week) === 'winter' ? n * (g.winterFactor ?? 1) : n;
 }

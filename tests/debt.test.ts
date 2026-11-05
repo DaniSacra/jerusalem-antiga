@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alerts, BUILDINGS, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
+import { alerts, BUILDINGS, caravanSpares, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const never = constRng(0.99);
@@ -67,14 +67,43 @@ describe('upkeep and debt', () => {
     expect(s.week).toBe(week);
   });
 
+  it(`no defeat while a later caravan is due within ${RULES.debtCaravanWeeks} weeks: the count stops one week short and the warning stays`, () => {
+    const L = RULES.debtWeeksToLose;
+    const s = draining(-1);
+    const due = RULES.debtCaravanWeeks; // planned at week 0, it comes at the edge of the window
+    s.caravans = [{ week: due, families: 1, warn: 4, status: 'planned', housed: 0, left: 0 }];
+    expect(caravanSpares(s)).toBe(true);
+    const before = run(s, due - 1);
+    expect(before.some((e) => e.type === 'defeat')).toBe(false);
+    expect(s.lost).toBe(false);
+    expect(s.debtWeeks).toBe(L - 1);
+    expect(alerts(s)).toContainEqual(expect.objectContaining({ kind: 'debt', weeksLeft: 1 }));
+    expect(s.caravans[0].status).toBe('announced'); // announced spares too
+    // It comes with no empty house: nobody stays, nothing spares the city any more.
+    expect(run(s, 1)).toContainEqual(expect.objectContaining({ type: 'defeat' }));
+    expect(s.lost).toBe(true);
+  });
+
+  it('a caravan further away than the window, skipped or arrived does not spare the city', () => {
+    for (const status of ['planned', 'skipped', 'arrived'] as const) {
+      const s = draining(-1);
+      const week = status === 'planned' ? RULES.debtCaravanWeeks + RULES.debtWeeksToLose + 1 : 30;
+      s.caravans = [{ week, families: 1, warn: 4, status, housed: 0, left: 0 }];
+      expect(caravanSpares(s)).toBe(false);
+      run(s, RULES.debtWeeksToLose);
+      expect(s.lost, status).toBe(true);
+    }
+  });
+
   it('remembers the highest population', () => {
     const s = emptyGame({ food: 1000 });
     const b = put(s, 'house', ROADSIDE, 27, 3);
     run(s, 1);
-    expect(s.peakPopulation).toBe(10);
-    b.level = 1;
+    expect(s.peakPopulation).toBe(6);
+    s.people.splice(0, 3); // three leave
     run(s, 1);
-    expect(s.peakPopulation).toBe(10);
+    expect(s.peakPopulation).toBe(6);
+    void b;
   });
 });
 
@@ -86,20 +115,21 @@ describe('alerts', () => {
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: -U, costliest: 'market', upkeep: U },
     ]);
-    s.unlocked.push('workshop', 'temple');
-    put(s, 'temple', EAST, 34); // upkeep 10, 2 jobs
-    for (let k = 0; k < 5; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2); // 30 residents, 15 workers
-    const tax = 5 * HOUSE_LEVELS[2].tax;
-    // (30 residents and no food buildings: the food warning shows too, tested in survival.test.ts)
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([
+    s.unlocked.push('workshop');
+    const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs
+    for (let k = 0; k < 2; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2, false, 9); // crowded: 18 adults
+    const tax = 2 * HOUSE_LEVELS[2].tax;
+    expect(tax).toBeLessThan(2 * U);
+    // (18 residents and no food buildings: the food and births warnings show too, tested elsewhere)
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
-      { kind: 'deficit', balance: tax - 10 - U, costliest: 'temple', upkeep: 10 }, // taxes - temple - market
-      { kind: 'unemployed', count: 10, workshopsFull: false },
+      { kind: 'deficit', balance: tax - 2 * U, costliest: 'market', upkeep: 2 * U }, // taxes - two markets
+      { kind: 'unemployed', count: 12, workshopsFull: false },
     ]);
     s.silver = 0;
     s.debtWeeks = 0;
-    s.buildings = s.buildings.filter((b) => b.kind !== 'temple');
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort')).toEqual([{ kind: 'unemployed', count: 12, workshopsFull: false }]); // balance tax - U > 0, 15 workers for 3 jobs
+    s.buildings = s.buildings.filter((b) => b !== second);
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([{ kind: 'unemployed', count: 15, workshopsFull: false }]); // balance tax - U > 0, 18 workers for 3 jobs
   });
 
   it('the unemployment alert says when the workshops already give their whole field bonus', () => {

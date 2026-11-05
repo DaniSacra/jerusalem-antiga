@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILDINGS,
-  checkGoal,
   computeEconomy,
   costliestUpkeep,
   fieldBonus,
   fieldHarvest,
-  foodPerResident,
+  foodOf,
   gatherYield,
-  GOALS,
   HOUSE_LEVELS,
   idleShare,
   indexOf,
@@ -17,28 +15,28 @@ import {
   stepWeek,
   unemployed,
   unemploymentAlert,
-  upkeepCharged,
-  type GameEvent,
 } from '../src/core';
-import { atHarvest, besideRiver, EAST, emptyGame, meetGoal, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, besideRiver, EAST, emptyGame, person, put, ROADSIDE, westOf } from './helpers';
 
 const W = RULES.weeksPerSeason;
 /** Weeks of the year a field gives food (all but winter). */
 const FIELD_WEEKS = 3 * W;
 const T = HOUSE_LEVELS[1];
+/** What an adult eats out of winter. */
+const ADULT = RULES.people.food.adult;
 
 describe('economy', () => {
   it('is 100% efficient without jobs', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content even without a job, plain tax
     const e = computeEconomy(s);
-    expect(e).toMatchObject({ residents: T.residents, workers: Math.floor(T.residents * RULES.workerShare), jobs: 0, yearJobs: 0, efficiency: 1, silverDelta: T.tax });
-    expect(e.foodDelta).toBeCloseTo(-T.residents * T.food);
+    expect(e).toMatchObject({ residents: T.capacity, workers: T.capacity, jobs: 0, yearJobs: 0, efficiency: 1, silverDelta: T.tax });
+    expect(e.foodDelta).toBeCloseTo(-T.capacity * ADULT);
   });
 
   it('scales production by efficiency, capped at 100%', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 3); // 10 residents -> 5 workers (50%)
+    put(s, 'house', ROADSIDE, 27, 3, false, 5); // 5 adults: 5 workers
     put(s, 'field', westOf('field'), 29);
     put(s, 'field', westOf('field'), 32);
     put(s, 'field', westOf('field'), 35); // 6 jobs
@@ -46,7 +44,7 @@ describe('economy', () => {
     let e = computeEconomy(s);
     expect(e).toMatchObject({ workers: 5, jobs: 6 });
     expect(e.efficiency).toBeCloseTo(5 / 6);
-    expect(e.foodDelta).toBeCloseTo(3 * (BUILDINGS.field.harvest! / FIELD_WEEKS) * (5 / 6) - 10 * HOUSE_LEVELS[3].food);
+    expect(e.foodDelta).toBeCloseTo(3 * (BUILDINGS.field.harvest! / FIELD_WEEKS) * (5 / 6) - 5 * ADULT);
     put(s, 'house', ROADSIDE, 38, 4);
     e = computeEconomy(s);
     expect(e.efficiency).toBe(1);
@@ -63,7 +61,7 @@ describe('economy', () => {
     const e = computeEconomy(s);
     expect(e.jobs).toBe(0);
     expect(e.yearJobs).toBe(0);
-    expect(e.foodDelta).toBeCloseTo(-10 * HOUSE_LEVELS[3].food);
+    expect(e.foodDelta).toBeCloseTo(-HOUSE_LEVELS[3].capacity * ADULT);
     expect(e).toMatchObject({ taxes: tax, upkeep: { field: up('field'), workshop: up('workshop'), market: up('market') } });
     expect(e.silverDelta).toBeCloseTo(tax - up('field') - up('workshop') - up('market'));
     put(s, 'workshop', westOf('workshop'), 29); // connected: jobs, but no silver
@@ -72,7 +70,7 @@ describe('economy', () => {
     expect(f.silverDelta).toBeCloseTo(tax - up('field') - 2 * up('workshop') - up('market'));
   });
 
-  it('charges the upkeep of buildings.json; roads, houses and the altar are free', () => {
+  it('charges the upkeep of buildings.json from the week they are built; roads, houses and the altar are free', () => {
     const s = emptyGame();
     expect(computeEconomy(s).upkeep).toEqual({}); // altar and starting roads
     put(s, 'house', ROADSIDE, 27, 1);
@@ -83,32 +81,33 @@ describe('economy', () => {
     put(s, 'temple', EAST, 34);
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
-      field: 1,
-      plaza: 1,
-      fisher: 1,
-      gatherer: 1,
-      lumber: 1,
-      quarry: 2,
+      field: 0.5,
+      plaza: 0.5,
+      fisher: 0.5,
+      gatherer: 0.5,
+      lumber: 0.5,
+      quarry: 1,
       granary: 1,
-      market: 4,
-      workshop: 2,
+      market: 2,
+      workshop: 1,
       park: 1,
-      temple: 10,
     });
-    expect(e.upkeep).toEqual({ plaza: 1, field: 1, market: 4, workshop: 2, temple: 10 });
-    expect(costliestUpkeep(e)).toEqual({ kind: 'temple', amount: 10 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes - 18); // the balance shown as +X/sem
+    // The temple has no upkeep: built early, it never drains the city (plano-p2-correcoes 2.1).
+    expect(BUILDINGS.temple.upkeep).toBe(0);
+    expect(e.upkeep).toEqual({ plaza: 0.5, field: 0.5, market: 2, workshop: 1 });
+    expect(costliestUpkeep(e)).toEqual({ kind: 'market', amount: 2 });
+    expect(e.silverDelta).toBeCloseTo(e.taxes - 4); // the balance shown as +X/sem
   });
 
-  it('eats food per resident according to the house level', () => {
+  it('each person eats by age band, the same in every house level out of winter', () => {
     const s = emptyGame();
-    const b = put(s, 'house', ROADSIDE, 27, 1);
+    const b = put(s, 'house', ROADSIDE, 27, 1, false, 0);
+    for (const age of [5, 30, 70]) person(s, { houseId: b.id, age });
     const eaten = () => -computeEconomy(s).foodDelta;
     expect(seasonOf(s.week)).not.toBe('winter');
     for (let level = 1; level < HOUSE_LEVELS.length; level++) {
       b.level = level;
-      expect(foodPerResident(level, s.week)).toBe(HOUSE_LEVELS[level].food);
-      expect(eaten()).toBeCloseTo(HOUSE_LEVELS[level].residents * HOUSE_LEVELS[level].food);
+      expect(eaten()).toBeCloseTo(0.25 + 0.2 + 0.15);
     }
   });
 
@@ -128,10 +127,9 @@ describe('winter eating', () => {
     for (const w of otherWeeks) expect(seasonOf(w)).not.toBe('winter');
     for (let level = 1; level < HOUSE_LEVELS.length; level++) {
       const factor = level === 1 ? RULES.winter.tentFoodFactor : RULES.winter.foodFactor;
-      for (const w of winterWeeks) expect(foodPerResident(level, w)).toBeCloseTo(HOUSE_LEVELS[level].food * factor);
-      for (const w of otherWeeks) expect(foodPerResident(level, w)).toBe(HOUSE_LEVELS[level].food);
+      for (const w of winterWeeks) expect(foodOf('adult', level, w)).toBeCloseTo(ADULT * factor);
+      for (const w of otherWeeks) expect(foodOf('adult', level, w)).toBe(ADULT);
     }
-    expect(foodPerResident(0, W)).toBe(0); // an empty plot eats nothing
     expect(RULES.winter.tentFoodFactor).toBeGreaterThan(RULES.winter.foodFactor);
     expect(RULES.winter.foodFactor).toBeGreaterThan(1);
   });
@@ -140,12 +138,12 @@ describe('winter eating', () => {
     const s = emptyGame({ food: 50 });
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 3);
-    const eats = (w: number) => T.residents * foodPerResident(1, w) + HOUSE_LEVELS[3].residents * foodPerResident(3, w);
+    const eats = (w: number) => T.capacity * foodOf('adult', 1, w) + HOUSE_LEVELS[3].capacity * foodOf('adult', 3, w);
     s.week = W - 1; // last autumn week
     expect(-computeEconomy(s).foodDelta).toBeCloseTo(eats(W - 1));
     s.week = W;
     expect(-computeEconomy(s).foodDelta).toBeCloseTo(eats(W));
-    expect(eats(W)).toBeCloseTo(T.residents * T.food * RULES.winter.tentFoodFactor + 10 * HOUSE_LEVELS[3].food * RULES.winter.foodFactor);
+    expect(eats(W)).toBeCloseTo(T.capacity * ADULT * RULES.winter.tentFoodFactor + HOUSE_LEVELS[3].capacity * ADULT * RULES.winter.foodFactor);
     stepWeek(s, () => 0.99);
     expect(s.food).toBeCloseTo(50 - eats(W));
   });
@@ -160,7 +158,7 @@ describe('fields make food, not silver', () => {
 
   it('at 100% efficiency the field adds food and only costs its upkeep in silver', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 3); // 10 residents -> 5 workers
+    put(s, 'house', ROADSIDE, 27, 3); // 6 workers
     put(s, 'field', westOf('field'), 29); // 2 jobs
     atHarvest(s);
     const e = computeEconomy(s);
@@ -253,7 +251,7 @@ describe('workshop field bonus', () => {
 
   it('the bonus is for fields only: the fisher and the gatherer catch the same', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 31, 4); // workers for everything
+    put(s, 'house', ROADSIDE, 31, 4, false, 10); // workers for everything
     const fisher = put(s, 'fisher', besideRiver(s, 40), 40);
     const gatherer = put(s, 'gatherer', westOf('gatherer'), 27);
     s.feature[indexOf(s, 20, 30)] = 'olive';
@@ -282,9 +280,9 @@ describe('workshop field bonus', () => {
 });
 
 describe('unemployment', () => {
-  // Three level-2 houses: 18 residents -> floor(18 * 0.5) = 9 workers.
+  // Three level-2 houses with 3 adults each: 9 workers.
   const houses = (s: ReturnType<typeof emptyGame>, n: number) => {
-    for (let k = 0; k < n; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 2);
+    for (let k = 0; k < n; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 2, false, 3);
   };
 
   it('counts workers without a job, never below 0', () => {
@@ -304,19 +302,18 @@ describe('unemployment', () => {
 
   it('alerts only once the workshop is unlocked and from the threshold up', () => {
     const s = emptyGame({ unlocked: ['road', 'house', 'field', 'plaza', 'market'] });
-    const workers = (residents: number) => Math.floor(residents * RULES.workerShare);
-    const alone = workers(HOUSE_LEVELS[3].residents);
-    const withTent = workers(HOUSE_LEVELS[3].residents + T.residents);
+    const alone = HOUSE_LEVELS[3].capacity - 2; // 4 adults (and a child)
+    const withTent = alone + T.capacity;
     // The data this test relies on: a stone house alone is below the alert, with a tent it is not,
     // and a field's jobs bring it back below.
     expect(alone).toBeLessThan(RULES.unemploymentAlert);
     expect(withTent).toBeGreaterThanOrEqual(RULES.unemploymentAlert);
     expect(withTent - BUILDINGS.field.jobs).toBeLessThan(RULES.unemploymentAlert);
-    put(s, 'house', ROADSIDE, 27, 3); // no jobs
-    const tent = put(s, 'house', ROADSIDE, 29, 0); // a plot: nobody yet
+    const stone = put(s, 'house', ROADSIDE, 27, 3, false, alone); // no jobs
+    person(s, { houseId: stone.id, age: 5 }); // a child does not work
     s.unlocked.push('workshop');
     expect(unemploymentAlert(s)).toBe(0); // below the threshold
-    tent.level = 1;
+    put(s, 'house', ROADSIDE, 29, 1);
     expect(unemploymentAlert(s)).toBe(withTent);
     s.unlocked = s.unlocked.filter((k) => k !== 'workshop');
     expect(unemploymentAlert(s)).toBe(0); // workshop still locked
@@ -346,72 +343,5 @@ describe('unemployment', () => {
     expect(computeEconomy(s).jobs).toBe(4);
     expect(fall).toEqual(winter);
     expect(winter).toMatchObject({ yearJobs: 4, unemployed: 5, idle: 5 / 9 });
-  });
-});
-
-describe(`upkeep starts after goal ${RULES.upkeepStartsAfterGoal}`, () => {
-  it('charges no upkeep, no deficit and no debt before it', () => {
-    const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0 });
-    put(s, 'plaza', ROADSIDE, 29);
-    put(s, 'field', EAST, 27);
-    expect(upkeepCharged(s)).toBe(false);
-    const e = computeEconomy(s);
-    expect(e.upkeep).toEqual({});
-    expect(e.silverDelta).toBeGreaterThanOrEqual(0);
-    stepWeek(s, () => 0.99);
-    expect(s.silver).toBeGreaterThanOrEqual(0);
-    expect(s.debtWeeks).toBe(0);
-  });
-
-  it('charges it from the first week after the goal, and announces it once', () => {
-    const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0 });
-    put(s, 'plaza', EAST, 27);
-    put(s, 'plaza', EAST, 33);
-    meetGoal(s, GOALS[s.goalIndex]);
-    const events: GameEvent[] = [];
-    checkGoal(s, events);
-    expect(events.filter((e) => e.type === 'upkeepStart')).toHaveLength(1);
-    expect(computeEconomy(s).upkeep).toEqual({ plaza: 2 * BUILDINGS.plaza.upkeep! });
-    const later: GameEvent[] = [];
-    s.goalIndex = RULES.upkeepStartsAfterGoal;
-    checkGoal(s, later); // other goals never announce it again
-    expect(later.some((e) => e.type === 'upkeepStart')).toBe(false);
-  });
-});
-
-describe('upkeep start (edges)', () => {
-  it('goal 1 does not start upkeep nor announce it', () => {
-    const s = emptyGame({ goalIndex: 0, silver: 0, food: 40 });
-    put(s, 'plaza', EAST, 27);
-    put(s, 'house', ROADSIDE, 27, 1); // 40 food for one tent: lasts until spring, goal 1 done
-    const events: GameEvent[] = [];
-    checkGoal(s, events);
-    expect(s.goalIndex).toBe(1);
-    expect(events.map((e) => e.type)).toEqual(['goal']);
-    expect(upkeepCharged(s)).toBe(false);
-    expect(computeEconomy(s).upkeep).toEqual({});
-  });
-
-  it('in stepWeek: the week the goal is done is still free, the next one pays upkeep', () => {
-    const never = () => 0.99;
-    const goal = GOALS[RULES.upkeepStartsAfterGoal - 1];
-    const s = emptyGame({ goalIndex: RULES.upkeepStartsAfterGoal - 1, silver: 0, food: 40 });
-    put(s, 'plaza', EAST, 27);
-    put(s, 'plaza', EAST, 33);
-    meetGoal(s, goal);
-    const free = computeEconomy(s);
-    expect(free.upkeep).toEqual({});
-    const first = stepWeek(s, never);
-    expect(first.filter((e) => e.type === 'upkeepStart')).toHaveLength(1);
-    expect(s.silver).toBe(Math.round((free.silverDelta + goal.reward) * 100) / 100); // taxes + reward, no upkeep
-    expect(upkeepCharged(s)).toBe(true);
-    const paid = computeEconomy(s);
-    expect(paid.upkeep).toEqual({ plaza: 2 * BUILDINGS.plaza.upkeep! });
-    const before = s.silver;
-    const second = stepWeek(s, never);
-    expect(second.some((e) => e.type === 'upkeepStart')).toBe(false);
-    // (the big houses may also meet the next goal this week: its reward comes on top)
-    const rewards = second.reduce((sum, e) => sum + (e.type === 'goal' ? e.reward : 0), 0);
-    expect(s.silver).toBe(Math.round((before + paid.silverDelta) * 100) / 100 + rewards);
   });
 });

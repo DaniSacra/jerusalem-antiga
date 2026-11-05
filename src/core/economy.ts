@@ -1,11 +1,13 @@
-import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
+import { HOUSE_LEVELS, RULES, statOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
-import { seasonOf } from './seasons';
-import type { BuildingKind, GameState, Material } from './types';
+import { ageBand, foodOf } from './people';
+import type { Building, BuildingKind, GameState, Material } from './types';
 
 export interface Economy {
+  /** People living in the city (not those on the way). */
   residents: number;
+  /** Adults living in the city. */
   workers: number;
   /** Jobs of the connected workplaces at work this week (frozen fields have none). */
   jobs: number;
@@ -33,27 +35,35 @@ export interface Economy {
   moods: Record<Mood, number>;
 }
 
-/** Food one resident of a house level eats in a week: more in winter, and most in a tent. */
-export function foodPerResident(level: number, week: number): number {
-  const food = HOUSE_LEVELS[level].food;
-  if (seasonOf(week) !== 'winter') return food;
-  return food * (level === 1 ? RULES.winter.tentFoodFactor : RULES.winter.foodFactor);
+/**
+ * The people living in the city (on the way they neither count nor eat): how many, the adults
+ * (workers) and the food they eat in `week` (by age band, times the winter factor of each house).
+ */
+export function peopleEating(s: GameState, week = s.week): { residents: number; workers: number; eaten: number } {
+  const houses = new Map<number, Building>();
+  for (const b of s.buildings) if (b.kind === 'house') houses.set(b.id, b);
+  const out = { residents: 0, workers: 0, eaten: 0 };
+  for (const p of s.people) {
+    const h = p.houseId === null ? undefined : houses.get(p.houseId);
+    if (!h) continue;
+    const band = ageBand(p, s.week);
+    out.residents++;
+    if (band === 'adult') out.workers++;
+    out.eaten += foodOf(band, h.level, week);
+  }
+  return out;
 }
-
-/** Upkeep is only charged after the first goals, so a new city cannot sink before it has people. */
-export const upkeepCharged = (s: GameState) => s.goalIndex >= RULES.upkeepStartsAfterGoal;
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep
- * (once upkeep is charged, see `upkeepCharged`).
- * Houses always count residents, food and taxes; each house's tax is scaled by its happiness.
+ * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep from
+ * the week it is built (more at higher levels, see `statOf`). The people living in the city eat
+ * and work (adults); each house with people pays its tax, scaled by its happiness.
  */
 export function computeEconomy(s: GameState): Economy {
-  let residents = 0;
+  const { residents, workers, eaten } = peopleEating(s);
   let taxes = 0;
-  let eaten = 0;
   let joy = 0;
   let families = 0;
   const moods: Record<Mood, number> = { happy: 0, neutral: 0, sad: 0 };
@@ -63,28 +73,22 @@ export function computeEconomy(s: GameState): Economy {
   let harvest = 0;
   const made: Record<Material, number> = { wood: 0, stone: 0 };
   const upkeep: Partial<Record<BuildingKind, number>> = {};
-  const charged = upkeepCharged(s);
   const bonus = fieldBonus(s);
   for (const b of s.buildings) {
-    if (b.kind === 'house') {
-      const n = HOUSE_LEVELS[b.level].residents;
-      residents += n;
-      eaten += n * foodPerResident(b.level, s.week);
-      continue;
-    }
-    const def = BUILDINGS[b.kind];
-    if (def.upkeep && charged) upkeep[b.kind] = (upkeep[b.kind] ?? 0) + def.upkeep;
+    if (b.kind === 'house') continue;
+    const cost = statOf(b, 'upkeep');
+    if (cost) upkeep[b.kind] = round2((upkeep[b.kind] ?? 0) + cost);
     if (!b.connected) continue;
-    yearJobs += def.jobs;
+    const n = statOf(b, 'jobs');
+    yearJobs += n;
     if (!isWorking(b, s.week)) continue;
-    jobs += def.jobs;
+    jobs += n;
     const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus);
     harvest += h;
     const product = productOf(b.kind);
     if (product && product !== 'food') made[product] += gatherYield(s, b);
     else foodProd += (product ? gatherYield(s, b) : 0) + h;
   }
-  const workers = Math.floor(residents * RULES.workerShare);
   const idle = idleShare(s, { workers, yearJobs });
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level === 0) continue;

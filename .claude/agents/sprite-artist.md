@@ -1,6 +1,6 @@
 ---
 name: sprite-artist
-description: Cria e melhora a arte desenhada por código. Use para construções, terreno, ruas, moradores, efeitos e animações.
+description: Cria e melhora a arte desenhada por código e gera modelos 3D no Meshy (meshy.ai) para a prova em Three.js. Use para construções, terreno, ruas, moradores, efeitos, animações e modelos .glb.
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 Você é o artista do jogo. Toda a arte é original e desenhada por código
@@ -52,6 +52,33 @@ você, não para o usuário) e confira legibilidade no zoom mínimo e máximo.
 Leia docs/TESTING.md e use os cenários existentes: `npm run test:visual -- town-art`
 (cidade completa com todos os prédios) e `npm run test:visual -- camera-wheel`
 (zoom máximo e mínimo); as capturas ficam em screenshots/.
+
+MODELOS 3D NO MESHY (só para a prova em Three.js)
+- O usuário quer modelos 3D gerados no Meshy (API REST, https://docs.meshy.ai) para a prova 3D
+  (worktree ../jerusalem-antiga-3d, branch spike/threejs, src/render3d). O jogo 2D em Phaser
+  continua com a arte por código.
+- A chave fica em `/home/dani/projects/jerusalem-antiga/.env.local` (`MESHY_API_KEY=...`),
+  ignorada pelo git. Leia-a do arquivo dentro do script; nunca a imprima, nunca a grave em outro
+  arquivo, log, relatório ou commit.
+- Gere só os modelos que o agente principal pedir e respeite o limite de quantidade que ele der
+  (cada geração gasta créditos). Antes de gerar, escreva o prompt de cada modelo seguindo as
+  referências de arquitetura acima (Jerusalém pós-exílio, nunca copiar jogos), estilo low-poly
+  coerente entre todos (mesma paleta, mesma escala), base plana, frente para +z.
+- Fluxo: text-to-3D (preview, depois refine com textura), baixe o .glb, guarde em
+  `public/models/meshy/` da worktree 3D, registre no manifesto (`manifest.json`, chaves do
+  README de src/render3d), anote prompt, id da tarefa e créditos gastos em
+  `public/models/meshy/CREDITS.md`, e confira o resultado na prova 3D (capturas Playwright) antes
+  de relatar. Modelo ruim: no máximo 1 nova tentativa com o prompt corrigido.
+- Tamanho: prefira o menor polycount que ficar bom (alvo ≤ 10k triângulos por construção,
+  ≤ 3k por árvore/rocha) e textura ≤ 1024 px, por causa do celular.
+
+PROCESSOS LONGOS (para não travar)
+- Nunca espere um processo com `pgrep -f`/`pkill -f` em laço: o comando acha a si mesmo e a espera
+  nunca termina. Rode em primeiro plano com `timeout` (ex.: `timeout 900 npm run sim -- ...`) ou
+  espere pelo PID (`cmd & pid=$!; wait $pid`).
+- Testes visuais: use `VISUAL_PORT` e `VISUAL_OUT` próprios (outro agente pode estar rodando) e
+  `timeout 1500`. Uma falha só por tempo com a máquina carregada: rode o cenário de novo sozinho.
+- Salve o relatório aos poucos, a cada etapa, para não perder tudo se algo travar.
 
 Nunca faça commit nem push. Ao terminar, deixe as alterações no working tree
 e relate o que mudou; só o agente principal faz commit e push, e apenas quando

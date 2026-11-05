@@ -54,6 +54,8 @@ export const C = {
   famine: 0xc0392b,
   /** Cells where a building fits (temple spots). */
   fits: 0x6cc35a,
+  /** Cells where a building fits but a road is missing (yellow temple spots, the "falta ligar à rua" preview). */
+  needsRoad: 0xf2c230,
   clothes: [0xc0503c, 0x5a7fb5, 0xe2b544, 0x7fa65a, 0x9a6ab0, 0xe9ddc8],
   skin: [0xd9a77c, 0xc28a5e, 0xe8bf96],
   mood: { happy: 0x8cc152, neutral: 0xf2c94c, sad: 0xe0704c },
@@ -78,6 +80,8 @@ export const C = {
   demolish: { soft: 0xffb4a4, strong: 0xff6a52 },
   /** Places that would solve a need (e.g. "where to put a market"): fill, edge and inner glow. */
   solve: { fill: 0xcfe07a, edge: 0xf6dc8c, glow: 0xfff6c8 },
+  /** An empty house that kept its level: a dusty, slightly faded tint over its drawing. */
+  vacant: 0xcbc1b3,
   /** Dust raised when something is demolished (the pebbles use the rock colours). */
   dust: 0xd9c49a,
   /** Granary stock: burlap grain sacks, the grain itself and the wooden pallets under them. */

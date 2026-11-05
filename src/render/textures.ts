@@ -14,7 +14,7 @@ import { FAUNA_SIZE, type FaunaKind } from './fauna';
 import { HH, HW, TH, TW } from './iso';
 import { C, shade } from './palette';
 import { mixColor, type TreeState } from './Seasons';
-import { drawFieldhand, drawHauler, drawResident, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, HAULER_KINDS, HAULER_SIZE, residentSize, type HaulerKind } from './residents';
+import { drawFieldhand, drawHauler, drawResident, drawTraveler, FIELDHAND_LOOK_COUNT, FIELDHAND_POSES, FIELDHAND_SIZE, HAULER_KINDS, HAULER_SIZE, residentSize, TRAVELER_SIZE, TRAVELER_KINDS, type HaulerKind, type TravelerKind } from './residents';
 
 type G = Phaser.GameObjects.Graphics;
 type P3 = [number, number, number?];
@@ -48,14 +48,20 @@ export const TEX = {
    * all also drawn mirrored (so light and shadows keep their side); non-square buildings have their
    * own rotated drawing.
    */
-  building: (kind: BuildingKind, level = 0, rotated = false, variant = 0, mirrored = false) =>
-    kind === 'house'
-      ? `house-${level}-${variant}${mirrored ? '-m' : ''}`
-      : kind === 'field' || kind === 'workshop' || kind === 'granary'
-        ? `${kind}-${variant}${mirrored ? '-m' : ''}`
-        : rotated
-          ? `${kind}-rotated`
-          : kind,
+  building: (kind: BuildingKind, level = 0, rotated = false, variant = 0, mirrored = false) => {
+    if (kind === 'house') return `house-${level}-${variant}${mirrored ? '-m' : ''}`;
+    // Granary, market and workshop are drawn per level (1 has no suffix, so callers can skip it).
+    const lv = LEVELED.has(kind) && level >= 2 ? `-l${level}` : '';
+    if (kind === 'field' || kind === 'workshop' || kind === 'granary') return `${kind}${lv}-${variant}${mirrored ? '-m' : ''}`;
+    return `${kind}${lv}${rotated ? '-rotated' : ''}`;
+  },
+  /**
+   * An empty house that kept its level (`emptyLevel` 2..4): that level's drawing with the door shut,
+   * no people, smoke nor washing. One per plot variant (an empty house keeps `variant % plot variants`).
+   */
+  emptyHouse: (level: number, variant: number, mirrored = false) => `house-e${level}-${variant}${mirrored ? '-m' : ''}`,
+  /** People walking to a house: a couple hand in hand, or a caravan family with a laden donkey (frame 0 or 1). */
+  traveler: (kind: TravelerKind, frame: number) => `traveler-${kind}-${frame}`,
   /** Crop tuft of a field variant (wheat, barley, lentils, flax). */
   crop: (variant: number) => `crop-${variant}`,
   flame: 'flame',
@@ -103,6 +109,10 @@ export const TEX = {
 /** Line icons of the interface (see TEX.uiIcon). */
 export type UiIcon = 'hand' | 'handGrab' | 'road' | 'hammer' | 'flag' | 'alert' | 'stats' | 'gear' | 'pause' | 'play' | 'lock';
 export const VARIANTS = 4;
+/** Buildings drawn once per level (see TEX.building). */
+const LEVELED: ReadonlySet<BuildingKind> = new Set<BuildingKind>(['granary', 'market', 'workshop']);
+/** Levels drawn for a building kind (1 plus its `levels`). */
+export const levelCount = (kind: BuildingKind) => 1 + (BUILDINGS[kind].levels?.length ?? 0);
 /** Granary drawings by stock: empty, a third, two thirds and full. */
 export const GRANARY_STOCKS = 4;
 /** Skin and clothes combinations drawn for each walker type. */
@@ -141,6 +151,21 @@ const SL = VISUAL.seasons.snowLook;
 const SNOW = { base: Number(SL.base), shade: Number(SL.shade), roof: SL.roof };
 /** Set while drawing the snowy copy of a texture (see snowTexture). */
 let snowing = false;
+/**
+ * Set while drawing an empty house (see TEX.emptyHouse): doors are shut and barred, and nobody is
+ * home: no people, animals, smoke, fire, washing or awnings.
+ */
+let vacant = false;
+
+/** A drawing made with nobody home (see `vacant`). */
+const emptied = (draw: (p: Pen) => void) => (p: Pen) => {
+  vacant = true;
+  try {
+    draw(p);
+  } finally {
+    vacant = false;
+  }
+};
 const SQRT2 = Math.SQRT2;
 
 class Pen {
@@ -258,14 +283,30 @@ type Size = { w: number; h: number; ax: number; ay: number };
 const RECIPE = new Map<string, { size: Size; draw: (p: Pen) => void; height: number; mirror: boolean }>();
 
 function make(scene: Phaser.Scene, key: string, size: Size, draw: (p: Pen) => void, height = 0, mirror = false) {
+  later(key, size, draw, height, mirror);
+  ensureTexture(scene, key);
+}
+
+/**
+ * Registers a texture (anchor, height and how to draw it) without drawing it yet: rarer drawings
+ * (upgraded buildings, empty houses) are only drawn the first time the map asks for them, which
+ * keeps memory low on phones. See ensureTexture.
+ */
+function later(key: string, size: Size, draw: (p: Pen) => void, height = 0, mirror = false) {
   RECIPE.set(key, { size, draw, height, mirror });
   ORIGIN[key] = [size.ax / size.w, size.ay / size.h];
   HEIGHT[key] = height;
-  if (scene.textures.exists(key)) return;
+}
+
+/** Draws a registered texture if it is not drawn yet (no-op for unknown keys). Returns the key. */
+export function ensureTexture(scene: Phaser.Scene, key: string): string {
+  const r = RECIPE.get(key);
+  if (!r || scene.textures.exists(key)) return key;
   const g = new Phaser.GameObjects.Graphics(scene);
-  draw(new Pen(g, size.ax, size.ay, mirror));
-  g.generateTexture(key, size.w, size.h);
+  r.draw(new Pen(g, r.size.ax, r.size.ay, r.mirror));
+  g.generateTexture(key, r.size.w, r.size.h);
   g.destroy();
+  return key;
 }
 
 /**
@@ -705,6 +746,7 @@ class Layers {
 
 /** A standing person drawn on the ground point (x, y, z). */
 function person(p: Pen, x: number, y: number, z: number, v: number, scale = 0.9) {
+  if (vacant) return;
   const c = p.p(x, y, z);
   p.g.fillStyle(C.shadow, 0.22);
   p.g.fillEllipse(c.x + 1, c.y, 9 * scale, 3 * scale);
@@ -978,7 +1020,15 @@ function yard(p: Pen, s = 0.84, alpha = 0.85) {
 /** Door on the south face (plane y), with an optional frame or lintel colour. */
 function doorS(p: Pen, y: number, x0: number, x1: number, h: number, frame?: number) {
   if (frame !== undefined) p.southQuad(frame, y + 0.001, x0 - 0.03, x1 + 0.03, 0, h + 2.5);
-  p.southQuad(C.door, y + 0.002, x0, x1, 0, h);
+  if (!vacant) return p.southQuad(C.door, y + 0.002, x0, x1, 0, h);
+  shutDoor(p, y, x0, x1, h);
+}
+
+/** A shut plank door barred with a beam across (an empty house). */
+function shutDoor(p: Pen, y: number, x0: number, x1: number, h: number) {
+  p.southQuad(p.south(C.wood, 0.95, 0.72), y + 0.002, x0, x1, 0, h);
+  for (let x = x0 + (x1 - x0) / 3; x < x1 - 0.01; x += (x1 - x0) / 3) p.line(C.woodDark, 1, [x, y + 0.003, 0], [x, y + 0.003, h], 0.8);
+  p.line(C.woodDark, 2.2, [x0 - 0.04, y + 0.004, h * 0.62], [x1 + 0.04, y + 0.004, h * 0.48]);
 }
 
 /** Small window on the south face, optionally framed in limestone. */
@@ -1008,6 +1058,7 @@ function reedShade(p: Pen, x0: number, y0: number, x1: number, y1: number, z: nu
 
 /** Puffs of pale smoke rising from (x, y, z). */
 function smoke(p: Pen, x: number, y: number, z: number) {
+  if (vacant) return;
   [[0, 0, 3.5, 0.45], [0.05, -0.04, 4.5, 0.35], [0.12, -0.08, 5.5, 0.25]].forEach(([dx, dy, r, a], k) =>
     p.ball(0xf0ebe2, x + dx, y + dy, z + 5 + k * 7, r, a * 0.8),
   );
@@ -1044,6 +1095,7 @@ function campfire(p: Pen, x: number, y: number, big = false) {
 
 /** A goat standing on the ground point (x, y), seen from the side. */
 function goat(p: Pen, x: number, y: number, coat: number, patch: number, face = -1) {
+  if (vacant) return;
   const g = p.p(x, y, 0);
   p.g.fillStyle(C.shadow, 0.22);
   p.g.fillEllipse(g.x + 1, g.y, 14, 4);
@@ -1062,6 +1114,7 @@ function goat(p: Pen, x: number, y: number, coat: number, patch: number, face = 
 
 /** Small hen pecking. */
 function hen(p: Pen, x: number, y: number, color: number) {
+  if (vacant) return;
   const c = p.p(x, y, 0);
   p.g.fillStyle(C.shadow, 0.2);
   p.g.fillEllipse(c.x + 1, c.y, 6, 2);
@@ -1100,6 +1153,7 @@ function clothesline(p: Pen, a: [number, number], b: [number, number], z: number
   p.line(C.woodDark, 1.5, [a[0], a[1], z], [a[0], a[1], z + 12]);
   p.line(C.woodDark, 1.5, [b[0], b[1], z], [b[0], b[1], z + 12]);
   p.line(C.rope, 1, [a[0], a[1], z + 12], [b[0], b[1], z + 12]);
+  if (vacant) return; // a bare line: the washing went with the family
   cloths.forEach((color, k) => {
     const t0 = (k + 0.4) / (cloths.length + 0.4);
     const t1 = t0 + 0.55 / (cloths.length + 0.4);
@@ -1445,10 +1499,12 @@ function mudOven(p: Pen) {
   const m = p.p(0.26, 0.72, 4);
   p.g.fillStyle(0x2a1f17);
   p.g.fillEllipse(m.x, m.y, 8, 6);
-  p.g.fillStyle(0xe8742c);
-  p.g.fillEllipse(m.x, m.y + 1, 5, 3);
-  p.g.fillStyle(0xf6c84c);
-  p.g.fillEllipse(m.x, m.y + 1.4, 2.4, 1.4);
+  if (!vacant) {
+    p.g.fillStyle(0xe8742c);
+    p.g.fillEllipse(m.x, m.y + 1, 5, 3);
+    p.g.fillStyle(0xf6c84c);
+    p.g.fillEllipse(m.x, m.y + 1.4, 2.4, 1.4);
+  }
   smoke(p, 0.36, 0.5, 14);
   logs(p, 0.72, 0.1, 0, 3);
   for (let k = 0; k < 3; k++) p.disc(shade(C.cream, 0.92 - k * 0.04), -0.3, 0.55, k * 1.4, 0.1);
@@ -1738,12 +1794,14 @@ function gateWall(p: Pen, x0: number, x1: number, y0: number, y1: number, gate =
   lime(p, x0, y0, gate - 0.12, y1, 0, 16);
   lime(p, gate + 0.12, y0, x1, y1, 0, 16);
   p.box(gate - 0.14, y0, gate + 0.14, y1, 15, 20, C.limestone, shade(C.limestone, 0.88), shade(C.limestone, 0.66));
+  if (vacant) return shutDoor(p, y1, gate - 0.12, gate + 0.12, 15);
   p.southQuad(C.wood, y1 + 0.002, gate - 0.12, gate + 0.12, 0, 15);
   p.line(C.woodDark, 1, [gate, y1 + 0.003, 0], [gate, y1 + 0.003, 15]);
 }
 
 /** Striped awning on poles at height z. */
 function awning(p: Pen, x0: number, y0: number, x1: number, y1: number, z: number, n = 7) {
+  if (vacant) return;
   for (const [x, y] of [[x1 - 0.03, y0 + 0.03], [x1 - 0.03, y1 - 0.03]] as const) p.line(C.woodDark, 1.5, [x, y, z], [x, y, z + 12]);
   for (let k = 0; k < n; k++) {
     const ya = y0 + (k * (y1 - y0)) / n;
@@ -2178,11 +2236,12 @@ function ladder(p: Pen, x: number, y: number, h: number, foot = 0.22) {
 }
 
 /**
- * Granary (3 x 3): a pale limestone storehouse along the back, two domed mud-brick silos on the
- * east side and, under a reed awning, the yard where the stock shows: bare pallets when empty, then
+ * Granary (3 x 3): a pale limestone storehouse along the back, domed mud-brick silos on the east
+ * side and, under a reed awning, the yard where the stock shows: bare pallets when empty, then
  * sacks and storage jars, and at full a heap of loose grain (`stock` 0 to GRANARY_STOCKS - 1).
+ * Each level adds a silo (2, 3, then 4 and taller), and level 3 raises the storehouse a storey.
  */
-function granary(p: Pen, stock: number) {
+function granary(p: Pen, stock: number, level = 1) {
   const s = 1.44;
   const wallH = 8;
   p.rect(shade(C.sand[0], 0.86), -s, -s, s, s, 0, 0.9);
@@ -2191,7 +2250,7 @@ function granary(p: Pen, stock: number) {
   rubble(p, -s, -s, s, -s + 0.14, 0, wallH, C.rock, 61, 4);
   rubble(p, -s, -s + 0.14, -s + 0.14, s, 0, wallH, C.rock, 62, 4);
   // Storehouse: limestone hall with a stone roof, a framed door and two slit windows.
-  const [hx0, hy0, hx1, hy1, hh] = [-1.28, -1.28, 0.36, -0.42, 32];
+  const [hx0, hy0, hx1, hy1, hh] = [-1.28, -1.28, 0.36, -0.42, level >= 3 ? 42 : 32];
   p.shadow(hx0, hy0, hx1, hy1, hh);
   paleStone(p, hx0, hy0, hx1, hy1, 0, hh);
   masonry(p, hx0, hy0, hx1, hy1, 0, hh, C.stone, 0.8);
@@ -2201,6 +2260,14 @@ function granary(p: Pen, stock: number) {
   winS(p, hy1, -1.05, 20, 0.07, 7);
   winS(p, hy1, 0.08, 20, 0.07, 7);
   winE(p, hx1, -1.0, 20, 0.07, 7);
+  if (level >= 3) {
+    // The upper storey: a string course, a row of slit windows and a loading hatch.
+    p.line(p.south(C.stone, 0.7, 0.5), 1.5, [hx0, hy1, 32], [hx1, hy1, 32]);
+    p.line(p.east(C.stone, 0.7, 0.5), 1.5, [hx1, hy0, 32], [hx1, hy1, 32]);
+    for (const x of [-1.05, -0.72, 0.08]) winS(p, hy1, x, 34, 0.07, 5);
+    p.southQuad(C.wood, hy1 + 0.002, -0.4, -0.22, 31, 39);
+    p.line(C.woodDark, 1.6, [-0.31, hy1 + 0.1, 41], [-0.31, hy1 + 0.003, 41]);
+  }
   // Sacks waiting on the roof when the stores are full.
   if (stock >= 3) for (const [x, y] of [[-1.0, -1.0], [-0.75, -0.95], [-0.88, -0.72]] as const) grainSack(p, x, y, hh, 0.9);
   else jars(p, -1.0, -0.95, hh);
@@ -2215,10 +2282,13 @@ function granary(p: Pen, stock: number) {
   // The stock, sorted back to front with the silos: what stands under the awning goes before it.
   const items: [number, () => void, boolean][] = [];
   const add = (d: number, draw: () => void, x = 9, y = 9) => items.push([d, draw, x < ax1 && y < ay1]);
-  add(0.9 - 0.9, () => silo(p, 0.92, -0.92, 0.4, 20, stock >= 2));
-  add(0.95 + 0.12, () => silo(p, 0.95, 0.12, 0.36, 16, stock >= 3));
-  add(0.92 + 0.62, () => ladder(p, 0.95, 0.47, 18));
-  const pallets: [number, number, number, number][] = [[-1.1, -0.3, -0.42, 0.06], [-0.3, 0.3, 0.38, 0.66], [-1.1, 0.42, -0.5, 0.78]];
+  const tall = level >= 3 ? 6 : 0;
+  add(0.9 - 0.9, () => silo(p, 0.92, -0.92, 0.4, 20 + tall, stock >= 2));
+  add(0.95 + 0.12, () => silo(p, 0.95, 0.12, 0.36, 16 + tall, stock >= 3));
+  add(0.92 + 0.62, () => ladder(p, 0.95, 0.47, 18 + tall));
+  if (level >= 2) add(0.98 + 0.98, () => silo(p, 0.98, 0.98, 0.33, 15 + tall, stock >= 1));
+  if (level >= 3) add(-1.0 + 1.0, () => silo(p, -1.0, 1.0, 0.33, 15 + tall, stock >= 1), -1.0, 1.0);
+  const pallets: [number, number, number, number][] = [[-1.1, -0.3, -0.42, 0.06], [-0.3, 0.3, 0.38, 0.66], ...(level >= 3 ? [] : [[-1.1, 0.42, -0.5, 0.78] as [number, number, number, number]])];
   pallets.forEach(([x0, y0, x1, y1], k) => {
     add(x0 + y0, () => pallet(p, x0, y0, x1, y1), x0, y0);
     // Sacks per pallet: none when empty, then a row on the front one, then two rows, then a top layer.
@@ -2233,7 +2303,8 @@ function granary(p: Pen, stock: number) {
   const jarSpots: [number, number][] = [[0.66, 0.6], [0.5, 0.82], [0.5, 0.05], [0.12, 0.05], [0.15, -0.3], [0.32, -0.12]];
   const nJars = [0, 2, 4, 6][stock];
   jarSpots.slice(0, nJars).forEach(([x, y], i) => add(x + y, () => jar(p, x, y, 0, 4.4, i % 2 ? shade(C.terracotta, 1.1) : C.terracotta), x, y));
-  if (stock >= 3) add(-0.85 + 1.02, () => grainHeap(p, -0.85, 1.02, 0.26));
+  const heap: [number, number] = level >= 3 ? [-0.42, 0.98] : [-0.85, 1.02];
+  if (stock >= 3) add(heap[0] + heap[1], () => grainHeap(p, ...heap, 0.26));
   items.sort((a, b) => a[0] - b[0]);
   for (const [, draw, under] of items) if (under) draw();
   awning();
@@ -2625,8 +2696,12 @@ function stump(p: Pen, kind: TreeFeature, sprout: boolean, v: number) {
   if (snowing) p.g.fillStyle(SNOW.base, 0.9).fillEllipse(o.x, o.y - 8, 8, 3);
 }
 
-/** Market (2 x 4, or 4 x 2 when rotated): two rows of stalls with striped awnings along an aisle. */
-function market(p: Pen, rotated: boolean) {
+/**
+ * Market (2 x 4, or 4 x 2 when rotated): rows of stalls with striped awnings along an aisle. Each
+ * level adds stalls: 4 with goods laid on mats at the far end, then 6, then 8 along a limestone
+ * aisle with more shoppers.
+ */
+function market(p: Pen, rotated: boolean, level = 1) {
   // u runs along the long side, v across it.
   const xy = (u: number, v: number): [number, number] => (rotated ? [u, v] : [v, u]);
   const rect4 = (u0: number, v0: number, u1: number, v1: number) => (rotated ? [u0, v0, u1, v1] : [v0, u0, v1, u1]) as [number, number, number, number];
@@ -2636,9 +2711,10 @@ function market(p: Pen, rotated: boolean) {
   const L = 1.92;
   const W = 0.94;
   p.rect(shade(C.sand[0], 0.9), ...rect4(-L, -W, L, W), 0, 0.85);
-  p.rect(shade(C.stone, 0.92), ...rect4(-L, -0.26, L, 0.26));
-  for (let u = -L + 0.2; u < L; u += 0.2) p.line(shade(C.stone, 0.75), 1, P(u, -0.26), P(u, 0.26), 0.6);
-  p.line(shade(C.stone, 0.75), 1, P(-L, 0), P(L, 0), 0.5);
+  const aisle = level >= 3 ? C.limestone : shade(C.stone, 0.92);
+  p.rect(aisle, ...rect4(-L, -0.26, L, 0.26));
+  for (let u = -L + 0.2; u < L; u += 0.2) p.line(shade(aisle, 0.8), 1, P(u, -0.26), P(u, 0.26), 0.6);
+  p.line(shade(aisle, 0.8), 1, P(-L, 0), P(L, 0), 0.5);
 
   const awnings = [C.red, C.ochre, 0x5a7fb5, 0x7fa65a, C.red, 0x9a6ab0];
   const goods: ((u: number, v: number, z: number) => void)[] = [
@@ -2702,13 +2778,37 @@ function market(p: Pen, rotated: boolean) {
     const [cx, cy] = xy(um, side * 0.6);
     layers.add(cx, cy, () => parts.sort((a, b) => a.v - b.v).forEach((it) => it.draw()));
   };
-  const spans: [number, number][] = [[-L + 0.04, -0.66], [-0.62, 0.62], [0.66, L - 0.04]];
+  // Stall spans along the long side: 2 (the far end left open), 3 or 4 a side.
+  const quarter = (2 * L - 0.08) / 4;
+  const spans: [number, number][] =
+    level === 1
+      ? [[-L + 0.04, -0.66], [-0.62, 0.58]]
+      : level === 2
+        ? [[-L + 0.04, -0.66], [-0.62, 0.62], [0.66, L - 0.04]]
+        : [0, 1, 2, 3].map((i) => [-L + 0.04 + i * quarter + (i ? 0.02 : 0), -L + 0.04 + (i + 1) * quarter - (i < 3 ? 0.02 : 0)]);
   spans.forEach(([u0, u1], k) => {
     stall(u0, u1, -1, k);
     stall(u0, u1, 1, k + 3);
   });
-  // Shoppers and a donkey with baskets in the aisle.
-  [[-1.0, 0.04, 0], [0.2, -0.08, 2], [1.1, 0.06, 5]].forEach(([u, v, c]) => layers.add(...xy(u, v), () => person(p, ...xy(u, v), 0, c)));
+  if (level === 1) {
+    for (const side of [-1, 1]) {
+      const [cx, cy] = xy(1.1, side * 0.6);
+      layers.add(cx, cy, () => {
+        p.rect(side < 0 ? C.red : 0x5a7fb5, ...rect4(0.66, side < 0 ? -0.86 : 0.34, 1.5, side < 0 ? -0.34 : 0.86), 0.5, 0.9);
+        p.rect(C.cream, ...rect4(0.74, side < 0 ? -0.8 : 0.4, 1.42, side < 0 ? -0.4 : 0.8), 0.6, 0.35);
+        goods[side < 0 ? 5 : 1](1.1, side * 0.62, 1);
+        jar(p, ...xy(0.78, side * 0.72), 0, 3.6);
+        p.ball(shade(C.fabric, 0.8), ...xy(1.45, side * 0.72), 4, 4.5);
+        p.ball(C.fabric, ...xy(1.43, side * 0.7), 5, 3.8);
+        person(p, ...xy(1.1, side * 0.78), 0, side < 0 ? 4 : 1);
+      });
+    }
+  }
+  // Shoppers in the aisle (more at the bigger markets) and a donkey with baskets.
+  const shoppers: [number, number, number][] = [[-1.0, 0.04, 0], [0.2, -0.08, 2], [1.1, 0.06, 5]];
+  if (level >= 2) shoppers.push([-0.4, 0.1, 3]);
+  if (level >= 3) shoppers.push([-1.55, -0.06, 1], [0.7, -0.04, 4]);
+  shoppers.forEach(([u, v, c]) => layers.add(...xy(u, v), () => person(p, ...xy(u, v), 0, c)));
   layers.add(...xy(1.65, 0), () => {
     const d = p.p(...xy(1.65, 0));
     p.g.fillStyle(C.shadow, 0.22);
@@ -2735,21 +2835,59 @@ function market(p: Pen, rotated: boolean) {
 const WS = 1.46;
 const WS_WALL = 10;
 const WS_MUD = 0xd2a26a;
+/**
+ * Level of the workshop being drawn (set by `atLevel`): the yard grows more solid with it, from
+ * low mud walls (1) to fieldstone walls with a paved gateway (2) and dressed limestone walls with a
+ * gatehouse and a paved yard (3).
+ */
+let wsLevel = 1;
 
-/** Trodden yard and the back (north and west) walls. */
-function workBack(p: Pen, ground = shade(C.sand[0], 0.88)) {
-  p.rect(ground, -WS, -WS, WS, WS, 0, 0.9);
-  p.box(-WS, -WS, -WS + 0.1, WS, 0, WS_WALL, shade(WS_MUD, 0.95));
-  p.box(-WS + 0.1, -WS, WS, -WS + 0.1, 0, WS_WALL, shade(WS_MUD, 0.95));
+/** A workshop drawing at a level (see `wsLevel`). */
+const atLevel = (draw: (p: Pen) => void, level: number) => (p: Pen) => {
+  wsLevel = level;
+  try {
+    draw(p);
+  } finally {
+    wsLevel = 1;
+  }
+};
+
+/** A yard wall segment of the current workshop level. */
+function workWall(p: Pen, x0: number, y0: number, x1: number, y1: number, seed: number) {
+  if (wsLevel === 1) return p.box(x0, y0, x1, y1, 0, WS_WALL, shade(WS_MUD, 0.95));
+  if (wsLevel === 2) return rubble(p, x0, y0, x1, y1, 0, WS_WALL + 3, C.rock, seed, 4);
+  paleStone(p, x0, y0, x1, y1, 0, WS_WALL + 6);
+  masonry(p, x0, y0, x1, y1, 0, WS_WALL + 6, C.stone, 0.7);
 }
 
-/** Front (south) and east yard walls with a gate in the middle of the front. */
+/** Trodden yard and the back (north and west) walls; from level 2 a paved way in from the gate. */
+function workBack(p: Pen, ground = shade(C.sand[0], 0.88)) {
+  p.rect(ground, -WS, -WS, WS, WS, 0, 0.9);
+  if (wsLevel >= 2) {
+    const [x0, x1, y0] = wsLevel === 3 ? [-0.55, 0.55, -0.1] : [-0.32, 0.32, 0.7];
+    p.rect(shade(C.stone, 0.9), x0, y0, x1, WS, 0, 0.95);
+    for (let y = y0 + 0.12; y < WS; y += 0.12) p.line(shade(C.stone, 0.72), 1, [x0, y], [x1, y], 0.5);
+    for (let x = x0 + 0.18; x < x1; x += 0.18) p.line(shade(C.stone, 0.72), 1, [x, y0], [x, WS], 0.35);
+  }
+  workWall(p, -WS, -WS, -WS + 0.1, WS, 71);
+  workWall(p, -WS + 0.1, -WS, WS, -WS + 0.1, 72);
+}
+
+/** Front (south) and east yard walls with a gate in the middle of the front (a gatehouse at level 3). */
 function workFront(p: Pen) {
   const s = WS;
-  p.box(s - 0.1, -s, s, s, 0, WS_WALL, shade(WS_MUD, 0.95));
-  p.box(-s, s - 0.1, -0.35, s, 0, WS_WALL, shade(WS_MUD, 0.95));
-  p.box(0.35, s - 0.1, s, s, 0, WS_WALL, shade(WS_MUD, 0.95));
-  for (const x of [-0.35, 0.35]) p.box(x - 0.05, s - 0.12, x + 0.05, s, 0, WS_WALL + 4, shade(WS_MUD, 1.05));
+  workWall(p, s - 0.1, -s, s, s, 73);
+  workWall(p, -s, s - 0.1, -0.35, s, 74);
+  workWall(p, 0.35, s - 0.1, s, s, 75);
+  const post = wsLevel === 1 ? shade(WS_MUD, 1.05) : C.limestone;
+  const top = WS_WALL + [4, 8, 14][wsLevel - 1];
+  for (const x of [-0.35, 0.35]) p.box(x - 0.05, s - 0.12, x + 0.05, s, 0, top, post);
+  // Level 3: a stone lintel with a flat roof over the gate.
+  if (wsLevel === 3) {
+    p.shadow(-0.42, s - 0.2, 0.42, s, top + 4, 0.16);
+    paleStone(p, -0.42, s - 0.2, 0.42, s, top, top + 5);
+    p.rect(shade(C.limestone, 0.9), -0.4, s - 0.18, 0.4, s - 0.02, top + 5);
+  }
 }
 
 /** Mud-brick workroom with a flat roof, beam ends, a door and two small windows. */
@@ -3767,15 +3905,28 @@ export function generateTextures(scene: Phaser.Scene): void {
   }
   for (let mask = 0; mask < 16; mask++) for (const wear of [0, 1, 2]) make(scene, TEX.road(mask, wear), TILE, (p) => road(p, mask, wear));
   // Every building is drawn at its real footprint: [draw, canvas height above ground, balloon height].
+  const now = (...a: Parameters<typeof later>) => make(scene, ...a);
   for (const mirror of [false, true]) {
     HOUSE_ART.forEach(([draws, top, h], level) => {
       for (let v = 0; v < HOUSE_LEVELS[level].variants; v++)
         make(scene, TEX.building('house', level, false, v, mirror), footCanvas(2, 2, top), draws[v % draws.length], h, mirror);
     });
     CROPS.forEach((_, v) => make(scene, TEX.building('field', 0, false, v, mirror), footCanvas(2, 2, 30), (p) => field(p, v), 26, mirror));
-    BUILDINGS.workshop.crafts!.forEach((c, v) => make(scene, TEX.building('workshop', 0, false, v, mirror), footCanvas(3, 3, 50), CRAFT_ART[c], 50, mirror));
+    // Levels 2 and up are drawn the first time a building reaches them (see ensureTexture).
+    for (let level = 1; level <= levelCount('workshop'); level++) {
+      const put = level === 1 ? now : later;
+      BUILDINGS.workshop.crafts!.forEach((c, v) => put(TEX.building('workshop', level, false, v, mirror), footCanvas(3, 3, 56), atLevel(CRAFT_ART[c], level), 50, mirror));
+    }
+    // Empty houses that kept their level, with nobody home (drawn on first use).
+    for (let level = 2; level < HOUSE_ART.length; level++) {
+      const [draws, top, h] = HOUSE_ART[level];
+      for (let v = 0; v < HOUSE_LEVELS[0].variants; v++) later(TEX.emptyHouse(level, v, mirror), footCanvas(2, 2, top), emptied(draws[v % draws.length]), h, mirror);
+    }
   }
-  for (let k = 0; k < GRANARY_STOCKS; k++) make(scene, TEX.building('granary', 0, false, k), footCanvas(3, 3, 60), (p) => granary(p, k), 50);
+  for (let level = 1; level <= levelCount('granary'); level++) {
+    const put = level === 1 ? now : later;
+    for (let k = 0; k < GRANARY_STOCKS; k++) put(TEX.building('granary', level, false, k), footCanvas(3, 3, 64), (p) => granary(p, k, level), 50);
+  }
   const buildings: [BuildingKind, (p: Pen) => void, number, number][] = [
     ['plaza', plaza, 48, 44],
     ['fisher', fisher, 40, 32],
@@ -3783,7 +3934,6 @@ export function generateTextures(scene: Phaser.Scene): void {
     ['lumber', lumber, 44, 34],
     ['quarry', quarry, 56, 44],
     ['park', park, 60, 40],
-    ['market', (p) => market(p, false), 40, 36],
     ['altar', altar, 34, 44],
     ['temple', temple, 136, 128],
   ];
@@ -3791,8 +3941,13 @@ export function generateTextures(scene: Phaser.Scene): void {
     const { w, h: d } = dimsOf(kind);
     make(scene, TEX.building(kind), footCanvas(w, d, top), draw, h);
   });
-  const { w: mw, h: mh } = dimsOf('market', true);
-  make(scene, TEX.building('market', 0, true), footCanvas(mw, mh, 40), (p) => market(p, true), 36);
+  for (let level = 1; level <= levelCount('market'); level++) {
+    const put = level === 1 ? now : later;
+    for (const rotated of [false, true]) {
+      const { w, h } = dimsOf('market', rotated);
+      put(TEX.building('market', level, rotated), footCanvas(w, h, 40), (p) => market(p, rotated, level), 36);
+    }
+  }
 
   CROPS.forEach((_, v) => (ORIGIN[TEX.crop(v)] = [0.5, 1]));
   ORIGIN[TEX.flame] = [0.5, 1];
@@ -3877,6 +4032,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.fillCircle(8, 8, 2.2);
   });
   raw(TEX.family, 30, 23, family);
+  for (const kind of TRAVELER_KINDS) for (let frame = 0; frame < 2; frame++) raw(TEX.traveler(kind, frame), ...TRAVELER_SIZE[kind], (g) => drawTraveler(g, kind, frame));
   const fauna: [FaunaKind, number, (g: G, frame: number) => void][] = [
     ['goat', 2, F.goat],
     ['chicken', 2, F.chicken],

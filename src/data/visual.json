@@ -147,6 +147,9 @@
     "treeFallMs": 900,
     "quarryDustMs": 700
   },
+  "temple": {
+    "maxTempleSpots": 6
+  },
   "tutorial": {
     "followSeconds": 2,
     "arrowScale": 1,
