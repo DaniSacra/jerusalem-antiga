@@ -697,6 +697,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
     enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do
     pacote (Meshy) quando eles chegam.
+  - **Vida e efeitos no 3D** (como no 2D): a gente da comida (carregadores com saco do campo ao
+    celeiro ou ao altar na época de colheita, pescador com o cesto na margem do rio, coletora com o
+    cesto na cabeça sob a árvore mais perto; param na pausa) e o andaime de madeira com poeira em
+    toda construção nova por 1,5 s (menos campos) e na casa que sobe de nível por 0,6 s.
   - **Bateria:** com o jogo pausado e nada se mexendo, o 3D desenha 10 quadros por segundo; qualquer
     toque, tecla ou acontecimento volta ao ritmo normal. Se o celular perde o contexto gráfico (ao
     voltar de outro app), a cidade é redesenhada quando ele volta.

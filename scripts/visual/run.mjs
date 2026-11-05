@@ -2097,9 +2097,9 @@ async function play3dScenario(page, suffix) {
 }
 
 /** Opens the 3D game on its own and leaves the title screen (tutorial marked as seen). */
-async function open3dGame(page) {
+async function open3dGame(page, seed = 7) {
   await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
-  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=${seed}`, { timeout: 90000 });
   await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
@@ -2220,6 +2220,20 @@ async function ui3dScenario(page, name) {
     if (process.env.VISUAL_TIMING) console.log(`  ${what}: ${Date.now() - t0} ms`);
     t0 = Date.now();
   };
+  // The people of the food buildings: a carrier walks from the field (it harvests out of winter).
+  await page.evaluate(() => {
+    window.view3d.rig.set({ x: 25, z: 28.5, dist: 9 });
+    window.session.setSpeed(1);
+  });
+  await page.waitForFunction(() => window.view3d.info().haulers > 0, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const haulers = await page.evaluate(() => window.view3d.info().haulers);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-haulers.png` });
+  assert(haulers >= 1, `a harvest carrier walks from the field (${haulers})`);
+  await page.evaluate(() => {
+    window.session.setSpeed(0);
+    window.view3d.rig.set({ x: 23, z: 28, dist: 34 });
+  });
   // The mud house: its four people, in two columns on the phone.
   await page.evaluate(() => {
     const b = window.state.grid[27 * window.state.cols + 22];
@@ -2530,6 +2544,9 @@ async function tutorial3dScenario(page, name) {
   assert(serves.startsWith('Atende'), `the plaza preview says how many houses it serves (${serves})`);
   await shotStep('4-plaza');
   const pz = await build(plazaRect);
+  // The new plaza goes up inside a scaffold for a moment.
+  await page.waitForTimeout(450);
+  await shotStep('4-scaffold');
   assert((await step()) === 'house', `a plaza ends step 4 (${JSON.stringify(pz)})`);
 
   // 5. House near the plaza: the green spots show.
@@ -2600,6 +2617,99 @@ async function tutorial3dScenario(page, name) {
   });
   assert((await step()) === null, 'a market ends the tutorial');
   assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
+}
+
+/**
+ * The Temple in 3D: picking it marks the free 6x6 areas (green ready, yellow needing a road), the
+ * preview pill says its Alegria and the missing road or silver; with no area near the roads the
+ * nearest free place is marked with its golden road and the camera goes there.
+ */
+async function temple3dScenario(page, name) {
+  // The 2D's map (seed 5): its land leaves a free place three cells from the roads.
+  await open3dGame(page, SEED);
+  const tag = async () => {
+    await page.waitForFunction(() => !document.querySelector('.tag').classList.contains('hidden'), null, { timeout: 3000 }).catch(() => {});
+    return page.evaluate(() => (document.querySelector('.tag').classList.contains('hidden') ? '' : document.querySelector('.tag').textContent));
+  };
+  const hover = (c) =>
+    page.evaluate((c) => {
+      window.session.setHover(c);
+      window.session.refresh();
+    }, c);
+  const areas = await page.evaluate(() => {
+    const { state: s, core, session: g } = window;
+    s.silver = 1e4;
+    s.unlocked.push('temple');
+    g.selectTool('temple');
+    // A grown city: plots in the middle of the nearest ready areas, so some areas need a road.
+    for (let k = 0; k < 40 && !g.templeAreas.some((a) => !a.ready); k++) {
+      const a = g.templeAreas.find((o) => o.ready);
+      if (!a || !core.place(s, 'house', a.x + 2, a.y + 2).ok) break;
+      g.refresh();
+    }
+    return g.templeAreas.map((a) => ({ ...a }));
+  });
+  assert(areas.length > 0 && areas.length <= 6, `at most 6 temple areas (${areas.length})`);
+  assert(areas.some((a) => a.ready) && areas.some((a) => !a.ready), `green and yellow temple areas (${JSON.stringify(areas)})`);
+  const yellow = areas.find((a) => !a.ready);
+  await page.evaluate((a) => {
+    window.view3d.game.stopGlide();
+    window.view3d.rig.set({ x: a.x + 3, z: a.y + 3, dist: 30 });
+  }, yellow);
+  await hover({ x: yellow.x + 2, y: yellow.y + 2 });
+  const label = await tag();
+  assert(/^\+10 de Alegria em \d+ casas?\nCabe aqui: falta ligar à rua$/.test(label), `the temple preview says its Alegria and the missing road (${label})`);
+  await page.screenshot({ path: `${OUT}/temple3d-${name}-areas.png` });
+  const green = areas.find((a) => a.ready);
+  await page.evaluate(() => (window.state.silver = 100));
+  await hover({ x: green.x + 2, y: green.y + 2 });
+  const poor = await tag();
+  assert(/\nFalta prata: custa 800$/.test(poor), `the temple preview without silver says so (${poor})`);
+
+  // No area near the roads: the nearest free place, its golden road, and the camera goes there.
+  const remote = await page.evaluate(() => {
+    const { state: s, core, session: g } = window;
+    s.silver = 1e4;
+    g.setHover(null);
+    g.selectTool('view');
+    const { dist, prev } = core.roadDistances(s);
+    const free = (x, y) => x >= 0 && y >= 0 && x + 6 <= s.cols && y + 6 <= s.rows && [...Array(36).keys()].every((k) => core.isFreeLand(s, x + (k % 6), y + Math.floor(k / 6)) && dist[core.indexOf(s, x + (k % 6), y + Math.floor(k / 6))] >= 3);
+    let end = -1;
+    for (let y = 0; y < s.rows && end < 0; y++)
+      for (let x = 0; x < s.cols && end < 0; x++) {
+        if (!free(x, y)) continue;
+        for (const c of core.borderCells(s, { x, y, w: 6, h: 6 })) {
+          if (!core.inBounds(s, c.x, c.y)) continue;
+          const i = core.indexOf(s, c.x, c.y);
+          if (dist[i] === 3) {
+            end = i;
+            break;
+          }
+        }
+      }
+    if (end < 0) return null;
+    const keep = new Set();
+    for (let i = end; i >= 0 && dist[i] > 0; i = prev[i]) keep.add(i);
+    dist.forEach((d, i) => {
+      if ((d === 1 || d === 2) && !keep.has(i)) s.feature[i] = 'rock';
+    });
+    g.refresh();
+    if (core.templeSpotsNear(s).length) return null;
+    const before = { x: window.view3d.rig.focus.x, z: window.view3d.rig.focus.z };
+    g.selectTool('temple');
+    return { areas: g.templeAreas.map((a) => ({ ...a })), road: g.templeRoad.length, before };
+  });
+  assert(remote && remote.areas.length === 1 && !remote.areas[0].ready && remote.road > 0, `with no area near the roads, the nearest place and its road (${JSON.stringify(remote)})`);
+  await page.waitForFunction(() => !window.view3d.game.scene.glide, null, { timeout: 8000 }).catch(() => {});
+  const moved = await page.evaluate((b) => Math.hypot(window.view3d.rig.focus.x - b.x, window.view3d.rig.focus.z - b.z), remote.before);
+  assert(moved > 1, `the camera goes to the temple area (${moved})`);
+  const inView = await page.evaluate((a) => {
+    const p = window.view3d.cellPoint(a.x + 3, a.y + 3);
+    return document.elementFromPoint(p.x, p.y) === document.querySelector('.g3d canvas');
+  }, remote.areas[0]);
+  assert(inView, 'the far temple area is on the free map');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/temple3d-${name}-far.png` });
 }
 
 /** The 3D keeps the phone cool and survives a lost GPU: 10 frames a second while paused and still; the city comes back after the WebGL context is lost and restored. */
@@ -3043,6 +3153,8 @@ const scenarios = {
   'context3d-pc': { context: PC, run: context3dScenario },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
+  'temple3d-phone': { context: PHONE, run: (page) => temple3dScenario(page, 'phone') },
+  'temple3d-pc': { context: PC, run: (page) => temple3dScenario(page, 'pc') },
   'ui3d-phone': { context: PHONE, run: (page) => ui3dScenario(page, 'phone') },
   'ui3d-pc': { context: PC, run: (page) => ui3dScenario(page, 'pc') },
   'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },

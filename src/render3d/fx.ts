@@ -24,6 +24,9 @@ import {
   spoilRecipe,
   topOf,
   type Spark,
+  scaffoldBars,
+  scaffoldRise,
+  type Bar,
 } from './fxMath';
 import LOOK from './look3d.json';
 
@@ -32,6 +35,12 @@ const F = LOOK.fx;
 const RINGS = 32;
 const SPARKS = 640;
 const TREES = 4;
+/** Scaffolds at once, and their bars (the oldest ends first). */
+const SCAFFOLDS = 6;
+const BARS = 160;
+/** Rough, light wood of the scaffold poles. */
+const SCAFFOLD_WOOD = 0xa07a4c;
+
 /** Ring light colour (as the 2D `Effects.ring` default). */
 export const RING_LIGHT = 0xfff3b0;
 const CELEBRATE = 0xffe08a;
@@ -190,6 +199,8 @@ export class WorldFx {
   private glow = new SparkBatch(SPARKS, true);
   private fallers: Faller[] = [];
   private hops: { x: number; y: number; age: number }[] = [];
+  private scaffolds: { bars: Bar[]; ground: number; age: number; seconds: number }[] = [];
+  private bars: THREE.InstancedMesh;
   private seed = 1;
   private share = 1;
   private shareAcc = 0;
@@ -215,7 +226,12 @@ export class WorldFx {
     for (let k = 0; k < RINGS; k++) this.rings.push({ x: 0, y: 0, z: 0, radius: 1, r: 1, g: 1, b: 1, delay: 0, age: 0 });
     for (let k = 0; k < SPARKS; k++) this.live.push({ ...blankLive() });
     for (let k = 0; k < TREES; k++) this.fallers.push(this.makeFaller());
-    this.group.add(this.ringMesh, this.normal.points, this.glow.points, ...this.fallers.map((f) => f.group));
+    const bar = new THREE.BoxGeometry(1, 1, 1);
+    this.bars = new THREE.InstancedMesh(bar, new THREE.MeshStandardMaterial({ color: SCAFFOLD_WOOD, roughness: 0.95, flatShading: true }), BARS);
+    this.bars.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.bars.frustumCulled = false;
+    this.bars.count = 0;
+    this.group.add(this.ringMesh, this.normal.points, this.glow.points, this.bars, ...this.fallers.map((f) => f.group));
     this.group.name = 'worldFx';
   }
 
@@ -274,6 +290,16 @@ export class WorldFx {
     spoilRecipe(r, this.height(r.x + r.w / 2, r.y + r.h / 2), this.rng(), this.emit);
   }
 
+  /**
+   * A wooden scaffold round a new building (or a house going up a level) for `seconds`, with dust
+   * at its foot: it goes up, stands while the building is raised, and comes down.
+   */
+  scaffold(r: Rect, seconds: number, top = topOf(r)) {
+    if (this.scaffolds.length >= SCAFFOLDS) this.scaffolds.shift();
+    this.scaffolds.push({ bars: scaffoldBars(r, top), ground: this.height(r.x + r.w / 2, r.y + r.h / 2), age: 0, seconds });
+    this.dust(r);
+  }
+
   /** A building hops on cell (x, y) (needs `lift`). */
   hop(x: number, y: number) {
     if (!this.lift) return;
@@ -320,6 +346,24 @@ export class WorldFx {
     this.updateSparks(dt, light);
     this.updateFallers(dt);
     this.updateHops(dt);
+    this.updateScaffolds(dt);
+  }
+
+  private updateScaffolds(dt: number) {
+    let n = 0;
+    this.scaffolds = this.scaffolds.filter((f) => (f.age += dt) < f.seconds);
+    for (const f of this.scaffolds) {
+      const k = scaffoldRise(f.age / f.seconds);
+      for (const b of f.bars) {
+        if (n >= BARS) break;
+        const pole = b.sy > b.sx && b.sy > b.sz;
+        this.m.makeScale(b.sx, pole ? Math.max(0.001, b.sy * k) : b.sy, b.sz);
+        this.m.setPosition(b.x, f.ground + b.y * k, b.z);
+        this.bars.setMatrixAt(n++, this.m);
+      }
+    }
+    this.bars.count = n;
+    if (n) this.bars.instanceMatrix.needsUpdate = true;
   }
 
   private updateRings(dt: number) {
@@ -454,6 +498,9 @@ export class WorldFx {
 
   /** Frees the GPU side (geometries and materials). */
   dispose() {
+    this.bars.geometry.dispose();
+    (this.bars.material as THREE.Material).dispose();
+    this.bars.dispose();
     this.ringMesh.geometry.dispose();
     (this.ringMesh.material as THREE.Material).dispose();
     this.ringMesh.dispose();

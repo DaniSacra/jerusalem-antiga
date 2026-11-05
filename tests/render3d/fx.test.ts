@@ -10,6 +10,8 @@ import {
   fallSide,
   fellRecipe,
   FX_SECONDS,
+  scaffoldBars,
+  scaffoldRise,
   haloRecipe,
   hopHeight,
   hopStretch,
@@ -171,5 +173,30 @@ describe('world effects: particles', () => {
     const a = collect((e) => dustRecipe({ x: 1, y: 1, w: 2, h: 2 }, 0, createRng(9), e));
     const b = collect((e) => dustRecipe({ x: 1, y: 1, w: 2, h: 2 }, 0, createRng(9), e));
     expect(a).toEqual(b);
+  });
+});
+
+describe('the scaffold of a new building', () => {
+  it('poles at the corners and along the sides, two rails round it, as high as asked', () => {
+    const bars = scaffoldBars({ x: 4, y: 6, w: 2, h: 2 }, 1.2);
+    const poles = bars.filter((b) => b.sy === 1.2);
+    // 3 per side on a 2x2 footprint: 8 distinct poles round it.
+    expect(poles).toHaveLength(8);
+    for (const p of poles) {
+      expect(p.y).toBeCloseTo(0.6);
+      expect(p.x < 4 || p.x > 6 || p.z < 6 || p.z > 8).toBe(true);
+    }
+    expect(bars.filter((b) => b.sy !== 1.2)).toHaveLength(8);
+    expect(Math.max(...bars.map((b) => b.y))).toBeCloseTo(1.2 * 0.85);
+  });
+
+  it('goes up quickly, stands, and comes down at the end', () => {
+    expect(scaffoldRise(0)).toBe(0);
+    expect(scaffoldRise(0.075)).toBeCloseTo(0.5);
+    expect(scaffoldRise(0.5)).toBe(1);
+    expect(scaffoldRise(0.9)).toBeCloseTo(0.5);
+    expect(scaffoldRise(1)).toBe(0);
+    expect(FX_SECONDS.scaffold).toBe(1.5);
+    expect(FX_SECONDS.scaffoldUpgrade).toBe(0.6);
   });
 });

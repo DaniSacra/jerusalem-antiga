@@ -1,4 +1,5 @@
 import type { GameState } from '../core';
+import { haulJobs } from './haul';
 import { residentsOf } from './plan';
 
 /**
@@ -11,7 +12,7 @@ export interface CityKeys {
   buildings: string;
   /** Roads, trees, rocks and stumps (with the saplings growing on them, by regrowth step). */
   props: string;
-  /** Who walks: the road network and the number of residents. */
+  /** Who walks: the road network, the number of residents and the food workers out (haul.ts). */
   people: string;
 }
 
@@ -24,7 +25,8 @@ export function cityKeys(s: GameState): CityKeys {
   props += '|' + s.stumps.map((t) => `${t.i}:${Math.floor((s.week - t.week) / 13)}`).join(',');
   let net = 0;
   for (let i = 0; i < s.network.length; i++) if (s.network[i]) net = (net * 31 + i) | 0;
-  const people = `${net}:${Math.round(residentsOf(s) / 5)}:${s.families.length}`;
+  const haul = haulJobs(s).map((j) => `${j.job[0]}${j.home}`).join(',');
+  const people = `${net}:${Math.round(residentsOf(s) / 5)}:${s.families.length}:${haul}`;
   return { buildings, props, people };
 }
 

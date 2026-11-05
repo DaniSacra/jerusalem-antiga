@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { indexOf, refreshCity } from '../../src/core';
+import { harvestsIn, indexOf, refreshCity } from '../../src/core';
 import { changedLayers, cityKeys } from '../../src/render3d/diff';
-import { emptyGame, put, road } from '../helpers';
+import { emptyGame, put, road, ROADSIDE } from '../helpers';
 
 describe('what changed in the drawn city', () => {
   it('everything the first time, nothing when the city is the same', () => {
@@ -34,5 +34,17 @@ describe('what changed in the drawn city', () => {
     s.feature[indexOf(s, 5, 5)] = 'stump';
     refreshCity(s);
     expect(changedLayers(b, cityKeys(s))).toEqual(['props']);
+  });
+
+  it('a harvesting field sends a carrier out (people); in winter it sends nobody', () => {
+    const s = emptyGame();
+    s.week = [...Array(52).keys()].find((w) => harvestsIn(w))!;
+    const a = cityKeys(s);
+    put(s, 'field', ROADSIDE, 30);
+    refreshCity(s);
+    expect(changedLayers(a, cityKeys(s))).toContain('people');
+    const b = cityKeys(s);
+    s.week = [...Array(52).keys()].find((w) => !harvestsIn(w))!;
+    expect(changedLayers(b, cityKeys(s))).toEqual(['people']);
   });
 });

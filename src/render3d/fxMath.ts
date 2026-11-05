@@ -23,7 +23,63 @@ export const FX_SECONDS = {
   spoil: M.spoilSeconds,
   fall: M.treeFallMs / 1000,
   hop: F.hop.seconds,
+  scaffold: VISUAL.build.scaffoldMs / 1000,
+  scaffoldUpgrade: VISUAL.build.upgradeMs / 1000,
 };
+
+// ---------------------------------------------------------------- scaffold
+
+/** A wooden bar of a scaffold: centre (x, y up, z) and size, in cells. */
+export interface Bar {
+  x: number;
+  y: number;
+  z: number;
+  sx: number;
+  sy: number;
+  sz: number;
+}
+
+/** Thickness of a scaffold pole or rail (cells). */
+const POLE = 0.05;
+
+/**
+ * The scaffold round a footprint `top` high: a pole at each corner and between them every cell or
+ * so, and two rails round it (a third of the way up and near the top). Feet on y = 0.
+ */
+export function scaffoldBars(r: Pick<Rect, 'x' | 'y' | 'w' | 'h'>, top: number): Bar[] {
+  const out: Bar[] = [];
+  const m = 0.12;
+  const x0 = r.x - m;
+  const x1 = r.x + r.w + m;
+  const z0 = r.y - m;
+  const z1 = r.y + r.h + m;
+  const poles = (a: number, b: number, n: number) => Array.from({ length: n + 1 }, (_, k) => a + ((b - a) * k) / n);
+  const nx = Math.max(1, Math.round(r.w));
+  const nz = Math.max(1, Math.round(r.h));
+  const seen = new Set<string>();
+  const pole = (x: number, z: number) => {
+    const k = `${x.toFixed(2)},${z.toFixed(2)}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ x, y: top / 2, z, sx: POLE, sy: top, sz: POLE });
+  };
+  for (const x of poles(x0, x1, nx)) {
+    pole(x, z0);
+    pole(x, z1);
+  }
+  for (const z of poles(z0, z1, nz)) {
+    pole(x0, z);
+    pole(x1, z);
+  }
+  for (const y of [top * 0.35, top * 0.85]) {
+    out.push({ x: (x0 + x1) / 2, y, z: z0, sx: x1 - x0, sy: POLE, sz: POLE }, { x: (x0 + x1) / 2, y, z: z1, sx: x1 - x0, sy: POLE, sz: POLE });
+    out.push({ x: x0, y, z: (z0 + z1) / 2, sx: POLE, sy: POLE, sz: z1 - z0 }, { x: x1, y, z: (z0 + z1) / 2, sx: POLE, sy: POLE, sz: z1 - z0 });
+  }
+  return out;
+}
+
+/** How much of the scaffold stands at `u` (0..1 of its time): it goes up quickly, stays, and comes down at the end. */
+export const scaffoldRise = (u: number) => (u <= 0 || u >= 1 ? 0 : Math.min(1, u / 0.15, (1 - u) / 0.2));
 
 // ---------------------------------------------------------------- rings
 

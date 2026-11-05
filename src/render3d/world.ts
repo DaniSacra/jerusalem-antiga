@@ -3,7 +3,7 @@ import { mainRoadCells, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
 import { Instancer } from './instancer';
 import { Families } from './figures';
-import { FieldHands, Fire, NightFires, Smoke, Walkers } from './life';
+import { FieldHands, Fire, Haulers, NightFires, Smoke, Walkers } from './life';
 import type { ModelKey, Prototype } from './models';
 import { cityPlan, CLOSED_AT, hash, KILN, residentsOf, walkerCount } from './plan';
 import { SKIRT, Terrain, Water } from './terrain';
@@ -30,6 +30,7 @@ export class World {
   readonly water: Water;
   walkers!: Walkers;
   families!: Families;
+  haulers!: Haulers;
   smoke!: Smoke;
   fires!: NightFires;
   hands!: FieldHands;
@@ -178,7 +179,8 @@ export class World {
     const s = this.s;
     this.walkers = new Walkers(s, this.ground, walkerCount(residentsOf(s)), this.shadows);
     this.families = new Families(s, this.ground, this.shadows);
-    this.people.add(...this.walkers.objects, ...this.families.objects);
+    this.haulers = new Haulers(s, this.ground, this.shadows);
+    this.people.add(...this.walkers.objects, ...this.families.objects, ...this.haulers.objects);
   }
 
   dispose() {

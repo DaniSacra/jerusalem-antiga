@@ -3,6 +3,7 @@ import { createRng, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell
 import { COLORS } from './models';
 import type { Terrain } from './terrain';
 import { figureLook, walkerLook } from './crowd';
+import { HAUL, haulJobs, legOf, waitAfter, type HaulJob, type Pt } from './haul';
 import { Figures } from './figures';
 
 interface Walker {
@@ -310,4 +311,149 @@ function poolTexture(): THREE.DataTexture {
   const t = new THREE.DataTexture(data, n, n);
   t.needsUpdate = true;
   return t;
+}
+
+interface Hauler {
+  job: HaulJob;
+  home: number;
+  route: Pt[];
+  seg: number;
+  t: number;
+  /** Heading out (a carrier with a sack to the store, a fisher to the bank, a gatherer to a tree). */
+  out: boolean;
+  wait: number;
+  phase: number;
+  pace: number;
+}
+
+/** Cells a second a worker walks at the usual pace. */
+const HAUL_SPEED = 1.1;
+
+/**
+ * The people of the food buildings (haul.ts says who and where): harvest carriers with a sack on
+ * the back to the granary and back empty-handed, the fisherman with his net basket at the river bank,
+ * the gatherer with a basket on her head under a tree. Built with the people layer.
+ */
+export class Haulers {
+  private list: Hauler[] = [];
+  private figures: Figures;
+  private sacks: THREE.InstancedMesh;
+  private baskets: THREE.InstancedMesh;
+  private rng: Rng;
+  private m = new THREE.Matrix4();
+  private q = new THREE.Quaternion();
+  private v = new THREE.Vector3();
+  private sc = new THREE.Vector3();
+
+  constructor(private s: GameState, private ground: Terrain, shadows: boolean) {
+    this.rng = createRng(s.week * 17 + 3);
+    const jobs = haulJobs(s);
+    const n = Math.max(1, jobs.length);
+    this.figures = new Figures(n, shadows);
+    const sack = new THREE.IcosahedronGeometry(0.075, 0);
+    sack.scale(1, 1.25, 0.8);
+    this.sacks = new THREE.InstancedMesh(sack, new THREE.MeshStandardMaterial({ color: 0xb08a58, roughness: 0.95, flatShading: true }), n);
+    const basket = new THREE.CylinderGeometry(0.075, 0.055, 0.06, 8);
+    this.baskets = new THREE.InstancedMesh(basket, new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.95, flatShading: true }), n);
+    for (const o of [this.sacks, this.baskets]) {
+      o.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      o.castShadow = shadows;
+      o.frustumCulled = false;
+    }
+    for (const { job, home } of jobs) {
+      const i = this.list.length;
+      const k = this.rng();
+      this.figures.dress(i, figureLook(job === 'gather' ? 'f' : 'm', 'adult', k));
+      this.list.push({ job, home, route: [], seg: 0, t: 0, out: true, wait: this.rng() * 2, phase: this.rng() * 6, pace: 0.9 + this.rng() * 0.2 });
+      this.plan(this.list[i]);
+    }
+    this.figures.count = this.sacks.count = this.baskets.count = this.list.length;
+  }
+
+  get objects(): THREE.Object3D[] {
+    return [...this.figures.objects, this.sacks, this.baskets];
+  }
+
+  /** Workers out now. */
+  get count() {
+    return this.list.length;
+  }
+
+  private plan(h: Hauler) {
+    const b = this.s.buildings.find((o) => o.id === h.home);
+    h.seg = 0;
+    h.t = 0;
+    h.route = b ? legOf(this.s, h.job, b, h.out, h.route, this.rng) : [];
+    // Nowhere to go now (no road to a store): try again in a moment, not every frame.
+    if (h.route.length < 2) {
+      h.route = b ? [{ x: b.x + b.w / 2, y: b.y + b.h / 2 }] : [{ x: 0, y: 0 }];
+      h.wait = 2;
+    }
+  }
+
+  /** `speed` is the game speed: the workers stop when the game is paused. */
+  update(dt: number, time: number, speed: number) {
+    const run = speed > 0 ? 1 : 0;
+    for (let i = 0; i < this.list.length; i++) {
+      const h = this.list[i];
+      const end = h.route.length - 1;
+      if (h.seg >= end) {
+        h.wait -= dt * run;
+        if (h.wait <= 0) this.plan(h);
+      } else {
+        h.t += dt * run * HAUL_SPEED * HAUL.pace * h.pace;
+        while (h.t >= 1 && h.seg < end) {
+          h.t -= 1;
+          h.seg++;
+        }
+        if (h.seg >= end) {
+          h.t = 0;
+          h.wait = waitAfter(h.job, h.out, this.rng);
+          h.out = !h.out;
+        }
+      }
+      this.draw(i, h, time, run > 0 && h.seg < h.route.length - 1);
+    }
+    this.figures.commit();
+    this.sacks.instanceMatrix.needsUpdate = true;
+    this.baskets.instanceMatrix.needsUpdate = true;
+  }
+
+  private draw(i: number, h: Hauler, time: number, walking: boolean) {
+    const a = h.route[Math.min(h.seg, h.route.length - 1)];
+    const b = h.route[Math.min(h.seg + 1, h.route.length - 1)];
+    const x = a.x + (b.x - a.x) * h.t;
+    const z = a.y + (b.y - a.y) * h.t;
+    // At work (the end of an outward leg) the figure faces the water or the tree.
+    const last = h.route[h.route.length - 1];
+    const prev = h.route[Math.max(0, h.route.length - 2)];
+    const dx = walking ? b.x - a.x : last.x - prev.x;
+    const dz = walking ? b.y - a.y : last.y - prev.y;
+    const yaw = Math.atan2(dx, dz);
+    const ph = time * 9 * h.pace + h.phase;
+    const atWork = !walking && h.job !== 'harvest' && !h.out;
+    // Walking: a bob and sway; at work, casting or reaching now and then.
+    const lean = walking ? 0.06 : atWork ? Math.max(0, Math.sin(time * 1.6 + h.phase)) * (h.job === 'fish' ? 0.35 : -0.2) : 0;
+    const y = this.ground.height(x, z) + 0.04 + (walking ? Math.abs(Math.sin(ph)) * 0.022 : 0);
+    this.figures.place(i, x, y, z, yaw, lean, walking ? Math.sin(ph) * 0.06 : 0);
+    const size = this.figures.look(i).size;
+    // A sack on the back of a carrier heading out; a basket on the gatherer's head; the fisher's at his hip.
+    const sack = h.job === 'harvest' && h.out;
+    this.load(this.sacks, i, sack, x, y, z, yaw, 0, 0.3 * size, -0.09 * size);
+    const basket = h.job !== 'harvest';
+    this.load(this.baskets, i, basket, x, y, z, yaw, h.job === 'fish' ? 0.09 * size : 0, h.job === 'fish' ? 0.18 * size : 0.48 * size, 0);
+  }
+
+  /** Puts a load at a point of the figure (side `ox`, up `oy`, forward `oz`), or hides it. */
+  private load(mesh: THREE.InstancedMesh, i: number, on: boolean, x: number, y: number, z: number, yaw: number, ox: number, oy: number, oz: number) {
+    if (!on) {
+      mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
+      return;
+    }
+    const sin = Math.sin(yaw);
+    const cos = Math.cos(yaw);
+    this.q.setFromAxisAngle(this.v.set(0, 1, 0), yaw);
+    this.m.compose(this.v.set(x + sin * oz + cos * ox, y + oy, z + cos * oz - sin * ox), this.q, this.sc.setScalar(1));
+    mesh.setMatrixAt(i, this.m);
+  }
 }

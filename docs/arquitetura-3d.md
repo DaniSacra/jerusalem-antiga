@@ -451,6 +451,15 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   o balão da construção escolhida fica acima do balão do tutorial; o balão da construção tocada não
   passa da área livre quando a construção está sob a coluna (`besideX`). "Entendi" não existe mais
   (o 2D nunca o mostrava).
+- **Fase 3, parte 2 (2026-11-05) — vida e efeitos; Fase 3 fechada:** a gente da comida do 2D
+  (`Haulers`) no 3D: `render3d/haul.ts` (puro, testado: quem sai e por onde) e `Haulers` em `life.ts`
+  (carregador com saco do campo ao celeiro ou ao altar e de volta, pescador com o cesto na margem,
+  coletora com o cesto na cabeça sob a árvore; param na pausa); a chave `people` do `diff` inclui
+  quem sai, para refazer quando um campo, pescador ou coletora aparece ou o inverno chega. Andaime de
+  madeira com poeira em toda construção nova (1,5 s) e na casa que sobe de nível (0,6 s), menos
+  campos (`scaffoldBars`/`scaffoldRise` em `fxMath.ts`, `WorldFx.scaffold`). Áreas do Templo testadas
+  em 3D (`temple3d-phone|pc`: verdes e amarelas, pílula com Alegria, rua e prata, área longe com rua
+  dourada e câmera). Fica de fora (pequeno): gente reunida em volta de um marco.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar

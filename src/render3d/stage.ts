@@ -191,6 +191,9 @@ export class Stage {
    * One frame: light, season, weather, people and particles at game position `pos` (weeks) and time
    * of day `dayT`, then the picture. Returns true when the quality was just lowered.
    */
+  /** The game speed (0 paused): the food workers stop with it. */
+  speed = 1;
+
   frame(dt: number, time: number, pos: number, dayT: number, rig: CameraRig): boolean {
     const now = performance.now();
     this.rebuild(now);
@@ -239,6 +242,7 @@ export class Stage {
     world.walkers.setShare(streetShare(L.night, w.rain));
     world.walkers.update(dt, time);
     world.families.update(time);
+    world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
     world.smoke.update(time, Math.max(look.smoke, L.night * 0.35), w.wind, 0.26 * (1 - 0.5 * w.rain));
     world.fires.update(time, L.night, w.rain, renderer.getPixelRatio());
@@ -289,7 +293,7 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, label: this.label, rebuildMs: this.lastRebuildMs };
+    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, label: this.label, rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

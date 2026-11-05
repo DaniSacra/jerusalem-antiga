@@ -6,7 +6,7 @@ import { C } from '../render/palette';
 import { CameraRig } from './camera';
 import { changedLayers, cityKeys, type CityKeys } from './diff';
 import { WorldFx } from './fx';
-import { ringRadiusFor } from './fxMath';
+import { FX_SECONDS, ringRadiusFor } from './fxMath';
 import LOOK from './look3d.json';
 import { marksOf, type Marks, type MarksInput } from './marks';
 import { Overlay } from './overlay';
@@ -204,12 +204,18 @@ export class Scene3D {
       case 'placed':
         if (o.temple) fx.celebrate(o);
         else fx.ring(o);
+        {
+          // Every new building but a field goes up inside a scaffold (a road goes down at once).
+          const b = this.s.grid[o.y * this.s.cols + o.x];
+          if (b && b.kind !== 'field') fx.scaffold(o, FX_SECONDS.scaffold);
+        }
         break;
       case 'dust':
         fx.dust(o);
         break;
       case 'upgraded':
         fx.ring(o.building, C.ui.goldLight);
+        fx.scaffold(o.building, FX_SECONDS.scaffoldUpgrade);
         fx.hop(o.building.x, o.building.y);
         break;
       case 'harvestRing':
@@ -254,6 +260,7 @@ export class Scene3D {
     }
     this.rig.update(dt);
     const dayT = dayNight ? this.dayT : NOON;
+    this.stage.speed = speed;
     this.stage.frame(dt, time, week, dayT, this.rig);
     if (this.stage.level !== this.fxLevel) {
       this.fxLevel = this.stage.level;
