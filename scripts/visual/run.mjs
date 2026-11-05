@@ -240,6 +240,7 @@ async function buildTown(page) {
     while (s.ground[27 * s.cols + rx + 2] !== 'river' && rx < s.cols - 3) core.place(s, 'road', rx++, 27);
     put('fisher', rx, 27);
     put('field', 3, 3); // disconnected: shows the "no road" balloon
+    Object.assign(s, { wood: 120, stone: 60 }); // a town's stock, so the top bar has its real width
     window.game.refresh();
     const cam = window.game.cameras.main;
     cam.setZoom(1.1);
@@ -969,7 +970,7 @@ async function tutorialBlocked(page) {
   await startGame(page, { tutorial: true });
   await page.evaluate(() => {
     window.game.setSpeed(0);
-    Object.assign(s, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
+    Object.assign(window.state, { silver: 1e4, wood: 1e4, stone: 1e4 }); // materials too: scenarios build freely
     // Jump to the wedding step with no free house for the couple.
     const g = window.game.guide;
     while (g.step && g.step.id !== 'wedding') g.k++;
@@ -980,10 +981,10 @@ async function tutorialBlocked(page) {
   await shot(page, 'tutorial-wedding-waiting');
   const week = await page.evaluate(() => window.state.week);
   await page.evaluate(() => window.game.setSpeed(3));
-  await page.waitForFunction(() => window.game.guide?.step === null, null, { timeout: 90000 });
+  // The wedding step gives up and the lumber step follows (it holds the clock).
+  await page.waitForFunction(() => window.game.guide?.step?.id === 'lumber', null, { timeout: 90000 });
   const end = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding'), toasts: [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg) }), week);
   assert(!end.wedding && end.weeks >= TUTORIAL.weddingStepMaxWeeks && end.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step with no house ends after ${TUTORIAL.weddingStepMaxWeeks} weeks (${JSON.stringify(end)})`);
-  assert(end.toasts.some((m) => m.includes('Casais novos precisam de casa')), `the usual last tutorial toast (${end.toasts})`);
   await page.evaluate(() => window.game.setSpeed(0));
   await shot(page, 'tutorial-wedding-timeout');
 }
@@ -1190,7 +1191,7 @@ async function materialsScenario(page, suffix) {
     core.refreshCity(s);
     s.stone = 3;
     h.waiting = 'stone';
-    h.upStreak = core.RULES.weeksToUpgrade;
+    h.upStreak = h.upWeeks;
     game.refresh();
     return { x: h.x, y: h.y, w: h.w, h: h.h };
   });
@@ -1227,9 +1228,10 @@ async function materialsScenario(page, suffix) {
     h.upStreak = 2;
     game.selected = { x, y };
     game.refresh();
-    const lines = game.ui.view.inspector.card.lines.map((l) => l.text);
+    const card = game.ui.view.inspector.card;
+    const lines = [...card.lines, ...card.aside].map((l) => l.text); // the phone keeps the level beside the people
     h.waiting = 'stone';
-    h.upStreak = window.core.RULES.weeksToUpgrade;
+    h.upStreak = h.upWeeks;
     game.selected = null;
     game.refresh();
     return lines;
@@ -1251,7 +1253,7 @@ async function materialsScenario(page, suffix) {
     window.game.refresh();
   });
   assert((await pressBuild(page, 'quarry')) === 'quarry', 'the column picks the quarry');
-  const cost = await page.evaluate(() => JSON.parse(window.game.ui.view.column.balloon.key || '[]').map((l) => l.text));
+  const cost = await page.evaluate(() => (JSON.parse(window.game.ui.view.column.balloon.key || '[[]]')[0]).map((l) => l.text));
   assert(cost.includes('40 prata · 10 madeira (tem 4)'), `the balloon says the wood lacking (${cost})`);
   await shot(page, `quarry-balloon-lacking${suffix}`);
   const spot = await page.evaluate(() => window.core.placeSpots(window.state, 'quarry')[0]);
@@ -1300,7 +1302,7 @@ async function lumberShared(page, suffix) {
     core.refreshCity(s);
     const h = s.buildings.find((b) => b.kind === 'house' && b.level === 1 && core.needMet(s, b, 'plaza'));
     h.waiting = 'wood';
-    h.upStreak = core.RULES.weeksToUpgrade;
+    h.upStreak = h.upWeeks;
     game.selected = { x: h.x, y: h.y };
     game.refresh();
     return { x: h.x, y: h.y, label: game.ui.view.inspector.card.action?.label };
@@ -1331,6 +1333,8 @@ async function setupPeople(page, { freeHouse = true } = {}) {
     window.game.setSpeed(0);
     s.week = 3 * core.WEEKS_PER_YEAR + 5;
     s.silver = 500;
+    s.wood = 200; // materials: the scenario builds freely
+    s.stone = 100;
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y); // the caravan tents
     s.people = [];
