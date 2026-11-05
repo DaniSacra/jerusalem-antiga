@@ -1,6 +1,11 @@
 # Jerusalém Antiga
 
-Isometric city builder for phone (landscape) and PC. Phaser 3 + TypeScript + Vite, tests with Vitest.
+3D city builder for phone (landscape) and PC. TypeScript + Vite, tests with Vitest.
+
+**The game is migrating to 3D** (user decision, 2026-11-05): the city in Three.js (`src/render3d`)
+and the UI in HTML/CSS, phone and PC alike. Plan and phases: `docs/arquitetura-3d.md` (architect).
+The Phaser 2D (`src/render`, `src/scenes`) is legacy, kept as plan B until the 3D has parity:
+fixes only there, no new art or UI.
 
 ## Read first
 - `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
@@ -32,10 +37,11 @@ Before building:
   `docs/arquitetura-3d.md`.
 
 While building:
-- `sprite-artist` — code-drawn art in `src/render`: buildings, terrain, roads, walkers, effects
-  and animations. Use for any visual work.
-- `ui-designer` — top bar, tools, info line, balloons, toasts, stats panel, title/victory
-  screens, camera and touch controls. Use for UI/UX work or reviews (phone first).
+- `sprite-artist` — 3D art in `src/render3d` (low-poly code models and Meshy models): buildings,
+  terrain, roads, walkers, light, weather, effects and animations. Use for any visual work.
+- `ui-designer` — the HTML/CSS UI over the 3D: top bar, tools, balloons, toasts, panels,
+  title/victory/defeat screens, 3D camera, touch, mouse and keyboard. Use for UI/UX work or
+  reviews (phone and PC).
 - `map-designer` — map generation and starting layout (terrain, river, rocks, vegetation,
   altar, starting road, entrance). Use when touching any of these.
 - `test-reviewer` — makes sure every `src/core` rule has good, seeded tests; may write missing
@@ -68,10 +74,13 @@ belong to the `copywriter`.
 the change have been looked at.
 
 ## Rules of the codebase
-- `src/core`: the whole simulation in pure TypeScript. Never import Phaser here.
-  The grid is square in the core; isometry exists only in `src/render`.
+- `src/core`: the whole simulation in pure TypeScript. Never import Three.js, the DOM or Phaser
+  here. The grid is square and flat in the core; 3D (and the legacy isometry) exist only in the
+  render layers.
 - `src/data`: balance numbers in JSON (costs, jobs, radii, house levels, goals, rules).
-- `src/render` and `src/scenes`: drawing, animation and input only. Game rules belong in core.
+- `src/render3d` (3D world) and the HTML UI: drawing, animation and input only. Pure look and UI
+  logic lives in modules without Three.js or DOM and has Vitest tests. Game rules belong in core.
+- `src/render` and `src/scenes` (legacy Phaser 2D): fixes only until the 3D has parity.
 - Every new or changed rule in core needs Vitest tests in `tests/`.
 - Code, comments and commits in English; on-screen text in Portuguese (`src/render/strings.ts`).
 - DRY and KISS. Do not add story, verses or mechanics that were not requested.
@@ -86,7 +95,10 @@ the change have been looked at.
 - Families (`families.ts`) are dispatched to empty plots and walk the network from the entrance;
   `step` advances `familyCellsPerMonth` per month. Render interpolates with the month fraction.
 - `stepMonth()` returns events; the scene turns them into effects and toasts.
-- Render: `iso.ts` (projection, depth = x + y of the footprint center), `textures.ts` (all art
+- 3D: `src/render3d` (see its README and `docs/arquitetura-3d.md`): `view.ts` (entry), `world.ts`,
+  `plan.ts` (pure: what to draw per state), `models.ts` (code models + Meshy pack), `terrain.ts`,
+  `camera.ts`, `life.ts`/`crowd.ts`/`figures.ts` (people), `time/` (day, season, weather).
+- Legacy 2D render: `iso.ts` (projection, depth = x + y of the footprint center), `textures.ts` (all art
   generated in code as named textures with anchors in `ORIGIN`/`HEIGHT`, swappable for sprites),
   `MapView.ts` (world), `Walkers.ts`, `CameraRig.ts`. The UI overlay is a separate `UIScene`
   so camera zoom does not affect it.

@@ -8,6 +8,17 @@ anos que jogam Pocket City, Minecraft e Roblox no celular. Eles largam um
 jogo em 2 minutos se ficar chato, e jogam de novo se sentirem que podem
 fazer melhor.
 
+JOGO EM 3D (decisão do usuário, 2026-11-05)
+- Avalie o jogo pelo 3D: a cidade bonita e viva é parte da diversão (dá vontade de olhar e
+  de construir mais?).
+- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
+  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
+  (agente `architect`).
+- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
+  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
+- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
+  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
+
 Seu trabalho NÃO é testar. Bugs e problemas técnicos são do playtester.
 Seu trabalho é responder: "um jovem continuaria jogando isso?"
 

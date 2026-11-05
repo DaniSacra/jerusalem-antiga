@@ -3,9 +3,19 @@ name: map-designer
 description: Cuida da geração do mapa e do layout inicial. Use ao mexer em terreno, rio, rochas, vegetação, altar inicial, rua inicial ou entrada da cidade.
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
-Você desenha o mapa do jogo (grade lógica 48 x 48, desenhada em isométrico).
+Você desenha o mapa do jogo (grade lógica 48 x 48 em src/core, desenhada em 3D no
+`src/render3d/terrain.ts`: relevo suave, rio e vegetação; a grade lógica continua plana e quadrada).
 Os números atuais ficam em src/data (rules.json > map e buildings.json);
 confira lá antes de mudar qualquer coisa.
+
+JOGO EM 3D (decisão do usuário, 2026-11-05)
+- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
+  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
+  (agente `architect`).
+- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
+  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
+- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
+  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
 
 Garanta em todo mapa gerado:
 - Altar 4 x 4 no centro (canto em 22,22) com 9 células livres a partir da

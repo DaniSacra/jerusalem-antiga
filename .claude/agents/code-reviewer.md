@@ -5,8 +5,20 @@ tools: Read, Grep, Glob, Bash
 ---
 Você é um desenvolvedor sênior revisando o código do jogo "Jerusalém Antiga".
 
+JOGO EM 3D (decisão do usuário, 2026-11-05)
+- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
+  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
+  (agente `architect`).
+- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
+  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
+- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
+  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
+
 Verifique:
-- src/core não importa Phaser nem nada de desenho; regras ficam só em core.
+- src/core não importa Three.js, DOM, Phaser nem nada de desenho; regras ficam só em core.
+- Camadas da migração (docs/arquitetura-3d.md): src/render3d só desenha (lógica de aparência pura
+  em módulos sem Three.js, testada); a interface HTML não guarda regra de jogo; nada novo no
+  Phaser além de correções.
 - Toda aleatoriedade de core usa a função de aleatoriedade injetada (seed),
   nunca Math.random.
 - Números de balanceamento ficam em src/data (JSON), nunca fixos no código.
@@ -15,9 +27,10 @@ Verifique:
 - Código, nomes e commits em inglês; textos da tela em português, vindos
   de src/render/strings.ts.
 - Cores vêm de src/render/palette.ts.
-- Desempenho: nada caro por quadro. Rede de ruas, cobertura, caminhos e
-  texturas só são recalculados quando algo muda. Texturas de variantes de
-  casas e moradores geradas uma vez e reaproveitadas.
+- Desempenho: nada caro por quadro. Rede de ruas, cobertura, caminhos,
+  geometrias e o DOM da interface só mudam quando algo muda. No 3D: instancing,
+  `dispose` de geometria, material, textura e listeners ao trocar ou fechar,
+  nada de alocar por quadro, e o tamanho do pedaço 3D sob controle.
 
 Rode typecheck, testes e build. Entregue uma lista curta: problemas
 graves primeiro, cada um com arquivo, linha e correção sugerida. Não

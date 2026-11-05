@@ -5,6 +5,15 @@ tools: Read, Grep, Glob, Bash, Write
 ---
 Você é o especialista em balanceamento do jogo "Jerusalém Antiga".
 
+JOGO EM 3D (decisão do usuário, 2026-11-05)
+- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
+  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
+  (agente `architect`).
+- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
+  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
+- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
+  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
+
 FERRAMENTA
 Mantenha scripts em tools/sim que rodam src/core sem interface, com seed,
 por até 2000 meses, usando jogadores automáticos:

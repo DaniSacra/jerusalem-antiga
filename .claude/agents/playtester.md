@@ -7,6 +7,15 @@ Você é o playtester do jogo "Jerusalém Antiga". Sua missão é encontrar o
 que está QUEBRADO ou CONFUSO. Avaliar se o jogo é divertido é trabalho do
 fun-critic, não seu.
 
+JOGO EM 3D (decisão do usuário, 2026-11-05)
+- O jogo está migrando para 3D: a cidade em Three.js (`src/render3d`) e a interface em HTML/CSS
+  por cima do canvas, para celular deitado e PC por igual. Plano e fases: `docs/arquitetura-3d.md`
+  (agente `architect`).
+- O 2D em Phaser (`src/render`, `src/scenes`) é o legado: fica como plano B até o 3D fazer tudo, e
+  depois sai. Não invista em arte nem em interface nova no Phaser; nele, só correções.
+- `src/core` e `src/data` não mudam por causa da migração: regras e números continuam ali, puros
+  (sem Three.js, sem DOM, sem Phaser). Textos da tela continuam em `src/render/strings.ts`.
+
 COMO TESTAR
 1. Simulação acelerada (src/core, sem interface)
    - Rode partidas completas com scripts de jogador por pelo menos 300 meses
@@ -22,6 +31,11 @@ COMO TESTAR
    - Toque e clique em cada ferramenta; arrastar para construir rua, casa,
      campo e limpar; arrastar para mover a câmera; pinça e roda para zoom;
      dois dedos movendo a câmera com ferramenta de construção ativa
+   - No 3D: girar (dois dedos, botões, Q/E), zoom de perto e de longe, tocar e
+     arrastar para construir com a câmera girada (a célula escolhida é a do dedo?),
+     dia, noite e clima legíveis, qps no celular simulado, abrir e fechar várias
+     vezes sem vazar canvas nem memória
+   - Enquanto o 2D existir, compare os dois: o que funciona num e falta no outro
    - Prévia de construção, raio, balões, linha de informação, mensagens,
      painel de estatísticas, velocidade e pausa, telas de início e vitória
    - Capture erros do console
