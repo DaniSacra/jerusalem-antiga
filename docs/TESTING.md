@@ -19,7 +19,7 @@ precisam passar, e as screenshots afetadas pela mudança devem ser **olhadas**.
 
 ## Testes unitários (`tests/`)
 
-Cobrem `src/core` (TypeScript puro, sem Phaser) e a lógica pura da visão 3D (`tests/render3d`). **Toda regra nova ou alterada precisa de teste.**
+Cobrem `src/core` (TypeScript puro, sem Phaser) , a lógica pura da visão 3D (`tests/render3d`), o controle do jogo (`tests/game`) e as peças da interface HTML sem navegador (`tests/ui`). **Toda regra nova ou alterada precisa de teste.**
 
 | Arquivo | O que cobre |
 |---|---|

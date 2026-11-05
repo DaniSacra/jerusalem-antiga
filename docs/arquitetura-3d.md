@@ -413,7 +413,11 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   `game/model/build.ts` e `inspect.ts`; `touch3d` e `input3d-pc` escritos; efeitos do mundo
   (`fx.ts`); passo 3 da revisão: `Game3D` dividido em `render3d/scene3d.ts` (a cena, sem DOM de página
   nem `Hud`) e `app/play3d.ts` (página, `Hud`, `Gestures`, teclas, `SessionView`); o tutorial recebe
-  `saveSeen` do app (`render/tutorialStore.ts`), sem `localStorage` em `src/game`.
+  `saveSeen` do app (`render/tutorialStore.ts`), sem `localStorage` em `src/game`. Passo 4: o `Hud` virou só a
+  raiz e a composição de `ui/{topbar,tools,balloon,toasts,tutorial,modal,settings}.ts`, com
+  `ui/anchors.ts` (um passe por quadro para o que fica preso ao mundo: balão, pílula, textos subindo,
+  seta num lugar; só `transform`/`visibility`, testado em `tests/ui`); os botões são medidos para a
+  seta só depois de um `update` ou `resize`, não a cada quadro.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar
