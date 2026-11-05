@@ -16,7 +16,7 @@ const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100
 
 export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
-  houseDown: (delta: number, famine: boolean) => (famine ? `Fome ${delta}` : `${delta}`),
+  houseDown: (delta: number, famine: boolean, cold = false) => (cold ? `Frio ${delta}` : famine ? `Fome ${delta}` : `${delta}`),
   title: 'Jerusalém Antiga',
   start: 'Começar',
   howTo: [
@@ -95,10 +95,12 @@ export const T = {
   },
   /** A family left its tent: famine, or the tent lost its road. */
   familyLeft: (reason: LeaveReason, name: string) =>
-    `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : 'tenda sem rua ligada ao altar'}`,
+    `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
   /** The temple was built before the goal the victory waits for (500 and 8 read from goals.json). */
   templeEarly: `Templo erguido! A vitória vem com ${TEMPLE_GOAL.goal.text.replace(/^Chegue a /, '')}`,
   famine: 'Falta comida: construa pescador ou coletora',
+  coldStart: 'Frio! Acabou a lenha: construa um lenhador',
+  coldEnd: 'A lenha voltou: as casas se aquecem',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
   roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue',
@@ -141,6 +143,9 @@ export const T = {
     if (a.kind === 'material')
       return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: construa ${MAKER[a.material]}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
+    if (a.kind === 'firewood')
+      return a.cold ? 'Frio! Sem lenha, as casas esvaziam. Construa um lenhador' : `A lenha não dura o inverno: faltam ${a.missing} de madeira. Construa um lenhador`;
+    if (a.kind === 'storageFull') return `Estoque de ${PRODUCT[a.material]} cheio (${RULES.materialStorage}): ${a.material === 'wood' ? 'o lenhador parou' : 'a pedreira parou'}`;
     if (a.kind === 'caravan') {
       const fam = `Caravana com ${a.families} ${a.families === 1 ? 'família' : 'famílias'} em ${weeks(a.weeks)}`;
       const also = a.couples ? ` (${a.couples} ${a.couples === 1 ? 'casal também espera' : 'casais também esperam'})` : '';
@@ -153,7 +158,7 @@ export const T = {
       return a.locked
         ? `Estoque cheio (${a.capacity}): o excesso estraga. O celeiro libera no objetivo ${unlockingGoal('granary')}`
         : 'Comida estragando: construa um celeiro';
-    if (a.kind === 'winterComing') return 'O inverno está chegando: todos comem mais, nas tendas mais ainda. Guarde comida';
+    if (a.kind === 'winterComing') return 'O inverno está chegando: guarde comida e lenha. As tendas sofrem mais';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
     return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo ou uma oficina'}`;
   },
@@ -225,6 +230,8 @@ export const T = {
   defeatText: (weeksPlayed: number, peak: number) =>
     `A cidade ficou ${weeks(RULES.debtWeeksToLose)} em dívida. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores.`,
   retry: 'Tentar de novo',
+  /** Defeat: a new game on the same map (same seed). */
+  sameMap: 'Mesmo mapa',
   lockedHint: (kind: Placeable) => `${toolName(kind)}: libera no objetivo ${unlockingGoal(kind)}`,
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
@@ -300,7 +307,7 @@ export const T = {
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
-      lumber: 'Corta árvores e dá madeira. Divide o bosque com a Coletora.',
+      lumber: 'Corta árvores: madeira para obras e lenha do inverno. Divide o bosque com a Coletora.',
       quarry: 'Tira pedra das rochas. Casas de pedra e o Templo precisam dela.',
       market: 'Casas de barro com mercado por perto viram casas de pedra.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
@@ -319,6 +326,11 @@ export const T = {
     offRoad: 'Sem rua ao lado: não rende nada',
     /** Lumber preview: how often it cuts a tree at the wood it brings. */
     cutsEvery: (weeks: number) => `Corta 1 árvore a cada ${weeks} sem`,
+    /** A lumber or quarry whose material store is full. */
+    storeFull: (cap: number) => `Parado: estoque cheio (${cap})`,
+    /** A house with people in autumn and winter: the firewood it burns; with cold, in red. */
+    firewood: (n: number) => `Lenha no inverno: ${fmt(n)}/sem`,
+    cold: 'Frio: falta lenha',
     /** Lumber or gatherer preview when its radius takes trees the other one uses. */
     sharesGrove: (kind: 'lumber' | 'gatherer') => (kind === 'lumber' ? 'Divide o bosque com a Coletora' : 'Divide o bosque com o Lenhador'),
     /** "Onde pôr um lenhador" found no spot with trees (or rocks) next to a road. */

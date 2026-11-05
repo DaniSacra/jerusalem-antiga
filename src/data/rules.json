@@ -4,6 +4,7 @@
   "startMaterials": { "wood": 40, "stone": 0 },
   "treeRegrowWeeks": 104,
   "goodGatherShare": 0.75,
+  "materialStorage": 400,
   "weekSeconds": 3.2,
   "unemploymentAlert": 6,
   "familyCellsPerWeek": 6,

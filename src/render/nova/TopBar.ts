@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import VISUAL from '../../data/visual.json';
-import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, housesWaiting, templeSavings, moodOf, lastsToHarvest, type CityReadout, type GameState, type Material, type Season } from '../../core';
+import { calendar, cityLevel, nextFieldTurn, RULES, seasonOf, currentGoal, foodCapacity, goalCount, goalFraction, goalProgress, goalTarget, happinessOn, housesWaiting, firewoodShort, templeSavings, moodOf, lastsToHarvest, type CityReadout, type GameState, type Material, type Season } from '../../core';
 import { px, type Rect } from '../layout';
 import { NOVA, NOVA_CSS } from '../palette';
 import { fmt, fmtInt, signed, T } from '../strings';
@@ -374,7 +374,9 @@ export class TopBar {
   private materials(s: GameState, made: Record<Material, number>, fit: number) {
     const N = T.nova;
     const waiting = housesWaiting(s);
-    const num = (m: Material): Part => ({ text: (waiting[m] ? '⚠ ' : '') + fmtInt(s[m]), color: waiting[m] ? NOVA_CSS.bad : NOVA_CSS.text, size: S.num });
+    // Wood also goes red when the firewood will not last the winter, or it is cold already.
+    const bad = (m: Material) => waiting[m] > 0 || (m === 'wood' && (s.cold || firewoodShort(s, { wood: made.wood }) > 0));
+    const num = (m: Material): Part => ({ text: (bad(m) ? '⚠ ' : '') + fmtInt(s[m]), color: bad(m) ? NOVA_CSS.bad : NOVA_CSS.text, size: S.num });
     const shown: Material[] = this.stoneShown(s) ? ['wood', 'stone'] : ['wood'];
     if (PHONE) this.mats[0].set(shown.flatMap((m) => [{ icon: TEX.icon(m) }, num(m)]));
     else

@@ -35,7 +35,7 @@ export function cutTrees(s: GameState, eco: Economy, events: GameEvent[]): void 
   for (const b of s.buildings) {
     const every = BUILDINGS[b.kind].cutEvery;
     if (!every || !b.connected) continue;
-    b.cutProgress = round2((b.cutProgress ?? 0) + gatherYield(s, b) * eco.efficiency);
+    b.cutProgress = round2((b.cutProgress ?? 0) + gatherYield(s, b) * eco.efficiency * eco.stored.wood); // only the wood that was stored
     while (b.cutProgress >= every) {
       const i = nextTreeToCut(s, b);
       if (i === null) {

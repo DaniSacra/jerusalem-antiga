@@ -12,6 +12,7 @@ import { rollLook } from './looks';
 import { refreshCity } from './refresh';
 import { lackingMaterial, levelMaterials, payMaterials } from './materials';
 import { cutTrees, regrowTrees } from './trees';
+import { burnFirewood } from './firewood';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameEvent, GameState, LeaveReason, Rng } from './types';
 
@@ -55,8 +56,8 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
     return;
   }
   b.downStreak = 0;
-  if (s.famine) {
-    // Famine pauses the climb (the weeks already counted stay); losing a need resets it.
+  if (s.famine || s.cold) {
+    // Famine or cold (one draw, not two) pauses the climb (the weeks already counted stay); losing a need resets it.
     const winter = seasonOf(s.week) === 'winter';
     if (b.level > 1) {
       if (rng() < RULES.famineDropChance) {
@@ -67,7 +68,7 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
       if (winter) s.winterLoss = true;
       // The family abandons its tent and walks out of the city; the plot waits for a new family.
       changeLevel(s, b, -1, true, rng, events);
-      abandon(s, b, 'famine', events);
+      abandon(s, b, s.famine ? 'famine' : 'cold', events);
     }
     return;
   }
@@ -178,6 +179,8 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   s.silver = round2(s.silver + eco.silverDelta);
   s.wood = round2(s.wood + eco.wood);
   s.stone = round2(s.stone + eco.stone);
+  burnFirewood(s, events);
+  if (s.cold) s.winterLoss = true;
   // Cut first: the cut count follows the trees the week's wood came from, and a tree that grows
   // back this week is not felled before it is seen.
   cutTrees(s, eco, events);

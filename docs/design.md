@@ -57,9 +57,25 @@ Mantidos:
 - 2026-11-05 (usuário): botão "3D" na coluna esquerda abre a cidade do jogador em 3D (Three.js,
   porta da prova `spike/threejs`), só para olhar: o jogo pausa enquanto está aberta. O 2D continua
   sendo o jogo; o 3D vem num pedaço separado e não pesa na primeira carga.
+- 2026-11-05 (diretor): escopo do P4 "Lenha e inverno" (`docs/revisoes/2026-11-05/plano-p4.md`).
+  Mecânica nova (uma): no inverno, cada casa com gente queima lenha do estoque de madeira (`houses.json
+  > firewood` 0/0,3/0,2/0,15/0,15 por semana). Sem lenha a cidade passa frio, e o frio tem nas casas
+  o mesmo efeito da fome (`famine || cold`, mesmos números). O W4 fecha com um limite: o estoque guarda
+  no máximo 400 de madeira e 400 de pedra (`rules.json > materialStorage`). Cheio, o Lenhador e a
+  Pedreira param e não cortam árvores. A manutenção em pedra foi descartada. Motivo: é a lenha que
+  o usuário pediu, sem recurso nem construção novos. O limite copia a regra da comida e é o mais
+  simples dos dois caminhos que o usuário aceitou para o W4.
+
+## Agora: P4 "Lenha e inverno" (escopo 2026-11-05)
+Especificação: `docs/revisoes/2026-11-05/plano-p4.md`. Queima só no inverno e sai depois da
+produção. Frio = madeira insuficiente na semana. Aviso `firewood` ("faltam N de madeira") no outono e
+no inverno. Pílula da madeira vermelha. Toasts de frio. Balão da casa "Lenha no inverno: N/sem".
+Casas sem fumaça no frio. "Parado: estoque cheio". Critérios novos F1–F4 (frio em 25–50% das
+partidas do Comum, ≤ 15% no Ano 1) e W4b ≤ 15/100. Alavancas na seção 8 do plano. Fora: roupas,
+plantio, depósito, manutenção em pedra, frio na alegria e nos nascimentos.
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
-1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·
+1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (agora, P4) · 4. Obras com tempo ·
 5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
 10. Doenças · 11. Eventos da época · 12. Incêndio
 

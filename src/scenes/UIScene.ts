@@ -14,7 +14,8 @@ export interface UiHost {
   setSpeed(v: Speed): void;
   turnMap(dir: 1 | -1): void;
   applySettings(): void;
-  restart(): void;
+  /** A new game: a new map, or the same map (same seed) with `sameMap`. */
+  restart(sameMap?: boolean): void;
   skipTutorial(): void;
   tutorialOk(): void;
   attachUi(ui: UIScene): void;
@@ -161,19 +162,27 @@ export class UIScene extends Phaser.Scene {
 
   /** `births` and `weddings`: of the whole game (the city's own story, a second line). */
   showVictory(weeks: number, residents: number, births: number, weddings: number) {
-    this.dialog(T.victoryTitle, `${T.victoryText(weeks, residents)}\n${T.victoryPeople(births, weddings)}`, T.keepBuilding, () => {
-      this.modal?.destroy();
-      this.modal = null;
-    });
+    this.dialog(T.victoryTitle, `${T.victoryText(weeks, residents)}\n${T.victoryPeople(births, weddings)}`, [
+      [
+        T.keepBuilding,
+        () => {
+          this.modal?.destroy();
+          this.modal = null;
+        },
+      ],
+    ]);
   }
 
-  /** The game stays paused behind it; "Tentar de novo" starts a new map. */
+  /** The game stays paused behind it; "Mesmo mapa" replays the same seed, "Tentar de novo" starts a new map. */
   showDefeat(weeks: number, peak: number) {
-    this.dialog(T.defeatTitle, T.defeatText(weeks, peak), T.retry, () => this.host.restart());
+    this.dialog(T.defeatTitle, T.defeatText(weeks, peak), [
+      [T.sameMap, () => this.host.restart(true)],
+      [T.retry, () => this.host.restart()],
+    ]);
   }
 
-  /** Modal panel (pauses the game) with a title, a message and one button. */
-  private dialog(title: string, message: string, label: string, onClick: () => void) {
+  /** Modal panel (pauses the game) with a title, a message and one or two buttons side by side. */
+  private dialog(title: string, message: string, buttons: [label: string, onClick: () => void][]) {
     const w = 680;
     const h = 300;
     const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, C.shadow, 0.5).setOrigin(0).setInteractive();
@@ -181,7 +190,11 @@ export class UIScene extends Phaser.Scene {
     panel(g, (GAME_W - w) / 2, (GAME_H - h) / 2, w, h, C.parchment, 18);
     const head = text(this, GAME_W / 2, GAME_H / 2 - 100, title, 44, CSS.ink, true).setOrigin(0.5);
     const msg = text(this, GAME_W / 2, GAME_H / 2 - 22, message, 22, CSS.ink).setOrigin(0.5).setAlign('center').setWordWrapWidth(w - 80);
-    const btn = button(this, GAME_W / 2, GAME_H / 2 + 80, 380, 84, label, 28, onClick);
-    this.modal = this.add.container(0, 0, [dim, g, head, msg, btn.container]).setDepth(100);
+    const bw = buttons.length > 1 ? 290 : 380;
+    const btns = buttons.map(([label, onClick], i) => {
+      const x = GAME_W / 2 + (i - (buttons.length - 1) / 2) * (bw + 24);
+      return button(this, x, GAME_H / 2 + 80, bw, 84, label, 28, onClick).container;
+    });
+    this.modal = this.add.container(0, 0, [dim, g, head, msg, ...btns]).setDepth(100);
   }
 }

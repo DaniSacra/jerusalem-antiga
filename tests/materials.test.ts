@@ -144,6 +144,7 @@ describe('lumber and quarry yield', () => {
   it('lumber: capped at max, and scaled by the worker efficiency', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 1, false, 2); // a tent with 2 workers
+    s.wood = 0; // below the store cap
     const b = lumberAt(s);
     put(s, 'field', 1, 1); // disconnected: no jobs
     for (let y = 27; y <= 34; y++) plant(s, 'olive', [[27, y], [28, y]]);
@@ -354,6 +355,7 @@ describe('houses waiting for material', () => {
     expect(a.waiting).toBe('stone');
     expect(housesWaiting(s)).toEqual({ wood: 0, stone: 2 });
     s.stone = 12;
+    s.wood = 50; // firewood, should the week be a winter one
     const events = run(s, 1);
     expect(events).toContainEqual({ type: 'houseUp', x: EAST, y: 27, level: 3, delta: HOUSE_LEVELS[3].capacity - HOUSE_LEVELS[2].capacity });
     expect(a.level).toBe(3);

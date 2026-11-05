@@ -162,6 +162,32 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   ("Perde N de comida"). No celular, Demolir arrastado pula o que perderia comida e avisa uma vez
   por gesto: "Isso perde comida: toque nele para demolir".
 
+## Lenha e inverno (Pacote 4)
+Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
+- **Queima:** em cada semana de **inverno**, cada casa com gente queima a `firewood` do nível
+  (`houses.json`): Tenda **0,3**, Barro **0,2**, Pedra **0,15**, Casa grande **0,15**; o terreno
+  vazio não queima. Sai de `s.wood` depois da produção da semana. Fora do inverno nada queima. A
+  lenha é a própria madeira (sem recurso novo).
+- **Frio:** se a madeira não paga a queima da semana, a cidade queima o que tem, a madeira vai a 0 e
+  `s.cold` fica verdadeiro (eventos `coldStart` / `coldEnd`). No frio as casas sofrem **como na
+  fome**, com os mesmos números (a subida pausa; nível > 1 cai com `famineDropChance`; tenda sai com
+  `winterFamineLeaveChance`); fome e frio juntos fazem **um** sorteio só. Família que sai pelo frio tem
+  o motivo `cold`. O frio marca `winterLoss`.
+- **Limite do estoque:** madeira e pedra guardam no máximo **400** cada (`materialStorage`,
+  `rules.json`). A produção só entra até o limite; um estoque acima não é cortado. Lenhador ou
+  Pedreira com o estoque cheio rende 0, e o Lenhador só corta árvores pela madeira que entrou.
+- **Previsão:** `firewoodShort(s, eco)` no outono e no inverno: a madeira que falta para queimar até a
+  primavera (estoque + produção até lá contra a queima das semanas de inverno que faltam).
+- **Avisos:** `firewood` logo depois da comida ("A lenha não dura o inverno: faltam N de madeira.
+  Construa um lenhador"; com frio "Frio! Sem lenha, as casas esvaziam. Construa um lenhador");
+  `storageFull` por último ("Estoque de pedra cheio (400): a pedreira parou"); `winterComing` vale com
+  qualquer casa com gente ("O inverno está chegando: guarde comida e lenha. As tendas sofrem mais").
+- **Tela:** a madeira do topo fica vermelha com ⚠ quando a lenha não dura ou com frio; toasts "Frio!
+  Acabou a lenha: construa um lenhador" e "A lenha voltou: as casas se aquecem"; balão da casa no
+  outono e no inverno "Lenha no inverno: N/sem" (com frio, vermelho "Frio: falta lenha"); balão do
+  Lenhador/Pedreira cheio "Parado: estoque cheio (400)"; no frio as chaminés param de soltar fumaça;
+  casa que cai no frio mostra "Frio -N".
+
 ## Ruas e conexão
 
 - A **rede conectada** são as ruas ligadas ao altar por vizinhança ortogonal (busca em largura a
@@ -434,8 +460,8 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 - Ao entrar em dívida: toast "Cidade em dívida: toque na prata" e, se
   estiver em 3x, a velocidade cai para 1x. Ao sair: toast "A cidade saiu da dívida!".
 - Derrota: tela "Jerusalém foi abandonada" com o tempo jogado ("N anos e N semanas") e a maior
-  população alcançada, e o botão "Tentar de novo" (novo mapa, nova semente). Depois da derrota a
-  simulação para.
+  população alcançada, e dois botões lado a lado: "Mesmo mapa" (jogo novo na mesma semente, da
+  semana 0) e "Tentar de novo" (novo mapa, nova semente). Depois da derrota a simulação para.
 - **Avisos** (`alerts()` no core), no botão Avisos e na lista de problemas das Estatísticas (PC),
   nesta ordem: dívida ("Em dívida: N semanas para a cidade ser abandonada. Reduza a manutenção"; com fome ao
   mesmo tempo: "Dívida e fome: demolir serviços corta a manutenção · N semanas"); fome; "A comida
@@ -617,7 +643,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     "Casas esperando madeira/pedra ⚠ N" quando há casa esperando, e o número de tocos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
   - **3D** (botão redondo com "3D", embaixo das Estatísticas): abre a **cidade do jogador em 3D**
-    (veja Visão 3D).
+    (veja Visão 3D). Em telas baixas (celular 800 x 360) os quatro botões da coluna ficam mais
+    juntos (no mínimo 6 px) para o 3D ficar sempre a 15 px ou mais acima do Mover.
 - **Visão 3D** (`src/render3d/view.ts`, Three.js): uma camada de tela cheia sobre o jogo, com o
   `GameState` vivo só para leitura. Mostra todas as construções (casas por nível; casa vazia que
   guardou o nível com o desenho desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e

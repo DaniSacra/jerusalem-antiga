@@ -14,6 +14,10 @@ import {
   unlockingGoal,
   lackingMaterial,
   makerOf,
+  materialMadeBy,
+  RULES,
+  seasonOf,
+  storageFull,
   nextLevelOf,
   regrowLeft,
   statOf,
@@ -224,6 +228,9 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null): Card {
       gap = 0;
     }
     const left = weeksToNextLevel(s, b);
+    const season = seasonOf(s.week);
+    if (s.cold) level.push({ text: T.nova.cold, color: NOVA_CSS.bad });
+    else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), color: NOVA_CSS.muted, bold: false });
     if (s.famine) level.push({ text: N.famine, color: NOVA_CSS.bad });
     else if (wait) level.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), color: NOVA_CSS.bad, gap: px(4) });
     else if (left !== null) level.push({ text: N.nextIn(h.next.name, left), color: NOVA_CSS.good });
@@ -266,6 +273,8 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
     out.push(n > 0 ? { text: N.yields(n, def.gather.product), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
     const every = def.cutEvery ? weeksPerCut(n) : null;
     if (every) out.push({ text: N.cutsEvery(every), color: NOVA_CSS.muted, bold: false });
+    const made = materialMadeBy(b.kind as BuildableKind);
+    if (made && storageFull(s, made)) out.push({ text: N.storeFull(RULES.materialStorage), color: NOVA_CSS.bad });
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });

@@ -32,6 +32,7 @@ export function createGame(rng: Rng): GameState {
     stumps: [],
     week: 0,
     famine: false,
+    cold: false,
     goalIndex: 0,
     unlocked: [...RULES.startUnlocked],
     won: false,

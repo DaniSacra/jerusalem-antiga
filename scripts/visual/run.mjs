@@ -1133,6 +1133,16 @@ const pillText = (page, name) =>
 
 /** No two parts of the top bar overlap. */
 async function assertTopFits(page, when) {
+  // The left column keeps clear gaps: between its round buttons, and from the 3D button down to Mover.
+  const k = await page.evaluate(() => document.querySelector('canvas').getBoundingClientRect().width / 1280);
+  const by = Object.fromEntries(sizes.map((b) => [b.n, b]));
+  const column = ['side-goals', 'side-alerts', 'side-stats', 'side-3d'];
+  for (let i = 1; i < column.length; i++) {
+    const gap = (by[column[i]].top - by[column[i - 1]].bottom) * k;
+    assert(gap >= 6, `${column[i - 1]} and ${column[i]} are at least 6 real px apart (got ${gap.toFixed(1)})`);
+  }
+  const toMover = (by['tool-view'].top - by['side-3d'].bottom) * k;
+  assert(toMover >= 12, `the 3D button is at least 12 real px above Mover (got ${toMover.toFixed(1)})`);
   const overlaps = await page.evaluate(() => {
     const r = window.game.ui.view.top.rects().filter(Boolean);
     const out = [];
@@ -2771,9 +2781,26 @@ const scenarios = {
     assert(await page.evaluate(() => window.game.ui.modalOpen), 'the defeat screen is open');
     await shot(page, 'defeat');
 
-    await page.mouse.click(GAME_W / 2, GAME_H / 2 + 80); // Tentar de novo
-    await page.waitForFunction(() => window.state && !window.state.lost && window.state.week === 0 && window.state.silver >= 0, null, { timeout: 5000 });
+    // Mesmo mapa (left button): a new game on the same seed. The seed is changed first so the replay
+    // is proven to come from the game's seed, not from the ?seed of the test URL.
+    await page.evaluate(() => {
+      window.game.seed = 4242;
+      window.state.oldGame = true; // marks the lost game: the new one has no mark
+    });
+    await page.mouse.click(GAME_W / 2 - 157, GAME_H / 2 + 80); // Mesmo mapa
+    await page.waitForFunction(() => window.state && !window.state.oldGame && !window.state.lost && window.state.week === 0, null, { timeout: 5000 });
     await page.waitForTimeout(600);
+    assert(await page.evaluate(() => window.game.seed === 4242), 'Mesmo mapa keeps the seed');
+    assert(await page.evaluate(() => !window.game.ui?.modalOpen), 'Mesmo mapa starts without the dialog');
+    await shot(page, 'defeat-same-map');
+
+    await page.evaluate(() => window.game.ui.showDefeat(3, 10));
+    await page.waitForTimeout(300);
+    await page.evaluate(() => (window.state.oldGame = true));
+    await page.mouse.click(GAME_W / 2 + 157, GAME_H / 2 + 80); // Tentar de novo (right button)
+    await page.waitForFunction(() => window.state && !window.state.oldGame && !window.state.lost && window.state.week === 0 && window.state.silver >= 0, null, { timeout: 5000 });
+    await page.waitForTimeout(600);
+    assert(await page.evaluate(() => window.game.seed !== 4242), 'Tentar de novo draws a new map (here the ?seed of the URL)');
     assert(await page.evaluate(() => !window.game.ui?.modalOpen), 'a new game starts without the dialog');
     await shot(page, 'defeat-retry');
   },

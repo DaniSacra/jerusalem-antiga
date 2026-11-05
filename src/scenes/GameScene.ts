@@ -18,7 +18,6 @@ import {
   lumberSpot,
   lackingMaterial,
   missingMaterial,
-  productOf,
   type FoodSpot,
   inBounds,
   isTree,
@@ -26,6 +25,7 @@ import {
   place,
   RULES,
   gatherSpots,
+  materialMadeBy,
   spotsServing,
   stepWeek,
   templeSpotsNear,
@@ -47,7 +47,6 @@ import {
   type Economy,
   type GameEvent,
   type GameState,
-  type Material,
   type Rng,
 } from '../core';
 import { Ambient } from '../render/Ambient';
@@ -78,11 +77,6 @@ const TOUCH_BUILD_DELAY = 150;
 /** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
 const TOUCH_LIFT = 90;
 const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
-/** The material a lumber or quarry makes (null for any other kind). */
-const materialOf = (kind: BuildableKind): Material | null => {
-  const p = productOf(kind);
-  return p === 'wood' || p === 'stone' ? p : null;
-};
 
 /** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
 function orthoSteps(a: Cell, b: Cell): Cell[] {
@@ -202,11 +196,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return SPEEDS[this.speedIndex];
   }
 
-  /** `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once. */
-  create(data?: { tutorial?: boolean }) {
+  /**
+   * `tutorial` forces the tutorial ("Ver tutorial de novo"); otherwise it runs until seen once.
+   * `seed` replays a map ("Mesmo mapa" on the defeat screen).
+   */
+  create(data?: { tutorial?: boolean; seed?: number }) {
     generateTextures(this);
     generateUiArt(this);
-    const seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
+    const seed = data?.seed ?? devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
     this.seed = seed;
     this.rng = createRng(seed);
     this.seasons = new SeasonClock(seed);
@@ -346,11 +343,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
           break;
         case 'houseDown': {
           const c = footCenter(e.x, e.y);
-          this.fx.floatText(c.x, c.y - 30, T.houseDown(e.delta, e.famine), CSS.bad);
+          this.fx.floatText(c.x, c.y - 30, T.houseDown(e.delta, e.famine, e.famine && this.state.cold && !this.state.famine), CSS.bad);
           break;
         }
         case 'famineStart':
           this.ui?.toast(T.famine, 'bad');
+          break;
+        case 'coldStart':
+          this.ui?.toast(T.coldStart, 'bad');
+          break;
+        case 'coldEnd':
+          this.ui?.toast(T.coldEnd, 'good');
           break;
         case 'goal':
           this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
@@ -493,7 +496,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (this.tool !== kind) this.selectTool(kind);
     if (this.tool !== kind || kind === 'road') return;
     this.spots = { kind, target };
-    const m = materialOf(kind);
+    const m = materialMadeBy(kind);
     if (!this.drawSpots()) this.ui?.hint(m ? T.nova.noGatherSpot(m) : T.nova.inspect.noSpot, true);
   }
 
@@ -504,7 +507,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
       this.map.clearSpots();
       return false;
     }
-    const spots: (Cell & { rotated?: boolean })[] = materialOf(sp.kind) ? gatherSpots(this.state, sp.kind) : spotsServing(this.state, sp.kind, sp.target);
+    const spots: (Cell & { rotated?: boolean })[] = materialMadeBy(sp.kind) ? gatherSpots(this.state, sp.kind) : spotsServing(this.state, sp.kind, sp.target);
     const rects = spots.map((c) => ({ x: c.x, y: c.y, ...dimsOf(sp.kind, c.rotated) }));
     this.map.showSpots(rects);
     return rects.length > 0;
@@ -639,11 +642,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.dayNight.applySettings();
   }
 
-  /** New map, new seed: back to the start of the game. */
-  restart() {
+  /** Back to the start of the game: a new map (new seed), or the same map with `sameMap`. */
+  restart(sameMap = false) {
     this.scene.stop('ui');
     this.scene.stop('weather');
-    this.scene.restart();
+    // Always new data: Phaser keeps the last start data when none is given (an old seed or tutorial flag).
+    this.scene.restart(sameMap ? { seed: this.seed } : {});
   }
 
   /**

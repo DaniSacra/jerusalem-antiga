@@ -30,3 +30,4 @@ export * from './harvest';
 export * from './forecast';
 export * from './materials';
 export * from './trees';
+export * from './firewood';

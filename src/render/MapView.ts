@@ -1028,7 +1028,8 @@ export class MapView {
 
   /** Chimney smoke: a little all year, from every house in winter. */
   private paintSmoke() {
-    const per = (this.look?.smoke ?? 0) * WEATHER.smokePerHouse * (this.degraded ? 0.5 : 1);
+    // No firewood, no fire: the chimneys go cold.
+    const per = this.state.cold ? 0 : (this.look?.smoke ?? 0) * WEATHER.smokePerHouse * (this.degraded ? 0.5 : 1);
     const rate = per * this.chimneys.length;
     const on = rate > 0.2;
     if (on && rate !== this.smokeShare) this.smoke.setFrequency(1000 / rate);

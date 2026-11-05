@@ -21,9 +21,11 @@ export interface Economy {
   /** Food made this week (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
   foodMade: number;
   foodEaten: number;
-  /** Wood and stone made this week (lumbers and quarries, after efficiency). */
+  /** Wood and stone made this week (lumbers and quarries, after efficiency), up to the store cap. */
   wood: number;
   stone: number;
+  /** Share of the made wood and stone that fits the store (1: all of it; 0: the store is full). */
+  stored: Record<Material, number>;
   /** Weekly silver balance: taxes - upkeep. */
   silverDelta: number;
   taxes: number;
@@ -99,6 +101,12 @@ export function computeEconomy(s: GameState): Economy {
     moods[moodOf(h)]++;
   }
   const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
+  // The store keeps at most materialStorage of each material: production stops at it (never cut).
+  const fits = (m: Material) => {
+    const n = made[m] * efficiency;
+    return n > 0 ? Math.min(1, Math.max(0, RULES.materialStorage - s[m]) / n) : 1;
+  };
+  const stored: Record<Material, number> = { wood: fits('wood'), stone: fits('stone') };
   const sum = (r: Partial<Record<BuildingKind, number>>) => Object.values(r).reduce((a, v) => a + v, 0);
   return {
     residents,
@@ -110,8 +118,9 @@ export function computeEconomy(s: GameState): Economy {
     harvest: round2(harvest * efficiency),
     foodMade: round2(foodProd * efficiency),
     foodEaten: round2(eaten),
-    wood: round2(made.wood * efficiency),
-    stone: round2(made.stone * efficiency),
+    wood: round2(made.wood * efficiency * stored.wood),
+    stone: round2(made.stone * efficiency * stored.stone),
+    stored,
     silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),
     upkeep,

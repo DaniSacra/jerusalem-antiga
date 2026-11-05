@@ -34,10 +34,13 @@ export class Tools {
   constructor(private scene: Phaser.Scene, onPanel: (p: PanelKind) => void, onTool: (t: Tool) => void, on3d: () => void) {
     const cx = S.margin + S.side / 2;
     let y = S.margin + S.level + S.gap * 2 + S.side / 2;
+    // Short screens (800 x 360): the four side buttons close up so the last one keeps a clear gap above Mover.
+    const room = this.top - S.sideGap * 1.5 - (y - S.side / 2) - 4 * S.side;
+    const step = S.side + Math.min(S.sideGap, room / 3);
     for (const [kind, ic] of [['goals', 'flag'], ['alerts', 'alert'], ['stats', 'stats']] as const) {
       const btn = new RoundButton(scene, cx, y, S.side, S.side, [icon(scene, ic, S.side * 0.56)], () => onPanel(kind));
       this.side.push([kind, btn]);
-      y += S.side + S.sideGap;
+      y += step;
     }
     this.view3d = new RoundButton(scene, cx, y, S.side, S.side, [ntext(scene, 0, 0, T.view3d.badge, S.num, NOVA_CSS.ink).setOrigin(0.5)], on3d);
     // Red selo with the number of alerts, top right of the Avisos button.

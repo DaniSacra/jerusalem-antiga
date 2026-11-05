@@ -50,7 +50,7 @@ export type MilestoneId =
 export type Sex = 'm' | 'f';
 export type AgeBand = 'child' | 'adult' | 'elder';
 /** Why a person left the city: died of age, left with the family (famine, no road, demolished house) or found no house. */
-export type EndCause = 'age' | 'famine' | 'road' | 'demolished' | 'noHouse';
+export type EndCause = 'age' | 'famine' | 'cold' | 'road' | 'demolished' | 'noHouse';
 
 /**
  * A person of the city. Children are not stored (see `childrenOf`), nor the job (see `jobsOf`);
@@ -218,6 +218,8 @@ export interface HouseLevelDef {
   needs: NeedKind[];
   /** Materials paid when a house climbs to this level (see houses in simulation.ts). */
   materials?: Materials;
+  /** Wood a house of this level burns in a winter week (see firewood.ts). */
+  firewood?: number;
 }
 
 export interface GoalDef {
@@ -251,6 +253,8 @@ export interface Rules {
   treeRegrowWeeks: number;
   /** "Onde pôr um lenhador": spots bringing at least this share of the best one are shown. */
   goodGatherShare: number;
+  /** Most wood and most stone the city stores; a lumber or quarry stops at it. */
+  materialStorage: number;
   weekSeconds: number;
   /** Weeks in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
   weeksPerSeason: number;
@@ -462,6 +466,8 @@ export interface GameState {
   /** Weeks elapsed. */
   week: number;
   famine: boolean;
+  /** Winter without firewood: houses suffer as in a famine (see firewood.ts). */
+  cold: boolean;
   goalIndex: number;
   unlocked: Placeable[];
   won: boolean;
@@ -504,6 +510,8 @@ export type GameEvent =
   | { type: 'houseDown'; x: number; y: number; level: number; delta: number; famine: boolean }
   | { type: 'famineStart' }
   | { type: 'famineEnd' }
+  | { type: 'coldStart' }
+  | { type: 'coldEnd' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
   | { type: 'victory'; week: number; residents: number }
   /** A family abandoned its tent (during famine, or because it lost its road) and walks out of the city from (x, y); `name` is its family name. */
@@ -538,7 +546,7 @@ export type GameEvent =
   | { type: 'treeRegrown'; x: number; y: number; kind: TreeFeature };
 
 /** Why a family left its tent: famine, or the tent lost its road (it dropped back to a plot). */
-export type LeaveReason = 'famine' | 'road';
+export type LeaveReason = 'famine' | 'cold' | 'road';
 
 /** `materials`: not enough wood or stone (see `missingMaterial`). */
 export type FailReason = 'locked' | 'invalid' | 'silver' | 'materials' | 'debt' | 'noRoad' | 'protected';

@@ -726,11 +726,13 @@ describe('alerts (order)', () => {
     expect(alerts(s).map((a) => a.kind)).toEqual(['debt', 'foodShort', 'spoiling', 'noBirths', 'deficit']); // the couple cannot have children: food is short
   });
 
-  it('at the end of autumn: spoiling before the winter warning; no warning without tents', () => {
+  it('at the end of autumn: spoiling before the winter warning; no warning without houses with people', () => {
     const s = emptyGame({ week: W - 1, spoiled: 2, food: 40 });
     const tent = put(s, 'house', ROADSIDE, 27, 1);
     expect(alerts(s).map((a) => a.kind)).toEqual(['spoiling', 'winterComing']);
     tent.level = 2;
+    expect(alerts(s).map((a) => a.kind)).toEqual(['spoiling', 'winterComing']);
+    tent.level = 0;
     expect(alerts(s).map((a) => a.kind)).toEqual(['spoiling']);
   });
 
