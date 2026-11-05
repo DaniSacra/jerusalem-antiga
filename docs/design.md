@@ -49,8 +49,9 @@ Mantidos:
 - 2026-11-05 (diretor): A6 62% aceito (ruído; `winterFactor` 0,4 derrubaria A9). Toast que volta
   depois do balão: só 1, o aviso que ainda vale; notícias passadas saem. Pílula da pedra só depois da
   Pedreira também no PC; sem balão de material no mapa (a falta é do estoque, não do lugar)
-- Pendente do usuário: A2 → "Comum 50–80%, Distraído ≤ 20%, derrotas ≤ 5%" (recomendado); pedra nos
-  níveis de serviço (20/40) para W4 antes do merge do P3 (recomendado, ~3–4 h)
+- Decidido pelo usuário (2026-11-04): A2 passa a ser "Comum vence 50–80%, Distraído ≤ 20%, derrotas
+  do Comum ≤ 5%"; Celeiro, Mercado e Oficina pedem pedra para subir (20 no nível 2, 40 no nível 3)
+  já no P3. Daqui em diante, as opções recomendadas entram sem perguntar: entregar e ajustar depois.
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
 1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·

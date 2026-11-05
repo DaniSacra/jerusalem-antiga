@@ -70,3 +70,7 @@ Os testes visuais de `materials` são atualizados e o `GAME_DESIGN.md` também (
 1. **A2:** aprovar a troca para "Comum 50–80%, Distraído ≤ 20%, derrotas ≤ 5%" ou manter ~30%.
 2. **W4:** aprovar pedra nos níveis de serviço (20/40) antes do merge (~3–4 h) ou deixar para depois.
 3. (opcional) As duas perguntas da seção 6, se quiser mudar a recomendação.
+
+## Decisão do usuário (2026-11-04)
+- A2: aprovada a troca para "Comum 50–80%, Distraído ≤ 20%, derrotas ≤ 5%".
+- W4: aprovada a pedra nos níveis de serviço (20/40) antes do merge; feita no commit "Service levels cost stone".
