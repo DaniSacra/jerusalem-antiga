@@ -101,7 +101,8 @@ export class Atmosphere {
     scene.add(this.sky);
   }
 
-  apply(L: FrameLight, time: number, wind: number, heat: number, camera: THREE.Camera) {
+  /** `viewDist`: the camera's distance to what it looks at (the haze starts behind it, so a far view still shows the city). */
+  apply(L: FrameLight, time: number, wind: number, heat: number, camera: THREE.Camera, viewDist: number) {
     const d = L.sunDir;
     this.sun.position.set(this.centre.x + d.x * 80, d.y * 80, this.centre.z + d.z * 80);
     this.sun.color.setHex(L.sunColor);
@@ -113,8 +114,9 @@ export class Atmosphere {
     this.hemi.groundColor.setHex(L.hemiGround);
     this.hemi.intensity = L.hemiIntensity;
     this.fog.color.setHex(L.fog);
-    this.fog.near = LOOK.fog.near * L.fogScale;
-    this.fog.far = LOOK.fog.far * L.fogScale;
+    const back = Math.max(0, viewDist - LOOK.fog.clear);
+    this.fog.near = LOOK.fog.near * L.fogScale + back;
+    this.fog.far = LOOK.fog.far * L.fogScale + back;
     const u = this.skyMat.uniforms;
     (u.uTop.value as THREE.Color).setHex(L.skyTop);
     (u.uHorizon.value as THREE.Color).setHex(L.skyHorizon);

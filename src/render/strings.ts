@@ -296,7 +296,7 @@ export const T = {
     /** Upkeep per week, on its own line under the cost. */
     upkeep: (upkeep: number) => T.nova.inspect.upkeep(upkeep),
     /** Balloon of the chosen building: price and upkeep per week. */
-    price: (cost: number, upkeep: number) => (upkeep ? `${cost} prata · ${fmt2(upkeep)} por semana` : `${cost} prata`),
+    price: (cost: number, upkeep: number) => (upkeep ? `${cost} prata · manutenção ${fmt2(upkeep)}/sem` : `${cost} prata`),
     jobs: (n: number) => `${n} ${n === 1 ? 'vaga' : 'vagas'}`,
     reach: (n: number) => `alcance ${n}`,
     balanceAfter: (n: number) => `Saldo depois: ${signed(n)}/sem`,

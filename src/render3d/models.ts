@@ -69,7 +69,7 @@ const materials = new Map<string, THREE.Material>();
 
 /**
  * Shared flat-shaded material per colour (emissive for fire), patched with the world effects:
- * snow on upward faces, wetness and cloud shadows; the dark of windows and doors glows at night,
+ * snow on upward faces (not on roads), wetness and cloud shadows; the dark of windows and doors glows at night,
  * the crops grow with the season.
  */
 function mat(color: number, emissive = false): THREE.Material {
@@ -79,7 +79,8 @@ function mat(color: number, emissive = false): THREE.Material {
     m = emissive
       ? new THREE.MeshBasicMaterial({ color })
       : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
-          snow: true,
+          // Trodden roads stay clear of snow, so the town still reads in winter.
+          snow: color !== COLORS.road,
           windows: color === COLORS.dark,
           grow: (CROPS as readonly number[]).includes(color),
         });

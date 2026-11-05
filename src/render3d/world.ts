@@ -44,6 +44,8 @@ export class World {
   /** The city's instances, and each building's copies in them (its hop, see `lift`). */
   private inst: Instancer | null = null;
   private copies = new Map<number, [ModelKey, number][]>();
+  /** The models' own geometries and textures: shared by every build (and the preview ghost), never freed here. */
+  private shared = new WeakSet<object>();
 
   constructor(
     private s: GameState,
@@ -51,6 +53,7 @@ export class World {
     private models: Record<ModelKey, Prototype>,
     private shadows: boolean,
   ) {
+    this.share(models);
     this.ground = new Terrain(s, seed);
     this.land.add(this.ground.mesh());
     this.water = new Water(s);
@@ -74,7 +77,16 @@ export class World {
   /** Other models for the city (the .glb pack arrived): its buildings and props are drawn again. */
   setModels(models: Record<ModelKey, Prototype>) {
     this.models = models;
+    this.share(models);
     this.buildCity();
+  }
+
+  private share(models: Record<ModelKey, Prototype>) {
+    for (const { parts } of Object.values(models))
+      for (const { geometry, material } of parts) {
+        this.shared.add(geometry);
+        for (const v of Object.values(material)) if (v instanceof THREE.Texture) this.shared.add(v);
+      }
   }
 
   /**
@@ -101,7 +113,7 @@ export class World {
   }
 
   private buildCity() {
-    free(this.city);
+    free(this.city, this.shared);
     const s = this.s;
     const ground = this.ground;
     const inst = (this.inst = new Instancer(this.models));
@@ -175,7 +187,7 @@ export class World {
   }
 
   private buildPeople() {
-    free(this.people);
+    free(this.people, this.shared);
     const s = this.s;
     this.walkers = new Walkers(s, this.ground, walkerCount(residentsOf(s)), this.shadows);
     this.families = new Families(s, this.ground, this.shadows);
@@ -184,19 +196,20 @@ export class World {
   }
 
   dispose() {
-    for (const g of [this.land, this.city, this.people]) free(g);
+    for (const g of [this.land, this.city, this.people]) free(g, this.shared);
     this.group.removeFromParent();
   }
 }
 
 /**
- * Empties a group, freeing its instance buffers, geometries and textures. Materials are kept: their
- * shader programs are shared with the next build, which would compile them again.
+ * Empties a group, freeing its instance buffers, geometries and textures, but not the models' own
+ * (`shared`: every build and the preview ghost use them; a freed texture of the .glb pack came back
+ * dark). Materials are kept: their shader programs are shared with the next build.
  */
-function free(group: THREE.Group) {
+function free(group: THREE.Group, shared: WeakSet<object>) {
   const done = new Set<object>();
   const once = (o: { dispose(): void } | null | undefined) => {
-    if (!o || done.has(o)) return;
+    if (!o || done.has(o) || shared.has(o)) return;
     done.add(o);
     o.dispose();
   };

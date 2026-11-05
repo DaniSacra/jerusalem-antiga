@@ -85,6 +85,11 @@ export class CameraRig {
     this.apply();
   }
 
+  /** How far the camera is from the point it looks at (world units). */
+  get distance(): number {
+    return this.dist;
+  }
+
   /** The view's scale: 1 at the opening distance, larger when closer. */
   get zoom(): number {
     return DIST0 / this.dist;

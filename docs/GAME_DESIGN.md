@@ -711,8 +711,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     a rua marcada do tutorial, as áreas do Templo, os lugares de "Onde construir" e, com Demolir, a
     construção sob o cursor em vermelho.
   - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; só a Rua
-    constrói arrastando; as outras construções e Demolir agem uma vez, ao soltar (no toque, mirada 90 px acima do
-    dedo); pinça ou roda dá zoom em volta do dedo/cursor (a roda pelo quanto rolou: ~14% por dente,
+    constrói arrastando; as outras construções e Demolir agem uma vez, ao soltar (no toque, as
+    construções miram 90 px acima do dedo; Demolir age sob o dedo); pinça ou roda dá zoom em volta do dedo/cursor (a roda pelo quanto rolou: ~14% por dente,
     e o touchpad fica suave); dois dedos girando giram só depois de ~12° de torção (uma pinça de zoom
     não entorta o mapa); botão direito ou do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os
     botões giram até a próxima das 4 vistas padrão (desfazem um giro livre). Tocar no mapa com um
@@ -1084,8 +1084,8 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   fica sempre conectada.
 - Todas as outras construções (Casa e Campo inclusive) e Demolir agem uma vez, **ao soltar
   o dedo**: dá para arrastar para
-  ajustar a prévia, e o segundo dedo de uma pinça nunca constrói por engano. No toque, eles miram
-  90 px acima do dedo, para a prévia não ficar escondida; se o ponto mirado cair sob a interface,
+  ajustar a prévia, e o segundo dedo de uma pinça nunca constrói por engano. No toque, as
+  construções (não Demolir, que age sob o dedo) miram 90 px acima do dedo, para a prévia não ficar escondida; se o ponto mirado cair sob a interface,
   não há prévia (a prévia nunca fica escondida sob a interface); soltar sobre a interface cancela.
 - No toque, o arraste só começa a construir depois de 150 ms com um dedo só (a pinça não
   constrói). Nada é construído nem começa um gesto sob pílulas, botões redondos, coluna, balões e

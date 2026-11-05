@@ -16,6 +16,10 @@ const NEED: Record<BalloonKind, string> = {
 };
 const LOCK = svg('<rect x="5" y="11" width="14" height="10" rx="2" fill="#d9a93e" stroke="#3b2a1a" stroke-width="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="#3b2a1a" stroke-width="2"/>');
 
+/** A problem balloon's size at full scale (px: `.need` in ui.css with its padding and border). */
+const NEED_W = 46;
+const NEED_H = 58;
+
 /** How high over the ground a problem balloon floats (world units, above most roofs). */
 const TOP = 1.7;
 
@@ -34,9 +38,14 @@ export class ProblemLabels {
     private free: () => Free,
   ) {}
 
-  /** Over the footprint, its tip on the point, scaled from it; hidden off the free map (under the bars and buttons). */
-  private place = (p: { x: number; y: number }) =>
-    insideFree(p, this.free()) ? `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${labelScale(this.zoom()).toFixed(2)}) translate(-50%, -100%)` : null;
+  /** Over the footprint, its tip on the point, scaled from it; hidden unless all of it is on the free map (not under the bars and buttons). */
+  private place = (p: { x: number; y: number }) => {
+    const k = labelScale(this.zoom());
+    const f = this.free();
+    const [w, h] = [NEED_W * k, NEED_H * k];
+    const whole = insideFree({ x: p.x - w / 2, y: p.y - h }, f) && insideFree({ x: p.x + w / 2, y: p.y }, f);
+    return whole ? `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${k.toFixed(2)}) translate(-50%, -100%)` : null;
+  };
 
   update(s: GameState, eco: Economy) {
     const seen = new Set<number>();

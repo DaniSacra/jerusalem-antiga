@@ -35,11 +35,20 @@ export function resetKey(el: HTMLElement & { _key?: string }) {
   el._key = '';
 }
 
-/** A button that only fires for a press that began on it (a drag from the map passing over it does nothing), and never taps through. */
+/** How far (px) a finger may slide on a button and still tap it; more is a scroll of its list. */
+const TAP_MOVE = 10;
+
+/**
+ * A button that only fires for a press that began on it (a drag from the map passing over it does
+ * nothing), stayed on it (a finger scrolling the column or a panel does not pick), and never taps through.
+ */
 export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
   let down: number | null = null;
+  let x = 0;
+  let y = 0;
   el.addEventListener('pointerdown', (e) => {
     down = e.pointerId;
+    [x, y] = [e.clientX, e.clientY];
     e.stopPropagation();
     // No mouse events after a touch: a button that closes the 3D would otherwise "tap through"
     // to what wakes up under it (the 2D's buttons in the same corner).
@@ -49,7 +58,7 @@ export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
     if (down !== e.pointerId) return;
     down = null;
     e.stopPropagation();
-    fn(e);
+    if (Math.hypot(e.clientX - x, e.clientY - y) <= TAP_MOVE) fn(e);
   });
   el.addEventListener('pointercancel', () => (down = null));
   el.addEventListener('pointerleave', () => (down = null));

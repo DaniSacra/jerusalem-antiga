@@ -216,7 +216,7 @@ export class Stage {
     const t = o?.day ?? dayT;
     const L = frameLight(t, t, 1, s3, w, look.clouds);
 
-    atmo.apply(L, time, w.wind, s3.heat * (1 - w.rain), rig.camera);
+    atmo.apply(L, time, w.wind, s3.heat * (1 - w.rain), rig.camera, rig.distance);
     // Shadows: re-rendered while they show; every other or third frame at lower quality.
     renderer.shadowMap.autoUpdate = atmo.shadowLive && (this.level === 'high' || this.frames % (this.level === 'low' ? 2 : 3) === 0);
 

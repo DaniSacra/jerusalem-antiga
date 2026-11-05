@@ -17,6 +17,8 @@
 :where(#hud button) { font: inherit; color: inherit; }
 #hud button { cursor: pointer; pointer-events: auto; touch-action: none; }
 #hud .hit { pointer-events: auto; }
+/* Lists that scroll (the column, panels, balloons, the sheet): a finger sliding on a button scrolls them. */
+#hud .column button, #hud .panelbox button, #hud .balloon button, #hud .sheet button { touch-action: pan-y; }
 
 .panel, .pill { background: rgba(36, 25, 14, 0.78); border: 1.5px solid rgba(255, 244, 220, 0.2); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); }
 .t-good { color: var(--c-good); } .t-bad { color: var(--c-bad); } .t-warn { color: var(--c-warn); }
@@ -162,7 +164,7 @@
   background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); font-size: var(--big); font-weight: 700; max-width: min(760px, calc(100vw - 2 * var(--tool) - 3 * 10px - var(--col) - 4 * var(--margin))); pointer-events: auto; }
 #hud[data-form='phone'] .tutorial { font-size: var(--num); }
 .tutorial button { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 2px solid var(--c-ink); background: #fff8e4; color: var(--c-ink); font-weight: 700; white-space: nowrap; }
-.modal { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); pointer-events: auto; }
+.modal { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); pointer-events: auto; }
 .modal .card { width: min(640px, 90vw); padding: 24px; border-radius: 18px; background: var(--c-parchment); color: var(--c-ink); border: 3px solid var(--c-ink); text-align: center; }
 .modal h2 { margin: 0 0 10px; font-size: calc(var(--big) * 1.4); }
 .modal p { font-size: var(--num); white-space: pre-line; }
@@ -183,7 +185,7 @@
 #hud[data-form='phone'].title-screen ol { font-size: var(--text); }
 
 /* ---------- settings (gear) ---------- */
-.settings { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); width: 280px; background: rgba(36, 25, 14, 0.97); padding: 12px 14px; border-radius: 16px; pointer-events: auto; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
+.settings { position: absolute; z-index: 5; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); width: 280px; background: rgba(36, 25, 14, 0.97); padding: 12px 14px; border-radius: 16px; pointer-events: auto; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .settings h3 { margin: 0 0 4px; font-size: var(--num); }
 .settings .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; font-size: var(--text); font-weight: 700; }
 .settings .row .act { flex: none; min-width: 120px; padding: 0 12px; }

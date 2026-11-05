@@ -64,7 +64,7 @@
     "sunCut": 0.75
   },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
-  "fog": { "near": 40, "far": 120 },
+  "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
     "ring": { "seconds": 0.7, "start": 0.15, "lift": 0.06 },
     "celebrate": { "rings": 4, "every": 0.18, "radius": 2.6, "grow": 0.75, "sparks": 40 },
