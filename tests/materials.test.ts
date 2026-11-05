@@ -5,7 +5,10 @@ import {
   checkClear,
   checkGoal,
   checkPlace,
+  checkUpgrade,
   clearCell,
+  clearStump,
+  cutTrees,
   computeEconomy,
   createGame,
   createRng,
@@ -13,22 +16,32 @@ import {
   gatherCells,
   gatherYield,
   HOUSE_LEVELS,
+  houseInfo,
   housesWaiting,
   indexOf,
   isFreeLand,
+  isGatherSource,
+  lackingMaterial,
+  levelMaterials,
   lumberSpot,
   markTutorial,
   materialsOf,
   missingMaterial,
   nextTreeToCut,
+  payMaterials,
   place,
+  productOf,
+  refreshCity,
+  regrowTrees,
   RULES,
   sharedTrees,
   stepWeek,
   TUTORIAL_STEPS,
   tutorialProgress,
   unlockingGoal,
+  upgradeBuilding,
   upgradeGain,
+  weeksToNextLevel,
   weeksPerCut,
   type GameEvent,
   type GameState,
@@ -462,5 +475,232 @@ describe('material readouts and tutorial', () => {
     for (const c of spot.road) place(s, 'road', c.x, c.y);
     expect(place(s, 'lumber', spot.x, spot.y).ok).toBe(true);
     expect(tutorialProgress(s, step, mark)).toBe(1);
+  });
+});
+
+describe('materials and trees: edge cases', () => {
+  it('productOf and isGatherSource: food by default, wood from trees, stone from rocks; a stump is no source', () => {
+    expect(['fisher', 'gatherer', 'lumber', 'quarry', 'field', 'house'].map((k) => productOf(k as never))).toEqual(['food', 'food', 'wood', 'stone', null, null]);
+    const s = city();
+    const i = indexOf(s, 5, 5);
+    s.feature[i] = 'rock';
+    expect([isGatherSource(s, i, 'rock'), isGatherSource(s, i, 'tree')]).toEqual([true, false]);
+    s.feature[i] = 'palm';
+    expect([isGatherSource(s, i, 'rock'), isGatherSource(s, i, 'tree')]).toEqual([false, true]);
+    s.feature[i] = 'stump';
+    expect([isGatherSource(s, i, 'rock'), isGatherSource(s, i, 'tree')]).toEqual([false, false]);
+  });
+
+  it('levelMaterials: none for a plot, a tent or a level past the top', () => {
+    expect(levelMaterials(0)).toEqual({});
+    expect(levelMaterials(1)).toEqual({});
+    expect(levelMaterials(4)).toEqual({ stone: 10, wood: 5 });
+    expect(levelMaterials(HOUSE_LEVELS.length)).toEqual({});
+  });
+
+  it('lackingMaterial: wood is reported before stone; the exact amount is enough', () => {
+    const s = city();
+    expect(lackingMaterial(s, { stone: 10, wood: 5 })).toBe('wood');
+    s.wood = 5;
+    expect(lackingMaterial(s, { stone: 10, wood: 5 })).toBe('stone');
+    s.stone = 10;
+    expect(lackingMaterial(s, { stone: 10, wood: 5 })).toBeNull();
+    expect(lackingMaterial(city(), {})).toBeNull();
+  });
+
+  it('payMaterials takes both materials and rounds fractional stock to cents', () => {
+    const s = city();
+    s.wood = 5.3;
+    s.stone = 10.1;
+    payMaterials(s, { stone: 10, wood: 5 });
+    expect([s.wood, s.stone]).toEqual([0.3, 0.1]);
+    payMaterials(s, {});
+    expect([s.wood, s.stone]).toEqual([0.3, 0.1]);
+  });
+
+  it('the quarry has no winterFactor: in winter it brings all its stone (the fisher does not)', () => {
+    expect(quarry.winterFactor).toBeUndefined();
+    expect(lumber.winterFactor).toBeUndefined();
+    const s = city();
+    const q = put(s, 'quarry', EAST, 30);
+    plant(s, 'rock', [[27, 30], [27, 31]]);
+    s.week = RULES.weeksPerSeason * 3; // first week of winter
+    expect(gatherYield(s, q)).toBeCloseTo(2 * quarry.perCell);
+    expect(computeEconomy(s).stone).toBeCloseTo(2 * quarry.perCell);
+    expect(BUILDINGS.fisher.gather!.winterFactor).toBeLessThan(1);
+  });
+
+  it('cutTrees cuts as many trees as whole cutEvery the week reaches (nearest first)', () => {
+    const s = city();
+    const b = lumberAt(s);
+    plant(s, 'olive', [[27, 30], [28, 30], [28, 31], [29, 31]]); // 1 wood a week
+    b.cutProgress = 2 * EVERY - 1;
+    const events: GameEvent[] = [];
+    cutTrees(s, computeEconomy(s), events);
+    expect(events.filter((e) => e.type === 'treeCut')).toEqual([
+      { type: 'treeCut', x: 27, y: 30, kind: 'olive' },
+      { type: 'treeCut', x: 28, y: 30, kind: 'olive' },
+    ]);
+    expect(b.cutProgress).toBeCloseTo(0);
+    expect(s.stumps).toHaveLength(2);
+  });
+
+  it('cutTrees with fewer trees than owed: cuts what is there and keeps the rest of the count', () => {
+    const s = city();
+    const b = lumberAt(s);
+    plant(s, 'olive', [[27, 30]]); // 0.25 wood a week
+    b.cutProgress = 2 * EVERY;
+    const events: GameEvent[] = [];
+    cutTrees(s, computeEconomy(s), events);
+    expect(events).toHaveLength(1);
+    expect(b.cutProgress).toBeCloseTo(EVERY + lumber.perCell);
+    expect(nextTreeToCut(s, b)).toBeNull();
+  });
+
+  it('a disconnected lumber neither counts nor cuts, whatever its count', () => {
+    const s = city();
+    const b = put(s, 'lumber', 2, 2);
+    plant(s, 'olive', [[5, 2], [5, 3]]);
+    b.cutProgress = EVERY + 3;
+    const events: GameEvent[] = [];
+    cutTrees(s, computeEconomy(s), events);
+    expect(events).toEqual([]);
+    expect(b.cutProgress).toBe(EVERY + 3);
+  });
+
+  it('regrowTrees: a stump stays until exactly treeRegrowWeeks have passed', () => {
+    const s = city();
+    const i = indexOf(s, 30, 30);
+    s.feature[i] = 'stump';
+    s.stumps.push({ i, kind: 'olive', week: 5 });
+    const events: GameEvent[] = [];
+    s.week = 5 + RULES.treeRegrowWeeks - 1;
+    regrowTrees(s, events);
+    expect([s.feature[i], events.length]).toEqual(['stump', 0]);
+    s.week++;
+    regrowTrees(s, events);
+    expect(s.feature[i]).toBe('olive');
+    expect(events).toEqual([{ type: 'treeRegrown', x: 30, y: 30, kind: 'olive' }]);
+    expect(s.stumps).toEqual([]);
+  });
+
+  it('clearStump only removes stumps: trees and rocks stay', () => {
+    const s = city();
+    const t = indexOf(s, 30, 30);
+    const r = indexOf(s, 31, 30);
+    plant(s, 'palm', [[30, 30]]);
+    plant(s, 'rock', [[31, 30]]);
+    clearStump(s, t);
+    clearStump(s, r);
+    expect([s.feature[t], s.feature[r]]).toEqual(['palm', 'rock']);
+  });
+
+  it('building over trees or rocks is still refused (only stumps are free land)', () => {
+    const s = city();
+    plant(s, 'olive', [[EAST, 33]]);
+    expect(isFreeLand(s, EAST, 33)).toBe(false);
+    expect(checkPlace(s, 'field', EAST, 33)).toEqual({ ok: false, reason: 'invalid' });
+  });
+
+  it('the same seed gives the same cuts and stock', () => {
+    const play = () => {
+      const s = createGame(createRng(11));
+      const rng = createRng(11);
+      const spot = lumberSpot(s)!;
+      for (const c of spot.road) place(s, 'road', c.x, c.y);
+      place(s, 'lumber', spot.x, spot.y);
+      const events = run(s, 60, rng).filter((e) => e.type === 'treeCut');
+      return { events, wood: s.wood, stumps: s.stumps };
+    };
+    expect(play()).toEqual(play());
+  });
+});
+
+describe('waiting houses: edge cases', () => {
+  const MARKET_X = westOf('market');
+  function street() {
+    const s = city();
+    const a = put(s, 'house', EAST, 27, 2);
+    put(s, 'plaza', ROADSIDE, 29);
+    put(s, 'market', MARKET_X, 31);
+    return { s, a };
+  }
+
+  it('houseInfo shows the next level materials and the wait; weeksToNextLevel shows 1', () => {
+    const { s, a } = street();
+    expect(houseInfo(s, a)!.next!.materials).toEqual({ stone: 10 });
+    expect(houseInfo(s, a)!.waiting).toBeNull();
+    run(s, UP + 2);
+    expect(houseInfo(s, a)!.waiting).toBe('stone');
+    expect(weeksToNextLevel(s, a)).toBe(1);
+  });
+
+  it('losing its own need (the road) clears the wait too', () => {
+    const { s, a } = street();
+    run(s, UP);
+    expect(a.waiting).toBe('stone');
+    // The roads around the 2x2 house: the starting road west of it and the ring above it.
+    for (const [x, y] of [[EAST - 1, 27], [EAST - 1, 28], [EAST, 26], [EAST + 1, 26]]) s.roads[indexOf(s, x, y)] = false;
+    refreshCity(s);
+    expect(a.connected).toBe(false);
+    run(s, 1);
+    expect(a.waiting).toBeUndefined();
+    expect(a.upStreak).toBe(0);
+  });
+
+  it('a famine pauses a waiting house: stone arriving during it is not spent', () => {
+    const { s, a } = street();
+    run(s, UP);
+    expect(a.waiting).toBe('stone');
+    s.stone = 10;
+    s.food = 0;
+    stepWeek(s, never);
+    expect(s.famine).toBe(true);
+    expect([a.level, s.stone]).toEqual([2, 10]);
+    run(s, 1); // fed again
+    expect([a.level, s.stone]).toEqual([3, 0]);
+  });
+});
+
+describe('service levels and stone: edge cases', () => {
+  it('level 3 asks 40 stone: 39 fail with materials, nothing charged', () => {
+    const s = emptyGame();
+    const m = put(s, 'market', westOf('market'), 31);
+    m.level = 2;
+    refreshCity(s);
+    s.silver = 1000;
+    s.stone = 39;
+    expect(checkUpgrade(s, m.x, m.y)).toEqual({ ok: false, reason: 'materials' });
+    expect(upgradeBuilding(s, m.x, m.y)).toEqual({ ok: false, reason: 'materials' });
+    expect([m.level, s.silver, s.stone]).toEqual([2, 1000, 39]);
+    s.stone = 40;
+    expect(upgradeBuilding(s, m.x, m.y).ok).toBe(true);
+    expect([m.level, s.silver, s.stone]).toEqual([3, 1000 - BUILDINGS.market.levels![1].cost, 0]);
+  });
+
+  it('upgrading costs no wood', () => {
+    const s = emptyGame();
+    put(s, 'workshop', EAST, 36);
+    s.wood = 0;
+    s.stone = 20;
+    expect(upgradeBuilding(s, EAST, 36).ok).toBe(true);
+    expect(s.wood).toBe(0);
+  });
+});
+
+describe('tutorial lumber step: edge cases', () => {
+  const step = TUTORIAL_STEPS.find((t) => t.id === 'lumber')!;
+
+  it('a disconnected lumber does not finish it', () => {
+    const s = city();
+    const mark = markTutorial(s);
+    put(s, 'lumber', 2, 2);
+    expect(tutorialProgress(s, step, mark)).toBe(0);
+    lumberAt(s);
+    expect(tutorialProgress(s, step, mark)).toBe(1);
+  });
+
+  it('lumberSpot is null with no trees on the map', () => {
+    expect(lumberSpot(city())).toBeNull();
   });
 });
