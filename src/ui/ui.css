@@ -52,6 +52,10 @@
 .round { width: var(--btn); height: var(--btn); border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; font-weight: 800; font-size: var(--num); }
 .round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); }
 .round:active, .tool:active, .build:active { transform: scale(0.94); }
+@media (hover: hover) {
+  .round:hover, .top .pill:hover { filter: brightness(1.15); }
+  .tool:hover .disc, .build:hover:not(.locked) { filter: brightness(1.06); box-shadow: 0 0 0 2px var(--c-gold); }
+}
 
 /* ---------- side, tools and column ---------- */
 .side { position: absolute; left: var(--margin); top: calc(var(--margin) + var(--level) + var(--gap) * 2); display: flex; flex-direction: column; gap: 10px; }
@@ -114,6 +118,7 @@
 .need .lock svg { width: 14px; height: 14px; }
 /* The chosen building's balloon, left of the column. */
 .toolballoon { position: absolute; left: 0; top: 0; width: 260px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; background: rgba(36, 25, 14, 0.94); pointer-events: none; }
+.toolballoon.aside { opacity: 0; }
 #hud[data-form='phone'] .toolballoon { width: 220px; }
 /* Side buttons: Objetivos, Avisos (with the red selo), Estatísticas under the turns. */
 .side button { position: relative; }

@@ -2361,14 +2361,18 @@ async function ui3dScenario(page, name) {
   await page.screenshot({ path: `${OUT}/ui3d-${name}-problems.png` });
   // From far they shrink (never under 60%).
   const sizes = await page.evaluate(async () => {
-    const w = () => document.querySelector('.need').getBoundingClientRect().width;
+    // The camera on the fisher off the road at each zoom (balloons off the free map hide).
+    const shown = () => [...document.querySelectorAll('.need')].filter((e) => e.style.visibility !== 'hidden');
+    const w = () => Math.max(0, ...shown().map((e) => e.getBoundingClientRect().width));
     const r = window.view3d.rig;
-    r.zoomAt(innerWidth / 2, innerHeight / 2, 3);
-    await new Promise((ok) => setTimeout(ok, 250));
-    const near = w();
-    r.zoomAt(innerWidth / 2, innerHeight / 2, 0.5);
-    await new Promise((ok) => setTimeout(ok, 250));
-    const far = w();
+    const at = async (zoom) => {
+      r.zoomAt(innerWidth / 2, innerHeight / 2, zoom);
+      r.set({ x: 3.5, z: 3.5 });
+      await new Promise((ok) => setTimeout(ok, 250));
+      return w();
+    };
+    const near = await at(3);
+    const far = await at(0.5);
     r.zoomAt(innerWidth / 2, innerHeight / 2, 1);
     return { near, far };
   });

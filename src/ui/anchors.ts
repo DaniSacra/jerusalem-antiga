@@ -7,14 +7,25 @@ interface Pin {
   el: HTMLElement;
   at: Rect | null;
   top: number;
-  /** The transform for the point (and, for what moves on its own, the time since pinned). */
-  place: (p: { x: number; y: number }, ageMs: number) => string;
+  /** The transform for the point (and, for what moves on its own, the time since pinned); null hides it there. */
+  place: (p: { x: number; y: number }, ageMs: number) => string | null;
   age: number;
   /** Removed (from the page too) after this long (ms; rising texts). */
   life: number;
   /** The transform last written, null when hidden, undefined before the first (a still camera writes nothing). */
   shown?: string | null;
 }
+
+/** The map's free area on screen (between the top bar, the side buttons, the column and the tools). */
+export interface Free {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** A screen point inside the free map. */
+export const insideFree = (p: { x: number; y: number }, f: Free) => p.x >= f.left && p.x <= f.right && p.y >= f.top && p.y <= f.bottom;
 
 /**
  * Size of what floats over the buildings at a camera zoom (1 at the opening distance): full size up

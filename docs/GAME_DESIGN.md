@@ -680,9 +680,11 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     aviso novo, que também vira toast) e **Estatísticas** (Agora, Povo e Histórico; uma família do
     Povo leva até a casa dela). Os painéis e a ficha terminam acima das ferramentas. Escolher uma
     construção na coluna mostra o balão dela ao lado do botão (custo, manutenção, efeito, "Saldo
-    depois", "Comida depois"). Sobre as construções com problema, um balão com o ícone da
+    depois", "Comida depois"); no celular ele some enquanto a pílula da prévia aparece, para o lugar
+    ficar à vista. Os toasts terminam à esquerda desse balão. Painéis têm ✕. Sobre as construções com problema, um balão com o ícone da
     necessidade (sem rua, sem trabalhadores, sem fonte, praça, mercado, parque, triste; cadeado
-    quando ainda bloqueada), em tamanho cheio de perto e menores de longe (até 60%); na fome, o mapa
+    quando ainda bloqueada), em tamanho cheio de perto e menores de longe (até 60%), escondido quando
+    passa sob as barras, os botões ou a coluna; na fome, o mapa
     fica avermelhado. Esc fecha na ordem: engrenagem, ficha ou painel, balão. Quando o balão não cabe
     de nenhum lado (a casa com moradores no celular), a câmera desliza uma vez para tirar a
     construção de baixo dele. No tutorial, a câmera leva o lugar de cada passo ao meio do mapa livre

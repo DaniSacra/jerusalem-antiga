@@ -2,17 +2,10 @@ import type { BuildableKind, Cell, Rect } from '../core';
 import { cardOf, type Card, type CardAction } from '../game/model/card';
 import type { Session } from '../game/session';
 import { T } from '../render/strings';
-import { besideX, type Anchors } from './anchors';
+import { besideX, type Anchors, type Free } from './anchors';
 import { h, onTap } from './dom';
 import { cardLine } from './lines';
 
-/** The map's free area on screen (between the top bar, the side buttons, the column and the tools). */
-export interface Free {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
 
 /** How long Demolir waits for its second tap ("Certeza?"), ms. */
 const CONFIRM_MS = 2500;

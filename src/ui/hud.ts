@@ -3,8 +3,8 @@ import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
 import { NOVA_CSS, NOVA_FONT } from '../render/palette';
 import { T } from '../render/strings';
-import { Anchors } from './anchors';
-import { CardBalloon, type Free } from './cardBalloon';
+import { Anchors, type Free } from './anchors';
+import { CardBalloon } from './cardBalloon';
 import { Panels, type PanelKind } from './panels';
 import { PersonSheet } from './sheet';
 import { ProblemLabels } from './labels';
@@ -83,7 +83,7 @@ export class Hud {
     this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats') });
     this.tools = new Tools(s, (d) => host.turn(d));
     this.sheet = new PersonSheet(s, (id) => this.showHouse(id));
-    this.labels = new ProblemLabels(this.anchors, () => host.zoom);
+    this.labels = new ProblemLabels(this.anchors, () => host.zoom, () => this.free);
     this.balloon = new CardBalloon(s, this.anchors, () => this.free, () => this.phone, (id) => {
       this.panels.close();
       this.sheet.show(id, true);
@@ -220,6 +220,8 @@ export class Hud {
     const on = !!lines?.length && !!at;
     this.tag.classList.toggle('hidden', !on);
     this.tag.classList.toggle('bad', bad);
+    // On a phone the pill says what matters: the tool balloon steps aside so the place stays in view.
+    this.tools.tip.classList.toggle('aside', on && this.phone);
     if (!on) return this.anchors.unpin(this.tag);
     setText(this.tag, lines!.join('\n'));
     this.anchors.pin(this.tag, at, (p) => `translate(${Math.round(p.x)}px, ${Math.round(p.y - 8)}px) translate(-50%, -100%)`);

@@ -1,5 +1,5 @@
 import { balloonNeed, needLocked, type BalloonKind, type Economy, type GameState } from '../core';
-import { labelScale, type Anchors } from './anchors';
+import { insideFree, labelScale, type Anchors, type Free } from './anchors';
 import { h } from './dom';
 
 const svg = (body: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -31,11 +31,12 @@ export class ProblemLabels {
   constructor(
     private anchors: Anchors,
     private zoom: () => number,
+    private free: () => Free,
   ) {}
 
-  /** Over the footprint, its tip on the point, scaled from it. */
+  /** Over the footprint, its tip on the point, scaled from it; hidden off the free map (under the bars and buttons). */
   private place = (p: { x: number; y: number }) =>
-    `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${labelScale(this.zoom()).toFixed(2)}) translate(-50%, -100%)`;
+    insideFree(p, this.free()) ? `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${labelScale(this.zoom()).toFixed(2)}) translate(-50%, -100%)` : null;
 
   update(s: GameState, eco: Economy) {
     const seen = new Set<number>();

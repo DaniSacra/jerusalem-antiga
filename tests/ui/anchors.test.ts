@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Anchors, besideX, labelScale } from '../../src/ui/anchors';
+import { Anchors, besideX, insideFree, labelScale } from '../../src/ui/anchors';
 
 /** A stand-in for an element: only what Anchors touches. */
 const fake = () => {
@@ -51,6 +51,20 @@ describe('things pinned to the 3D world', () => {
     a.unpin(as(still));
     a.frame(16);
     expect(still.style.transform).toBe('');
+  });
+});
+
+describe('what hides off the free map', () => {
+  it('a point under the bars or the column is outside; a pin whose place says null hides', () => {
+    const f = { left: 60, top: 90, right: 700, bottom: 300 };
+    expect(insideFree({ x: 300, y: 200 }, f)).toBe(true);
+    expect(insideFree({ x: 300, y: 40 }, f)).toBe(false);
+    expect(insideFree({ x: 760, y: 200 }, f)).toBe(false);
+    const a = new Anchors((r) => ({ x: r.x, y: r.y }));
+    const el = fake();
+    a.pin(as(el), { x: 1, y: 1, w: 1, h: 1 }, () => null);
+    a.frame(16);
+    expect(el.style.visibility).toBe('hidden');
   });
 });
 
