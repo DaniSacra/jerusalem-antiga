@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { fieldHarvest, indexOf, inBounds, WALKERS, type Building, type Cell, type GameState, type MilestoneId, type Rect } from '../core';
+import { indexOf, inBounds, WALKERS, type GameState, type Rect } from '../core';
 import VISUAL from '../data/visual.json';
 import { DEPTH, HH, HW, cellHash, footCenter } from './iso';
 import { C, CSS } from './palette';
@@ -11,25 +11,6 @@ const M = VISUAL.moments;
 /** Residents who come to see a milestone (the ones whose drawings carry nothing too big). */
 const ONLOOKERS = WALKERS.map((w) => w.type).filter((t) => ['elder', 'child', 'basketWoman', 'waterCarrier', 'farmer', 'priest', 'porter'].includes(t));
 const ADD = Phaser.BlendModes.ADD;
-
-/**
- * Where a milestone is celebrated: the house that just rose (from this week's `houseUp` events, by
- * level), the first field that harvests, else the altar (first winter, first year without hunger).
- */
-export function milestoneSite(s: GameState, id: MilestoneId, ups: ReadonlyMap<number, Cell>): Building {
-  const altar = s.buildings.find((b) => b.kind === 'altar')!;
-  const level = id === 'firstWedding' ? 1 : id === 'firstMud' ? 2 : id === 'firstStone' ? 3 : 0;
-  const cell = level ? ups.get(level) : undefined;
-  const house = cell && s.grid[indexOf(s, cell.x, cell.y)];
-  if (house) return house;
-  // The simulation has already moved to the next week when the event arrives.
-  if (id === 'firstHarvest') return s.buildings.find((b) => b.kind === 'field' && fieldHarvest(s, b, s.week - 1) > 0) ?? altar;
-  return altar;
-}
-
-/** Where spoiling food shows: the first connected granary, else the altar (the open stores). */
-export const spoilSite = (s: GameState): Building =>
-  s.buildings.find((b) => b.kind === 'granary' && b.connected) ?? s.buildings.find((b) => b.kind === 'altar')!;
 
 export class Effects {
   constructor(private scene: Phaser.Scene) {}

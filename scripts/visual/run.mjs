@@ -3213,29 +3213,41 @@ await mkdir(OUT, { recursive: true });
 // No file watching or hot reload: an edit made while the scenarios run (another agent at work) must not reload the page mid-scenario.
 const server = await createServer({ server: { port: PORT, strictPort: true, hmr: false, watch: null }, logLevel: 'error' });
 await server.listen();
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const launch = () => chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+let browser = await launch();
+/** Another process on the machine killed the browser (not a failure of the scenario). */
+const killed = (e) => /has been closed|Browser closed|Target closed/.test(String(e?.message ?? e));
 
 let failed = 0;
 for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
   if (filter && !name.includes(filter)) continue;
   if (k % SHARD_N !== SHARD_K) continue;
   const run = typeof def === 'function' ? def : def.run;
-  const context = await browser.newContext(def.context ?? { viewport: { width: GAME_W, height: GAME_H } });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  const t0 = Date.now();
-  try {
-    await run(page);
-    assert(errors.length === 0, `no page errors (${errors.join(' | ')})`);
-    console.log(`✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
-  } catch (e) {
-    failed++;
-    console.log(`✗ ${name}: ${e.message}`);
-    await page.screenshot({ path: `${OUT}/FAILED-${name}.png` }).catch(() => {});
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // Another process may have killed the browser (other projects' scripts kill every headless Chrome).
+    if (!browser.isConnected()) browser = await launch();
+    const context = await browser.newContext(def.context ?? { viewport: { width: GAME_W, height: GAME_H } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    const t0 = Date.now();
+    try {
+      await run(page);
+      assert(errors.length === 0, `no page errors (${errors.join(' | ')})`);
+      console.log(`✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    } catch (e) {
+      if (attempt === 0 && killed(e)) {
+        console.log(`↻ ${name}: the browser was killed from outside; running it again`);
+        continue;
+      }
+      failed++;
+      console.log(`✗ ${name}: ${e.message}`);
+      await page.screenshot({ path: `${OUT}/FAILED-${name}.png` }).catch(() => {});
+    }
+    await context.close().catch(() => {});
+    break;
   }
-  await context.close();
 }
 
 await browser.close();

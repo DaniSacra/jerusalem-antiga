@@ -4,7 +4,7 @@ import { GAME_H, GAME_W } from '../render/layout';
 import { NovaUi, type ButtonSpot } from '../render/nova/NovaUi';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
-import type { ToastOptions, Tone } from '../render/Toasts';
+import type { ToastOptions, Tone } from '../game/toastQueue';
 import type { Speed, Tool } from '../render/tools';
 import type { TutorialTarget } from '../render/Tutorial';
 import { button, panel, text } from '../render/ui';

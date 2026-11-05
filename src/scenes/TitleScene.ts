@@ -5,7 +5,7 @@ import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, ORIGIN, TEX, VARIANTS, cropImages } from '../render/textures';
 import { install, installOffer, onInstallChange } from '../render/install';
-import { tutorialSeen } from '../render/Tutorial';
+import { tutorialSeen } from '../game/tutorial';
 import { button, panel, text } from '../render/ui';
 
 export class TitleScene extends Phaser.Scene {

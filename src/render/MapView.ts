@@ -12,7 +12,6 @@ import {
   computeEconomy,
   footprint,
   indexOf,
-  placeSize,
   roadMask,
   serviceOf,
   onlyNeedsRoad,
@@ -27,23 +26,22 @@ import {
   canRotate,
   craftOf,
   dimsOf,
-  type Dims,
   type Rect,
   type Stump,
   isSprouting,
   byRiver,
-  foodCapacity,
 } from '../core';
 import { C, CSS, shade } from './palette';
 import { T } from './strings';
 import { text } from './ui';
 import { COLS, DEPTH, HH, HW, ROWS, cellHash, depthAt, footCenter, fromView, gridToWorld, rectCorners, viewDims, viewMask, viewToWorld } from './iso';
 import VISUAL from '../data/visual.json';
-import { GRANARY_STOCKS, HEIGHT, PARTS, TEX, VARIANTS, cropImages, ensureTexture, hasSnowTexture, levelCount, scaffoldTexture, setTex, snowTexture } from './textures';
+import { HEIGHT, PARTS, TEX, VARIANTS, cropImages, ensureTexture, hasSnowTexture, levelCount, scaffoldTexture, setTex, snowTexture } from './textures';
 import type { RoadWear } from './RoadWear';
 import { mixColor, mulColor, treeKind, type CropStage, type SeasonLook, type TreeKind, type TreeState } from './Seasons';
 import { isPlaceTool, type Tool } from './tools';
 import { FieldCrew } from './Fieldhands';
+import { granaryStock, originFor, toolDims } from '../game/placement';
 import { Lights } from './Lights';
 
 /** Tutorial hints on the tool overlay. */
@@ -88,15 +86,6 @@ interface Balloon {
 
 const local = (x: number, y: number, z = 0) => ({ x: (x - y) * HW, y: (x + y) * HH - z });
 
-/** Footprint of a tool (1x1 for Ver and Limpar). */
-export const toolDims = (kind: Tool, rotated = false): Dims => (isPlaceTool(kind) ? placeSize(kind, rotated) : { w: 1, h: 1 });
-
-/** Origin (top-left) of a footprint centered on the hovered cell. */
-export function originFor(kind: Tool, cell: Cell, rotated = false): Cell {
-  const { w, h } = toolDims(kind, rotated);
-  return { x: cell.x - Math.floor((w - 1) / 2), y: cell.y - Math.floor((h - 1) / 2) };
-}
-
 /**
  * Texture of a building; non-square footprints lying the other way on screen have their own drawing.
  * Mirrored houses and fields have their own drawing too (flipping the image would move the light).
@@ -130,12 +119,6 @@ const ALL_CROPS: ReadonlySet<CropStage> = new Set<CropStage>(['plowed', 'sprout'
 /** Stages a drought turns thin and yellow on fields away from the river. */
 const THIRSTY: ReadonlySet<CropStage> = new Set<CropStage>(['green', 'ripe', 'gold', 'straw']);
 
-/** Granary drawing for the share of the stores in use: empty, a third, two thirds or full. */
-export function granaryStock(s: GameState): number {
-  const f = s.food / Math.max(1, foodCapacity(s));
-  const k = MOMENTS.granaryStock.findIndex((t) => f < t);
-  return k < 0 ? GRANARY_STOCKS - 1 : k;
-}
 const WEATHER = SV.weather;
 const WET_TINT = Number(WEATHER.wetTint);
 const CROP_STAGES = Object.fromEntries(Object.entries(SV.crops.stages).map(([k, v]) => [k, { tint: Number(v.tint), scale: v.scale }])) as Record<CropStage, { tint: number; scale: number }>;

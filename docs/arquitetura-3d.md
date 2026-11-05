@@ -382,6 +382,10 @@ Cada fase termina com `npm test`, `npx tsc --noEmit`, `npm run build` e `npm run
 o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo testes e revisão.
 
 ### Fase 0 — Costuras (sem mudança visível) · 7–9 h
+- **Andamento (2026-11-05):** feito `game/placement`, `toastQueue`, `events`, `tutorial` e `session`;
+  o `GameScene` desenha a `Session` (atalhos `game.tool`, `game.selected`… mantidos para os cenários) e
+  `window.session` existe em dev. Faltam `gestures`, `keys`, `model/*`, `app/main` com a chave de visão
+  e os ajudantes do `run.mjs` nos ganchos novos.
 - **Entra:** `src/game/` (session, gestures, keys, events, placement, tutorial, toastQueue, model/*);
   `GameScene`, `UIScene` e a Nova passam a usar esses módulos (desenham igual); `app/main.ts` com
   `import()` dinâmico e a chave `settings.view` (3D ainda abre a visão de hoje); ganchos

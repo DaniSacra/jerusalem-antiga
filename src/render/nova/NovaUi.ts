@@ -21,7 +21,7 @@ import {
 } from '../../core';
 import { px, setNovaSpot } from '../layout';
 import { NOVA_CSS } from '../palette';
-import { originFor } from '../MapView';
+import { originFor } from '../../game/placement';
 import { T } from '../strings';
 import { HEIGHT, TEX } from '../textures';
 import { Toasts, type ToastOptions, type Tone } from '../Toasts';

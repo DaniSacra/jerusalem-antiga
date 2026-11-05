@@ -1,75 +1,30 @@
 import Phaser from 'phaser';
-import {
-  advanceClock,
-  campPlazaSpot,
-  canRotate,
-  checkClear,
-  clearCell,
-  readCity,
-  createGame,
-  createRng,
-  dimsOf,
-  fieldHarvest,
-  fieldHint,
-  foodLostIfRemoved,
-  type CityReadout,
-  foodSpot,
-  houseHint,
-  lumberSpot,
-  lackingMaterial,
-  missingMaterial,
-  type FoodSpot,
-  inBounds,
-  isTree,
-  indexOf,
-  place,
-  RULES,
-  MAX_HOUSE_LEVEL,
-  gatherSpots,
-  materialMadeBy,
-  spotsServing,
-  stepWeek,
-  templeSpotsNear,
-  templeRoadSpot,
-  templeWaitsForGoal,
-  personById,
-  seasonOf,
-  upgradeBuilding,
-  nextLevelOf,
-  grownUpThisWeek,
-  type TutorialStepId,
-  BUILDINGS,
-  type TempleSpot,
-  type ActionResult,
-  type BuildableKind,
-  type BuildingCategory,
-  type Building,
-  type Cell,
-  type Economy,
-  type GameEvent,
-  type GameState,
-  type Rng,
-} from '../core';
+import { type Building, type BuildableKind, type BuildingCategory, type Cell, type Economy, type GameEvent, type GameState, type Rect } from '../core';
 import { Ambient } from '../render/Ambient';
 import { CameraRig } from '../render/CameraRig';
 import { DayNight } from '../render/DayNight';
-import { Effects, milestoneSite, spoilSite } from '../render/Effects';
+import { Effects } from '../render/Effects';
 import { Haulers } from '../render/Haulers';
 import { footCenter, getRotation, gridToWorld, setRotation, worldToCell, worldToGrid } from '../render/iso';
 import { VIEW_CY } from '../render/layout';
-import { MapView, originFor, type OverlayGuide } from '../render/MapView';
-import { TutorialGuide, tutorialSeen, type TutorialTarget } from '../render/Tutorial';
+import { MapView, type OverlayGuide } from '../render/MapView';
+import type { TutorialTarget } from '../render/Tutorial';
 import VISUAL from '../data/visual.json';
 import { RoadWear } from '../render/RoadWear';
 import { C, CSS } from '../render/palette';
 import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { generateUiArt, setHandCursor } from '../render/uiArt';
-import { CATEGORY_KEYS, categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, TOOL_KEYS, type Speed, type Tool } from '../render/tools';
+import { CATEGORY_KEYS, DRAG_TOOLS, isPlaceTool, SPEEDS, TOOL_KEYS, type Speed, type Tool } from '../render/tools';
 import { launch3D } from '../render/view3d';
 import { Walkers } from '../render/Walkers';
 import { mulColor, SeasonClock } from '../render/Seasons';
 import type { Weather } from '../render/Weather';
+import type { GameOut } from '../game/events';
+import { orthoSteps, sameCell } from '../game/placement';
+import { newDrag, Session, type DragMemo, type SessionView } from '../game/session';
+import type { ToastOptions, Tone } from '../game/toastQueue';
+import { tutorialSeen } from '../game/tutorial';
 import type { UIScene, UiHost } from './UIScene';
 
 const TAP_SLOP = 10;
@@ -77,21 +32,8 @@ const TAP_SLOP = 10;
 const TOUCH_BUILD_DELAY = 150;
 /** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
 const TOUCH_LIFT = 90;
-const sameCell = (a: Cell | null, b: Cell | null) => !!a && !!b && a.x === b.x && a.y === b.y;
 
-/** Cells from a to b (excluding a), stepping orthogonally so dragged roads stay connected. */
-function orthoSteps(a: Cell, b: Cell): Cell[] {
-  const out: Cell[] = [];
-  let { x, y } = a;
-  while (x !== b.x || y !== b.y) {
-    if (Math.abs(b.x - x) >= Math.abs(b.y - y)) x += Math.sign(b.x - x);
-    else y += Math.sign(b.y - y);
-    out.push({ x, y });
-  }
-  return out;
-}
-
-interface Gesture {
+interface Gesture extends DragMemo {
   id: number;
   start: Cell | null;
   last: Cell | null;
@@ -105,11 +47,6 @@ interface Gesture {
   moved: boolean;
   applied: boolean;
   cancelled: boolean;
-  toastedSilver: boolean;
-  /** A touch drag of Demolir skipped something that would lose food (said once). */
-  toastedFood: boolean;
-  /** Road cells placed during this gesture, checked for connection when it ends. */
-  roads: Cell[];
   /** The drag went over the interface after building: it stopped there (a toast says so). */
   cutByUi: boolean;
 }
@@ -121,14 +58,9 @@ function devSeed(): number | null {
   return v === null ? null : Number(v) >>> 0;
 }
 
-export class GameScene extends Phaser.Scene implements UiHost {
-  private state!: GameState;
-  private rng!: Rng;
-  /** Economy, food forecast and family gate, computed once per refresh. */
-  private city!: CityReadout;
-  private get eco(): Economy {
-    return this.city.eco;
-  }
+/** The 2D (Phaser) view of a game: draws the session (src/game) and passes the player's input to it. */
+export class GameScene extends Phaser.Scene implements UiHost, SessionView {
+  session!: Session;
   private map!: MapView;
   private walkers!: Walkers;
   private fx!: Effects;
@@ -144,44 +76,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
   /** The look of the year (seasons, and the rare snowy winters and droughts drawn from the map seed). */
   private seasons!: SeasonClock;
 
-  private tool: Tool = 'view';
-  /** Non-square buildings (the market) are placed rotated; kept between placements. */
-  private rotated = false;
-  private speedIndex = 0;
-  private clock = 0;
-  /** Map seed (the 3D view draws the same seasons and weather from it). */
-  private seed = 0;
-  private hover: Cell | null = null;
-  private selected: Cell | null = null;
-  /** First-game tutorial (null when seen before or skipped). */
-  private guide: TutorialGuide | null = null;
-  /** The road the tutorial suggests (chosen once per game). */
-  private ghost: Cell[] = [];
-  /** The fisher or gatherer spot at the end of that road (the gather step points at it). */
-  private spot: FoodSpot | null = null;
-  /** A free house spot for the tutorial arrow (houses step). */
-  private houseHint: Cell | null = null;
-  /** The lumber step's spot and the road to it, found once when the step starts. */
-  private lumberHint: FoodSpot | null = null;
-  /** The free field spot nearest the altar (field step), found once when the step starts. */
-  private fieldHint: Cell | null = null;
   /** The camera follows the first family for a moment (family step). */
   private follow: { id: number; until: number } | null = null;
   private followed = false;
-  /** Births and weddings of this game (the victory screen tells them). */
-  private births = 0;
-  private weddings = 0;
-  /** The camera glides to the place of a new tutorial step (world point), and which step it did it for. */
+  /** The camera glides to a place (a new tutorial step, a temple area): a world point. */
   private pan: { x: number; y: number } | null = null;
-  private pannedFor: string | null = null;
   private gesture: Gesture | null = null;
-  /** Inside a drag step: builds wait and the city refreshes once at the end. */
-  private batching = false;
-  private pending = false;
-  /** Where the temple fits while it is chosen (see updateTempleAreas). */
-  private templeAreas: TempleSpot[] = [];
-  /** "Onde pôr um mercado": the places where this kind would reach the target are highlighted. */
-  private spots: { kind: BuildableKind; target: Building } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: { dist: number; zoom: number; midX: number; midY: number } | null = null;
   private rightPan: { id: number; x: number; y: number } | null = null;
@@ -193,8 +93,57 @@ export class GameScene extends Phaser.Scene implements UiHost {
     super('game');
   }
 
-  private get speed(): Speed {
-    return SPEEDS[this.speedIndex];
+  // Short names the interface and the visual tests read (the session holds the game).
+  get state(): GameState {
+    return this.session.state;
+  }
+  get tool(): Tool {
+    return this.session.tool;
+  }
+  get selected(): Cell | null {
+    return this.session.selected;
+  }
+  set selected(c: Cell | null) {
+    this.session.selected = c;
+  }
+  get hover() {
+    return this.session.hover;
+  }
+  get guide() {
+    return this.session.guide;
+  }
+  get templeAreas() {
+    return this.session.templeAreas;
+  }
+  get ghost() {
+    return this.session.ghost;
+  }
+  get spot() {
+    return this.session.spot;
+  }
+  get lumberHint() {
+    return this.session.lumberHint;
+  }
+  get houseHint() {
+    return this.session.houseHint;
+  }
+  get fieldHint() {
+    return this.session.fieldHint;
+  }
+  get seed() {
+    return this.session.seed;
+  }
+  set seed(v: number) {
+    this.session.seed = v;
+  }
+  get speed(): Speed {
+    return this.session.speed;
+  }
+  get eco(): Economy {
+    return this.session.city.eco;
+  }
+  get modalOpen() {
+    return this.ui?.modalOpen ?? false;
   }
 
   /**
@@ -205,56 +154,41 @@ export class GameScene extends Phaser.Scene implements UiHost {
     generateTextures(this);
     generateUiArt(this);
     const seed = data?.seed ?? devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
-    this.seed = seed;
-    this.rng = createRng(seed);
+    this.session = new Session({ seed, tutorial: !!data?.tutorial, seen: tutorialSeen() });
     this.seasons = new SeasonClock(seed);
-    this.state = createGame(this.rng);
-    this.guide = data?.tutorial || !tutorialSeen() ? new TutorialGuide(this.state) : null;
-    this.spot = this.guide ? foodSpot(this.state) : null;
-    this.ghost = this.spot?.road ?? [];
-    this.houseHint = null;
-    this.fieldHint = null;
-    this.lumberHint = null;
     this.follow = null;
     this.followed = false;
-    this.births = 0;
-    this.weddings = 0;
     this.pan = null;
-    this.pannedFor = null;
-    this.city = readCity(this.state);
-    this.tool = 'view';
-    this.rotated = false;
-    this.speedIndex = 0;
-    this.clock = 0;
     this.ui = null;
     this.cursor = null;
     this.pointerOverUi = false;
     this.weather = null;
-    this.selected = null;
-    this.spots = null;
+    this.gesture = null;
 
     setRotation(0);
     this.cameras.main.setBackgroundColor(C.bg);
-    this.wear = new RoadWear(this.state);
-    this.map = new MapView(this, this.state, this.wear);
+    const state = this.state;
+    this.wear = new RoadWear(state);
+    this.map = new MapView(this, state, this.wear);
     this.dayNight = new DayNight(this);
     this.walkers = new Walkers(this, this.wear);
     this.haulers = new Haulers(this);
-    this.haulers.sync(this.state);
+    this.haulers.sync(state);
     this.ambient = new Ambient(this, (x, y, r) => this.walkers.near(x, y, r));
-    this.ambient.sync(this.state);
+    this.ambient.sync(state);
     this.fx = new Effects(this);
     this.rig = new CameraRig(this.cameras.main);
-    const a = this.state.buildings.find((b) => b.kind === 'altar')!;
+    const a = state.buildings.find((b) => b.kind === 'altar')!;
     const altar = footCenter(a.x, a.y, a.w, a.h);
     this.rig.centerAt(altar.x, altar.y - 20, this.cameras.main.width / 2, VIEW_CY);
+    this.session.attach(this);
 
     this.setupInput();
     this.scene.launch('weather', { host: this });
     this.scene.launch('ui', { host: this });
     if (import.meta.env.DEV) {
       Promise.all([import('../core'), import('../render/iso'), import('../render/layout')]).then(([core, iso, layout]) =>
-        Object.assign(window, { game: this, state: this.state, core, iso, layout }),
+        Object.assign(window, { game: this, session: this.session, state, core, iso, layout }),
       );
     }
   }
@@ -268,28 +202,25 @@ export class GameScene extends Phaser.Scene implements UiHost {
     // The opening sentence first, with the caravan the seed drew (the game does not pause): the
     // warnings of the first refresh wait behind it.
     // The weeks are the forecast's, the same the food pill and goal 1 show.
-    const c = this.state.start;
-    const weeks = this.city.forecast?.weeks ?? c.foodWeeks;
-    if (this.state.week === 0) {
+    const s = this.state;
+    const c = s.start;
+    const weeks = this.session.city.forecast?.weeks ?? c.foodWeeks;
+    if (s.week === 0) {
       ui.toast(T.caravan(c.families, weeks), 'good', { big: true, ms: 5000 });
       // The tutorial's house step speaks of the couple; out of it, a toast names them.
-      const [a, b] = c.couple.map((id) => personById(this.state, id)?.name);
+      const [a, b] = c.couple.map((id) => this.session.nameOf(id));
       if (a && b && !this.guide) ui.toast(T.wantToMarry(a, b), 'good', { ms: 5000 });
     }
     this.selectTool('view');
   }
 
   update(_time: number, delta: number) {
-    const speed = this.ui?.modalOpen ? 0 : this.speed;
-    // The tutorial holds the weeks on its build steps (the first city is built without hurry);
-    // the city stays alive around it.
-    const { acc, steps } = advanceClock(this.clock, delta / 1000, this.guide?.holdsClock ? 0 : speed);
-    this.clock = acc;
-    for (let k = 0; k < steps; k++) this.handleEvents(stepWeek(this.state, this.rng));
-    if (steps) this.refresh();
+    const session = this.session;
+    const speed = this.modalOpen ? 0 : this.speed;
+    session.tick(delta / 1000);
     // Seasons and weather: the ground, trees, river and roads of the season, wet ground and
     // puddles after rain, a tint over the world and the sky, rain or snow, heat shimmer in summer.
-    const look = this.seasons.at(this.state.week, this.clock / RULES.weekSeconds, this.state);
+    const look = this.seasons.at(this.state.week, session.weekFrac, this.state);
     const w = this.weather;
     w?.update((delta / 1000) * speed, look, this.dayNight.degraded);
     this.map.setSeason(look, w?.wet ?? 0, w?.puddles ?? 0);
@@ -303,7 +234,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     }
     this.map.update(this.time.now, this.rig.zoom, (delta / 1000) * speed, light.night);
     this.ambient.update(this.time.now / 1000, (delta / 1000) * speed, light.night, Math.max(look.clouds, w?.clouds ?? 0), look);
-    this.walkers.update(delta, this.state, this.eco.residents, speed, this.clock / RULES.weekSeconds, light.walkers * (this.weather?.walkers ?? 1));
+    this.walkers.update(delta, this.state, this.eco.residents, speed, session.weekFrac, light.walkers * (this.weather?.walkers ?? 1));
     this.haulers.update(delta / 1000, speed);
     if (this.guide) this.updateTutorial(delta);
     else if (this.pan && (this.gesture || this.glide(this.pan, delta))) this.pan = null; // the camera going to a temple area
@@ -311,181 +242,133 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.ui?.setDrought(look.drought);
   }
 
-  // ---------- state -> view ----------
+  // ---------- session -> view (SessionView) ----------
 
-  private refresh() {
-    this.city = readCity(this.state);
-    this.updateTempleAreas();
+  /** Recomputes the city and redraws (the visual tests call it). */
+  refresh() {
+    this.session.refresh();
+  }
+
+  /** The week's events (the visual tests feed them by hand). */
+  handleEvents(events: GameEvent[]) {
+    this.session.handleEvents(events);
+  }
+
+  redraw() {
+    const s = this.session;
+    this.map.setTempleAreas(s.templeAreas, s.templeRoad);
     this.map.sync(this.state, this.eco);
     this.ambient.sync(this.state);
     this.haulers.sync(this.state);
-    this.checkTutorial();
     this.drawOverlay();
-    this.ui?.refresh(this.state, this.city, this.speed, this.tool, this.guide?.running ?? false, this.selected);
+    this.ui?.refresh(this.state, s.city, this.speed, this.tool, this.guide?.running ?? false, this.selected);
+  }
+
+  overlay() {
+    this.drawOverlay();
+  }
+
+  toast(msg: string, tone: Tone, opt?: ToastOptions) {
+    this.ui?.toast(msg, tone, opt);
+  }
+
+  drawSpots(rects: readonly Rect[] | null) {
+    if (rects) this.map.showSpots(rects);
+    else this.map.clearSpots();
+  }
+
+  glideTo(r: Rect | null) {
+    this.pan = r && footCenter(r.x, r.y, r.w, r.h);
+  }
+
+  openCategory(c: BuildingCategory) {
+    this.ui?.openCategory(c);
+  }
+
+  setTutorial(sentence: string | null) {
+    this.ui?.setTutorial(sentence, false);
+  }
+
+  /** Draws an effect or passes interface news (see GameOut). */
+  out(o: GameOut) {
+    const s = this.state;
+    const at = (r: Rect) => footCenter(r.x, r.y, r.w, r.h);
+    switch (o.do) {
+      case 'cheer':
+        this.cheerHouse(o.x, o.y, o.gain);
+        break;
+      case 'floatBad': {
+        const c = footCenter(o.x, o.y, o.w ?? 1, o.h ?? 1);
+        this.fx.floatText(c.x, c.y - 30, o.text, CSS.bad);
+        break;
+      }
+      case 'milestone':
+        this.map.shine(o.building.id);
+        this.fx.milestone(s, o.building, this.map.heightOf(o.building));
+        if (o.note) this.ui?.milestone(o.id);
+        break;
+      case 'spoil': {
+        const c = at(o.building);
+        this.fx.spoil(c.x, c.y - 12);
+        break;
+      }
+      case 'harvestRing': {
+        const c = at(o.building);
+        this.fx.ring(c.x, c.y, C.grain, 2.4);
+        break;
+      }
+      case 'fell':
+        this.map.fell(o.x, o.y);
+        break;
+      case 'leave':
+        this.walkers.leave(s, o.x, o.y);
+        break;
+      case 'invite3D':
+        this.ui?.invite3D();
+        break;
+      case 'unlocked':
+        this.ui?.unlocked(o.kind);
+        break;
+      case 'victory':
+        this.ui?.showVictory(o.week, o.residents, o.births, o.weddings);
+        break;
+      case 'defeat':
+        this.ui?.showDefeat(o.week, o.peak);
+        break;
+      case 'placed': {
+        const c = at(o);
+        if (o.temple) this.fx.celebrate(c.x, c.y);
+        else this.fx.ring(c.x, c.y);
+        break;
+      }
+      case 'dust': {
+        const c = at(o);
+        this.fx.dust(c.x, c.y, Math.max(o.w, o.h));
+        break;
+      }
+      case 'upgraded': {
+        const b = o.building;
+        const c = at(b);
+        this.map.bounce(s, b.x, b.y);
+        this.fx.ring(c.x, c.y, C.ui.goldLight, Math.max(b.w, b.h));
+        break;
+      }
+    }
   }
 
   /** A house that grew (a level or a baby): it hops, a ring of light spreads and the gain floats up. */
   private cheerHouse(x: number, y: number, gain: string) {
-    const b = this.state.grid[indexOf(this.state, x, y)];
+    const b = this.state.grid[y * this.state.cols + x];
     const c = footCenter(x, y);
     this.map.bounce(this.state, x, y);
     this.fx.ring(c.x, c.y);
     this.fx.floatText(c.x, c.y - (b ? this.map.heightOf(b) : 20) - 8, gain);
   }
 
-  private handleEvents(events: GameEvent[]) {
-    /** Where houses rose this week, by level (a milestone celebrates the house that reached it). */
-    const ups = new Map<number, Cell>();
-    for (const e of events) {
-      switch (e.type) {
-        case 'houseUp':
-          ups.set(e.level, { x: e.x, y: e.y });
-          this.cheerHouse(e.x, e.y, `+${e.delta}`);
-          if (e.level === MAX_HOUSE_LEVEL) this.ui?.invite3D(); // a Casa grande: worth seeing in 3D
-          break;
-        case 'houseDown': {
-          const c = footCenter(e.x, e.y);
-          this.fx.floatText(c.x, c.y - 30, T.houseDown(e.delta, e.famine, e.famine && this.state.cold && !this.state.famine), CSS.bad);
-          break;
-        }
-        case 'famineStart':
-          this.ui?.toast(T.famine, 'bad');
-          break;
-        case 'coldStart':
-          this.ui?.toast(T.coldStart, 'bad');
-          break;
-        case 'coldEnd':
-          this.ui?.toast(T.coldEnd, 'good');
-          break;
-        case 'goal':
-          this.ui?.toast(T.goalDone(e.reward, e.unlock), 'good');
-          if (e.unlock === 'market') this.guide?.marketUnlocked();
-          if (e.unlock && T.unlocked[e.unlock]) this.ui?.toast(T.unlocked[e.unlock]!, 'good');
-          if (e.unlock) this.ui?.unlocked(e.unlock);
-          this.ui?.invite3D();
-          break;
-        case 'victory':
-          this.ui?.showVictory(e.week, e.residents, this.births, this.weddings);
-          break;
-        case 'familyLeft':
-          this.walkers.leave(this.state, e.x, e.y);
-          this.ui?.toast(T.familyLeft(e.reason, e.name), 'bad');
-          break;
-        case 'debtStart':
-          this.ui?.toast(T.debtStart, 'bad');
-          if (this.speed === 3) this.speedIndex = SPEEDS.indexOf(1); // slow down once so the player can react
-          break;
-        case 'debtEnd':
-          this.ui?.toast(T.debtEnd, 'good');
-          break;
-        case 'defeat':
-          this.ui?.showDefeat(e.week, e.peak);
-          break;
-        case 'season':
-          this.ui?.toast(T.seasonStart[e.season], 'info');
-          break;
-        case 'milestone': {
-          const b = milestoneSite(this.state, e.id, ups);
-          this.map.shine(b.id);
-          this.fx.milestone(this.state, b, this.map.heightOf(b));
-          // The first child of the city to come of age is named.
-          const grown = e.id === 'firstGrownUp' ? grownUpThisWeek(this.state) : null;
-          if (grown) this.ui?.toast(T.grownUp(grown.name, grown.sex === 'f'), 'good');
-          else this.ui?.milestone(e.id);
-          break;
-        }
-        case 'spoilStart': {
-          const b = spoilSite(this.state);
-          const c = footCenter(b.x, b.y, b.w, b.h);
-          this.fx.spoil(c.x, c.y - 12);
-          break;
-        }
-        case 'harvestStart':
-          // A golden ring on every field that starts harvesting.
-          for (const b of this.state.buildings) {
-            if (b.kind !== 'field' || fieldHarvest(this.state, b, this.state.week - 1) <= 0) continue;
-            const c = footCenter(b.x, b.y, b.w, b.h);
-            this.fx.ring(c.x, c.y, C.grain, 2.4);
-          }
-          break;
-        case 'treeCut':
-          this.map.fell(e.x, e.y);
-          break;
-        case 'wedding':
-          this.weddings++;
-          this.ui?.toast(T.wedding(this.nameOf(e.a), this.nameOf(e.b)), 'good');
-          break;
-        case 'birth': {
-          this.births++;
-          const p = personById(this.state, e.id);
-          if (p) this.ui?.toast(T.birth(p.name, p.sex === 'f', this.nameOf(p.fatherId), this.nameOf(p.motherId)), 'info');
-          this.cheerHouse(e.x, e.y, '+1');
-          break;
-        }
-        case 'death':
-          this.ui?.toast(T.death(this.nameOf(e.id), e.age), 'quiet');
-          break;
-        case 'coupleLeft':
-          this.ui?.toast(T.coupleLeft(this.nameOf(e.a), this.nameOf(e.b)), 'bad');
-          break;
-        case 'caravanAnnounced':
-          this.ui?.toast(T.caravanAnnounced(e.families, seasonOf(e.week)), 'info');
-          break;
-        case 'caravanArrived':
-          this.ui?.toast(T.caravanArrived(e.housed, e.left), e.left ? 'info' : 'good');
-          break;
-        case 'buildingUp': {
-          const b = this.state.grid[indexOf(this.state, e.x, e.y)];
-          if (b) this.ui?.toast(T.buildingUp(BUILDINGS[b.kind].name, e.level), 'good');
-          break;
-        }
-      }
-    }
-  }
-
   // ---------- UI host ----------
 
   selectTool(tool: Tool) {
-    if (this.ui?.modalOpen) return;
-    if (tool === this.tool && isPlaceTool(tool) && tool !== 'road' && canRotate(tool)) {
-      this.rotate();
-      return;
-    }
-    if (isPlaceTool(tool) && !this.state.unlocked.includes(tool)) {
-      this.ui?.hint(T.lockedHint(tool));
-      return;
-    }
-    this.tool = tool;
-    this.selected = null;
-    this.spots = null;
-    this.drawSpots();
-    this.refresh();
-    if (tool !== 'temple') return;
-    if (!this.templeAreas.some((a) => a.ready)) this.ui?.hint(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, true);
-    // The camera goes to the best area, so it is never off screen.
-    const first = this.templeAreas[0];
-    if (first) this.pan = footCenter(first.x, first.y, dimsOf('temple').w, dimsOf('temple').h);
-  }
-
-  /**
-   * While the temple is chosen: where it fits (nearest the altar first), at most
-   * `maxTempleSpots` areas that do not overlap. Redone on each refresh, never per frame.
-   */
-  private updateTempleAreas() {
-    const areas: TempleSpot[] = [];
-    if (this.tool === 'temple') {
-      const { w, h } = dimsOf('temple');
-      const apart = (a: Cell, b: Cell) => Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h;
-      for (const a of templeSpotsNear(this.state)) {
-        if (areas.length >= VISUAL.temple.maxTempleSpots) break;
-        if (areas.every((b) => apart(a, b))) areas.push(a);
-      }
-    }
-    // None near the roads: the free place a road can reach soonest, with that road marked.
-    const far = this.tool === 'temple' && !areas.length ? templeRoadSpot(this.state) : null;
-    if (far) areas.push(far);
-    this.templeAreas = areas;
-    this.map.setTempleAreas(areas, far?.road ?? []);
+    this.session.selectTool(tool);
   }
 
   /** Screen point of the center of a grid footprint (UI coordinates) and the camera zoom. */
@@ -494,92 +377,27 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return { ...this.toScreen(p.x, p.y), zoom: this.cameras.main.zoom };
   }
 
-  /** Picks a building and highlights the free places where it would reach `target` (Rua: just picks it). */
   showSpots(kind: BuildableKind | 'road', target: Building) {
-    if (this.tool !== kind) this.selectTool(kind);
-    if (this.tool !== kind || kind === 'road') return;
-    this.spots = { kind, target };
-    const m = materialMadeBy(kind);
-    if (!this.drawSpots()) this.ui?.hint(m ? T.nova.noGatherSpot(m) : T.nova.inspect.noSpot, true);
+    this.session.showSpots(kind, target);
   }
 
-  /** Draws the highlighted places (again after the map is rebuilt); false if there are none. */
-  private drawSpots(): boolean {
-    const sp = this.spots;
-    if (!sp || !this.state.buildings.includes(sp.target)) {
-      this.map.clearSpots();
-      return false;
-    }
-    const spots: (Cell & { rotated?: boolean })[] = materialMadeBy(sp.kind) ? gatherSpots(this.state, sp.kind) : spotsServing(this.state, sp.kind, sp.target);
-    const rects = spots.map((c) => ({ x: c.x, y: c.y, ...dimsOf(sp.kind, c.rotated) }));
-    this.map.showSpots(rects);
-    return rects.length > 0;
-  }
-
-  /** Demolishes what is on a cell (Demolir in the tapped building's balloon). */
-  /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */
   upgradeAt(cell: Cell) {
-    const events: GameEvent[] = [];
-    const b = this.state.grid[indexOf(this.state, cell.x, cell.y)];
-    const next = b ? nextLevelOf(b) : null;
-    const lack = next && lackingMaterial(this.state, next.materials ?? {});
-    const r = upgradeBuilding(this.state, cell.x, cell.y, events);
-    if (!r.ok) {
-      const say = r.reason === 'silver' && next ? T.missingSilver(next.cost) : r.reason === 'materials' && lack ? T.lackingAmount(lack, next?.materials?.[lack] ?? 0, this.state[lack]) : T.fail[r.reason];
-      this.ui?.toast(say, 'bad');
-      return;
-    }
-    if (b) {
-      const c = footCenter(b.x, b.y, b.w, b.h);
-      this.map.bounce(this.state, b.x, b.y);
-      this.fx.ring(c.x, c.y, C.ui.goldLight, Math.max(b.w, b.h));
-    }
-    this.handleEvents(events);
-    this.refresh();
+    this.session.upgradeAt(cell);
   }
 
   demolishAt(cell: Cell) {
-    const r = this.demolish(cell);
-    if (!r.ok) {
-      this.ui?.toast(T.fail[r.reason], 'bad');
-      return;
-    }
-    this.selected = null;
-    this.refresh();
-  }
-
-  /**
-   * Removes what is on a cell (a building, a road or a tree) with its dust, and floats what it cost:
-   * the silver of a tree or the food that spoils (a granary, or the road to one). No refresh.
-   */
-  private demolish(cell: Cell): ActionResult {
-    const s = this.state;
-    if (!inBounds(s, cell.x, cell.y)) return clearCell(s, cell.x, cell.y);
-    const i = indexOf(s, cell.x, cell.y);
-    // Read before it is gone: what is removed (the size of the dust) and the food that spoils.
-    const b = s.grid[i];
-    const tree = !b && !s.roads[i] && !!s.feature[i];
-    const lost = foodLostIfRemoved(s, cell.x, cell.y);
-    const r = clearCell(s, cell.x, cell.y);
-    if (!r.ok) return r;
-    const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(cell.x, cell.y);
-    this.fx.dust(c.x, c.y, b ? Math.max(b.w, b.h) : 1);
-    if (tree) this.fx.floatText(c.x, c.y - 30, `−${RULES.treeClearCost}`, CSS.bad);
-    else if (lost > 0) this.fx.floatText(c.x, c.y - 30, T.nova.foodLost(lost), CSS.bad);
-    return r;
+    this.session.demolishAt(cell);
   }
 
   /** Moves the camera to a house (at once) and opens its balloon (person sheet, Povo tab). */
   showHouse(houseId: number) {
     const b = this.state.buildings.find((o) => o.id === houseId);
     if (!b) return;
-    if (this.tool !== 'view') this.selectTool('view');
     const at = this.ui?.freeCenter() ?? { x: this.cameras.main.width / 2, y: VIEW_CY };
     const c = footCenter(b.x, b.y, b.w, b.h);
     this.rig.centerAt(c.x, c.y, at.x, at.y);
     this.pan = null;
-    this.selected = { x: b.x, y: b.y };
-    this.refresh();
+    this.session.selectHouse(houseId);
   }
 
   /** The tapped building's balloon is too wide beside it: the camera glides so the building goes `dx` screen px sideways. */
@@ -588,24 +406,17 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.pan = this.rig.toWorld(at.x - dx, at.y);
   }
 
-  /** Closes the tapped building's balloon. */
   deselect() {
-    this.selected = null;
-    this.spots = null;
-    this.drawSpots();
-    this.refresh();
+    this.session.deselect();
   }
 
-  /** Turns the footprint of the current tool (only non-square buildings). */
   rotate() {
-    if (!isPlaceTool(this.tool) || this.tool === 'road' || !canRotate(this.tool)) return;
-    this.rotated = !this.rotated;
-    this.drawOverlay();
+    this.session.rotate();
   }
 
   /** Turns the view a quarter turn (1 = clockwise, -1 = counterclockwise), keeping the same spot centered. */
   turnMap(dir: 1 | -1) {
-    if (this.ui?.modalOpen) return;
+    if (this.modalOpen) return;
     const cam = this.cameras.main;
     const sx = cam.width / 2;
     const sy = VIEW_CY;
@@ -616,28 +427,14 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.map = new MapView(this, this.state, this.wear);
     this.map.degraded = this.dayNight.degraded;
     this.ambient.rebuild(this.state);
-    this.drawSpots();
+    this.drawSpots(this.session.spotRects());
     const n = gridToWorld(g.x, g.y);
     this.rig.centerAt(n.x, n.y, sx, sy);
     this.refresh();
   }
 
-  /**
-   * PC keys 3–6: opens the category's strip and picks its first unlocked building; the same key
-   * again picks the next one of the category.
-   */
   pickCategory(c: BuildingCategory) {
-    if (this.ui?.modalOpen) return;
-    this.ui?.openCategory(c);
-    const all = categoryKinds(c);
-    const open = all.filter((k) => this.state.unlocked.includes(k));
-    if (!open.length) {
-      this.ui?.hint(T.lockedHint(all[0]));
-      return;
-    }
-    const k = open.indexOf(this.tool as BuildableKind);
-    const next = open[(k + 1) % open.length];
-    if (next !== this.tool) this.selectTool(next);
+    this.session.pickCategory(c);
   }
 
   /** The player changed the display options (day and night, miniature blur). */
@@ -659,10 +456,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
    * speed back. The state is only read.
    */
   open3D() {
-    if (this.ui?.modalOpen) return;
+    if (this.modalOpen) return;
     // Nothing stays open under the 3D view (nor is still open on the way back).
     this.ui?.closeAll();
     if (this.selected) this.deselect();
+    const session = this.session;
     const speed = this.speed;
     const input = this.game.input;
     // The 3D opens on the cell at the centre of the 2D camera, turned like the 2D view.
@@ -672,11 +470,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
       state: this.state,
       seed: this.seed,
       start: { focus: { x: g.x, y: g.y }, rotation: getRotation() },
-      weekFrac: this.clock / RULES.weekSeconds,
+      weekFrac: session.weekFrac,
       dayT: this.dayNight.current.t,
       pause: () => {
-        this.speedIndex = SPEEDS.indexOf(0);
-        this.refresh();
+        session.speedIndex = SPEEDS.indexOf(0);
+        session.refresh();
         // Keys and touches go to the 3D view only (Q/E, Esc would also act on the sleeping map).
         input.enabled = false;
         if (input.keyboard) input.keyboard.enabled = false;
@@ -687,60 +485,45 @@ export class GameScene extends Phaser.Scene implements UiHost {
         if (input.keyboard) input.keyboard.enabled = true;
         this.game.loop.resetDelta();
         this.game.loop.wake();
-        this.speedIndex = SPEEDS.indexOf(speed);
-        this.refresh();
+        session.speedIndex = SPEEDS.indexOf(speed);
+        session.refresh();
       },
       fail: () => this.ui?.toast(T.view3d.failed, 'bad'),
     });
   }
 
   cycleSpeed() {
-    this.setSpeed(SPEEDS[(this.speedIndex + 1) % SPEEDS.length]);
+    this.session.cycleSpeed();
   }
 
   setSpeed(v: Speed) {
-    if (this.ui?.modalOpen) return;
-    this.speedIndex = SPEEDS.indexOf(v);
-    this.refresh();
+    this.session.setSpeed(v);
   }
 
   // ---------- tutorial ----------
 
   skipTutorial() {
-    if (!this.guide) return;
-    this.guide.skip();
-    this.guide = null;
-    this.ui?.setTutorial(null);
-    this.refresh();
+    this.session.skipTutorial();
   }
 
   tutorialOk() {
     this.refresh();
   }
 
-  /** A tutorial sentence; the house and wedding steps name the caravan's engaged couple. */
-  private stepText(id: TutorialStepId): string {
-    const [a, b] = this.state.start.couple.map((p) => this.nameOf(p));
-    if ((id === 'house' || id === 'wedding') && a && b) return T.tutorial.couple[id](a, b);
-    return T.tutorial.step[id];
-  }
-
-  /** Name of a person alive or in the records ('' when unknown). */
-  private nameOf(id: number | null): string {
-    return personById(this.state, id)?.name ?? '';
+  /** The place a tutorial step is about (the visual tests read it). */
+  stepSpot(id: string) {
+    return this.session.stepSpot(id);
   }
 
   private drawOverlay() {
+    const s = this.session;
     const id = this.guide?.step?.id;
     // The marked road: to the food on the road step, to the lumber spot on its step (when it needs one).
-    const ghost = id === 'road' ? this.ghost : id === 'lumber' ? (this.lumberHint?.road ?? []) : [];
+    const ghost = s.guideGhost;
     const guide: OverlayGuide | null = id === 'road' || id === 'house' || ghost.length ? { ghost, houseSpots: id === 'house' } : null;
-    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, this.rotated, guide);
+    this.map.showOverlay(this.state, this.tool, this.hover, this.selected, s.rotated, guide);
     // The building the demolish tool would remove turns red.
-    const s = this.state;
-    const h = this.tool === 'clear' ? this.hover : null;
-    const doomed = h && checkClear(s, h.x, h.y).ok ? s.grid[indexOf(s, h.x, h.y)] : null;
-    this.map.highlightDemolish(doomed);
+    this.map.highlightDemolish(s.doomed);
     this.updateCursor();
   }
 
@@ -751,51 +534,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
     if (mode === this.cursor) return;
     this.cursor = mode;
     setHandCursor(this, mode);
-  }
-
-  /** Moves the tutorial past finished steps and shows the current one. */
-  private checkTutorial() {
-    const guide = this.guide;
-    if (!guide) return;
-    const change = guide.update(this.state);
-    if (change === 'done') this.ui?.toast(T.tutorial.done, 'good');
-    const step = guide.step;
-    if (!step) {
-      this.ui?.setTutorial(null);
-      return;
-    }
-    if (step.id === 'house') this.houseHint = houseHint(this.state);
-    if (step.id !== this.pannedFor && step.id === 'lumber') this.lumberHint = lumberSpot(this.state);
-    this.ui?.setTutorial(this.lumberRoadLeft() ? T.tutorial.lumberRoad : this.stepText(step.id), false);
-    if (step.id !== this.pannedFor) {
-      this.pannedFor = step.id;
-      if (step.id === 'field') this.fieldHint = fieldHint(this.state);
-      const at = this.stepSpot(step.id);
-      this.pan = at && footCenter(at.x, at.y, at.w, at.h);
-    }
-  }
-
-  /** On the lumber step, part of the marked road to its spot is still to build. */
-  private lumberRoadLeft(): boolean {
-    const road = this.guide?.step?.id === 'lumber' ? (this.lumberHint?.road ?? []) : [];
-    return road.some((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
-  }
-
-  /** The place a tutorial step is about (the road, the food spot, the field, plaza or house spot), if any. */
-  private stepSpot(id: string): (Cell & { w: number; h: number }) | null {
-    if (id === 'road' && this.ghost.length) {
-      const xs = this.ghost.map((c) => c.x);
-      const ys = this.ghost.map((c) => c.y);
-      const x = Math.min(...xs);
-      const y = Math.min(...ys);
-      return { x, y, w: Math.max(...xs) - x + 1, h: Math.max(...ys) - y + 1 };
-    }
-    if (id === 'gather' && this.spot) return { ...this.spot, ...dimsOf(this.spot.kind) };
-    if (id === 'field' && this.fieldHint) return { ...this.fieldHint, ...dimsOf('field') };
-    if (id === 'plaza') return { ...campPlazaSpot(), ...dimsOf('plaza') };
-    if (id === 'house' && this.houseHint) return { ...this.houseHint, ...dimsOf('house') };
-    if (id === 'lumber' && this.lumberHint) return { ...this.lumberHint, ...dimsOf('lumber') };
-    return null;
   }
 
   /** Per frame: the arrow follows the map under the camera, and the camera follows the first family. */
@@ -829,35 +567,29 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return Math.hypot(p.x - c.x, p.y - c.y) < 2 || Math.hypot(now.x - c.x, now.y - c.y) < 0.05;
   }
 
-  /** Where the arrow points: the step's tool button until it is picked, then the spot on the map. */
-  private tutorialTarget(): TutorialTarget | null {
-    const step = this.guide!.step!;
-    // A marked road to follow: the road step's, or the one to a lumber spot past the grove's edge (Rua first).
-    const road = step.id === 'road' ? this.ghost : this.lumberRoadLeft() ? this.lumberHint!.road : null;
-    const tool = road ? 'road' : step.tool;
-    if (tool && this.tool !== tool && this.tool !== step.alt) {
-      const b = this.ui?.buttonOf(tool);
+  /** Where the arrow points on screen: the step's tool button until it is picked, then the spot on the map. */
+  tutorialTarget(): TutorialTarget | null {
+    const point = this.session.tutorialPoint(this.input.activePointer.wasTouch);
+    if (!point) return null;
+    if ('tool' in point) {
+      const b = this.ui?.buttonOf(point.tool);
       if (!b) return null;
       if (b.side === 'bottom') return { x: b.x, y: b.y - b.w / 2 - 4, dir: 'down' };
       return b.side === 'right' ? { x: b.x - b.w / 2 + 4, y: b.y, dir: 'right' } : { x: b.x + b.w / 2 - 4, y: b.y, dir: 'left' };
     }
-    if (road) {
-      const cell = road.find((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
-      if (!cell) return null;
-      const p = footCenter(cell.x, cell.y);
+    if ('road' in point) {
+      const p = footCenter(point.road.x, point.road.y);
       const at = this.toScreen(p.x, p.y);
       return { x: at.x, y: at.y, dir: 'down' };
     }
-    if (step.id === 'gather' && this.tool !== this.spot?.kind) return null;
-    const spot = this.stepSpot(step.id);
-    if (!spot || !isPlaceTool(this.tool) || this.tool === 'road') return null;
+    const { spot } = point;
     const p = footCenter(spot.x, spot.y, spot.w, spot.h);
     const at = this.toScreen(p.x, p.y);
     // On touch a single building is aimed TOUCH_LIFT above the finger: the arrow shows where the
     // finger goes, so a tap on its tip builds on the marked spot. Otherwise the tip stays over the
     // top of the building, so the arrow never covers its preview.
-    if (this.input.activePointer.wasTouch && !DRAG_TOOLS.has(this.tool)) return { x: at.x, y: at.y + TOUCH_LIFT, dir: 'down' };
-    const top = (HEIGHT[TEX.building(this.tool)] ?? 20) * this.cameras.main.zoom;
+    if (point.lift) return { x: at.x, y: at.y + TOUCH_LIFT, dir: 'down' };
+    const top = (HEIGHT[TEX.building(this.tool as BuildableKind)] ?? 20) * this.cameras.main.zoom;
     // Above the preview pill ("Rende N…") when it shows, so the arrow never covers its text.
     return { x: at.x, y: Math.min(at.y - top, (this.ui?.tagTop() ?? Infinity) - 2), dir: 'down' };
   }
@@ -883,16 +615,23 @@ export class GameScene extends Phaser.Scene implements UiHost {
     return this.cellAt(p.x, p.y - lift);
   }
 
-  private cellAt(sx: number, sy: number): Cell | null {
+  cellAt(sx: number, sy: number): Cell | null {
     const w = this.rig.toWorld(sx, sy);
     return worldToCell(w.x, w.y);
   }
 
-  private setHover(cell: Cell | null) {
-    if (sameCell(cell, this.hover) || (!cell && !this.hover)) return;
-    this.hover = cell;
-    this.ui?.setHover(cell);
-    this.drawOverlay();
+  setHover(cell: Cell | null) {
+    if (this.session.setHover(cell)) this.ui?.setHover(cell);
+  }
+
+  /** A tap with Mover on a cell (the visual tests call it). */
+  select(cell: Cell) {
+    this.session.select(cell);
+  }
+
+  /** Uses the current tool on a cell (the visual tests call it). */
+  apply(cell: Cell, first: boolean, touch = false) {
+    this.session.apply(cell, first, touch, this.gesture);
   }
 
   private setupInput() {
@@ -923,7 +662,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
   }
 
   private onDown(p: Phaser.Input.Pointer) {
-    if (this.ui?.modalOpen || this.overUi(p.x, p.y)) return;
+    if (this.modalOpen || this.overUi(p.x, p.y)) return;
     if (p.rightButtonDown() || p.middleButtonDown()) {
       this.rightPan = { id: p.id, x: p.x, y: p.y };
       this.updateCursor();
@@ -938,6 +677,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     }
     const cell = this.aimAt(p);
     this.gesture = {
+      ...newDrag(),
       id: p.id,
       start: cell,
       last: cell,
@@ -950,9 +690,6 @@ export class GameScene extends Phaser.Scene implements UiHost {
       moved: false,
       applied: false,
       cancelled: false,
-      toastedSilver: false,
-      toastedFood: false,
-      roads: [],
       cutByUi: false,
     };
     if (this.tool !== 'view') this.setHover(cell);
@@ -1005,14 +742,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
       // Never build under the UI, and give a second finger time to land before a touch drag builds.
       const ready = g.moved && (!g.touch || this.time.now - g.downAt >= TOUCH_BUILD_DELAY);
       if (DRAG_TOOLS.has(this.tool) && ready && cell && !sameCell(cell, g.last)) {
-        this.batching = true;
-        if (!g.applied && g.start) this.apply(g.start, true, g.touch);
-        for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) this.apply(c, false, g.touch);
-        this.batching = false;
-        if (this.pending) {
-          this.pending = false;
-          this.refresh();
-        }
+        const s = this.session;
+        s.batch(() => {
+          if (!g.applied && g.start) s.apply(g.start, true, g.touch, g);
+          for (const c of g.last ? orthoSteps(g.last, cell) : [cell]) s.apply(c, false, g.touch, g);
+        });
         g.last = cell;
         g.applied = true;
       }
@@ -1040,107 +774,11 @@ export class GameScene extends Phaser.Scene implements UiHost {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
         // Releasing a single building over the UI cancels it.
         const cell = DRAG_TOOLS.has(this.tool) ? g.start : this.aimAt(p);
-        if (cell) this.apply(cell, true, g.touch);
+        if (cell) this.session.apply(cell, true, g.touch);
       }
-      this.warnLooseRoads(g.roads);
+      this.session.warnLooseRoads(g.roads);
       if (g.cutByUi && this.tool === 'road') this.ui?.toast(T.roadUnderUi, 'bad');
     }
     if (p.wasTouch) this.setHover(null);
-  }
-
-  /** Warns once if any road just built is not connected to the altar. */
-  private warnLooseRoads(cells: Cell[]) {
-    const s = this.state;
-    if (cells.some((c) => !s.network[indexOf(s, c.x, c.y)])) this.ui?.toast(T.looseRoad, 'bad');
-  }
-
-  private select(cell: Cell) {
-    // Nova: a tap on plain land (or the river) closes the tapped building's balloon.
-    const s = this.state;
-    const i = indexOf(s, cell.x, cell.y);
-    const plain = !s.grid[i] && !s.roads[i] && !s.feature[i];
-    this.selected = plain ? null : cell;
-    this.refresh();
-  }
-
-  /** Uses the current tool on a cell; `first` for the first cell of a gesture, `touch` when a finger did it. */
-  private apply(cell: Cell, first: boolean, touch = false) {
-    if (this.tool === 'view') return;
-    const s = this.state;
-    const o = originFor(this.tool, cell, this.rotated);
-    // Continuing a road from an existing one: nothing to build there, and nothing wrong either.
-    if (this.tool === 'road' && s.roads[indexOf(s, o.x, o.y)]) return;
-    if (this.tool === 'clear') {
-      // On touch, Demolir never removes what would spoil food at once: the first touch opens the
-      // building's balloon ("Perde N de comida" and its own Demolir, with a second tap).
-      if (touch && inBounds(s, o.x, o.y) && foodLostIfRemoved(s, o.x, o.y) > 0) {
-        if (first) this.select(o);
-        else if (this.gesture && !this.gesture.toastedFood) {
-          // A drag passes over it: say why it stayed.
-          this.gesture.toastedFood = true;
-          this.ui?.toast(T.demolishKeepsFood, 'bad');
-        }
-        return;
-      }
-      // Any other touch or click with Demolir closes a balloon it opened.
-      if (first && this.selected) {
-        this.selected = null;
-        this.refresh();
-      }
-    }
-    const r: ActionResult = this.tool === 'clear' ? this.demolish(o) : place(s, this.tool, o.x, o.y, this.rotated, this.rng);
-    if (r.ok) {
-      if (this.tool === 'road') {
-        if (this.gesture) this.gesture.roads.push(o);
-        else this.warnLooseRoads([o]); // a tap ends the gesture before placing
-      }
-      if (this.tool !== 'clear') {
-        const b = s.grid[indexOf(s, o.x, o.y)];
-        const c = b ? footCenter(b.x, b.y, b.w, b.h) : footCenter(o.x, o.y);
-        if (this.tool === 'temple') this.fx.celebrate(c.x, c.y);
-        else this.fx.ring(c.x, c.y);
-      }
-      // A temple built before goal 9: the victory waits for it (and says what it is).
-      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.ui?.toast(T.templeEarly, 'good');
-      if (this.spots && this.tool !== 'road') {
-        this.spots = null;
-        this.drawSpots();
-      }
-      if (this.batching) this.pending = true;
-      else this.refresh();
-      return;
-    }
-    const g = this.gesture;
-    // Short of silver or a material: said once per drag (the drag may run out half way).
-    if (r.reason === 'silver' || r.reason === 'materials') {
-      if (g?.toastedSilver) return;
-      if (g) g.toastedSilver = true;
-      const m = isPlaceTool(this.tool) ? missingMaterial(s, this.tool) : null;
-      this.ui?.toast(r.reason === 'materials' && m ? T.lacking(m) : T.fail[r.reason], 'bad');
-    } else if (first) {
-      this.ui?.toast(r.reason === 'invalid' ? this.whyInvalid(o) : T.fail[r.reason], 'bad');
-    }
-  }
-
-  /** Why the current tool cannot be used here: the first thing in the way (more precise than "invalid"). */
-  private whyInvalid(o: Cell): string {
-    const s = this.state;
-    const B = T.blocked;
-    if (this.tool === 'clear') {
-      if (!inBounds(s, o.x, o.y)) return B.edge;
-      return s.feature[indexOf(s, o.x, o.y)] === 'rock' ? B.rockClear : B.nothing;
-    }
-    const { w, h } = isPlaceTool(this.tool) && this.tool !== 'road' ? dimsOf(this.tool, this.rotated) : { w: 1, h: 1 };
-    const reasons: string[] = [];
-    for (let y = o.y; y < o.y + h; y++)
-      for (let x = o.x; x < o.x + w; x++) {
-        if (!inBounds(s, x, y)) return B.edge;
-        const i = indexOf(s, x, y);
-        if (s.grid[i] || s.roads[i]) reasons.push(B.taken);
-        else if (s.ground[i] === 'river') reasons.push(B.river);
-        else if (s.feature[i] === 'rock') reasons.push(B.rock);
-        else if (isTree(s.feature[i])) reasons.push(B.tree);
-      }
-    return reasons[0] ?? T.fail.invalid;
   }
 }
