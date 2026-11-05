@@ -108,8 +108,9 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Níveis das construções** (`levels` em `buildings.json`; a definição é o nível 1, `statOf` lê o
   valor do nível): Celeiro, Mercado e Oficina sobem até o nível 3 com a ação **Melhorar** do
   balão (`upgradeBuilding`): paga o custo do nível (Celeiro 60 / 100, Mercado 60 / 90, Oficina 50 /
-  80) e passa a pagar a manutenção dele (Celeiro 2 / 4, Mercado 3 / 5, Oficina 2 / 3). Não dá em
-  dívida, sem prata ou no topo. Toast "Celeiro subiu para o nível 2".
+  80) **mais pedra** (20 no nível 2, 40 no nível 3, `materials` do nível; segura a pedra que sobrava
+  no fim da partida) e passa a pagar a manutenção dele (Celeiro 2 / 4, Mercado 3 / 5, Oficina 2 / 3).
+  Não dá em dívida, sem prata, sem a pedra (`materials`) ou no topo. Toast "Celeiro subiu para o nível 2".
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
   coluna mostra custo e manutenção.
@@ -660,8 +661,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     Dá para construir em cima";
   - celeiro, mercado e oficina: "Nível 1 de 3", a linha do próximo nível num quadro dourado
     ("Nível 2: guarda 600 · 2/sem (hoje 300 · 1/sem)"; mercado "alcance", oficina "+20% nos
-    campos") e a ação principal **"Melhorar · 60"** dourada; sem prata o botão fica cinza, "Falta
-    prata: custa 60", e tocar nele diz o mesmo num toast; no topo, "Nível máximo" e nenhuma ação.
+    campos") e a ação principal **"Melhorar · 60 · 20 pedra"** dourada; sem prata o botão fica cinza,
+    "Falta prata: custa 60"; sem a pedra, cinza com "Falta pedra: construa uma pedreira"; tocar nele
+    diz o mesmo num toast; no topo, "Nível máximo" e nenhuma ação.
     Melhorar faz a construção pular e brilhar e o toast "Celeiro subiu para o nível 2";
   - outras construções: o que faz, quantas casas atende (serviços), vagas, produção, manutenção
     por semana e conexão (desconectada: "não funciona, mas paga manutenção"); campo: "colhe na
@@ -731,9 +733,11 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     painéis terminam acima das ferramentas de baixo;
   - toasts: no máximo 3 na tela; os outros esperam em fila (os vermelhos na frente) e nenhum se
     perde; ficam acima dos balões. Com um **painel aberto** ou o **balão da construção tocada**
-    nenhum toast aparece: eles esperam e entram quando fecha; os que já estavam na tela saem e voltam
-    para a frente da fila com o tempo que faltava (no mínimo 1,5 s), em vez de ficar meio cobertos
-    atrás do balão. Toasts iguais viram um. Um toast de
+    nenhum toast aparece (os que estavam na tela saem, em vez de ficar meio cobertos atrás do balão).
+    Ao fechar, volta **no máximo 1 toast**: o aviso mais importante que ainda vale, na ordem de
+    `alerts()` (com o tempo que faltava, no mínimo 1,5 s). As notícias que passaram nesse tempo
+    (nascimento, morte, casamento, marco, objetivo, liberação, toque que falhou) são descartadas: ficam
+    na lista de Avisos, no painel Objetivos e na aba Povo. Toasts iguais viram um. Um toast de
     aviso que deixou de valer (o problema sumiu, ou o texto mudou, como "O celeiro libera no
     objetivo 1" depois de liberado) sai da fila e da tela. A frase da caravana é um toast maior, por 5 s, e fica **sozinha**
     (os outros esperam ela sair);

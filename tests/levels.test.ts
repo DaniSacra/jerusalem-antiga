@@ -27,9 +27,9 @@ const WINTER = W;
 describe('service building levels', () => {
   it('granary, market and workshop list their next levels; the definition is level 1', () => {
     expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 1, storage: 300 });
-    expect(BUILDINGS.granary.levels).toEqual([{ cost: 60, upkeep: 2, storage: 600 }, { cost: 100, upkeep: 4, storage: 1000 }]);
-    expect(BUILDINGS.market.levels).toEqual([{ cost: 60, upkeep: 3, radius: 6 }, { cost: 90, upkeep: 5, radius: 7 }]);
-    expect(BUILDINGS.workshop.levels).toEqual([{ cost: 50, upkeep: 2, fieldBonus: 0.2 }, { cost: 80, upkeep: 3, fieldBonus: 0.3 }]);
+    expect(BUILDINGS.granary.levels).toMatchObject([{ cost: 60, upkeep: 2, storage: 600 }, { cost: 100, upkeep: 4, storage: 1000 }]);
+    expect(BUILDINGS.market.levels).toMatchObject([{ cost: 60, upkeep: 3, radius: 6 }, { cost: 90, upkeep: 5, radius: 7 }]);
+    expect(BUILDINGS.workshop.levels).toMatchObject([{ cost: 50, upkeep: 2, fieldBonus: 0.2 }, { cost: 80, upkeep: 3, fieldBonus: 0.3 }]);
   });
 
   it('statOf reads the value of the level (or of the definition when the level does not set it)', () => {
@@ -43,9 +43,10 @@ describe('service building levels', () => {
     expect(statOf({ kind: 'house', level: 3 }, 'upkeep')).toBe(0);
   });
 
-  it('upgrading pays the level, raises it and changes the store and the upkeep, with an event', () => {
+  it('upgrading pays the level (silver and stone), raises it and changes the store and the upkeep, with an event', () => {
     const s = emptyGame();
     s.silver = 500;
+    s.stone = 70;
     const g = put(s, 'granary', EAST, 36);
     const events: GameEvent[] = [];
     expect(foodCapacity(s)).toBe(RULES.baseFoodStorage + 300);
@@ -54,6 +55,28 @@ describe('service building levels', () => {
     expect(events).toEqual([{ type: 'buildingUp', x: EAST, y: 36, level: 2 }]);
     expect(upgradeBuilding(s, EAST, 36).ok).toBe(true);
     expect([g.level, s.silver, foodCapacity(s)]).toEqual([3, 340, RULES.baseFoodStorage + 1000]);
+    expect(s.stone).toBe(10);
+  });
+
+  it('every service level asks stone: 20 for level 2 and 40 for level 3', () => {
+    for (const kind of ['granary', 'market', 'workshop'] as const) {
+      expect(BUILDINGS[kind].levels!.map((l) => l.materials)).toEqual([{ stone: 20 }, { stone: 40 }]);
+    }
+  });
+
+  it('fails without the stone (materials) and then charges nothing; silver is checked first', () => {
+    const s = emptyGame();
+    const g = put(s, 'granary', EAST, 36);
+    s.silver = 500;
+    s.stone = 19;
+    expect(upgradeBuilding(s, EAST, 36)).toEqual({ ok: false, reason: 'materials' });
+    expect([g.level, s.silver, s.stone]).toEqual([1, 500, 19]);
+    s.silver = 59;
+    expect(checkUpgrade(s, EAST, 36)).toEqual({ ok: false, reason: 'silver' });
+    s.silver = 60;
+    s.stone = 20;
+    expect(upgradeBuilding(s, EAST, 36).ok).toBe(true);
+    expect([g.level, s.silver, s.stone]).toEqual([2, 0, 0]);
   });
 
   it('fails at the top level (locked), without the silver, in debt, and on buildings without levels', () => {

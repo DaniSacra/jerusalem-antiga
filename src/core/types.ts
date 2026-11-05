@@ -196,6 +196,8 @@ export interface BuildingDef {
 /** What a service building's next level costs and changes. */
 export interface BuildingLevelDef {
   cost: number;
+  /** Wood and stone paid on top of the silver to reach this level. */
+  materials?: Materials;
   upkeep?: number;
   storage?: number;
   radius?: number;

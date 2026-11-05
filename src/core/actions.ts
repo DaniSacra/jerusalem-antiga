@@ -6,7 +6,7 @@ import { touchesNetwork } from './network';
 import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
-import { materialsOf, missingMaterial, payMaterials } from './materials';
+import { lackingMaterial, materialsOf, missingMaterial, payMaterials } from './materials';
 import { clearStump } from './trees';
 import type { ActionResult, BuildableKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
 
@@ -217,18 +217,21 @@ export function checkUpgrade(s: GameState, x: number, y: number): ActionResult {
   const next = b && nextLevelOf(b);
   if (!next) return fail('locked');
   if (s.silver < 0) return fail('debt');
-  return s.silver < next.cost ? fail('silver') : OK;
+  if (s.silver < next.cost) return fail('silver');
+  return lackingMaterial(s, next.materials ?? {}) ? fail('materials') : OK;
 }
 
 /**
  * Raises a granary, market or workshop one level at once (no refund on demolishing): pays the
- * level's cost; its stats and upkeep change (see `statOf`). Pushes a `buildingUp` event.
+ * level's silver and materials; its stats and upkeep change (see `statOf`). Pushes a `buildingUp` event.
  */
 export function upgradeBuilding(s: GameState, x: number, y: number, events: GameEvent[] = []): ActionResult {
   const r = checkUpgrade(s, x, y);
   if (!r.ok) return r;
   const b = s.grid[indexOf(s, x, y)]!;
-  s.silver -= nextLevelOf(b)!.cost;
+  const next = nextLevelOf(b)!;
+  s.silver -= next.cost;
+  payMaterials(s, next.materials ?? {});
   b.level++;
   refreshCity(s);
   events.push({ type: 'buildingUp', x: b.x, y: b.y, level: b.level });

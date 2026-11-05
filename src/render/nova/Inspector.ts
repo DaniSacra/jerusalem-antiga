@@ -12,6 +12,7 @@ import {
   indexOf,
   upgradeGain,
   unlockingGoal,
+  lackingMaterial,
   nextLevelOf,
   statOf,
   weeksToNextLevel,
@@ -139,7 +140,9 @@ function card(s: GameState, c: Cell, { eco, births }: CityReadout): Card | null 
     }
     if (next && !action) {
       const short = s.silver < next.cost;
-      action = { label: short ? T.missingSilver(next.cost) : N.upgrade(next.cost), kind: 'upgrade', target: b, dim: short };
+      const lack = lackingMaterial(s, next.materials ?? {});
+      const label = short ? T.missingSilver(next.cost) : lack ? T.lacking(lack) : N.upgrade(next.cost, next.materials);
+      action = { label, kind: 'upgrade', target: b, dim: short || !!lack };
     }
   }
   if (!def.protected) levels.push(...lossLine(s, c));

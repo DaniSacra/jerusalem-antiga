@@ -17,6 +17,7 @@ import {
   gatherYield,
   houseHint,
   lumberSpot,
+  lackingMaterial,
   missingMaterial,
   placeSpots,
   productOf,
@@ -528,10 +529,12 @@ export class GameScene extends Phaser.Scene implements UiHost {
   upgradeAt(cell: Cell) {
     const events: GameEvent[] = [];
     const b = this.state.grid[indexOf(this.state, cell.x, cell.y)];
-    const cost = b ? nextLevelOf(b)?.cost : undefined;
+    const next = b ? nextLevelOf(b) : null;
+    const lack = next && lackingMaterial(this.state, next.materials ?? {});
     const r = upgradeBuilding(this.state, cell.x, cell.y, events);
     if (!r.ok) {
-      this.ui?.toast(r.reason === 'silver' && cost !== undefined ? T.missingSilver(cost) : T.fail[r.reason], 'bad');
+      const say = r.reason === 'silver' && next ? T.missingSilver(next.cost) : r.reason === 'materials' && lack ? T.lacking(lack) : T.fail[r.reason];
+      this.ui?.toast(say, 'bad');
       return;
     }
     if (b) {

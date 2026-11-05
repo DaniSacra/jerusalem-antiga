@@ -497,8 +497,8 @@ export const T = {
       fieldBonus: (pct: number) => `Campos da cidade: +${pct}% de comida`,
       plotNoRoad: 'Sem rua: ninguém se muda para cá. Ligue à rua',
       plotWaiting: 'Casa vazia: espera um casal ou uma família da caravana',
-      /** A service building's next level: cost and what it changes. */
-      upgrade: (cost: number) => `Melhorar · ${cost}`,
+      /** A service building's next level: silver, then the stone it asks ("Melhorar · 60 · 20 pedra"). */
+      upgrade: (cost: number, m: Materials = {}) => `Melhorar · ${cost}${materialsText(m) ? ` · ${materialsText(m).replaceAll(' de ', ' ')}` : ''}`,
       /** The level now, of the last one. */
       levelOf: (level: number, top: number) => `Nível ${level} de ${top}`,
       /** What the next level changes: "Nível 2: guarda 600 · 2/sem (hoje 300 · 1/sem)". */
