@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mainRoadCells, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
 import { Instancer } from './instancer';
+import { Families } from './figures';
 import { FieldHands, Fire, NightFires, Smoke, Walkers } from './life';
 import type { ModelKey, Prototype } from './models';
-import { cityPlan, hash, residentsOf, walkerCount } from './plan';
+import { cityPlan, CLOSED_AT, hash, residentsOf, walkerCount } from './plan';
 import { SKIRT, Terrain, Water } from './terrain';
 
 /** Most people working one field at the harvest (see fieldHands). */
@@ -12,7 +13,7 @@ export const MAX_HANDS = 2;
 
 /**
  * The drawn city at one moment of the GameState: ground, river, every building, road and tree
- * (instanced, from `cityPlan`), smoke sources, fire spots, field hands and walkers. Built once
+ * (instanced, from `cityPlan`), smoke sources, fire spots, field hands, walkers and the families walking home. Built once
  * when the view opens (the game is paused meanwhile); everything per frame lives in `update`.
  */
 export class World {
@@ -20,6 +21,7 @@ export class World {
   readonly ground: Terrain;
   readonly water: Water;
   readonly walkers: Walkers;
+  readonly families: Families;
   readonly smoke: Smoke;
   readonly fires: NightFires;
   readonly hands: FieldHands;
@@ -64,9 +66,14 @@ export class World {
     for (const { b, look, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
       const y = ground.height(cx, cz);
       inst.add(look.key, cx, y, cz, rot, scale, tint, sy);
-      if (look.trim) inst.add(look.trim, cx, y, cz, rot);
+      if (look.extra) inst.add(look.extra, cx, y, cz, rot, scale, 1, sy);
       // A point of the model (local x, z, front +z) in the world.
       const at = (lx: number, ly: number, lz: number) => new THREE.Vector3(cx + lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, cz - lx * Math.sin(rot) + lz * Math.cos(rot));
+      if (look.closed) {
+        const [gx, gz] = CLOSED_AT[look.houseLevel as 2 | 3 | 4];
+        const g = at(gx, 0, gz);
+        inst.add('closed', g.x, g.y, g.z, rot);
+      }
       const lv = look.vacant ? 0 : look.houseLevel;
       if (lv >= 2) {
         const p = at(lv >= 3 ? -0.5 : -0.4, lv >= 4 ? 1.6 : lv === 3 ? 1.3 : 1.05, lv >= 3 ? -0.55 : -0.4);
@@ -78,7 +85,8 @@ export class World {
         smoke.push(new THREE.Vector4(p.x, p.y + 0.2, p.z, 0.05 + hash(b.x, b.y, 12) * 0.95));
       }
       if (b.kind === 'workshop') {
-        const p = at(-0.9, 0.6, 0.75);
+        // The level-3 kiln has a tall chimney: the smoke leaves from its top.
+        const p = at(-0.9, look.extra === 'up-workshop-3' ? 1.45 : 0.6, 0.75);
         smoke.push(new THREE.Vector4(p.x, p.y, p.z, 0));
         fires.push(at(-0.9, 0.05, 1.2));
       }
@@ -98,11 +106,12 @@ export class World {
     this.houses = s.buildings.filter((b) => b.kind === 'house' && b.level > 0).length;
     this.fields = fields.length;
     this.walkers = new Walkers(s, ground, walkerCount(residentsOf(s)), shadows);
+    this.families = new Families(s, ground, shadows);
     this.smoke = new Smoke(smoke);
     this.fires = new NightFires(fires);
     this.hands = new FieldHands(fields, MAX_HANDS, shadows);
     this.puddles = puddleMesh(puddles);
-    this.group.add(...this.walkers.objects, this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, this.puddles);
+    this.group.add(...this.walkers.objects, ...this.families.objects, this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, this.puddles);
   }
 
   dispose() {

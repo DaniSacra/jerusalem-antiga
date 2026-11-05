@@ -24,6 +24,7 @@ import {
   indexOf,
   place,
   RULES,
+  MAX_HOUSE_LEVEL,
   gatherSpots,
   materialMadeBy,
   spotsServing,
@@ -340,6 +341,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
         case 'houseUp':
           ups.set(e.level, { x: e.x, y: e.y });
           this.cheerHouse(e.x, e.y, `+${e.delta}`);
+          if (e.level === MAX_HOUSE_LEVEL) this.ui?.invite3D(); // a Casa grande: worth seeing in 3D
           break;
         case 'houseDown': {
           const c = footCenter(e.x, e.y);
@@ -360,6 +362,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
           if (e.unlock === 'market') this.guide?.marketUnlocked();
           if (e.unlock && T.unlocked[e.unlock]) this.ui?.toast(T.unlocked[e.unlock]!, 'good');
           if (e.unlock) this.ui?.unlocked(e.unlock);
+          this.ui?.invite3D();
           break;
         case 'victory':
           this.ui?.showVictory(e.week, e.residents, this.births, this.weddings);
@@ -522,7 +525,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     const lack = next && lackingMaterial(this.state, next.materials ?? {});
     const r = upgradeBuilding(this.state, cell.x, cell.y, events);
     if (!r.ok) {
-      const say = r.reason === 'silver' && next ? T.missingSilver(next.cost) : r.reason === 'materials' && lack ? T.lacking(lack) : T.fail[r.reason];
+      const say = r.reason === 'silver' && next ? T.missingSilver(next.cost) : r.reason === 'materials' && lack ? T.lackingAmount(lack, next?.materials?.[lack] ?? 0, this.state[lack]) : T.fail[r.reason];
       this.ui?.toast(say, 'bad');
       return;
     }
@@ -657,11 +660,18 @@ export class GameScene extends Phaser.Scene implements UiHost {
    */
   open3D() {
     if (this.ui?.modalOpen) return;
+    // Nothing stays open under the 3D view (nor is still open on the way back).
+    this.ui?.closeAll();
+    if (this.selected) this.deselect();
     const speed = this.speed;
     const input = this.game.input;
+    // The 3D opens on the cell at the centre of the 2D camera, turned like the 2D view.
+    const mid = this.cameras.main.midPoint;
+    const g = worldToGrid(mid.x, mid.y);
     void launch3D({
       state: this.state,
       seed: this.seed,
+      start: { focus: { x: g.x, y: g.y }, rotation: getRotation() },
       weekFrac: this.clock / RULES.weekSeconds,
       dayT: this.dayNight.current.t,
       pause: () => {

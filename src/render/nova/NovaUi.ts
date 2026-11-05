@@ -263,6 +263,10 @@ export class NovaUi {
     this.column.openCategory(c);
   }
 
+  invite3D() {
+    this.tools.invite3D();
+  }
+
   unlocked(kind: Placeable) {
     this.column.markNew(kind);
   }
@@ -270,6 +274,15 @@ export class NovaUi {
   setHover(cell: Cell | null) {
     this.hover = cell;
     this.tagKey = '';
+  }
+
+  /** Closes every panel, sheet, strip and tip (the 3D view opens over a clear screen). */
+  closeAll() {
+    this.panels.close();
+    this.sheet.close();
+    this.column.closeAll();
+    this.tools.closeTip();
+    this.tools.refresh(this.tool, this.list, this.panels.open);
   }
 
   /** Esc: closes the open panel or category strip (a tool's own tip or balloon goes away with the tool). */

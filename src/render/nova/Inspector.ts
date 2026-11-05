@@ -269,12 +269,16 @@ function foodLines(s: GameState, b: Building, eco: Economy): Line[] {
     if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, color: NOVA_CSS.good } : { text: N.inspect.droughtDry, color: NOVA_CSS.warn });
   }
   if (def.gather && b.connected) {
-    const n = gatherYield(s, b) * eco.efficiency;
-    out.push(n > 0 ? { text: N.yields(n, def.gather.product), color: NOVA_CSS.good } : ok(false, N.inspect.noSource[def.gather.source]));
+    const raw = gatherYield(s, b);
+    const n = raw * eco.efficiency;
+    const made = materialMadeBy(b.kind as BuildableKind);
+    // A full store stops it: that line alone, not a green yield beside it. No source only when there
+    // is none (without workers the balloon already says "Sem trabalhadores").
+    if (made && storageFull(s, made)) out.push({ text: N.storeFull(RULES.materialStorage), color: NOVA_CSS.bad });
+    else if (n > 0) out.push({ text: N.yields(n, def.gather.product), color: NOVA_CSS.good });
+    else if (raw <= 0) out.push(ok(false, N.inspect.noSource[def.gather.source]));
     const every = def.cutEvery ? weeksPerCut(n) : null;
     if (every) out.push({ text: N.cutsEvery(every), color: NOVA_CSS.muted, bold: false });
-    const made = materialMadeBy(b.kind as BuildableKind);
-    if (made && storageFull(s, made)) out.push({ text: N.storeFull(RULES.materialStorage), color: NOVA_CSS.bad });
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), color: NOVA_CSS.warn });

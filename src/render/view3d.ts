@@ -9,6 +9,8 @@ export interface Launch3D {
   /** Fraction of the current week and time of day of the 2D, so the 3D starts at the same moment. */
   weekFrac: number;
   dayT: number;
+  /** The grid cell at the centre of the 2D screen and the 2D quarter turns (`iso.getRotation()`): the 3D starts there, turned the same way. */
+  start?: { focus: { x: number; y: number }; rotation: number };
   /** Pauses the game and puts the 2D to sleep (only one view draws). */
   pause(): void;
   /** Wakes the 2D and gives the speed back. */
@@ -37,7 +39,7 @@ export async function launch3D(o: Launch3D): Promise<void> {
   };
   try {
     const { open3D } = await import('../render3d/view');
-    await open3D(o.state, o.seed, done, { weekFrac: o.weekFrac, dayT: o.dayT });
+    await open3D(o.state, o.seed, done, { weekFrac: o.weekFrac, dayT: o.dayT, start: o.start });
   } catch (e) {
     console.warn('3D view:', e);
     done();

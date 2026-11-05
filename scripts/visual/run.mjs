@@ -1133,16 +1133,6 @@ const pillText = (page, name) =>
 
 /** No two parts of the top bar overlap. */
 async function assertTopFits(page, when) {
-  // The left column keeps clear gaps: between its round buttons, and from the 3D button down to Mover.
-  const k = await page.evaluate(() => document.querySelector('canvas').getBoundingClientRect().width / 1280);
-  const by = Object.fromEntries(sizes.map((b) => [b.n, b]));
-  const column = ['side-goals', 'side-alerts', 'side-stats', 'side-3d'];
-  for (let i = 1; i < column.length; i++) {
-    const gap = (by[column[i]].top - by[column[i - 1]].bottom) * k;
-    assert(gap >= 6, `${column[i - 1]} and ${column[i]} are at least 6 real px apart (got ${gap.toFixed(1)})`);
-  }
-  const toMover = (by['tool-view'].top - by['side-3d'].bottom) * k;
-  assert(toMover >= 12, `the 3D button is at least 12 real px above Mover (got ${toMover.toFixed(1)})`);
   const overlaps = await page.evaluate(() => {
     const r = window.game.ui.view.top.rects().filter(Boolean);
     const out = [];
@@ -1185,6 +1175,108 @@ async function topFitScenario(page, suffix) {
  * waiting for stone (red ⚠ in the pill, "Pronta para virar…: falta N de pedra", "Onde pôr uma
  * pedreira"), the Materiais section of the statistics, the quarry balloon short of wood and its toast.
  */
+/**
+ * Lenha e inverno (P4): the caravan tents in winter with wood (smoke, "Lenha no inverno" in the house
+ * balloon), then wood 0 and one week: cold, the wood pill red with ⚠, the firewood alert and its
+ * toast, "Frio: falta lenha" in red in the balloon and no chimney smoke.
+ */
+async function winterColdScenario(page, suffix) {
+  await startGame(page);
+  await page.evaluate(() => window.game.setSpeed(0));
+  await page.waitForFunction(() => window.game.ui.view.toasts.list.length === 0, null, { timeout: 30000 }); // the opening sentence goes away
+  const M = await page.evaluate(() => window.core.RULES.weeksPerSeason);
+  const house = await page.evaluate(() => {
+    const s = window.state;
+    s.food = window.core.foodCapacity(s); // no famine: the cold alone
+    s.wood = 100;
+    const h = s.buildings.find((b) => b.kind === 'house' && b.level >= 1 && s.people.some((p) => p.houseId === b.id));
+    return { x: h.x, y: h.y, w: h.w, h: h.h };
+  });
+  await setLook(page, M + 2); // early winter
+  await centerOnBuilding(page, house, 1.4);
+  const select = () =>
+    page.evaluate(([x, y]) => {
+      window.game.selected = { x, y };
+      window.game.refresh();
+    }, [house.x, house.y]);
+  await select();
+  await page.waitForTimeout(300);
+  let lines = await inspectorLines(page);
+  assert(lines.some((l) => l.startsWith('Lenha no inverno: ')), `a warm house says its firewood (${lines})`);
+  assert(await page.evaluate(() => window.game.map.smoke.emitting), 'chimney smoke in winter with wood');
+  await shot(page, `winter-warm${suffix}`);
+
+  // No wood: one week burns nothing, it is cold.
+  await page.evaluate(() => {
+    const s = window.state;
+    s.wood = 0;
+    window.game.handleEvents(window.core.stepWeek(s, window.core.createRng(1)));
+    s.food = window.core.foodCapacity(s);
+    window.game.refresh();
+  });
+  await select();
+  await page.waitForTimeout(400);
+  const st = await page.evaluate(() => ({ cold: window.state.cold, smoke: window.game.map.smoke.emitting, alerts: window.core.alerts(window.state).filter((a) => a.kind === 'firewood') }));
+  assert(st.cold && st.alerts.length === 1 && st.alerts[0].cold, `cold, with the firewood alert (${JSON.stringify(st)})`);
+  assert(!st.smoke, 'no chimney smoke while it is cold');
+  const pill = await pillText(page, 'materials');
+  const red = await page.evaluate(() => { const t = window.game.ui.view.top.mats[0].texts.find((x) => x.visible && x.text.startsWith('⚠')); return t?.style.color; });
+  assert(pill && pill.includes('⚠ 0') && red && red !== (await page.evaluate(() => window.game.ui.view.top.people.texts.at(-1).style.color)), `the wood pill is red with ⚠ (${pill}, ${red})`);
+  lines = await inspectorLines(page);
+  assert(lines.includes('Frio: falta lenha'), `the house balloon says the cold (${lines})`);
+  await shot(page, `winter-cold${suffix}`);
+  await page.evaluate(() => {
+    window.game.selected = null;
+    window.game.refresh();
+  });
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => [...window.game.ui.view.toasts.list, ...window.game.ui.view.toasts.queue].map((t) => t.msg));
+  // The balloon held the toasts; closing it brings back the cold warning (the alert or the coldStart toast).
+  assert(after.some((m) => m.startsWith('Frio!')), `a cold toast shows (${after})`);
+  await assertTopFits(page, 'in the cold');
+  await shot(page, `winter-cold-toast${suffix}`);
+  await clickUi(page, 'side-alerts');
+  await page.waitForTimeout(250);
+  await shot(page, `winter-cold-alerts${suffix}`);
+}
+
+/** Stone at the cap (400) with a quarry: its balloon says it stopped, and the storageFull alert. */
+async function quarryFullScenario(page, suffix) {
+  await startGame(page);
+  await buildTown(page);
+  await addWoodStone(page);
+  await fillHouses(page, 4); // workers for the quarry: the balloon shows a working quarry that stopped
+  const q = await page.evaluate(() => {
+    const s = window.state;
+    window.game.setSpeed(0);
+    s.food = window.core.foodCapacity(s);
+    s.stone = window.core.RULES.materialStorage;
+    window.game.refresh();
+    const b = s.buildings.find((x) => x.kind === 'quarry');
+    return { x: b.x, y: b.y, w: b.w, h: b.h };
+  });
+  await centerOnBuilding(page, q, 1.4);
+  await page.evaluate(([x, y]) => {
+    window.game.selected = { x, y };
+    window.game.refresh();
+  }, [q.x, q.y]);
+  await page.waitForTimeout(300);
+  const cap = await page.evaluate(() => window.core.RULES.materialStorage);
+  const lines = await inspectorLines(page);
+  assert(lines.includes(`Parado: estoque cheio (${cap})`), `the quarry balloon says it stopped (${lines})`);
+  assert(!lines.some((l) => l.includes('Sem rochas')), `the quarry among rocks never says there are none (${lines})`);
+  const alerts = await page.evaluate(() => window.core.alerts(window.state).filter((a) => a.kind === 'storageFull').map((a) => a.material));
+  assert(alerts.includes('stone'), `the storageFull alert for stone (${alerts})`);
+  await shot(page, `quarry-full${suffix}`);
+  await page.evaluate(() => {
+    window.game.selected = null;
+    window.game.refresh();
+  });
+  await clickUi(page, 'side-alerts');
+  await page.waitForTimeout(250);
+  await shot(page, `quarry-full-alerts${suffix}`);
+}
+
 async function materialsScenario(page, suffix) {
   await startGame(page);
   const phone = !suffix.includes('pc');
@@ -1729,7 +1821,7 @@ async function toastsOverTutorial(page) {
 
 /**
  * The 3D button: the built town (every kind, service levels 2–3, an empty stone house, stumps and
- * people) opens in 3D over the game; the game is paused and Phaser sleeps while it is open; by day,
+ * people, a caravan family walking to the empty house) opens in 3D over the game; the game is paused and Phaser sleeps while it is open; by day,
  * at night and a snowy winter; "Voltar" (Esc on PC the second time) gives the speed and the 2D back.
  * Opened and closed twice.
  */
@@ -1749,6 +1841,12 @@ async function view3dScenario(page, suffix) {
     empty.level = 0;
     empty.emptyLevel = 4;
     window.core.refreshCity(s);
+    // A caravan family (two parents, two children, a grandmother) walking from the entrance to the empty house.
+    const rng = () => 0.5;
+    const members = [['m', 32], ['f', 30], ['m', 7], ['f', 4], ['f', 68]].map(([sex, age]) => window.core.addPerson(s, { sex, age, houseId: null, caravan: 1, clan: 2 }, rng).id);
+    window.core.sendWalking(s, window.core.startCell(s), [empty], members);
+    const f = s.families[s.families.length - 1];
+    f.step = Math.max(0, f.path.length - 10);
     window.game.refresh();
   });
   await setSpeed(page, 3);
@@ -1777,6 +1875,26 @@ async function view3dScenario(page, suffix) {
     assert(/ · Ano \d+$/.test(st.label), `season and year label (${st.label})`);
     if (round === 1) {
       await page.screenshot({ path: `${OUT}/view3d-${suffix}.png` });
+      const inf = await page.evaluate(() => window.view3d.info());
+      assert(inf.families === 1, `the caravan family walks home as a group (${inf.families})`);
+      // The 3D is turned like the 2D (the camera on the side the 2D looks from).
+      const rot2d = await page.evaluate(() => window.iso.getRotation());
+      const yawWant = Math.PI / 4 + (rot2d * Math.PI) / 2;
+      assert(Math.abs(Math.atan2(Math.sin(inf.yaw - yawWant), Math.cos(inf.yaw - yawWant))) < 0.01, `the 3D turn matches the 2D rotation ${rot2d} (yaw ${inf.yaw})`);
+      // Close on the family (and its donkey) on the road, then on the levelled services and the empty house.
+      const home = await page.evaluate(() => ({ x: window.view3d.rig.focus.x, z: window.view3d.rig.focus.z }));
+      await page.evaluate(() => {
+        const f = window.state.families[0];
+        const c = f.path[Math.min(f.path.length - 1, f.step + 3)];
+        window.view3d.view({ pos: window.state.week + 0.3, day: 0.25 });
+        window.view3d.rig.set({ yaw: 0.7, pitch: 0.6, dist: 6, x: c.x + 0.5, z: c.y + 0.5 });
+      });
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}-people.png` });
+      await page.evaluate(() => window.view3d.rig.set({ yaw: -0.5, pitch: 0.75, dist: 16, x: 30, z: 27 }));
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}-levels.png` });
+      await page.evaluate(([home, yaw]) => window.view3d.rig.set({ yaw, pitch: 0.9, dist: 30, ...home }), [home, inf.yaw]);
       // The middle of the next summer and winter (looks only: the state's week is untouched).
       const mid = (season) =>
         page.evaluate(([week, season]) => {
@@ -1872,6 +1990,12 @@ const scenarios = {
   },
   /** Countdown to the winter and the spring on the season pill; FOME on the food pill. */
   materials: { context: PHONE, run: (page) => materialsScenario(page, '') },
+  /** Lenha e inverno: a winter week without wood, phone and PC. */
+  'winter-cold': { context: PHONE, run: (page) => winterColdScenario(page, '') },
+  'winter-cold-pc': { context: PC, run: (page) => winterColdScenario(page, '-pc') },
+  /** Stone at the cap with a quarry, phone and PC. */
+  'quarry-full': { context: PHONE, run: (page) => quarryFullScenario(page, '') },
+  'quarry-full-pc': { context: PC, run: (page) => quarryFullScenario(page, '-pc') },
   'materials-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => materialsScenario(page, '-wide') },
   'materials-pc': { context: PC, run: (page) => materialsScenario(page, '-pc') },
   'top-fit': { context: PC, run: (page) => topFitScenario(page, '') },
@@ -2880,6 +3004,16 @@ async function novaScenario(page, suffix) {
     assert(b.real >= 44 - 0.01, `${b.n} is at least 44 real px (got ${b.real.toFixed(1)})`);
     assert(b.top >= 0 && b.bottom <= H, `${b.n} fits the screen height (${b.top.toFixed(0)}..${b.bottom.toFixed(0)} of ${H})`);
   }
+  // The left column keeps clear gaps: between its round buttons, and from the 3D button down to Mover.
+  const k = await page.evaluate(() => document.querySelector('canvas').getBoundingClientRect().width / 1280);
+  const by = Object.fromEntries(sizes.map((b) => [b.n, b]));
+  const column = ['side-goals', 'side-alerts', 'side-stats', 'side-3d'];
+  for (let i = 1; i < column.length; i++) {
+    const gap = (by[column[i]].top - by[column[i - 1]].bottom) * k;
+    assert(gap >= 6, `${column[i - 1]} and ${column[i]} are at least 6 real px apart (got ${gap.toFixed(1)})`);
+  }
+  const toMover = (by['tool-view'].top - by['side-3d'].bottom) * k;
+  assert(toMover >= 12, `the 3D button is at least 12 real px above Mover (got ${toMover.toFixed(1)})`);
   const overlaps = await page.evaluate(() => {
     const r = window.game.ui.view.top.rects().filter(Boolean);
     const out = [];
@@ -2954,6 +3088,50 @@ async function novaScenario(page, suffix) {
   });
   await page.waitForTimeout(300);
   await shot(page, `nova-${suffix}-milestone`);
+
+  // A goal done, then a Casa grande: the 3D button pulses gently (gold border) for a few seconds and never opens.
+  const pulse = () => page.evaluate(() => ({ on: window.game.ui.view.tools.inviting3D, scale: window.game.ui.view.tools.view3d.root.scale, open: !!window.view3d }));
+  for (const [what, ev] of [
+    ['a goal', { type: 'goal', reward: 0 }],
+    ['a Casa grande', { type: 'houseUp', x: 22, y: 27, level: 4, delta: 4 }],
+  ]) {
+    await page.evaluate((e) => window.game.handleEvents([e]), ev);
+    // The tween runs on frames (slow under load): wait for the swell, not a fixed time.
+    await page.waitForFunction(() => window.game.ui.view.tools.view3d.root.scale > 1.02, null, { timeout: 4000 }).catch(() => {});
+    const p = await pulse();
+    assert(p.on && p.scale > 1.02 && !p.open, `${what} makes the 3D button pulse without opening it (${JSON.stringify(p)})`);
+    if (what === 'a goal') await shot(page, `nova-${suffix}-3d-invite`);
+    await page.waitForFunction(() => !window.game.ui.view.tools.inviting3D, null, { timeout: 8000 });
+    const end = await pulse();
+    assert(end.scale === 1 && !end.open, `the 3D pulse ends at rest, still closed (${JSON.stringify(end)})`);
+  }
+
+  // Opening the 3D closes the open panel and the tapped building's balloon: nothing is left open under it or on the way back.
+  if (suffix === 'phone' || suffix === 'pc') {
+    await press('side-stats');
+    await page.evaluate(() => {
+      window.game.selected = { x: 22, y: 27 };
+      window.game.refresh();
+    });
+    await page.waitForTimeout(200);
+    const before = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open }));
+    assert(before.panel === 'stats' && before.balloon, `the statistics and a balloon are open before the 3D (${JSON.stringify(before)})`);
+    await press('side-3d');
+    const closed = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open, selected: window.game.selected }));
+    assert(!closed.panel && !closed.balloon && !closed.selected, `the 3D button closes the panel and the balloon (${JSON.stringify(closed)})`);
+    await page.waitForFunction(() => window.view3d?.frames > 3 && document.querySelector('.v3d-back'), null, { timeout: 180000 });
+    const r = await page.evaluate(() => {
+      const b = document.querySelector('.v3d-back').getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    });
+    if (tap) await cdpTapPage(page, r[0], r[1]);
+    else await page.click('.v3d-back');
+    await page.waitForFunction(() => !window.view3d && !document.querySelector('.v3d'), null, { timeout: 20000 });
+    await page.waitForTimeout(300);
+    const back = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open }));
+    assert(!back.panel && !back.balloon, `nothing is open on the way back from the 3D (${JSON.stringify(back)})`);
+    await shot(page, `nova-${suffix}-after-3d`);
+  }
 
   // Panels never cover the bottom tools.
   for (const [name, kind] of [['side-alerts', 'alerts'], ['side-goals', 'goals'], ['side-stats', 'stats'], ['gear', 'settings']]) {

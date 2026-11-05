@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { footprintOf, MODEL_KEYS, TRIM_KEYS, type ModelKey, type TrimKey } from './plan';
+import { extraOf, footprintOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
 import { patch } from './shaders';
 
 export type { ModelKey };
@@ -53,6 +53,9 @@ export const COLORS = {
   hedge: 0x4f7234,
   grass: 0x84a14e,
   road: 0xab8f6a,
+  paving: 0xd9cbad,
+  sand: 0xd9bf8c,
+  dryBush: 0x8f8456,
   fire: 0xff8a2a,
   flame: 0xffd36a,
 } as const;
@@ -113,6 +116,14 @@ const cone = (r: number, h: number, seg: number, x: number, y: number, z: number
   const g = new THREE.ConeGeometry(r, h, seg);
   g.rotateY(rotY);
   g.translate(x, y + h / 2, z);
+  return { geo: g, color };
+};
+/** Box tilted by `rotZ` (planks, banners) and turned by `rotY`, centred on (x, y, z). */
+const tilted = (sx: number, sy: number, sz: number, x: number, y: number, z: number, color: number, rotZ: number, rotY = 0): Piece => {
+  const g = new THREE.BoxGeometry(sx, sy, sz);
+  g.rotateZ(rotZ);
+  g.rotateY(rotY);
+  g.translate(x, y, z);
   return { geo: g, color };
 };
 /** Rounded blob (crowns, rocks, bushes) of radius r, squashed by sy. */
@@ -222,19 +233,32 @@ function field(crop: number): Piece[] {
   return rows;
 }
 
-/** Plaza: a paved square with a well in the middle (the old well model). */
+/**
+ * Plaza: an open square paved with pale flagstones in two tones (it must never read as a tent:
+ * nothing tall but a shade tree), a stone well-head in the middle, benches along two sides and jars.
+ */
 function plaza(): Piece[] {
-  return [
-    box(1.7, 0.05, 1.7, 0, 0, 0, COLORS.limestoneDark),
-    cyl(0.45, 0.5, 0.45, 10, 0, 0.05, 0, COLORS.limestone),
-    cyl(0.36, 0.36, 0.02, 10, 0, 0.48, 0, COLORS.water),
-    box(0.07, 0.9, 0.07, -0.42, 0.05, 0, COLORS.wood),
-    box(0.07, 0.9, 0.07, 0.42, 0.05, 0, COLORS.wood),
-    box(0.95, 0.07, 0.07, 0, 0.95, 0, COLORS.wood),
-    cyl(0.07, 0.06, 0.12, 6, 0.1, 0.6, 0, COLORS.wood),
-    box(0.6, 0.18, 0.25, 0.3, 0.05, 0.65, COLORS.limestoneDark),
-    cyl(0.1, 0.07, 0.25, 6, -0.6, 0.05, 0.55, COLORS.mudDark),
-  ];
+  const out: Piece[] = [box(1.92, 0.03, 1.92, 0, 0, 0, COLORS.limestoneDark)];
+  const n = 4;
+  const cell = 1.84 / n;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      const x = -0.92 + cell * (i + 0.5);
+      const z = -0.92 + cell * (j + 0.5);
+      if (Math.abs(x) < 0.4 && Math.abs(z) < 0.4) continue;
+      out.push(box(cell - 0.04, 0.03, cell - 0.04, x, 0.02, z, (i + j) % 2 ? COLORS.limestone : COLORS.paving));
+    }
+  // Round paving and the well-head with a beam on two stone posts.
+  out.push(cyl(0.42, 0.42, 0.03, 12, 0, 0.02, 0, COLORS.paving));
+  out.push(cyl(0.25, 0.27, 0.26, 10, 0, 0.04, 0, COLORS.limestoneDark), cyl(0.18, 0.18, 0.02, 10, 0, 0.29, 0, COLORS.water));
+  out.push(box(0.07, 0.4, 0.07, -0.24, 0.04, 0, COLORS.limestone), box(0.07, 0.4, 0.07, 0.24, 0.04, 0, COLORS.limestone), box(0.58, 0.05, 0.06, 0, 0.44, 0, COLORS.wood));
+  // Benches along the back and the left side; a trough; jars by the well.
+  out.push(box(1.0, 0.1, 0.18, 0.15, 0.04, -0.78, COLORS.limestoneDark), box(0.18, 0.1, 0.8, -0.78, 0.04, 0.25, COLORS.limestoneDark));
+  out.push(box(0.42, 0.1, 0.16, 0.55, 0.04, 0.45, COLORS.limestoneDark));
+  out.push(cyl(0.06, 0.045, 0.16, 6, 0.36, 0.04, 0.12, COLORS.mudDark), cyl(0.05, 0.04, 0.13, 6, 0.42, 0.04, -0.06, COLORS.red));
+  // A fig tree giving shade in the back corner.
+  out.push(cyl(0.04, 0.06, 0.5, 5, -0.66, 0.04, -0.62, COLORS.trunk), blob(0.3, -0.66, 0.66, -0.62, COLORS.leaf, 0.7), blob(0.2, -0.5, 0.74, -0.5, COLORS.leafDark, 0.7));
+  return out;
 }
 
 function market(): Piece[] {
@@ -447,30 +471,136 @@ const stump = (): Piece[] => [cyl(0.09, 0.12, 0.16, 6, 0, 0, 0, COLORS.trunk), c
 const sapling = (): Piece[] => [cyl(0.03, 0.04, 0.35, 5, 0, 0, 0, COLORS.trunk), blob(0.2, 0, 0.42, 0, COLORS.leaf, 0.8)];
 
 /**
- * Stone trim of a service building at level 2 (a limestone kerb and corner posts) and level 3
- * (taller posts with gold caps and two red banners at the front): the same building, richer.
+ * The common stone dress of a service building at level 2–3: a limestone kerb round the footprint and
+ * corner posts, short with stone caps at level 2, tall with gold caps and red banners at level 3.
  */
-function trim(w: number, d: number, level: 2 | 3): Piece[] {
+function stoneDress(w: number, d: number, level: 2 | 3): Piece[] {
   const t = 0.1;
   const out: Piece[] = [
-    box(w, 0.12, t, 0, 0, -d / 2 + t / 2 - 0.02, COLORS.limestone),
-    box(w, 0.12, t, 0, 0, d / 2 - t / 2 + 0.02, COLORS.limestone),
-    box(t, 0.12, d, -w / 2 + t / 2 - 0.02, 0, 0, COLORS.limestone),
-    box(t, 0.12, d, w / 2 - t / 2 + 0.02, 0, 0, COLORS.limestone),
+    box(w, 0.1, t, 0, 0, -d / 2 + t / 2 - 0.02, COLORS.limestone),
+    box(w, 0.1, t, 0, 0, d / 2 - t / 2 + 0.02, COLORS.limestone),
+    box(t, 0.1, d, -w / 2 + t / 2 - 0.02, 0, 0, COLORS.limestone),
+    box(t, 0.1, d, w / 2 - t / 2 + 0.02, 0, 0, COLORS.limestone),
   ];
-  const postH = level === 3 ? 1.0 : 0.55;
+  const postH = level === 3 ? 1.15 : 0.6;
   for (const sx of [-1, 1])
     for (const sz of [-1, 1]) {
-      const x = sx * (w / 2 - 0.08);
-      const z = sz * (d / 2 - 0.08);
-      out.push(box(0.18, postH, 0.18, x, 0, z, COLORS.limestone), box(0.22, 0.06, 0.22, x, postH, z, level === 3 ? COLORS.gold : COLORS.limestoneDark));
-      if (level === 3 && sz === 1) out.push(box(0.03, 0.55, 0.03, x, postH + 0.06, z, COLORS.wood), box(0.02, 0.3, 0.26, x, postH + 0.3, z - 0.14, COLORS.red));
+      const x = sx * (w / 2 - 0.1);
+      const z = sz * (d / 2 - 0.1);
+      out.push(box(0.2, postH, 0.2, x, 0, z, COLORS.limestone), box(0.26, 0.07, 0.26, x, postH, z, level === 3 ? COLORS.gold : COLORS.limestoneDark));
+      if (level === 3 && sz === 1) out.push(box(0.03, 0.6, 0.03, x, postH + 0.07, z, COLORS.wood), box(0.02, 0.34, 0.28, x, postH + 0.3, z - 0.15, COLORS.red));
     }
   return out;
 }
 
-/** Code-built model of each key except the trims. */
-const MAKERS: Record<Exclude<ModelKey, TrimKey>, () => Piece[]> = {
+/** Jars of a store or a stall, in a row from (x, z) along x. */
+const jars = (n: number, x: number, y: number, z: number, colors: number[]): Piece[] =>
+  Array.from({ length: n }, (_, k) => cyl(0.07, 0.05, 0.18, 6, x + k * 0.17, y, z, colors[k % colors.length]));
+
+/**
+ * Granary at level 2: a limestone upper storey on the store house, coping on the court walls, gate
+ * posts and sacks in the yard. Level 3: a taller storey with a gold band and a shade on the roof,
+ * a gateway with a lintel, gold finials on the silos.
+ */
+function granaryUp(level: 2 | 3): Piece[] {
+  const top = level === 3 ? 0.7 : 0.48;
+  const gateH = level === 3 ? 1.1 : 0.75;
+  const out: Piece[] = [
+    ...stoneDress(3, 3, level),
+    box(2.0, top, 0.78, 0, 1.22, -0.88, COLORS.limestone),
+    box(2.1, 0.07, 0.88, 0, 1.22 + top, -0.88, COLORS.limestoneDark),
+    ...[-0.6, 0, 0.6].map((x) => box(0.14, 0.17, 0.03, x, 1.22 + top * 0.4, -0.48, COLORS.dark)),
+    // Coping on the court walls (they stand 0.45 high, with a 0.8 gap in front).
+    box(2.96, 0.05, 0.17, 0, 0.45, -1.39, COLORS.limestone),
+    box(0.17, 0.05, 2.96, -1.39, 0.45, 0, COLORS.limestone),
+    box(0.17, 0.05, 2.96, 1.39, 0.45, 0, COLORS.limestone),
+    box(1.08, 0.05, 0.17, -0.94, 0.45, 1.39, COLORS.limestone),
+    box(1.08, 0.05, 0.17, 0.94, 0.45, 1.39, COLORS.limestone),
+    box(0.2, gateH, 0.22, -0.5, 0, 1.39, COLORS.limestone),
+    box(0.2, gateH, 0.22, 0.5, 0, 1.39, COLORS.limestone),
+    blob(0.14, -1.05, 0.12, 1.0, COLORS.cloth, 0.75),
+    blob(0.13, -0.85, 0.11, 1.1, COLORS.cloth, 0.75),
+    blob(0.12, -0.97, 0.3, 1.04, COLORS.cloth, 0.75),
+    ...jars(3, -1.15, 0.05, -0.3, [COLORS.mudDark, COLORS.red]),
+  ];
+  if (level === 3) {
+    out.push(box(2.06, 0.05, 0.84, 0, 1.22 + top - 0.08, -0.88, COLORS.gold));
+    out.push(box(1.24, 0.16, 0.26, 0, gateH, 1.39, COLORS.limestone), box(1.26, 0.05, 0.28, 0, gateH + 0.16, 1.39, COLORS.gold));
+    for (const x of [-0.75, 0, 0.75]) out.push(cyl(0.03, 0.05, 0.14, 6, x, 0.98, 0.45, COLORS.gold));
+    // Shade on the roof: four posts and an awning.
+    for (const [x, z] of [[-0.8, -1.2], [-0.1, -1.2], [-0.8, -0.56], [-0.1, -0.56]]) out.push(box(0.04, 0.42, 0.04, x, 1.29 + top, z, COLORS.wood));
+    out.push(box(0.8, 0.03, 0.74, -0.45, 1.71 + top, -0.88, COLORS.blue), ...jars(3, 0.25, 1.29 + top, -0.88, [COLORS.ochre, COLORS.mudDark]));
+  }
+  return out;
+}
+
+/**
+ * Workshop at level 2: a limestone room on the roof, a shelf of pots for sale in front and a second
+ * kiln. Level 3: a taller room with a gold band and an awning, a tall kiln chimney and glazed jars.
+ */
+function workshopUp(level: 2 | 3): Piece[] {
+  const top = level === 3 ? 0.72 : 0.5;
+  const out: Piece[] = [
+    ...stoneDress(3, 3, level),
+    box(1.0, top, 0.9, -0.8, 1.07, -0.8, COLORS.limestone),
+    box(1.08, 0.06, 0.98, -0.8, 1.07 + top, -0.8, COLORS.limestoneDark),
+    box(0.16, 0.18, 0.03, -0.8, 1.07 + top * 0.4, -0.34, COLORS.dark),
+    // Shelf of pots in front, between the kiln and the shed.
+    box(0.8, 0.05, 0.24, 0.05, 0.3, 1.32, COLORS.wood),
+    box(0.05, 0.3, 0.05, -0.3, 0, 1.32, COLORS.wood),
+    box(0.05, 0.3, 0.05, 0.4, 0, 1.32, COLORS.wood),
+    ...jars(4, -0.22, 0.35, 1.32, level === 3 ? [COLORS.blue, COLORS.gold, COLORS.red] : [COLORS.red, COLORS.ochre, COLORS.mudDark]),
+    blob(0.26, 0.15, 0.12, -0.05, COLORS.mudDark, 0.8, 1),
+  ];
+  if (level === 3) {
+    out.push(box(1.04, 0.05, 0.94, -0.8, 1.07 + top - 0.08, -0.8, COLORS.gold));
+    out.push(cyl(0.12, 0.17, 1.15, 7, -0.9, 0.25, 0.75, COLORS.mudDark), cyl(0.15, 0.15, 0.06, 7, -0.9, 1.4, 0.75, COLORS.limestone));
+    out.push(box(1.1, 0.03, 0.5, -0.8, 0.95, 0.1, COLORS.red), box(0.04, 0.95, 0.04, -1.3, 0, 0.3, COLORS.wood), box(0.04, 0.95, 0.04, -0.3, 0, 0.3, COLORS.wood));
+    out.push(...jars(3, 0.45, 0, -0.15, [COLORS.blue, COLORS.gold]));
+  }
+  return out;
+}
+
+/**
+ * Market (2 x 4, the stalls of the model fill it) at level 2: goods along the sides and a blue shade
+ * sail over the middle. Level 3: a limestone colonnade (stoa) down both long sides with a gold band.
+ */
+function marketUp(level: 2 | 3): Piece[] {
+  const out: Piece[] = [...stoneDress(2, 4, level)];
+  for (const z of [-1.45, 0.05, 1.45]) out.push(...jars(3, -0.95, 0.06, z, [COLORS.mudDark, COLORS.ochre, COLORS.red]));
+  out.push(box(0.3, 0.12, 0.22, 0.8, 0.06, -0.6, COLORS.red), box(0.3, 0.1, 0.22, 0.8, 0.18, -0.6, COLORS.blue), box(0.3, 0.12, 0.22, 0.8, 0.06, 0.7, COLORS.ochre));
+  for (const [x, z] of [[-0.78, -0.4], [0.78, -0.4], [-0.78, 0.4], [0.78, 0.4]]) out.push(box(0.04, 1.5, 0.04, x, 0, z, COLORS.wood));
+  out.push(box(1.7, 0.03, 0.9, 0, 1.5, 0, COLORS.blue));
+  if (level === 3) {
+    for (const x of [-0.94, 0.94]) {
+      for (const z of [-1.4, -0.47, 0.47, 1.4]) out.push(cyl(0.065, 0.075, 1.7, 8, x, 0.08, z, COLORS.limestone), cyl(0.1, 0.07, 0.08, 8, x, 1.74, z, COLORS.gold));
+      out.push(box(0.16, 0.13, 4.0, x, 1.82, 0, COLORS.limestone), box(0.17, 0.04, 4.02, x, 1.95, 0, COLORS.gold));
+    }
+    for (const z of [-1.92, 1.92]) out.push(box(2.0, 0.13, 0.16, 0, 1.82, z, COLORS.limestone));
+  }
+  return out;
+}
+
+/** Additions of each levelled kind, by level. */
+const EXTRAS: Partial<Record<string, (level: 2 | 3) => Piece[]>> = { granary: granaryUp, workshop: workshopUp, market: marketUp };
+
+/**
+ * Before an empty house that kept its level: a barred gate (two posts, crossed planks), drifted
+ * sand and a dry bush. Placed by the world at the door of each level (see CLOSED_AT).
+ */
+function closed(): Piece[] {
+  return [
+    box(0.06, 0.46, 0.06, -0.24, 0, 0, COLORS.wood),
+    box(0.06, 0.46, 0.06, 0.24, 0, 0, COLORS.wood),
+    tilted(0.6, 0.07, 0.03, 0, 0.24, 0.03, COLORS.trunk, 0.55),
+    tilted(0.6, 0.07, 0.03, 0, 0.24, 0.035, COLORS.trunk, -0.55),
+    blob(0.2, 0.3, 0.0, -0.08, COLORS.sand, 0.3),
+    blob(0.11, -0.38, 0.07, 0.02, COLORS.dryBush, 0.8),
+  ];
+}
+
+/** Code-built model of each key except the additions. */
+const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
   'house-0': plot,
   'house-1': tent,
   'house-2': mudHouse,
@@ -498,6 +628,7 @@ const MAKERS: Record<Exclude<ModelKey, TrimKey>, () => Piece[]> = {
   stump,
   sapling,
   road,
+  closed,
 };
 
 let built: Record<ModelKey, Prototype> | null = null;
@@ -507,10 +638,8 @@ export function codeModels(): Record<ModelKey, Prototype> {
   if (built) return built;
   const out = {} as Record<ModelKey, Prototype>;
   for (const key of MODEL_KEYS) {
-    if (TRIM_KEYS.includes(key as TrimKey)) {
-      const [w, d] = footprintOf(key);
-      out[key] = build(trim(w, d, key.endsWith('-3') ? 3 : 2));
-    } else out[key] = build(MAKERS[key as Exclude<ModelKey, TrimKey>]());
+    const extra = extraOf(key);
+    out[key] = build(extra ? (EXTRAS[extra.kind]?.(extra.level) ?? stoneDress(...footprintOf(key), extra.level)) : MAKERS[key as Exclude<ModelKey, ExtraKey>]());
   }
   return (built = out);
 }

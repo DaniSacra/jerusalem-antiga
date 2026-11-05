@@ -106,6 +106,14 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         '#include <color_fragment>',
         `#include <color_fragment>
         ${o.terrain ? TERRAIN_COLOR : ''}
+        #ifdef USE_COLOR
+          // (USE_COLOR: the fragment side of the instance colours.) An empty house (tint VACANT_TINT, under 0.8): faded and dusty, not just darker.
+          if (vColor.r < 0.8) {
+            vec3 base = diffuseColor.rgb / max(vColor, vec3(0.05));
+            float lum = dot(base, vec3(0.299, 0.587, 0.114));
+            diffuseColor.rgb = mix(base, vec3(lum) * vec3(1.02, 0.97, 0.88), 0.7) * 0.92 + vec3(0.04, 0.035, 0.025);
+          }
+        #endif
         float up = smoothstep(0.55, 0.9, vUp);
         ${o.snow ? `float snowK = uSnow * up * smoothstep(0.25, 0.55, vnoise(vWorld.xz * 0.7) * 0.6 + uSnow * 0.7 - 0.15);
         diffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, snowK);` : 'float snowK = 0.0;'}
@@ -124,7 +132,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
         float lit = step(vInst, uWindows) * (0.85 + 0.15 * sin(vInst * 50.0 + vWorld.x));
-        #ifdef USE_INSTANCING_COLOR
+        #ifdef USE_COLOR
           // Empty houses are drawn dimmer (see VACANT_TINT): nobody lights their windows.
           lit *= step(0.8, vColor.r);
         #endif

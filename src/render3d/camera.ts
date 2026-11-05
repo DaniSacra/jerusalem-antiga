@@ -149,6 +149,11 @@ export class CameraRig {
     return this.target;
   }
 
+  /** Camera turn about y (radians), for the tests. */
+  get heading(): number {
+    return this.yawGoal ?? this.yaw;
+  }
+
   /** Test hook: sets the view. */
   set(view: { yaw?: number; pitch?: number; dist?: number; x?: number; z?: number }) {
     if (view.yaw !== undefined) this.yaw = view.yaw;

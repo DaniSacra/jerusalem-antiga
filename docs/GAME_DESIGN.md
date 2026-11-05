@@ -185,7 +185,8 @@ Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
 - **Tela:** a madeira do topo fica vermelha com ⚠ quando a lenha não dura ou com frio; toasts "Frio!
   Acabou a lenha: construa um lenhador" e "A lenha voltou: as casas se aquecem"; balão da casa no
   outono e no inverno "Lenha no inverno: N/sem" (com frio, vermelho "Frio: falta lenha"); balão do
-  Lenhador/Pedreira cheio "Parado: estoque cheio (400)"; no frio as chaminés param de soltar fumaça;
+  Lenhador/Pedreira cheio "Parado: estoque cheio (400)" no lugar da linha "Rende N" (e "Sem rochas/árvores por
+  perto" só quando não há fonte, nunca por falta de trabalhadores); no frio as chaminés param de soltar fumaça;
   casa que cai no frio mostra "Frio -N".
 
 ## Ruas e conexão

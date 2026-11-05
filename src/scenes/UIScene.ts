@@ -139,6 +139,11 @@ export class UIScene extends Phaser.Scene {
     this.view.openCategory(c);
   }
 
+  /** Something worth seeing (a goal done, a Casa grande): the 3D button pulses gently, never opens. */
+  invite3D() {
+    this.view.invite3D();
+  }
+
   /** A goal unlocked this building. */
   unlocked(kind: Placeable) {
     this.view.unlocked(kind);
@@ -152,6 +157,11 @@ export class UIScene extends Phaser.Scene {
   /** Esc: closes the open panel or balloon; false if nothing was open. */
   closeTop() {
     return this.view.closeTop();
+  }
+
+  /** Closes every panel and sheet of the interface. */
+  closeAll() {
+    this.view.closeAll();
   }
 
   private setFamine(on: boolean) {

@@ -30,6 +30,8 @@ export class Tools {
   private lastTool: Tool = 'view';
   private alertKeys = new Set<string>();
   private pulse: Phaser.Tweens.Tween | null = null;
+  /** The 3D button's gentle invitation (a goal done, a Casa grande). */
+  private pulse3d: Phaser.Tweens.Tween | null = null;
 
   constructor(private scene: Phaser.Scene, onPanel: (p: PanelKind) => void, onTool: (t: Tool) => void, on3d: () => void) {
     const cx = S.margin + S.side / 2;
@@ -102,6 +104,23 @@ export class Tools {
       } });
     }
     return fresh;
+  }
+
+  /** A gentle pulse of the 3D button with its gold border for a few seconds; it never opens by itself. */
+  invite3D() {
+    if (this.pulse3d) return;
+    const b = this.view3d;
+    b.setLook({ selected: true });
+    this.pulse3d = this.scene.tweens.add({ targets: b.root, scale: 1.1, duration: 550, ease: 'Sine.easeInOut', yoyo: true, repeat: 3, onComplete: () => {
+      b.root.setScale(1);
+      b.setLook({ selected: false });
+      this.pulse3d = null;
+    } });
+  }
+
+  /** True while the 3D button invites (for the visual tests). */
+  get inviting3D() {
+    return !!this.pulse3d;
   }
 
   /** Tip of Rua and Demolir, above the button. */

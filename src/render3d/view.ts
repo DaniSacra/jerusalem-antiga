@@ -14,6 +14,7 @@ import { advanceDay, dayTime, DAY_SECONDS } from './time/day';
 import { fieldHands, frameLight, streetShare } from './time/light';
 import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
 import { WeatherClock, type WeatherNow } from './time/weather';
+import { yawOfRotation } from './plan';
 import { MAX_HANDS, World } from './world';
 
 /** The Meshy model pack (public/models/meshy); keys it lacks keep the code models. */
@@ -28,6 +29,11 @@ export interface Open3DOptions {
   dayT?: number;
   /** Model pack manifest (null: code models only). */
   pack?: string | null;
+  /**
+   * Where the 3D starts, to match the 2D the player was looking at: the grid cell at the centre of
+   * the 2D screen and the 2D view's quarter turns (`iso.getRotation()`). Default: the altar, turn 0.
+   */
+  start?: { focus: { x: number; y: number }; rotation: number };
 }
 
 /** Look-only overrides for tests and screenshots (the game state is untouched). */
@@ -108,7 +114,10 @@ export async function open3D(state: GameState, seed: number, onClose: () => void
     // ---------------------------------------------------------------- scene
     const scene = new THREE.Scene();
     const altar = s.buildings.find((b) => b.kind === 'altar');
-    const centre = new THREE.Vector3((altar?.x ?? s.cols / 2) + (altar?.w ?? 0) / 2, 0, (altar?.y ?? s.rows / 2) + (altar?.h ?? 0) / 2);
+    const focus = opts.start?.focus;
+    const centre = focus
+      ? new THREE.Vector3(Math.min(s.cols, Math.max(0, focus.x + 0.5)), 0, Math.min(s.rows, Math.max(0, focus.y + 0.5)))
+      : new THREE.Vector3((altar?.x ?? s.cols / 2) + (altar?.w ?? 0) / 2, 0, (altar?.y ?? s.rows / 2) + (altar?.h ?? 0) / 2);
     const atmo = new Atmosphere(scene, centre, true, 2048);
     const world = new World(s, seed, models, true);
     scene.add(world.group);
@@ -133,7 +142,7 @@ export async function open3D(state: GameState, seed: number, onClose: () => void
     for (const p of Object.values(fx)) scene.add(p.mesh);
 
     const rig = new CameraRig(el, centre.clone(), { min: new THREE.Vector2(-4, -4), max: new THREE.Vector2(s.cols + 4, s.rows + 4) });
-    rig.set({ dist: 30 });
+    rig.set({ dist: 30, yaw: yawOfRotation(opts.start?.rotation ?? 0) });
     const resize = () => {
       const w = root.clientWidth || innerWidth;
       const h = root.clientHeight || innerHeight;
@@ -211,6 +220,7 @@ export async function open3D(state: GameState, seed: number, onClose: () => void
 
       world.walkers.setShare(streetShare(L.night, w.rain));
       world.walkers.update(dt, time);
+      world.families.update(time);
       world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
       world.smoke.update(time, Math.max(look.smoke, L.night * 0.35), w.wind, 0.26 * (1 - 0.5 * w.rain));
       world.fires.update(time, L.night, w.rain, renderer.getPixelRatio());
@@ -321,7 +331,7 @@ export async function open3D(state: GameState, seed: number, onClose: () => void
             weather.reset();
           },
           quality: (l: Level) => setLevel(l),
-          info: () => ({ fps: fps(), level, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, pixelRatio: renderer.getPixelRatio(), canvas: [el.width, el.height], walkers: world.walkers.objects[0].count, label: labelText }),
+          info: () => ({ fps: fps(), level, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, pixelRatio: renderer.getPixelRatio(), canvas: [el.width, el.height], walkers: world.walkers.count, families: world.families.walking, yaw: rig.heading, focus: { x: rig.focus.x, z: rig.focus.z }, label: labelText }),
           close: () => view.close(),
         },
       });

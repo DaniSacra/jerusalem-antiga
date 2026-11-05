@@ -2,10 +2,8 @@ import * as THREE from 'three';
 import { createRng, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type GameState, type Rng, type WalkerType } from '../core';
 import { COLORS } from './models';
 import type { Terrain } from './terrain';
-import { patch } from './shaders';
-
-const ROBES = [0x8a3b2c, 0x3f5f8a, 0xc9b48a, 0x6b7a3a, 0x7a5a8a, 0xe6dcc4, 0x9a6a3a];
-const SKIN = 0xb98463;
+import { figureLook, walkerLook } from './crowd';
+import { Figures } from './figures';
 
 interface Walker {
   type: WalkerType;
@@ -19,49 +17,44 @@ interface Walker {
 
 /**
  * Residents walking the road network (paths and destinations from src/core, as in the 2D game),
- * drawn as simple instanced figures: a robe and a head.
+ * drawn as low-poly people dressed by who walks (the old, children, women carrying water or baskets,
+ * men at their trades: see crowd.ts), with a light bob and sway.
  */
 export class Walkers {
   private list: Walker[] = [];
-  private body: THREE.InstancedMesh;
-  private head: THREE.InstancedMesh;
+  private figures: Figures;
   private rng: Rng;
-  private tmp = new THREE.Object3D();
   /** Walkers on the streets now (a share of the list: fewer at night and in the rain). */
   private shown = 0;
 
   constructor(private s: GameState, private ground: Terrain, count: number, shadows: boolean) {
     this.rng = createRng(s.week * 31 + 7);
-    const robe = new THREE.CylinderGeometry(0.06, 0.11, 0.28, 6);
-    robe.translate(0, 0.14, 0);
-    const head = new THREE.IcosahedronGeometry(0.06, 0);
-    head.translate(0, 0.34, 0);
-    this.body = new THREE.InstancedMesh(robe, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), count);
-    this.head = new THREE.InstancedMesh(head, new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8, flatShading: true }), count);
-    for (const m of [this.body, this.head]) {
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      m.castShadow = shadows;
-      m.frustumCulled = false;
-    }
+    this.figures = new Figures(count, shadows);
     for (let i = 0; i < count; i++) {
-      this.body.setColorAt(i, new THREE.Color(ROBES[i % ROBES.length]));
       const w = this.trip(null);
       if (w) {
         w.seg = Math.floor(this.rng() * (w.path.length - 1));
+        this.figures.dress(this.list.length, walkerLook(w.type, this.rng()));
+        w.speed *= this.figures.look(this.list.length).pace;
         this.list.push(w);
       }
     }
-    this.body.count = this.head.count = this.shown = this.list.length;
+    this.figures.count = this.shown = this.list.length;
   }
 
   /** Shows a share (0..1) of the walkers; the others are indoors. */
   setShare(share: number) {
     this.shown = Math.round(this.list.length * Math.min(1, Math.max(0, share)));
-    this.body.count = this.head.count = this.shown;
+    this.figures.count = this.shown;
   }
 
   get objects() {
-    return [this.body, this.head];
+    return this.figures.objects;
+  }
+
+  /** Walkers on the streets now. */
+  get count() {
+    return this.shown;
   }
 
   /** A new walk, from `from` (the end of the last one) or from a starting building. */
@@ -73,7 +66,7 @@ export class Walkers {
       const start = prev ? prev.path[prev.path.length - 1] : walkerStart(s, type, this.rng);
       const goal = start && walkerGoal(s, type, this.rng, !!prev && this.rng() < 0.5);
       const path = goal && findPath(s, start!, goal.cells);
-      if (path && path.length > 2) return { type, path, seg: 0, t: 0, speed: 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6 };
+      if (path && path.length > 2) return { type, path, seg: 0, t: 0, speed: prev?.speed ?? 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6 };
     }
     return null;
   }
@@ -96,15 +89,11 @@ export class Walkers {
       // Lane: a sideways offset so people coming and going do not overlap.
       const x = a.x + 0.5 + dx * w.t - dz * w.lane;
       const z = a.y + 0.5 + dz * w.t + dx * w.lane;
-      const bob = Math.abs(Math.sin(time * 9 + w.phase)) * 0.03;
-      this.tmp.position.set(x, this.ground.height(x, z) + 0.04 + bob, z);
-      this.tmp.rotation.set(0, Math.atan2(dx, dz), Math.sin(time * 9 + w.phase) * 0.06);
-      this.tmp.updateMatrix();
-      this.body.setMatrixAt(i, this.tmp.matrix);
-      this.head.setMatrixAt(i, this.tmp.matrix);
+      // Two steps per second at the usual pace: a light bob and sway.
+      const ph = time * 9 * w.speed + w.phase;
+      this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, Math.atan2(dx, dz), 0.04, Math.sin(ph) * 0.06);
     }
-    this.body.instanceMatrix.needsUpdate = true;
-    this.head.instanceMatrix.needsUpdate = true;
+    this.figures.commit();
   }
 }
 
@@ -180,52 +169,36 @@ export class Fire {
 }
 
 /**
- * Field hands: figures bent over the crops, a few per field, more at the harvest and the plowing
- * (the count comes from fieldHands, pure and tested). They sway as they work.
+ * Field hands: men and women bent over the crops, a few per field, more at the harvest and the
+ * plowing (the count comes from fieldHands, pure and tested). They sway as they work.
  */
 export class FieldHands {
-  readonly objects: THREE.InstancedMesh[];
+  private figures: Figures;
   private spots: { x: number; y: number; z: number; phase: number }[] = [];
-  private tmp = new THREE.Object3D();
-  private shown = 0;
 
   constructor(fields: THREE.Vector3[], perField: number, shadows: boolean) {
     const rng = createRng(fields.length * 97 + 5);
     for (const f of fields)
       for (let k = 0; k < perField; k++) this.spots.push({ x: f.x + (rng() - 0.5) * 1.4, y: f.y + 0.05, z: f.z + (rng() - 0.5) * 1.4, phase: rng() * 6.28 });
-    const robe = new THREE.CylinderGeometry(0.06, 0.11, 0.26, 6);
-    robe.translate(0, 0.13, 0);
-    const head = new THREE.IcosahedronGeometry(0.06, 0);
-    head.translate(0, 0.31, 0);
-    const n = Math.max(1, this.spots.length);
-    const body = new THREE.InstancedMesh(robe, patch(new THREE.MeshStandardMaterial({ color: 0xd8c8a4, roughness: 0.9, flatShading: true })), n);
-    const hd = new THREE.InstancedMesh(head, new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8, flatShading: true }), n);
-    this.objects = [body, hd];
-    for (const m of this.objects) {
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      m.castShadow = shadows;
-      m.frustumCulled = false;
-      m.count = 0;
-    }
+    this.figures = new Figures(this.spots.length, shadows);
+    this.spots.forEach((p, i) => this.figures.dress(i, figureLook(i % 2 ? 'f' : 'm', 'adult', p.phase / 6.28)));
+  }
+
+  get objects() {
+    return this.figures.objects;
   }
 
   /** `perField` (0..max) people work each field now. */
   update(time: number, perField: number, max: number) {
     const share = Math.min(1, perField / Math.max(max, 1e-6));
-    this.shown = Math.round(this.spots.length * share);
-    for (let i = 0; i < this.shown; i++) {
+    const shown = Math.round(this.spots.length * share);
+    for (let i = 0; i < shown; i++) {
       const p = this.spots[i];
       const bend = 0.5 + Math.sin(time * 2 + p.phase) * 0.25;
-      this.tmp.position.set(p.x + Math.sin(time * 0.3 + p.phase) * 0.15, p.y, p.z);
-      this.tmp.rotation.set(bend, p.phase, 0);
-      this.tmp.updateMatrix();
-      this.objects[0].setMatrixAt(i, this.tmp.matrix);
-      this.objects[1].setMatrixAt(i, this.tmp.matrix);
+      this.figures.place(i, p.x + Math.sin(time * 0.3 + p.phase) * 0.15, p.y, p.z, p.phase, bend);
     }
-    for (const m of this.objects) {
-      m.count = this.shown;
-      m.instanceMatrix.needsUpdate = true;
-    }
+    this.figures.count = shown;
+    this.figures.commit();
   }
 }
 

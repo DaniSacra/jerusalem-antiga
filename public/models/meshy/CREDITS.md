@@ -31,6 +31,9 @@ Triângulos e tamanho atuais (versão leve da 2.ª leva); entre parênteses, a 1
 | `temple` templo | temple.glb | 4 151 (7 441) | 354 KB | 2 | 01a1a7cf-5f3e-7185-847c-d9b87013c39c | 01a1a7cf-bc54-7470-949e-70d5eb3cf3a3 | 15 + 15 + 5 |
 | `olive` oliveira | olive.glb | 1 235 (1 879) | 212 KB | 2 | 01a1a7cf-5f3e-7680-89b8-1b73cceed271 | 01a1a7cf-e6aa-772c-9758-a6b471c14baf | 15 + 15 + 5 + 15 |
 
+**`plaza.glb` fora do manifesto (2026-11-05):** o toldo sobre postes lia como tenda; a visão 3D usa
+a praça feita por código (lajes, poço, bancos, figueira). Nenhum crédito gasto nesta troca.
+
 1.ª leva: 14 tarefas (10 modelos + 4 novas tentativas) = 210 créditos. Saldo: 1066 antes, 856 depois.
 2.ª leva: 100 créditos (detalhe abaixo). Saldo: 856 antes, 756 depois. Total gasto: 310.
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { cityPlan, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, TRIM_KEYS, VACANT_TINT, walkerCount } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, yawOfRotation, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, VACANT_TINT, walkerCount } from '../../src/render3d/plan';
+import { setRotation, toView } from '../../src/render/iso';
 import { emptyGame, put } from '../helpers';
 
 const house = (level: number, emptyLevel = 0) => ({ kind: 'house' as const, level, emptyLevel, variant: 0, w: 2, h: 2 });
@@ -14,36 +15,53 @@ describe('what the 3D view draws', () => {
     for (const k of ['olive', 'palm', 'rock', 'stump', 'sapling', 'road', 'lumber', 'quarry', 'plaza', 'park'] as const) expect(MODEL_KEYS).toContain(k);
   });
 
-  it('draws houses by level, and an empty house by the level it kept, dimmed', () => {
+  it('draws houses by level, and an empty house by the level it kept, faded behind a barred gate', () => {
     expect([0, 1, 2, 3, 4].map((l) => lookOf(house(l)).key)).toEqual(['house-0', 'house-1', 'house-2', 'house-3', 'house-4']);
-    expect(lookOf(house(2)).vacant).toBe(false);
-    // Empty with a kept stone house: the stone house, dimmer, nobody in it.
+    expect(lookOf(house(2))).toMatchObject({ vacant: false, closed: false });
+    // Empty with a kept stone house: the stone house, faded (the shaders key on the tint), nobody in it, gate barred.
     const kept = lookOf(house(0, 3));
-    expect(kept).toMatchObject({ key: 'house-3', tint: VACANT_TINT, vacant: true, houseLevel: 3 });
-    // A tent keeps nothing: an empty plot.
-    expect(lookOf(house(0, 0))).toMatchObject({ key: 'house-0', tint: 1, vacant: true });
+    expect(kept).toMatchObject({ key: 'house-3', tint: VACANT_TINT, vacant: true, closed: true, houseLevel: 3 });
+    expect(VACANT_TINT).toBeLessThan(0.8);
+    for (const l of [2, 3, 4] as const) expect(CLOSED_AT[l][1]).toBeGreaterThan(0.5);
+    // A tent keeps nothing: an empty plot, nothing to bar.
+    expect(lookOf(house(0, 0))).toMatchObject({ key: 'house-0', tint: 1, vacant: true, closed: false });
+    expect(MODEL_KEYS).toContain('closed');
+  });
+
+  it('never tints a lived-in building or a prop like an empty house', () => {
+    const s = emptyGame();
+    put(s, 'house', 25, 27, 2, false, 3);
+    put(s, 'market', 20, 27);
+    s.feature[indexOf(s, 5, 5)] = 'olive';
+    const plan = cityPlan(s);
+    for (const p of [...plan.buildings, ...plan.props]) expect(p.tint).toBeGreaterThanOrEqual(0.8);
   });
 
   it('draws fields by crop', () => {
     expect([0, 1, 2, 3, 5].map((v) => lookOf({ kind: 'field', level: 1, emptyLevel: 0, variant: v, w: 2, h: 2 }).key)).toEqual(['field-0', 'field-1', 'field-2', 'field-3', 'field-1']);
   });
 
-  it('makes service buildings taller and richer at levels 2 and 3, with a stone trim of their footprint', () => {
+  it('makes service buildings taller and richer at levels 2 and 3, with the additions of their kind', () => {
     expect(LEVELLED.sort()).toEqual(['granary', 'market', 'workshop']);
     for (const kind of LEVELLED) {
       const [w, h] = [BUILDINGS[kind].w!, BUILDINGS[kind].h ?? BUILDINGS[kind].w!];
       const at = (level: number) => lookOf({ kind, level, emptyLevel: 0, variant: 0, w, h });
-      expect(at(1)).toMatchObject({ key: kind, trim: null, sy: 1, tint: 1 });
-      expect(at(2).trim).toBe(`trim-${w}x${h}-2`);
-      expect(at(3).trim).toBe(`trim-${w}x${h}-3`);
+      expect(at(1)).toMatchObject({ key: kind, extra: null, sy: 1, tint: 1 });
+      expect(at(2).extra).toBe(`up-${kind}-2`);
+      expect(at(3).extra).toBe(`up-${kind}-3`);
       expect(at(2).sy).toBeGreaterThan(at(1).sy);
       expect(at(3).sy).toBeGreaterThan(at(2).sy);
       expect(at(3).tint).toBeGreaterThan(at(2).tint);
-      for (const l of [2, 3]) expect(TRIM_KEYS).toContain(at(l).trim);
-      expect(footprintOf(at(2).trim!)).toEqual([w, h]);
+      for (const l of [2, 3]) {
+        expect(EXTRA_KEYS).toContain(at(l).extra);
+        expect(MODEL_KEYS).toContain(at(l).extra);
+        expect(extraOf(at(l).extra!)).toEqual({ kind, level: l });
+      }
+      expect(footprintOf(at(2).extra!)).toEqual([w, h]);
     }
-    // Kinds without levels never get a trim.
-    expect(lookOf({ kind: 'plaza', level: 1, emptyLevel: 0, variant: 0, w: 2, h: 2 }).trim).toBeNull();
+    // Kinds without levels never get additions.
+    expect(lookOf({ kind: 'plaza', level: 1, emptyLevel: 0, variant: 0, w: 2, h: 2 }).extra).toBeNull();
+    expect(extraOf('plaza')).toBeNull();
   });
 
   it('gives each model key the footprint of its building', () => {
@@ -113,5 +131,21 @@ describe('what the 3D view draws', () => {
     for (const [k, x, y] of spots) put(s, k, x, y);
     const keys = cityPlan(s).buildings.map((p) => p.key);
     for (const [k] of spots) expect(keys).toContain(k);
+  });
+
+  it('turns the 3D camera to the side the 2D view looks from, for each quarter turn', () => {
+    const at = { x: 20, y: 20 };
+    for (const r of [0, 1, 2, 3]) {
+      setRotation(r);
+      const yaw = yawOfRotation(r);
+      const v0 = toView(at.x, at.y);
+      // The camera stands toward the screen bottom of the 2D (view x + y grows)...
+      const cam = toView(at.x + Math.sin(yaw), at.y + Math.cos(yaw));
+      expect(cam.x + cam.y - v0.x - v0.y).toBeGreaterThan(1.3);
+      // ...and its right is the 2D screen's right (view x - y grows).
+      const right = toView(at.x + Math.cos(yaw), at.y - Math.sin(yaw));
+      expect(right.x - right.y - (v0.x - v0.y)).toBeGreaterThan(1.3);
+    }
+    setRotation(0);
   });
 });

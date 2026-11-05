@@ -11,14 +11,19 @@ import { BUILDINGS, borderCells, indexOf, RULES, type Building, type BuildingKin
 
 /** Kinds drawn with their own model (houses and fields are drawn by level and crop). */
 type KindKey = Exclude<BuildingKind, 'house' | 'field'>;
-/** Service buildings that climb levels (granary, market, workshop) get a stone trim at levels 2 and 3. */
-export type TrimKey = `trim-${number}x${number}-${2 | 3}`;
+/**
+ * Additions of a service building that climbs levels (granary, market, workshop) at level 2 and 3:
+ * one code model per kind and level, drawn over the building (an upper storey, a colonnade, goods).
+ */
+export type ExtraKey = `up-${KindKey}-${2 | 3}`;
 export type ModelKey =
   | `house-${0 | 1 | 2 | 3 | 4}`
   | `field-${0 | 1 | 2 | 3}`
   | KindKey
   | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling' | 'road'
-  | TrimKey;
+  /** The barred gate, sand drift and dry bush in front of an empty house. */
+  | 'closed'
+  | ExtraKey;
 
 /** Kinds with a level 2 and 3 (from buildings.json `levels`). */
 export const LEVELLED: BuildingKind[] = (Object.keys(BUILDINGS) as BuildingKind[]).filter((k) => (BUILDINGS[k].levels?.length ?? 0) > 0);
@@ -26,16 +31,19 @@ export const LEVELLED: BuildingKind[] = (Object.keys(BUILDINGS) as BuildingKind[
 /** Model footprint (cells along x, along z) of a kind, as placed upright (the market 2x4). */
 export const kindFootprint = (k: BuildingKind): [number, number] => [BUILDINGS[k].w ?? 1, BUILDINGS[k].h ?? BUILDINGS[k].w ?? 1];
 
-/** Trims of every levelled kind, at levels 2 and 3. */
-export const TRIM_KEYS: TrimKey[] = LEVELLED.flatMap((k) => {
-  const [w, h] = kindFootprint(k);
-  return [2, 3].map((l) => `trim-${w}x${h}-${l}` as TrimKey);
-});
+/** Additions of every levelled kind, at levels 2 and 3. */
+export const EXTRA_KEYS: ExtraKey[] = LEVELLED.flatMap((k) => [2, 3].map((l) => `up-${k}-${l}` as ExtraKey));
 
-/** Footprint (cells) of each model key, used to fit .glb models and to build the trims. */
+/** The kind and level of an addition key (null for other keys). */
+export function extraOf(key: ModelKey): { kind: KindKey; level: 2 | 3 } | null {
+  const m = /^up-(\w+)-([23])$/.exec(key);
+  return m ? { kind: m[1] as KindKey, level: Number(m[2]) as 2 | 3 } : null;
+}
+
+/** Footprint (cells) of each model key, used to fit .glb models and to build the additions. */
 export function footprintOf(key: ModelKey): [number, number] {
-  const trim = /^trim-(\d+)x(\d+)-/.exec(key);
-  if (trim) return [Number(trim[1]), Number(trim[2])];
+  const extra = extraOf(key);
+  if (extra) return kindFootprint(extra.kind);
   if (key.startsWith('house-') || key.startsWith('field-')) return kindFootprint(key.startsWith('house') ? 'house' : 'field');
   if (key in BUILDINGS) return kindFootprint(key as BuildingKind);
   return [1, 1];
@@ -46,24 +54,30 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3, 4] as const).map((l) => `house-${l}` as const),
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
-  'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road',
-  ...TRIM_KEYS,
+  'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
+  ...EXTRA_KEYS,
 ];
 
-/** Tint of an empty house that kept its level: the drawing of that level, dimmer (door shut, no lights). */
+/**
+ * Tint of an empty house that kept its level. It also marks it for the shaders: the house is drawn
+ * faded and dusty (see `shaders.ts`) and its windows stay dark.
+ */
 export const VACANT_TINT = 0.7;
+/** Where the barred gate of an empty house stands (model x, z; front +z), by the level kept: before its door. */
+export const CLOSED_AT: Record<2 | 3 | 4, [number, number]> = { 2: [0.3, 0.86], 3: [0.05, 0.86], 4: [0, 0.9] };
 /** Per level of a service building (index = level): height and brightness (richer stone at the top). */
 const SERVICE = [
   { sy: 1, tint: 1 },
   { sy: 1, tint: 1 },
-  { sy: 1.1, tint: 1.04 },
-  { sy: 1.2, tint: 1.08 },
+  { sy: 1.08, tint: 1.04 },
+  { sy: 1.15, tint: 1.08 },
 ];
 
-/** How one building looks: its model, an optional stone trim, height scale and tint. */
+/** How one building looks: its model, the additions of its level, height scale and tint. */
 export interface BuildingLook {
   key: ModelKey;
-  trim: TrimKey | null;
+  /** Additions of a service building at level 2–3 (drawn with the same turn and height scale). */
+  extra: ExtraKey | null;
   /** Vertical scale (taller at higher service levels). */
   sy: number;
   /** Brightness multiplier (1 = as modelled). */
@@ -72,24 +86,27 @@ export interface BuildingLook {
   houseLevel: number;
   /** Nobody lives there: no smoke, no fire, no lit windows. */
   vacant: boolean;
+  /** An empty house that kept its level: faded, with a barred gate before the door. */
+  closed: boolean;
 }
 
 /**
  * The look of a building: houses by level (an empty house that kept level 2..4 shows that level,
- * dimmed; an empty plot otherwise), fields by crop, service buildings bigger and richer at levels 2–3.
+ * faded behind a barred gate; an empty plot otherwise), fields by crop, service buildings bigger and
+ * richer at levels 2–3 (taller, with the additions of their kind).
  */
 export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'variant' | 'w' | 'h'>): BuildingLook {
   if (b.kind === 'house') {
     const kept = b.level === 0 && b.emptyLevel >= 2 ? b.emptyLevel : 0;
     const level = Math.max(0, Math.min(4, b.level || kept)) as 0 | 1 | 2 | 3 | 4;
-    return { key: `house-${level}`, trim: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0 };
+    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0 };
   }
-  if (b.kind === 'field') return { key: `field-${(b.variant % 4) as 0 | 1 | 2 | 3}`, trim: null, sy: 1, tint: 1, houseLevel: 0, vacant: false };
+  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false };
+  if (b.kind === 'field') return { ...none, key: `field-${(b.variant % 4) as 0 | 1 | 2 | 3}` };
+  if (!LEVELLED.includes(b.kind)) return { ...none, key: b.kind as KindKey };
   const level = Math.max(1, Math.min(3, b.level));
-  const svc = LEVELLED.includes(b.kind) ? SERVICE[level] : SERVICE[1];
-  const [w, h] = kindFootprint(b.kind);
-  const trim = LEVELLED.includes(b.kind) && level >= 2 ? (`trim-${w}x${h}-${level as 2 | 3}` as TrimKey) : null;
-  return { key: b.kind as KindKey, trim, sy: svc.sy, tint: svc.tint, houseLevel: 0, vacant: false };
+  const extra = level >= 2 ? (`up-${b.kind}-${level as 2 | 3}` as ExtraKey) : null;
+  return { ...none, key: b.kind as KindKey, extra, sy: SERVICE[level].sy, tint: SERVICE[level].tint };
 }
 
 /** Turn (radians about y) so the front (+z) faces a road next to the building; fixed for the big and long ones. */
@@ -110,6 +127,13 @@ export function facing(s: GameState, b: Building): number {
   }
   return 0;
 }
+
+/**
+ * Camera turn (yaw, radians about y) of the 3D view that matches the 2D view turned `rotation`
+ * quarter turns (`iso.getRotation()`): the camera stands on the side of the map the 2D looks from,
+ * so a road going down-left on the 2D screen also goes down-left in 3D (rotation 0: from +x +z).
+ */
+export const yawOfRotation = (rotation: number) => Math.PI / 4 + ((((rotation % 4) + 4) % 4) * Math.PI) / 2;
 
 /** Stable 0..1 hash of a cell (jitter, tints, which roads get puddles). */
 export const hash = (x: number, y: number, k = 0) => {
