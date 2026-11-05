@@ -17,7 +17,7 @@ precisam passar, e as screenshots afetadas pela mudança devem ser **olhadas**.
 
 ## Testes unitários (`tests/`)
 
-Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou alterada precisa de teste.**
+Cobrem `src/core` (TypeScript puro, sem Phaser) e a lógica pura da visão 3D (`tests/render3d`). **Toda regra nova ou alterada precisa de teste.**
 
 | Arquivo | O que cobre |
 |---|---|
@@ -48,6 +48,7 @@ Cobrem só `src/core` (TypeScript puro, sem Phaser). **Toda regra nova ou altera
 | `looks.test.ts` | aparência das casas: semente determinística, variante dentro do número do nível, espelhamento, vizinhas do mesmo nível com variantes diferentes, novo sorteio ao mudar de nível; plantação do campo diferente da do campo vizinho; construções de uma só aparência ficam na variante 0; ofício da oficina (sorteio determinístico, vizinhas diferentes, guardado na variante) |
 | `rng.test.ts` | gerador semeado: mesma semente, mesma sequência; `shuffle` |
 | `walkers.test.ts` | tipos de morador: só aparecem quando a construção existe e está ligada, destino pelo tipo (aguadeira na praça ou no mercado, cada um sozinho e os dois por semente; campo, mercado, oficina, altar/templo, ruas principais, borda), carregador campo → mercado e volta, destino aleatório de reserva, destino do artesão aponta a oficina e o ofício |
+| `render3d/*.test.ts` | lógica pura da visão 3D (`src/render3d`, sem WebGL): `plan.test.ts` (o que se desenha: modelo por tipo e nível, casa vazia com o nível guardado e mais escura, campo por cultura, acabamento de pedra e altura nos níveis 2–3 de celeiro, mercado e oficina, área de cada modelo, frente para a rua, tocos e mudas pelo `stumps`, número de moradores na rua), `day.test.ts` (hora, sol, noite, janelas), `season.test.ts` (estações contínuas, campos), `weather.test.ts` (chuva por semente, chão molhado, luz do quadro, gente na rua) |
 
 ### Utilitários (`tests/helpers.ts`)
 
@@ -112,6 +113,7 @@ outro agente durante a rodada não recarrega a página no meio de um cenário.
 | `field-work` | pausado: 8 campos ligados (4 plantações, normal e espelhado) e 1 sem rua; 2 agricultores por campo com eficiência 100%, nenhum no campo sem rua; zoom máximo (dois momentos do trabalho) e mínimo; mapa girado com 1 agricultor por campo quando só parte das vagas está ocupada | `field-work-zoom-max`, `field-work-zoom-max-later`, `field-work-zoom-min`, `field-work-turned` |
 | `people-art` | arte do pacote Povo, pausado: celeiro, oficina e mercado nos níveis 1, 2 e 3 lado a lado (confere as texturas `-l2`/`-l3`); casas de nível 2–4 ao lado de casas vazias que guardaram esses níveis (`house-e2..4`); um casal e uma família de caravana andando até uma casa; um nascimento ("+1" com pulinho e anel) | `people-art`, `people-art-houses`, `people-art-granary`, `people-art-workshop`, `people-art-market` (zoom 2), `people-art-birth`, `people-art-zoom-out` (zoom 0,5) |
 | `camera-wheel` | zoom com a roda dentro dos limites | `camera-zoom-in`, `camera-zoom-out` |
+| `view3d`, `view3d-pc` | botão 3D da coluna esquerda sobre a cidade de `town-art` (com Lenhador, Pedreira, moradores, celeiro 3, oficina 2, mercado 3 e uma casa grande vazia): abre a visão 3D, o jogo fica pausado (velocidade 0, laço do Phaser dormindo, semanas paradas), rótulo "estação · Ano N"; dia e noite de verão e inverno com neve (pelo gancho `window.view3d.view`); girar pelo botão; "Voltar" (toque no celular, clique no PC; Esc na 2.ª vez no PC) devolve a velocidade 3x e o 2D, sem sobrar canvas; abre e fecha duas vezes | `view3d-<phone/pc>`, `-day`, `-night`, `-winter`, `-close`, `-back` |
 | `touch` | celular deitado com toque real: toque no botão Rua de baixo; um dedo constrói rua sem mover a câmera; pinça dá zoom sem construir | `touch-title`, `touch-after-pinch` |
 | `input-phone` | celular deitado 844 x 390 (jogo 1280 x 591), pausado com avisos de saldo negativo e desemprego: a coluna abre Moradia e escolhe a Praça; prévia mirada acima do dedo; deslizar até a coluna e soltar cancela; sem prévia nem construção quando o ponto mirado cai sob a pílula do objetivo; com Demolir, um toque na fresta entre Avisos e Estatísticas conta como interface e não demole nada; um Esc volta de Demolir para Mover | `input-phone-preview`, `input-phone-clear` |
 | `nova-small-phone` | o `nova-phone` no celular 800 x 360 (o menor): tudo com 44 px e dentro da tela | as do `nova-phone`, com `small-phone` |
@@ -152,7 +154,7 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.iso` — projeção e giro do mapa (`iso.gridToWorld`, `iso.getRotation()`); o
   `cellToScreen` do script já usa o giro atual;
 - `window.layout` — posições da interface: `novaPoint(nome)` dá o centro e o tamanho `d` (px do jogo)
-  de `level`, `gear`, `speed-0|1|3` (no celular os três dão o mesmo botão), `side-goals|alerts|stats`,
+  de `level`, `gear`, `speed-0|1|3` (no celular os três dão o mesmo botão), `side-goals|alerts|stats|3d`,
   `tool-view|road|clear`, `build-<tipo>` (o botão da categoria enquanto a faixa dela está fechada),
   `pill-silver|food|goal|season`, `column` e, com o painel aberto, `stats-now|history`,
   `setting-dayNight|miniature` e `setting-turn-left|right`.
@@ -168,6 +170,11 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
   dos controles). A interface fica em `window.game.ui.view` (`top`, `column`, `tools`, `panels`,
   `inspector`, `toasts` com `list` e `queue`, `tag` a pílula sobre a célula sob o cursor);
   `window.game.ui.milestone(id, semana)` mostra a frase de um marco.
+- `window.view3d` — só com a visão 3D aberta (`window.game.open3D()` ou o botão 3D): `frames`
+  (quadros já desenhados), `fps()`, `info()` (qualidade, chamadas, triângulos, moradores, rótulo),
+  `rig` (câmera: `rig.set({ yaw, pitch, dist, x, z })`), `quality('high'|'low'|'min')`, `close()` e
+  `view({ pos, day, weather, force } | null)`: mostra outra semana (`pos`, semana com fração), hora
+  (`day`, 0..1, 0 = amanhecer) e clima, e força neve/seca, só no desenho (o estado não muda).
 
 Use-os para montar situações rapidamente em vez de jogar até lá. Depois de mudar o estado
 diretamente, chame `window.game.refresh()`. Se mudar conexões à mão (ruas, construções), prefira
@@ -348,11 +355,19 @@ Ganchos em `.claude/settings.json` (valem para o agente principal e todos os sub
 
 `npm run test:pwa` serve o `dist/` com `vite preview` e confere no Chromium: o Chrome considera o
 app instalável (sem erros de manifesto), o service worker controla a página, o jogo recarrega sem
-internet e não há erro na página. Rode depois de `npm run build`; ao mudar arquivos em `public/`,
+internet e não há erro na página. Também abre a visão 3D com internet (toque no botão 3D) e de
+novo sem internet, e confere que os modelos .glb estão no cache. Rode depois de `npm run build`; ao mudar arquivos em `public/`,
 suba `VERSION` em `public/sw.js` para os celulares baixarem a versão nova.
 
 Os ícones em `public/icons/` são gerados pelo próprio jogo (o templo sobre o céu):
 `node tools/icons/make-icons.mjs` regera todos.
+
+## Desempenho da visão 3D (`scripts/view3d-perf.mjs`)
+
+`node scripts/view3d-perf.mjs` mede os quadros por segundo da visão 3D num celular simulado
+(844 x 390, deviceScaleFactor 2,6, toque, CPU 4x mais lenta) numa cidade de ~45 construções, de dia,
+à noite e na chuva, com qualidade automática; usa a GPU do WSL quando existe (`--soft`: SwiftShader,
+pessimista). Capturas em `screenshots/view3d-perf` (`VIEW3D_OUT` muda a pasta; `VISUAL_PORT` a porta).
 
 ## Testar no celular de verdade
 

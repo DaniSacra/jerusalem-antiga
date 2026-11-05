@@ -66,6 +66,7 @@ import { T } from '../render/strings';
 import { generateTextures, HEIGHT, TEX } from '../render/textures';
 import { generateUiArt, setHandCursor } from '../render/uiArt';
 import { CATEGORY_KEYS, categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, TOOL_KEYS, type Speed, type Tool } from '../render/tools';
+import { launch3D } from '../render/view3d';
 import { Walkers } from '../render/Walkers';
 import { mulColor, SeasonClock } from '../render/Seasons';
 import type { Weather } from '../render/Weather';
@@ -153,6 +154,8 @@ export class GameScene extends Phaser.Scene implements UiHost {
   private rotated = false;
   private speedIndex = 0;
   private clock = 0;
+  /** Map seed (the 3D view draws the same seasons and weather from it). */
+  private seed = 0;
   private hover: Cell | null = null;
   private selected: Cell | null = null;
   /** First-game tutorial (null when seen before or skipped). */
@@ -204,6 +207,7 @@ export class GameScene extends Phaser.Scene implements UiHost {
     generateTextures(this);
     generateUiArt(this);
     const seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0;
+    this.seed = seed;
     this.rng = createRng(seed);
     this.seasons = new SeasonClock(seed);
     this.state = createGame(this.rng);
@@ -640,6 +644,40 @@ export class GameScene extends Phaser.Scene implements UiHost {
     this.scene.stop('ui');
     this.scene.stop('weather');
     this.scene.restart();
+  }
+
+  /**
+   * The 3D button: the city in 3D over the game. The game pauses (the speed is kept for the way
+   * back) and Phaser's loop sleeps, so only one view draws; closing it wakes the loop and gives the
+   * speed back. The state is only read.
+   */
+  open3D() {
+    if (this.ui?.modalOpen) return;
+    const speed = this.speed;
+    const input = this.game.input;
+    void launch3D({
+      state: this.state,
+      seed: this.seed,
+      weekFrac: this.clock / RULES.weekSeconds,
+      dayT: this.dayNight.current.t,
+      pause: () => {
+        this.speedIndex = SPEEDS.indexOf(0);
+        this.refresh();
+        // Keys and touches go to the 3D view only (Q/E, Esc would also act on the sleeping map).
+        input.enabled = false;
+        if (input.keyboard) input.keyboard.enabled = false;
+        this.game.loop.sleep();
+      },
+      resume: () => {
+        input.enabled = true;
+        if (input.keyboard) input.keyboard.enabled = true;
+        this.game.loop.resetDelta();
+        this.game.loop.wake();
+        this.speedIndex = SPEEDS.indexOf(speed);
+        this.refresh();
+      },
+      fail: () => this.ui?.toast(T.view3d.failed, 'bad'),
+    });
   }
 
   cycleSpeed() {

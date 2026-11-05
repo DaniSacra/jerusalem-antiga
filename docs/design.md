@@ -54,6 +54,9 @@ Mantidos:
   já no P3. Daqui em diante, as opções recomendadas entram sem perguntar: entregar e ajustar depois.
 - W4 (pedra parada no fim) segue falhando com 20/40: aceito no P3; vai para o P4 com uma regra nova
   (manutenção em pedra ou limite de estoque).
+- 2026-11-05 (usuário): botão "3D" na coluna esquerda abre a cidade do jogador em 3D (Three.js,
+  porta da prova `spike/threejs`), só para olhar: o jogo pausa enquanto está aberta. O 2D continua
+  sendo o jogo; o 3D vem num pedaço separado e não pesa na primeira carga.
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
 1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·

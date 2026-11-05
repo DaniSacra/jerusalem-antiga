@@ -529,6 +529,20 @@ export const T = {
       close: 'Fechar',
     },
   },
+  /** The city in 3D (the 3D button of the left column and its view). */
+  view3d: {
+    /** Text inside the round button. */
+    badge: '3D',
+    back: 'Voltar',
+    loading: 'Carregando a cidade em 3D…',
+    failed: 'Seu aparelho não abre o 3D',
+    turnLeft: 'Girar para a esquerda',
+    turnRight: 'Girar para a direita',
+    /** Label over the 3D view: "Primavera · Ano 2". */
+    label: (season: Season, year: number) => `${T.nova.seasonName[season]} · Ano ${year}`,
+    /** The view lowered its quality to stay smooth. */
+    lowered: 'Qualidade reduzida para ficar mais leve',
+  },
 };
 
 const weeks = (n: number) => `${n} ${n === 1 ? 'semana' : 'semanas'}`;

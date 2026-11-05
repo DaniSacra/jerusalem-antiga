@@ -51,7 +51,7 @@ const SLOP = px(8);
 
 /**
  * Interface Nova: thin dark bars over the map, everything touchable round. Top bar (level, stats,
- * goal, season, speed, gear), side buttons (Objetivos, Avisos, Estatísticas), bottom tools (Mover,
+ * goal, season, speed, gear), side buttons (Objetivos, Avisos, Estatísticas, 3D), bottom tools (Mover,
  * Rua, Demolir), the build column at the right, balloons for the chosen and the tapped building.
  */
 export class NovaUi {
@@ -84,7 +84,7 @@ export class NovaUi {
       onSpeed: (v) => host.setSpeed(v),
       onSettings: () => this.togglePanel('settings'),
     });
-    this.tools = new Tools(scene, (p) => this.togglePanel(p), (t) => host.selectTool(t));
+    this.tools = new Tools(scene, (p) => this.togglePanel(p), (t) => host.selectTool(t), () => host.open3D());
     this.panels = new Panels(scene, (k) => this.panelArea(k), {
       onTurn: (dir) => host.turnMap(dir),
       onSettings: () => host.applySettings(),
@@ -125,6 +125,7 @@ export class NovaUi {
       const p = this.tools.sideButton(k);
       return p ? { ...p, d: S.side } : null;
     });
+    setNovaSpot('side-3d', () => ({ ...this.tools.view3dButton, d: S.side }));
     for (const n of ['level', 'gear', 'silver', 'food', 'materials', 'stone', 'goal', 'season', 'speed-0', 'speed-1', 'speed-3'] as const) setNovaSpot(n === 'level' || n === 'gear' || n.startsWith('speed') ? n : `pill-${n}`, () => this.top.spot(n));
     setNovaSpot('column', () => ({ x: this.column.rect.x + this.column.rect.w / 2, y: this.column.rect.y + this.column.rect.h / 2, d: this.column.rect.w }));
 

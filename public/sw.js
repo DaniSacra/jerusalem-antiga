@@ -1,10 +1,11 @@
 /**
  * Service worker of the installed app: the game opens and runs offline.
  * - The page (navigation): network first, so a new version arrives when online; the cached copy offline.
- * - Everything else of this site (hashed scripts, icons, manifest): cache first, stored on first use.
+ * - Everything else of this site (hashed scripts, icons, manifest, the 3D view chunk and its .glb models):
+ *   cache first, stored on first use.
  * Bump VERSION to drop old caches.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `jerusalem-${VERSION}`;
 
 self.addEventListener('install', (event) => {

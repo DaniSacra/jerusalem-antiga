@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { px, type Rect } from '../layout';
-import { NOVA } from '../palette';
+import { NOVA, NOVA_CSS } from '../palette';
 import { T } from '../strings';
 import { keyOf, toolName, type Tool } from '../tools';
 import { TextBalloon } from './Balloon';
@@ -15,11 +15,13 @@ const BOTTOM = ['view', 'road', 'clear'] as const;
 const BOTTOM_ICON = { view: 'hand', road: 'road', clear: 'hammer' } as const;
 
 /**
- * Left side: Objetivos, Avisos (red selo with the count) and Estatísticas, stacked under the level;
+ * Left side: Objetivos, Avisos (red selo with the count), Estatísticas and the 3D view, stacked under the level;
  * bottom left: Mover, Rua and Demolir with their names (PC: "Mover · 1") and a tip balloon.
  */
 export class Tools {
   private side: [PanelKind, RoundButton][] = [];
+  /** Opens the city in 3D (under Estatísticas). */
+  private view3d: RoundButton;
   private badge: Phaser.GameObjects.Container;
   private badgeText: Phaser.GameObjects.Text;
   private tools: { tool: Tool; btn: RoundButton; tag: Rect }[] = [];
@@ -29,7 +31,7 @@ export class Tools {
   private alertKeys = new Set<string>();
   private pulse: Phaser.Tweens.Tween | null = null;
 
-  constructor(private scene: Phaser.Scene, onPanel: (p: PanelKind) => void, onTool: (t: Tool) => void) {
+  constructor(private scene: Phaser.Scene, onPanel: (p: PanelKind) => void, onTool: (t: Tool) => void, on3d: () => void) {
     const cx = S.margin + S.side / 2;
     let y = S.margin + S.level + S.gap * 2 + S.side / 2;
     for (const [kind, ic] of [['goals', 'flag'], ['alerts', 'alert'], ['stats', 'stats']] as const) {
@@ -37,6 +39,7 @@ export class Tools {
       this.side.push([kind, btn]);
       y += S.side + S.sideGap;
     }
+    this.view3d = new RoundButton(scene, cx, y, S.side, S.side, [ntext(scene, 0, 0, T.view3d.badge, S.num, NOVA_CSS.ink).setOrigin(0.5)], on3d);
     // Red selo with the number of alerts, top right of the Avisos button.
     const r = px(PHONE ? 10 : 11);
     const bg = scene.add.graphics().fillStyle(NOVA.badge, 1).fillCircle(0, 0, r).lineStyle(px(1.5), NOVA.text, 1).strokeCircle(0, 0, r);
@@ -125,6 +128,11 @@ export class Tools {
     return t ? { x: t.btn.root.x, y: t.btn.root.y, w: S.tool, side: 'bottom' as const } : null;
   }
 
+  /** Center of the 3D button. */
+  get view3dButton() {
+    return { x: this.view3d.root.x, y: this.view3d.root.y };
+  }
+
   /** Center of a side button (panels open beside it). */
   sideButton(kind: PanelKind) {
     const b = this.side.find(([k]) => k === kind)?.[1];
@@ -141,6 +149,6 @@ export class Tools {
 
   contains(x: number, y: number) {
     const inR = (r: Rect | null) => !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-    return this.side.some(([, b]) => b.contains(x, y)) || this.tools.some((t) => t.btn.contains(x, y) || inR(t.tag)) || inR(this.tip.rect);
+    return this.side.some(([, b]) => b.contains(x, y)) || this.view3d.contains(x, y) || this.tools.some((t) => t.btn.contains(x, y) || inR(t.tag)) || inR(this.tip.rect);
   }
 }

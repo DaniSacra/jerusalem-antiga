@@ -30,7 +30,7 @@ export const VIEW_CY = Math.round((108 + GAME_H) / 2);
 /**
  * Live centers of the Nova interface parts (registered when it is built), for the visual tests through
  * `window.layout.novaPoint(name)`: `d` is the button size in game px. Names: level, gear, speed-N,
- * side-goals|alerts|stats, tool-view|road|clear, build-<kind>, pill-silver|food|materials|stone|goal|season, column.
+ * side-goals|alerts|stats|3d, tool-view|road|clear, build-<kind>, pill-silver|food|materials|stone|goal|season, column.
  */
 const novaSpots = new Map<string, () => { x: number; y: number; d: number } | null>();
 export const setNovaSpot = (name: string, at: () => { x: number; y: number; d: number } | null) => novaSpots.set(name, at);

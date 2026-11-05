@@ -615,6 +615,29 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     tristes e motivos), **materiais** (madeira e pedra: estoque e "+N/sem", em vermelho com
     "Casas esperando madeira/pedra ⚠ N" quando há casa esperando, e o número de tocos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
+  - **3D** (botão redondo com "3D", embaixo das Estatísticas): abre a **cidade do jogador em 3D**
+    (veja Visão 3D).
+- **Visão 3D** (`src/render3d/view.ts`, Three.js): uma camada de tela cheia sobre o jogo, com o
+  `GameState` vivo só para leitura. Mostra todas as construções (casas por nível; casa vazia que
+  guardou o nível com o desenho desse nível, mais escura e sem luz nem fumaça; celeiro, mercado e
+  oficina mais altos e com acabamento de pedra nos níveis 2 e 3, com estandartes no 3), ruas,
+  árvores, tocos onde se cortou árvore (com muda quando ela volta a crescer) e moradores andando
+  pelas ruas. Dia e noite correm num relógio próprio (90 s, começando na hora do 2D); a estação é a
+  da semana atual e o clima vem do mesmo relógio de estações com a semente do mapa. Modelos: os do
+  Meshy (`public/models/meshy`) onde existem, o resto feito por código.
+  - **O jogo pausa** enquanto ela está aberta: a velocidade é guardada, vai a 0 e o laço do Phaser
+    dorme (só uma visão desenha). Ao fechar, o laço acorda e a velocidade volta.
+  - Controles: arrastar move; pinça ou roda dá zoom; dois dedos girando, os dois botões redondos de
+    girar (canto inferior direito) ou Q/E no PC giram; WASD/setas movem no PC. Começa enquadrada no
+    altar.
+  - "Voltar" (canto superior esquerdo, 52 px de altura) ou Esc no PC fecha. Rótulo no alto: "Outono · Ano 1".
+  - O Three.js vem num pedaço separado (import dinâmico): a primeira carga do 2D não cresce. Enquanto
+    ele e os modelos baixam aparece "Carregando a cidade em 3D…". Sem WebGL 2: toast "Seu aparelho
+    não abre o 3D" e o jogo continua no 2D.
+  - Qualidade automática: abaixo de 30 qps por duas janelas de 2,5 s, a resolução, as sombras e as
+    partículas descem um nível ("Qualidade reduzida para ficar mais leve").
+  - Offline: o service worker guarda o pedaço do 3D e os modelos no primeiro uso; depois de abrir o
+    3D uma vez com internet, ele abre sem internet.
 - **Inferior esquerdo** (botões redondos com nome embaixo; no PC com a tecla, ex. "Mover · 1"):
   - **Mover** (mão): arrastar move o mapa; tocar numa construção abre o balão dela;
   - **Rua**: arrastar constrói, como hoje;

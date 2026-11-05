@@ -1717,6 +1717,103 @@ async function toastsOverTutorial(page) {
   await shot(page, 'toasts-tutorial');
 }
 
+/**
+ * The 3D button: the built town (every kind, service levels 2–3, an empty stone house, stumps and
+ * people) opens in 3D over the game; the game is paused and Phaser sleeps while it is open; by day,
+ * at night and a snowy winter; "Voltar" (Esc on PC the second time) gives the speed and the 2D back.
+ * Opened and closed twice.
+ */
+async function view3dScenario(page, suffix) {
+  await startGame(page);
+  await buildTown(page);
+  await addWoodStone(page);
+  await fillHouses(page);
+  await page.evaluate(() => {
+    const s = window.state;
+    const at = (x, y) => s.grid[y * s.cols + x];
+    at(18, 24).level = 3; // granary
+    at(33, 25).level = 2; // workshop
+    at(29, 25).level = 3; // market, rotated
+    const empty = at(32, 29); // big house, now empty: keeps its level
+    s.people = s.people.filter((p) => p.houseId !== empty.id);
+    empty.level = 0;
+    empty.emptyLevel = 4;
+    window.core.refreshCity(s);
+    window.game.refresh();
+  });
+  await setSpeed(page, 3);
+  const phone = suffix === 'phone';
+  const { tap } = phone ? await touchInput(page) : { tap: null };
+  const press3d = async () => {
+    const p = await uiPoint(page, 'side-3d');
+    if (tap) await tap(p);
+    else await page.mouse.click(...(await gameToPage(page, ...p)));
+  };
+  const opened = () => page.waitForFunction(() => window.view3d?.frames > 3, null, { timeout: 180000 });
+  const look = async (o, name) => {
+    await page.evaluate((o) => window.view3d.view(o), o);
+    const f0 = await page.evaluate(() => window.view3d.frames);
+    await page.waitForFunction((f0) => window.view3d.frames > f0 + 2, f0, { timeout: 60000 });
+    await page.screenshot({ path: `${OUT}/${name}.png` });
+  };
+  for (const round of [1, 2]) {
+    const week = await page.evaluate(() => window.state.week);
+    await press3d();
+    await opened();
+    const st = await page.evaluate(() => ({ speed: window.game.speed, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length, label: window.view3d.info().label }));
+    assert(st.speed === 0, `the game is paused while the 3D is open (speed ${st.speed})`);
+    assert(!st.running, 'the 2D loop sleeps while the 3D is open');
+    assert(st.canvases === 2, `one 3D canvas over the game (${st.canvases})`);
+    assert(/ · Ano \d+$/.test(st.label), `season and year label (${st.label})`);
+    if (round === 1) {
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}.png` });
+      // The middle of the next summer and winter (looks only: the state's week is untouched).
+      const mid = (season) =>
+        page.evaluate(([week, season]) => {
+          const { seasonOf, RULES } = window.core;
+          let w = week;
+          while (seasonOf(w) !== season) w++;
+          return w + Math.floor(RULES.weeksPerSeason / 2) + 0.3;
+        }, [week, season]);
+      const summer = await mid('summer');
+      await look({ pos: summer, day: 0.27 }, `view3d-${suffix}-day`);
+      await look({ pos: summer, day: 0.72 }, `view3d-${suffix}-night`);
+      await look({ pos: await mid('winter'), day: 0.3, force: { snow: true }, weather: { rain: 0.6, snowing: true, overcast: 0.8, wet: 0, puddles: 0, wind: 0.2 } }, `view3d-${suffix}-winter`);
+      const labels = await page.evaluate(() => window.view3d.info().label);
+      assert(labels.startsWith('Inverno'), `the label follows the season shown (${labels})`);
+      // Turn with the button and zoom in on the town.
+      await page.evaluate(() => window.view3d.view({ pos: window.state.week + 0.3, day: 0.25 }));
+      if (phone) {
+        const r = await page.evaluate(() => {
+          const b = document.querySelector('[data-turn="1"]').getBoundingClientRect();
+          return [b.x + b.width / 2, b.y + b.height / 2];
+        });
+        await cdpTapPage(page, ...r);
+      } else await page.click('[data-turn="1"]');
+      await page.evaluate(() => window.view3d.rig.set({ dist: 14 }));
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${OUT}/view3d-${suffix}-close.png` });
+    }
+    assert((await page.evaluate(() => window.state.week)) === week, 'the weeks do not run while the 3D is open');
+    if (round === 2 && !phone) await page.keyboard.press('Escape');
+    else if (phone) {
+      const r = await page.evaluate(() => {
+        const b = document.querySelector('.v3d-back').getBoundingClientRect();
+        return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height];
+      });
+      assert(r[2] >= 44 && r[3] >= 44, `Voltar is thumb-sized (${r[2]}x${r[3]})`);
+      await cdpTapPage(page, r[0], r[1]);
+    } else await page.click('.v3d-back');
+    await page.waitForFunction(() => !window.view3d && !document.querySelector('.v3d'), null, { timeout: 20000 });
+    await page.waitForTimeout(400);
+    const back = await page.evaluate(() => ({ speed: window.game.speed, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length }));
+    assert(back.speed === 3, `Voltar gives the speed back (${back.speed})`);
+    assert(back.running, 'the 2D loop runs again');
+    assert(back.canvases === 1, `the 3D canvas is gone (${back.canvases})`);
+  }
+  await shot(page, `view3d-${suffix}-back`);
+}
+
 const scenarios = {
   async title(page) {
     await page.goto(URL, { timeout: 90000 });
@@ -2014,6 +2111,10 @@ const scenarios = {
   'seasons': { context: PC, run: (page) => seasonsScenario(page, '') },
   /** The same on a landscape phone (844 x 390). */
   'seasons-phone': { context: PHONE, run: (page) => seasonsScenario(page, '-phone') },
+
+  /** The 3D view of the city (button in the left column), phone and PC. */
+  view3d: { context: PHONE, run: (page) => view3dScenario(page, 'phone') },
+  'view3d-pc': { context: PC, run: (page) => view3dScenario(page, 'pc') },
 
   async 'town-art'(page) {
     await startGame(page);
@@ -2739,7 +2840,7 @@ async function novaScenario(page, suffix) {
   // Every round button is at least 44 real px; the column buttons (categories) fit the screen height.
   const sizes = await page.evaluate(() => {
     const k = document.querySelector('canvas').getBoundingClientRect().width / 1280;
-    const names = ['level', 'gear', 'speed-1', 'side-goals', 'side-alerts', 'side-stats', 'tool-view', 'tool-road', 'tool-clear',
+    const names = ['level', 'gear', 'speed-1', 'side-goals', 'side-alerts', 'side-stats', 'side-3d', 'tool-view', 'tool-road', 'tool-clear',
       ...['house', 'plaza', 'market', 'temple'].map((b) => `build-${b}`)];
     return names.map((n) => {
       const p = window.layout.novaPoint(n);

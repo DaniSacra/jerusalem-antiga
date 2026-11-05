@@ -32,6 +32,8 @@ export interface UiHost {
   showHouse(houseId: number): void;
   /** Moves the camera so what is at the center goes `dx` screen px sideways (a wide balloon beside its building). */
   nudge(dx: number): void;
+  /** Opens the city in 3D (the game pauses while it is open). */
+  open3D(): void;
 }
 
 /**
