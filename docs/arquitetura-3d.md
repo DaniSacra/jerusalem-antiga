@@ -512,8 +512,21 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   da chave vira 3D; o botão "3D" e `render/view3d.ts` saem; `docs/GAME_DESIGN.md` (Interface, Câmera e
   controles, Arte) e `docs/TESTING.md` reescritos para o 3D.
 - **Testes:** todos os cenários em 3D nos dois aparelhos; `test:pwa` em 3D offline; perf ≥ 30 qps.
-- **Pronto quando:** o usuário joga uma partida inteira no celular e no PC e aprova; o 2D continua a
-  um clique nas Configurações.
+- **Pronto quando:** o usuário joga uma partida inteira no celular e no PC e aprova. (O 2D não fica
+  nas Configurações: congelado em 2026-11-05, só `?view=2d` ou sem WebGL 2, até a Fase 5.)
+- **Feito (2026-11-05, `59b0042`, `5b09867`, `318d6d6`):** rodada de revisão (`code-reviewer`,
+  `ui-designer`, `fun-critic`, `playtester`) e correções. O hover não refaz a interface; os pinos só
+  escrevem estilo quando mudam. Pílulas do topo tocáveis, objetivo sem cortar o progresso, ✕ nos
+  painéis, toque no mapa fecha painel e ficha. Coluna e painéis rolam com o dedo. Giro de dois dedos
+  com folga de ~12°, ↺/↻ voltam às 4 vistas, roda pelo quanto rolou. Balões de problema só inteiros
+  na área livre. Neblina a partir da distância da câmera, ruas sem neve. O mundo não libera mais
+  geometrias e texturas dos modelos. PWA: rede primeiro para o que não tem hash (modelos trocados
+  chegam), sem plugin de pré-cache (a primeira abertura já guarda tudo). `view3d-perf` (celular
+  simulado, CPU 4x, GPU do WSL, 45 construções, jogo a 3x): 60 qps de dia, de noite e na chuva,
+  53–61 chamadas, ≤ 186 mil triângulos; arrasto de rua sem quadro acima de 50 ms (máx. 35 ms,
+  reconstrução máx. 14 ms). Ficaram para o game-director/sim-tester: ritmo (caravana e fim de
+  partida), lenha, avisos de nascimento, vitória em 3D, noite com janelas, casa acima da capacidade
+  depois de cair de nível, derrota por dívida depois da vitória.
 
 ### Fase 5 — O Phaser sai · 2–3 h
 - **Só com a aprovação do usuário** (sugestão: depois de uma semana jogando em 3D sem voltar ao 2D).
