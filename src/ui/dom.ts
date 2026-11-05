@@ -30,6 +30,11 @@ export function keyed(el: HTMLElement & { _key?: string }, key: string, build: (
   el.replaceChildren(...(build().filter(Boolean) as (Node | string)[]));
 }
 
+/** The next `keyed` call on `el` builds again, whatever its key. */
+export function resetKey(el: HTMLElement & { _key?: string }) {
+  el._key = '';
+}
+
 /** A button that only fires for a press that began on it (a drag from the map passing over it does nothing), and never taps through. */
 export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
   let down: number | null = null;

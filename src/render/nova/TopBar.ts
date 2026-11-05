@@ -293,7 +293,7 @@ export class TopBar {
       const turn = nextFieldTurn(s.week);
       const turnColor = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? NOVA_CSS.warn : NOVA_CSS.muted;
       this.season.set([
-        ...(PHONE ? [{ text: N.calendarPhone(season, year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
+        ...(PHONE ? [{ text: N.calendarPhone(year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), color: turnColor }]),
         ...(s.drought ? [{ text: '· ' + N.drought, color: NOVA_CSS.warn }] : []),
       ]);
     }

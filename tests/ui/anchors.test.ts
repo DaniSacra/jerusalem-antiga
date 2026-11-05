@@ -22,6 +22,20 @@ describe('things pinned to the 3D world', () => {
     expect(el.style.transform).toBe('20,29');
   });
 
+  it('a still camera writes nothing: styles change only when the point does', () => {
+    let x = 1;
+    const a = new Anchors(() => ({ x, y: 0 }));
+    const writes: string[] = [];
+    const el = { style: new Proxy({} as Record<string, string>, { set: (o, k, v) => (writes.push(`${String(k)}=${v}`), (o[k as string] = v), true) }) };
+    a.pin(el as unknown as HTMLElement, { x: 0, y: 0, w: 1, h: 1 }, (p) => `${p.x}`);
+    a.frame(16);
+    a.frame(16);
+    expect(writes).toEqual(['visibility=visible', 'transform=1']);
+    x = 2;
+    a.frame(16);
+    expect(writes).toEqual(['visibility=visible', 'transform=1', 'transform=2']);
+  });
+
   it('a rising text ages and leaves the page when its life ends; unpinned things stay put', () => {
     const a = new Anchors((r) => ({ x: r.x, y: r.y }));
     const text = fake();

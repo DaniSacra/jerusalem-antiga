@@ -10,6 +10,21 @@ export const TAP_SLOP = 10;
 export const TOUCH_BUILD_DELAY = 150;
 /** On touch, single buildings are aimed this far above the finger so the preview is not hidden by it. */
 export const TOUCH_LIFT = 90;
+/** Zoom per wheel pixel (exponential: a 100 px notch is ~14%). */
+export const WHEEL_ZOOM = 0.0015;
+/** How far two fingers twist (radians, ~12°) before the map turns with them. */
+export const TURN_SLOP = 0.21;
+
+/**
+ * The yaw a turn button or key goes to from `from`: the next of the four standard views (−45° plus
+ * quarter turns) in direction `dir`, so a free twist before is undone by the first press.
+ */
+export function snapTurn(from: number, dir: 1 | -1): number {
+  const q = Math.PI / 2;
+  const k = (from + Math.PI / 4) / q;
+  const eps = 1e-6;
+  return (dir > 0 ? Math.floor(k + eps) + 1 : Math.ceil(k - eps) - 1) * q - Math.PI / 4;
+}
 
 /** One pointer event, the same for every view (screen px, ms). */
 export interface PointerIn {
@@ -62,6 +77,8 @@ interface Press extends DragMemo {
 interface Pinch {
   dist: number;
   angle: number;
+  /** The twist so far, before the map starts turning (`TURN_SLOP`); null once it turns. */
+  twist: number | null;
   zoom: number;
   midX: number;
   midY: number;
@@ -122,7 +139,7 @@ export class Gestures {
     if (this.touches.size >= 2) {
       if (this.press) this.press.cancelled = true;
       const [a, b] = [...this.touches.values()];
-      this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), angle: Math.atan2(b.y - a.y, b.x - a.x), zoom: this.view.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+      this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), angle: Math.atan2(b.y - a.y, b.x - a.x), twist: 0, zoom: this.view.zoom, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
       return;
     }
     const cell = this.aimAt(p);
@@ -155,8 +172,14 @@ export class Gestures {
         let d = angle - pinch.angle;
         if (d > Math.PI) d -= 2 * Math.PI;
         if (d < -Math.PI) d += 2 * Math.PI;
-        v.turnBy(d);
         pinch.angle = angle;
+        // A pinch to zoom twists a little: the map only turns past the slop, then follows freely.
+        if (pinch.twist !== null) {
+          pinch.twist += d;
+          if (Math.abs(pinch.twist) < TURN_SLOP) d = 0;
+          else [d, pinch.twist] = [pinch.twist, null];
+        }
+        if (d) v.turnBy(d);
       }
       pinch.midX = midX;
       pinch.midY = midY;
@@ -229,9 +252,13 @@ export class Gestures {
     if (p.touch) this.hover(null);
   }
 
-  /** The mouse wheel: zoom about the cursor (`dy` > 0 zooms out). */
+  /**
+   * The mouse wheel or touchpad: zoom about the cursor by how far it scrolled (`dy` px, > 0 zooms out),
+   * so a touchpad's many small steps zoom as smoothly as a wheel's notches (~14% each).
+   */
   wheel(sx: number, sy: number, dy: number) {
     this.view.stopGlide();
-    this.view.zoomAt(sx, sy, this.view.zoom * (dy > 0 ? 0.9 : 1.1));
+    const k = Math.exp(-Math.max(-150, Math.min(150, dy)) * WHEEL_ZOOM);
+    this.view.zoomAt(sx, sy, this.view.zoom * k);
   }
 }

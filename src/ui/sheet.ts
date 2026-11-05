@@ -65,7 +65,9 @@ export class PersonSheet {
       const rows = v.rows.map((r) => h('div.kin', {}, h('div.line.t-gold', {}, r.label), h('div.chips', {}, ...r.kin.map((k) => this.kinButton(k)))));
       const back = h('button.act', { 'data-spot': 'sheet-back' }, this.trail.length ? N.back : N.close);
       onTap(back, () => this.back());
-      return [head, ...lines, home, ...rows, h('div.acts', {}, back)];
+      // Voltar / Fechar at the top, in reach without scrolling.
+      head.append(back);
+      return [head, ...lines, home, ...rows];
     });
     this.el.classList.remove('hidden');
   }

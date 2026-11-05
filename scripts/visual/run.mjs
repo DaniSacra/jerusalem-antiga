@@ -2631,11 +2631,17 @@ async function temple3dScenario(page, name) {
     await page.waitForFunction(() => !document.querySelector('.tag').classList.contains('hidden'), null, { timeout: 3000 }).catch(() => {});
     return page.evaluate(() => (document.querySelector('.tag').classList.contains('hidden') ? '' : document.querySelector('.tag').textContent));
   };
+  // The pill is drawn with the marks on the next frame: wait two of them.
   const hover = (c) =>
-    page.evaluate((c) => {
-      window.session.setHover(c);
-      window.session.refresh();
-    }, c);
+    page.evaluate(
+      (c) =>
+        new Promise((ok) => {
+          window.session.setHover(c);
+          window.session.refresh();
+          requestAnimationFrame(() => requestAnimationFrame(ok));
+        }),
+      c,
+    );
   const areas = await page.evaluate(() => {
     const { state: s, core, session: g } = window;
     s.silver = 1e4;

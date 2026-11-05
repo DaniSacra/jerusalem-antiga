@@ -1,4 +1,4 @@
-import type { BuildableKind, Rect } from '../core';
+import type { BuildableKind, Cell, Rect } from '../core';
 import { cardOf, type Card, type CardAction } from '../game/model/card';
 import type { Session } from '../game/session';
 import { T } from '../render/strings';
@@ -40,7 +40,7 @@ export class CardBalloon {
   ) {}
 
   /** The building the camera was last moved aside for (once per tap). */
-  private nudgedFor = '';
+  private nudgedFor: Cell | null = null;
 
   /**
    * Beside the building (right of it, else left), kept in the free area. Too wide for either side
@@ -50,9 +50,8 @@ export class CardBalloon {
     const f = this.free();
     const { w, h: ht } = this.size;
     const { x, nudge } = besideX(p.x, w, f.left, f.right);
-    const cell = JSON.stringify(this.s.selected);
-    if (nudge && this.nudgedFor !== cell) {
-      this.nudgedFor = cell;
+    if (nudge && this.nudgedFor !== this.s.selected) {
+      this.nudgedFor = this.s.selected;
       this.nudge(nudge);
     }
     const y = Math.max(f.top, Math.min(f.bottom - ht, p.y - ht / 2));

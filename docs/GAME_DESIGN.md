@@ -610,8 +610,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     **"FOME"** em vermelho piscando no lugar disso. Com o estoque a 75% do limite ou mais, o número
     vira "38/50" (laranja enquanto estraga), e **"cheio"** em laranja só nas semanas em que
     a comida está estragando. Cores de alerta: prata laranja com saldo negativo e
-    vermelha piscando em dívida. Tocar numa pílula abre as
-    Estatísticas;
+    vermelha piscando em dívida. Tocar numa pílula (ou na estação) abre as
+    Estatísticas; nada se constrói sob a barra do topo;
   - pílula **Materiais** entre Comida e Moradores (P3): no celular uma pílula só com o ícone da tora
     e o número da madeira e, depois de liberar a Pedreira, o ícone da pedra e o número (sem
     "+N/sem"); no PC uma pílula por material, "Madeira 20 +1,5/sem" (a Pedra só depois de liberar a
@@ -629,7 +629,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   estação; num ano seco anunciado, o ícone da seca no lugar e "· Seca" em laranja). A contagem é
   a próxima virada dos campos (`nextFieldTurn`): fora do inverno, "inverno em N sem" (laranja nas
   últimas 3 semanas); no inverno, "primavera em N sem". No celular a pílula troca a semana
-  pela contagem: "Outono · Ano 1 · inverno em 9 sem"; velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
+  pela contagem e sem o nome da estação, que o ícone já mostra: "Ano 1 · inverno em 9 sem"; velocidade (celular: um botão dourado que alterna 1x → 3x → pausa; PC: pausa, 1x e
   3x, o ativo dourado); engrenagem das Configurações.
 - **Lateral esquerda** (botões redondos):
   - **Objetivos** (bandeira): lista dos 18 objetivos, cumpridos, atual (com progresso) e próximos,
@@ -710,8 +710,11 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     construção sob o cursor em vermelho.
   - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; só a Rua
     constrói arrastando; as outras construções e Demolir agem uma vez, ao soltar (no toque, mirada 90 px acima do
-    dedo); pinça ou roda dá zoom em volta do dedo/cursor; dois dedos girando giram; botão direito ou
-    do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os botões giram um quarto de volta. A
+    dedo); pinça ou roda dá zoom em volta do dedo/cursor (a roda pelo quanto rolou: ~14% por dente,
+    e o touchpad fica suave); dois dedos girando giram só depois de ~12° de torção (uma pinça de zoom
+    não entorta o mapa); botão direito ou do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os
+    botões giram até a próxima das 4 vistas padrão (desfazem um giro livre). Tocar no mapa com um
+    painel ou a ficha aberta só fecha o que está aberto. A
     inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
   - Começa na célula do centro da tela do 2D e girada como ele (ou no altar, direto em 3D).
   - O Three.js vem num pedaço separado (import dinâmico): a primeira carga do 2D não cresce. Enquanto

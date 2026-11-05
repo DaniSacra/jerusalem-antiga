@@ -6,8 +6,8 @@ import { iconButton, iconEl, partsTo } from './parts';
 
 /**
  * The top bar: level ring, resource pills, the goal, the season, speed, back to 2D and the gear. The
- * level ring and the goal open Objetivos (as in the 2D); the goal follows the pills on their row when
- * it fits, else on the next one.
+ * level ring and the goal open Objetivos (as in the 2D), the other pills Estatísticas; the goal
+ * follows the pills on their row when it fits, else on the next one.
  */
 export class TopBar {
   readonly el: HTMLElement;
@@ -17,11 +17,13 @@ export class TopBar {
   private season = h('div.pill.season');
   private speed: HTMLButtonElement;
 
-  constructor(private s: Session, o: { exit: (() => void) | null; settings: () => void; goals: () => void }) {
-    this.speed = h('button.round.gold', { 'data-spot': 'speed', 'aria-label': 'velocidade' });
+  constructor(private s: Session, o: { exit: (() => void) | null; settings: () => void; goals: () => void; stats: () => void }) {
+    this.speed = h('button.round.gold', { 'data-spot': 'speed', 'aria-label': T.nova.buttons.speed });
     onTap(this.speed, () => s.cycleSpeed());
     onTap(this.level, o.goals);
     onTap(this.goal, o.goals);
+    onTap(this.pills, o.stats);
+    onTap(this.season, o.stats);
     const right = h('div.right', {}, this.season, this.speed);
     if (o.exit) {
       const exit = h('button.round.pill', { 'data-spot': 'exit3d', 'aria-label': T.view3d.classicHint }, T.view3d.classic);
@@ -47,6 +49,6 @@ export class TopBar {
     keyed(this.season, bar.seasonIcon, () => [iconEl(bar.seasonIcon), h('span.parts')]);
     partsTo(this.season.querySelector<HTMLElement>('.parts')!, bar.season);
     keyed(this.speed, String(s.speed), () => (s.speed === 0 ? [iconEl('pause')] : [`${s.speed}x`]));
-    this.speed.setAttribute('aria-label', s.speed === 0 ? 'pausado' : `${s.speed}x`);
+    this.speed.setAttribute('aria-label', s.speed === 0 ? T.nova.buttons.paused : `${s.speed}x`);
   }
 }

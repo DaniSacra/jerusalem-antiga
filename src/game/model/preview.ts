@@ -98,7 +98,7 @@ export function outputOf(s: GameState, tool: Tool, r: Rect): { lines: string[]; 
   if (def.harvest && !harvestsIn(s.week)) return { lines: [N.inspect.frozen(weeksToHarvest(s.week))], bad: false };
   // Off the road it brings nothing: say so instead of "Rende 0".
   if (def.gather && !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) return { lines: [N.offRoad], bad: true };
-  const after = foodAfter(s, tool, { x: r.x, y: r.y, rotated: false });
+  const after = foodAfter(s, tool, { x: r.x, y: r.y, rotated: r.w !== toolDims(tool, false).w });
   const lines = [N.yields(after.yields, after.product)];
   if (tool === 'lumber') {
     const every = weeksPerCut(after.yields);

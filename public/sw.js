@@ -1,11 +1,11 @@
 /**
  * Service worker of the installed app: the game opens and runs offline.
- * - The page (navigation): network first, so a new version arrives when online; the cached copy offline.
- * - Everything else of this site (hashed scripts, icons, manifest, the 3D view chunk and its .glb models):
- *   cache first, stored on first use.
+ * - Hashed build files (`assets/`): cache first, stored on first use (a new build has new names).
+ * - Everything else of this site (the page, the .glb models and their manifest, icons): network first,
+ *   so a new version arrives when online; the cached copy offline. Their names do not change.
  * Bump VERSION to drop old caches.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `jerusalem-${VERSION}`;
 
 self.addEventListener('install', (event) => {
@@ -23,15 +23,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  if (req.mode === 'navigate') {
+  const hashed = new URL(req.url).pathname.includes('/assets/');
+  if (!hashed) {
+    const key = req.mode === 'navigate' ? './' : req;
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./', copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(key, copy));
+          }
           return res;
         })
-        .catch(() => caches.match('./')),
+        .catch(() => caches.match(key).then((hit) => hit || Response.error())),
     );
     return;
   }

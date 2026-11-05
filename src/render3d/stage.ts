@@ -58,7 +58,8 @@ export class Stage {
   level: Level = 'high';
   override: ViewOverride | null = null;
   frames = 0;
-  label = '';
+  /** The week of the last frame (its season and year read in `info()`). */
+  private week = 0;
   private seasons: SeasonClock;
   private climate: SeasonClock;
   private weather: WeatherClock;
@@ -187,12 +188,19 @@ export class Stage {
     return st.length > 1 ? ((st.length - 1) * 1000) / (st[st.length - 1] - st[0]) : 0;
   }
 
+  /** The game speed (0 paused): the food workers stop with it. */
+  speed = 1;
+
+  /** The season and year shown (for tests and the dev hooks). */
+  private label() {
+    const cal = calendar(this.week);
+    return T.view3d.label(cal.season, cal.year);
+  }
+
   /**
    * One frame: light, season, weather, people and particles at game position `pos` (weeks) and time
    * of day `dayT`, then the picture. Returns true when the quality was just lowered.
    */
-  /** The game speed (0 paused): the food workers stop with it. */
-  speed = 1;
 
   frame(dt: number, time: number, pos: number, dayT: number, rig: CameraRig): boolean {
     const now = performance.now();
@@ -263,14 +271,12 @@ export class Stage {
     fx.petals.update(time, c, look.drift === 'petals' ? 0.35 + 0.65 * w.wind : 0, windX, lum);
     fx.dust.update(time, c, Math.max(s3.dust * 0.3, w.wind * (0.3 + s3.dust)) * (1 - w.wet), windX + 1, lum * this.sunTint.setHex(L.sunColor).r);
 
-    const cal = calendar(week);
-    this.label = T.view3d.label(cal.season, cal.year);
+    this.week = week;
     this.frames++;
     renderer.render(this.scene, rig.camera);
     return this.checkQuality(now);
   }
 
-  /** Automatic quality: one step down when the frame rate stays under 30 for two windows in a row. */
   /** Frames are being skipped on purpose (paused and still): the frame rate says nothing about the device now. */
   holdQuality() {
     this.stamps.length = 0;
@@ -278,6 +284,7 @@ export class Stage {
     this.slow = 0;
   }
 
+  /** Automatic quality: one step down when the frame rate stays under 30 for two windows in a row. */
   private checkQuality(now: number): boolean {
     const st = this.stamps;
     st.push(now);
@@ -293,7 +300,7 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, label: this.label, rebuildMs: this.lastRebuildMs };
+    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

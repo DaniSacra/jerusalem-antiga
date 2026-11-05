@@ -239,3 +239,116 @@ estilo comum; versão leve com `simplify.mjs` (alvo 2 500), textura 1024 px com 
 
 4.ª leva: 7 tarefas = 105 créditos. Saldo: 591 antes, 486 depois. Total gasto nas levas 3 e 4: 270
 (teto 604); em todas as levas: 580.
+
+## 5.ª leva (referência Banished, 2026-11-05)
+
+Guia de estilo: `docs/arte-3d-referencia.md` (o Banished só como referência descrita em palavras;
+nenhuma imagem de jogo baixada nem enviada ao Meshy; nenhuma imagem de entrada usada nesta leva).
+Saldo no início: **486 créditos**; limite do usuário: não ficar abaixo de 152. Estilo comum novo,
+no fim dos prompts de geração:
+"Stylized low-poly city-builder game asset seen from a high camera, muted desaturated earthy colors
+(pale limestone, beige mud plaster, weathered brown wood, dusty ochre), soft baked shading, sits
+directly on a thin flat ground footprint, no raised platform, single centered object."
+Mesma configuração (`smart-topology`, `meshy-t2.5`, refine 2k sem PBR; 15 créditos por modelo).
+Novidade: **Retexture** (`/openapi/v1/retexture`, `input_task_id` do refine antigo,
+`enable_original_uv: true`, sem PBR; 10 créditos): troca só a textura e mantém a malha, os
+tamanhos e o encaixe dos acréscimos por código. Versão leve com `simplify.mjs` (alvo 2 500) e
+textura 1024 px com `pack.mjs` (`NORMAL=0`). Scripts desta leva ficaram fora do repositório
+(cópia de `generate.mjs` e um `retexture.mjs` no rascunho do agente); ids abaixo, não em
+`scripts/meshy/tasks.json`.
+
+| Chave | Tarefa | Tentativa | Preview / Retexture | Refine | Créditos | Resultado |
+|---|---|---|---|---|---|---|
+| `temple` | text-to-3D | 1 | 01a1ad77-6919-71a4-bde7-65ed428ab4f9 | 01a1ad78-1a87-70b6-9d72-3e9b301b3b52 | 15 | descartado: frontão grego com telhado de duas águas, pórtico de colunas e ameias, sem pátio |
+| `temple` | text-to-3D | 2 | 01a1ad7b-35cf-77ac-80f1-db81f369ca2a | 01a1ad7b-c096-7189-abe7-15ada0776566 | 15 | descartado: salão em corte (sem teto) com duas colunas, sem santuário |
+| `house-4` | text-to-3D | 1 | 01a1ad77-6914-71cb-ac66-c6c0ca757108 | 01a1ad78-434e-75ee-9d86-f55f1a3a7897 | 15 | descartado: casa de bonecas (muros em U sem teto, 0,85 de altura) |
+| `house-4` | text-to-3D | 2 | 01a1ad79-e765-73ba-8a95-50701585e020 | 01a1ad7a-6ef6-76c4-9315-9740d9b2246c | 15 | descartado: bloco fechado bom, mas um triângulo preto no teto (falha da textura, visível de cima) e mais baixo (1,26) que a casa de pedra (1,65) |
+| `market` | text-to-3D | 1 | 01a1ad77-691a-73e2-94f3-0498b1029d32 | 01a1ad78-43ff-75ff-9442-a71b3cd07836 | 15 | descartado: três telhados bege lisos e estreitos, de cima lia como galpões, não como feira |
+| `market` | text-to-3D | 2 | 01a1ad79-e767-74be-9463-d38fe4c0b4bb | 01a1ad7a-6fc4-77f9-a3d3-67061fd8779b | 15 | descartado: sem toldos, só painéis e mesas soltas |
+| `lumber` | text-to-3D | 1 | 01a1ad77-6915-76b1-86a6-7ddb68072528 | 01a1ad78-1921-7695-8d26-02cfe5e8c59a | 15 | descartado: cabana de barro com telhado caído; de cima a pilha de toras some e não lê "madeira" |
+| `house-2` | text-to-3D | 1 | 01a1ad7f-4a8e-771e-8051-37e25955ef08 | 01a1ad7f-a7e4-72d8-8e4b-917680700960 | 15 | descartado: boa forma (sem vigas), mas da mesma cor e quase da altura da casa de pedra: a escada de níveis ficou menos legível |
+| `park` | text-to-3D | 1 | 01a1ad7f-4a8f-74ea-8c80-4a9d7dd35b0a | 01a1ad7f-a6c3-7163-8b2b-96d3c43a8e1e | 15 | descartado: chão bege com buracos, árvores pretas espinhosas |
+| `market` | retexture do refine 01a1a7cd-6a59-70d8-bbf0-93003db37983 | 3 | 01a1ad81-6cd3-7177-9928-4e050911e04e | — | 10 | **em uso** (2 499 triângulos, 343 KB) |
+| `park` | retexture do refine 01a1ac58-93bc-7713-9024-a0e4447f965e | 2 | 01a1ad81-6cd6-7216-8814-d824910de5e6 | — | 10 | descartado: grama virou areia, o parque deixou de ser a mancha verde |
+| `park` | retexture do mesmo refine | 3 | 01a1ad84-89ac-7069-9969-df06c5cf6fbc | — | 10 | **em uso** (2 498 triângulos, 315 KB) |
+
+- **Mercado (retexture, em uso):** mesma malha da 1.ª leva (três barracas em fila, `rotationDeg: 90`),
+  toldos listrados de linho cru, ocre e terracota apagado no lugar do vermelho saturado, e a base,
+  que lia como rocha, pintada de terra batida. Continua o prédio mais colorido da rua, como o
+  mercado do guia, e se lê à noite.
+  Prompt: Faded, muted, desaturated earthy colours of an ancient Jerusalem market: stall awnings of
+  sun-bleached linen in undyed cream, dusty ochre and soft faded terracotta stripes; weathered
+  grey-brown wooden posts and tables; woven straw baskets of grain and fruit; terracotta clay jars;
+  the whole ground base is flat packed beige-ochre earth, not rock; soft baked shading, stylized
+  low-poly game texture, no saturated red.
+- **Parque (retexture, em uso):** mesma malha da 4.ª leva; gramado verde-oliva suave (ainda verde de
+  longe, sem o verde-bandeira), muros e fonte de calcário creme, flores ocre e rosa apagado, copas
+  cinza-esverdeadas no lugar das pretas.
+  Prompt: Small walled garden of ancient Jerusalem in natural soft colours: a lawn of fresh but soft
+  natural olive-green grass (clearly green, not neon, not sand), low walls, kerb and fountain basin of
+  pale cream limestone, clear light blue water, olive trees with grey-brown trunks and solid
+  grey-green olive leaves (never black), small flower beds of faded ochre and muted rose, a sandy
+  beige path; soft baked shading, stylized low-poly game texture.
+- **Bases rente ao chão (sem créditos):** pelo guia ("os prédios assentam no chão, sem pedestal"),
+  o manifesto afunda a laje de base de cada modelo com `yOffset` (medida na borda de cada modelo já
+  encaixado): `house-1` −0,08, `house-2` −0,11, `house-3` −0,05, `house-4` −0,07, `market` −0,12,
+  `fisher` −0,07, `gatherer` −0,12. A laje vira uma pegada no chão, sem a borda laranja grossa.
+  `workshop` não afunda (o quarto do nível 2–3 por código fica a 1,6, no teto da oficina do modelo),
+  nem `altar` (o fogo por código fica a 1,2), `temple`, `quarry`, `lumber` e `park` (base fina ou
+  irregular).
+- Templo, casa grande, mercado (geometria), lenhador e casa de barro ficam como estavam: as
+  tentativas saíram piores (tabela). Prompts de geração da leva:
+  - `temple` 1: Second Temple of Jerusalem about 515 BC, simple and imposing, all pale cream
+    limestone ashlar. At the back, one tall plain rectangular sanctuary with a flat roof; its front is
+    a taller flat-topped porch with a tall dark doorway and two free-standing plain round columns. In
+    front, a wide open square courtyard of pale paving slabs closed by a plain low wall with a front
+    gateway. A rough unhewn stone altar in the courtyard. No colonnade around the building, no
+    battlements, no pediment, not Greek, no ruins.
+  - `temple` 2: Sacred precinct of the Second Temple of Jerusalem about 515 BC, all pale cream
+    limestone: a square courtyard of pale slabs enclosed on all sides by a plain thick wall with one
+    gateway in the middle of the front wall. In the back half stands one tall plain box-shaped
+    sanctuary with a perfectly flat roof, and before it a taller flat-topped porch with a dark doorway
+    between two thick plain pillars. A rough stone altar in the courtyard. Flat roofs only, no gable,
+    no pediment, no portico, no battlements or Greek.
+  - `house-4` 1: Large Judean four-room courtyard house of ancient Jerusalem about 500 BC, square
+    plan: three long flat-roofed rooms with pale limestone lower walls and beige mud-plaster upper
+    walls in a U shape around an open central courtyard; a small second-storey room on the back roof;
+    three square stone pillars along the courtyard; a low front wall with a wooden gate in the centre;
+    roof terraces with clay jars and a laundry line; an outside stone stair. Wider than tall, no
+    tower, no balconies, no arches.
+  - `house-4` 2: Large Judean courtyard house of ancient Jerusalem about 500 BC, one solid square
+    block: pale limestone lower walls, beige mud-plaster upper walls; every room covered by flat
+    packed-earth roofs with low parapets, only a small open courtyard in the middle; the back wing two
+    storeys, the side wings one storey; a wooden door in the centre of the front wall; clay jars and a
+    laundry line on the roofs; an outside stone stair on one side. A complete closed house, not a
+    cutaway, no tower, no arches.
+  - `market` 1: Open-air market of ancient Jerusalem about 500 BC on a long rectangle twice as long as
+    wide: a row of three simple stalls side by side, each a low frame of wooden posts with a flat
+    slanted shade cloth of faded linen (undyed beige, dusty ochre, muted terracotta), low tables with
+    woven baskets of grain, figs and olives, clay jars and amphorae and grain sacks on the ground
+    between them. Flat packed-earth ground, no rocks, no stone base, no tall poles, no bright red.
+  - `market` 2: Open-air market of ancient Jerusalem about 500 BC on a long rectangle twice as long as
+    wide, low and spread out: a row of three stalls side by side, each four short wooden posts holding
+    a flat cloth shade at head height, the shades in different faded colours (dusty ochre, muted
+    terracotta red, faded indigo blue); under them low tables with woven baskets of grain, figs and
+    olives; clay jars, amphorae and grain sacks on the ground. Flat packed-earth ground, no rocks, no
+    stone base, no curtains.
+  - `lumber` 1: Woodcutter's yard of ancient Judea about 500 BC: at the back a small low one-room hut
+    of beige mud brick on a rough stone footing, flat roof of wooden poles and brush; beside it a neat
+    long stack of cut pale logs; in front on flat packed earth a big chopping stump with an axe, a
+    wooden sawhorse with a log, a pile of split firewood and wood chips. Not a log cabin, no ruins, no
+    broken roof.
+  - `house-2` 1: Small one-room house of ancient Jerusalem about 500 BC, a low simple box clearly
+    wider than tall: thick walls of sun-dried mud brick under smooth beige mud plaster, a flat roof of
+    packed earth with a low rounded parapet, one small wooden door at the front slightly right of
+    centre, one tiny high window, a short wooden ladder leaning up to the roof, a round clay bread oven
+    and two jars by the door. No protruding roof beams, no second storey, no stone base.
+  - `park` 1: Small square public garden of ancient Jerusalem about 500 BC filling a square base:
+    dusty sage-green grass and packed-earth paths, an ankle-high pale limestone kerb round the edge, a
+    simple round stone basin of water in the centre, four small olive trees with short gnarled trunks
+    and solid rounded dull olive-green crowns, one in each corner, two low stone benches, a few clay
+    planters with herbs. Muted dusty colours, no bright green, no black leaves, no walls, no arches, no
+    buildings.
+
+5.ª leva: 9 gerações (135 créditos) + 3 retextures (30) = **165 créditos**. Saldo: 486 antes,
+**321 depois** (limite do usuário: 152). Total gasto em todas as levas: 745.

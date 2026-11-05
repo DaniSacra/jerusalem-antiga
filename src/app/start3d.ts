@@ -23,7 +23,7 @@ export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 
     exit: null,
     restart: (sameMap) => {
       game.close();
-      void start3d(sameMap ? seed : undefined, false);
+      void start3d(sameMap ? seed : (Math.random() * 2 ** 32) >>> 0, false);
     },
   });
   const s = session.state;

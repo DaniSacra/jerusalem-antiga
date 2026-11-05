@@ -4,6 +4,7 @@ import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/
 import { keyCommand, runKey } from '../game/keys';
 import type { Session, SessionView } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
+import { NOVA_CSS } from '../render/palette';
 import { settings } from '../render/settings';
 import { Scene3D, type Scene3DOptions } from '../render3d/scene3d';
 import type { Level, ViewOverride } from '../render3d/stage';
@@ -48,7 +49,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.exit = opts.exit;
     const root = (this.root = document.createElement('div'));
     root.className = 'g3d';
-    root.style.cssText = 'position:fixed;inset:0;z-index:5;background:#6b5236;overflow:hidden;touch-action:none;';
+    root.style.cssText = `position:fixed;inset:0;z-index:5;background:${NOVA_CSS.bg};overflow:hidden;touch-action:none;`;
     const el = scene.el;
     el.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
     root.append(el);
@@ -85,6 +86,8 @@ export class Play3D implements SessionView, GestureView, HudHost {
     const at = (e: PointerEvent): PointerIn => ({ id: e.pointerId, sx: e.clientX, sy: e.clientY, touch: e.pointerType !== 'mouse', button: e.button === 2 ? 2 : e.button === 1 ? 1 : 0, t: performance.now() });
     const down = new Set<number>();
     on<PointerEvent>(el, 'pointerdown', (e) => {
+      // A panel or person sheet open: a touch on the map only closes it (nothing picked under it).
+      if (this.hud.closePanels()) return;
       el.setPointerCapture(e.pointerId);
       down.add(e.pointerId);
       this.lastTouch = e.pointerType !== 'mouse';
@@ -102,7 +105,9 @@ export class Play3D implements SessionView, GestureView, HudHost {
     on<PointerEvent>(el, 'pointercancel', up);
     on<WheelEvent>(el, 'wheel', (e) => {
       e.preventDefault();
-      this.gestures.wheel(e.clientX, e.clientY, e.deltaY);
+      // Lines or pages (some mice) to pixels.
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1;
+      this.gestures.wheel(e.clientX, e.clientY, e.deltaY * unit);
     }, { passive: false });
     on<Event>(el, 'contextmenu', (e) => e.preventDefault());
     on<KeyboardEvent>(window, 'keydown', (e) => {
@@ -199,10 +204,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.hud.update();
   }
 
+  /** Hover or rotation changed: only the marks and the preview pill (drawn with them), not the whole interface. */
   overlay() {
     this.wake = true;
     this.marksDirty = true;
-    this.hud.update();
   }
 
   toast(msg: string, tone: Tone, opt?: ToastOptions) {

@@ -154,7 +154,7 @@ export class Scene3D {
 
   /** A quarter turn of the map (Q/E and the buttons). */
   turn(dir: 1 | -1) {
-    this.rig.turn((dir * Math.PI) / 2);
+    this.rig.turn(dir);
   }
 
   /**

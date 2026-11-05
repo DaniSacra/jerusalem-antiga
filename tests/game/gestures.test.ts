@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { indexOf, type Cell } from '../../src/core';
-import { Gestures, TAP_SLOP, TOUCH_BUILD_DELAY, TOUCH_LIFT, type GestureView, type PointerIn } from '../../src/game/gestures';
+import { Gestures, TAP_SLOP, TOUCH_BUILD_DELAY, TOUCH_LIFT, snapTurn, type GestureView, type PointerIn } from '../../src/game/gestures';
 import { keyCommand, runKey } from '../../src/game/keys';
 import { Session, type SessionView } from '../../src/game/session';
 import { T } from '../../src/render/strings';
@@ -103,6 +103,31 @@ describe('gestures on the map (every view)', () => {
     expect(s.state.roads.filter(Boolean).length).toBe(createdRoads(s));
   });
 
+  it('a pinch that twists a little only zooms; past the slop the map turns by the whole twist', () => {
+    const { g, cam } = setup();
+    g.down(ptr({ sx: 100, sy: 100 }, { touch: true }));
+    g.down(ptr({ sx: 200, sy: 100 }, { id: 2, touch: true }));
+    // ~8° of twist while spreading the fingers: no turn.
+    g.move(ptr({ sx: 297, sy: 128 }, { id: 2, touch: true, t: 500 }), true);
+    expect(cam.turned).toBe(0);
+    // Past 12°: the map catches up with the whole twist, then follows.
+    const at = (deg: number) => ({ sx: 100 + 200 * Math.cos((deg * Math.PI) / 180), sy: 100 + 200 * Math.sin((deg * Math.PI) / 180) });
+    g.move(ptr(at(20), { id: 2, touch: true, t: 600 }), true);
+    expect(cam.turned).toBeCloseTo((20 * Math.PI) / 180);
+    g.move(ptr(at(25), { id: 2, touch: true, t: 700 }), true);
+    expect(cam.turned).toBeCloseTo((25 * Math.PI) / 180);
+  });
+
+  it('the turn buttons go to the next of the four standard views, undoing a free twist', () => {
+    const q = Math.PI / 2;
+    const base = -Math.PI / 4;
+    expect(snapTurn(base, 1)).toBeCloseTo(base + q);
+    expect(snapTurn(base, -1)).toBeCloseTo(base - q);
+    expect(snapTurn(base + 0.3, 1)).toBeCloseTo(base + q);
+    expect(snapTurn(base + 0.3, -1)).toBeCloseTo(base);
+    expect(snapTurn(base - 3 * q - 0.1, 1)).toBeCloseTo(base - 3 * q);
+  });
+
   it('a single building on touch is aimed 90 px above the finger and drops on release; over the UI it cancels', () => {
     const { s, g } = setup();
     s.state.unlocked.push('fisher');
@@ -139,8 +164,11 @@ describe('gestures on the map (every view)', () => {
     g.up(ptr({ sx: 140, sy: 120 }, { button: 2 }));
     expect(cam.panned).toEqual([40, 20]);
     expect(road(s, 10, 10)).toBe(false);
-    g.wheel(0, 0, -1);
-    expect(cam.zoom).toBeCloseTo(1.1);
+    g.wheel(0, 0, -100);
+    expect(cam.zoom).toBeCloseTo(Math.exp(0.15));
+    // A touchpad's ten small steps zoom as much as one notch.
+    for (let k = 0; k < 10; k++) g.wheel(0, 0, 10);
+    expect(cam.zoom).toBeCloseTo(1);
   });
 
   it('a road dragged onto a button stops there and says so', () => {

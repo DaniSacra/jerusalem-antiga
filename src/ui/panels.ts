@@ -3,7 +3,7 @@ import { alertsPanel, goalsPanel, STATS_TABS, statsPanel, type PanelSection, typ
 import type { Session } from '../game/session';
 import type { Notice } from '../render/nova/notices';
 import { T } from '../render/strings';
-import { h, keyed, onTap } from './dom';
+import { h, keyed, onTap, resetKey } from './dom';
 import { panelLine } from './lines';
 
 export type PanelKind = 'goals' | 'alerts' | 'stats';
@@ -18,13 +18,18 @@ export class Panels {
   open: PanelKind | null = null;
   private tab: StatsTab = 'now';
 
-  constructor(private s: Session, private phone: () => boolean, private onHouse: (houseId: number) => void) {}
+  constructor(
+    private s: Session,
+    private phone: () => boolean,
+    private onHouse: (houseId: number) => void,
+    private onClose: () => void,
+  ) {}
 
   toggle(kind: PanelKind) {
     if (this.open === kind) this.close();
     else {
       this.open = kind;
-      (this.el as { _key?: string })._key = '';
+      resetKey(this.el);
     }
   }
 
@@ -48,9 +53,11 @@ export class Panels {
       sections = statsPanel(this.tab, { s: s.state, e: city.eco, forecast: city.forecast, notices }, phone);
     }
     keyed(this.el, JSON.stringify([kind, this.tab, sections]), () => {
+      const x = h('button.act.close.x', { 'data-spot': 'panel-close', 'aria-label': T.nova.inspect.close }, '✕');
+      onTap(x, () => this.onClose());
       const body = h('div.sections', { class: kind === 'goals' ? 'goals' : null });
       for (const sec of sections) body.append(h('div.section', {}, ...sec.map((l) => panelLine(l, (id) => this.onHouse(id)))));
-      if (kind !== 'stats') return [body];
+      if (kind !== 'stats') return [x, body];
       const tabs = h('div.tabs');
       for (const t of STATS_TABS) {
         const b = h('button.tab', { class: t === this.tab ? 'on' : null, 'data-spot': `tab-${t}` }, T.nova.tabs[t]);
@@ -60,7 +67,7 @@ export class Panels {
         });
         tabs.append(b);
       }
-      return [tabs, body];
+      return [x, tabs, body];
     });
     this.el.classList.remove('hidden');
   }

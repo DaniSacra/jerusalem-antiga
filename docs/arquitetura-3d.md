@@ -276,10 +276,12 @@ Clique em botão HTML   ──► ui/* onTap ───────────�
 
 ### 2.9 Offline (PWA)
 
-- `public/sw.js` continua (rede primeiro para a página, cache primeiro para o resto).
-- Novo: na instalação, **pré-cache do app, do pedaço do 3D e do `manifest.json` dos modelos**. Um
-  plugin pequeno do Vite escreve a lista de arquivos com hash em `sw.js` (`VERSION` sobe a cada build).
-  Os .glb entram no cache no primeiro uso; sem eles o mundo usa os modelos por código (já é assim).
+- `public/sw.js`: os arquivos com hash (`assets/`) vêm do cache primeiro; o resto (a página, os .glb
+  e o `manifest.json` deles, ícones) da **rede primeiro**, com o cache quando offline. Assim um modelo
+  trocado (mesmo nome) chega a quem já instalou.
+- **Fase 4 (decidido): sem plugin de pré-cache.** A primeira abertura (online, que é quando se
+  instala) já baixa todos os pedaços e o pacote inteiro de modelos, e tudo fica no cache. Sem os .glb
+  o mundo usa os modelos por código.
 - `npm run test:pwa` passa a abrir o jogo em 3D offline.
 
 ---

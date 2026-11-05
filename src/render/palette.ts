@@ -167,6 +167,9 @@ export const NOVA = {
   chart: { silver: 0xd9dde3, food: 0x8fd17f, residents: 0xf0c27a, happiness: 0xffd77a, capacity: 0xd2c09a },
 };
 
+/** A palette number as a CSS colour. */
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+
 export const NOVA_CSS = {
   text: '#fff4dc',
   muted: '#d2c09a',
@@ -177,6 +180,9 @@ export const NOVA_CSS = {
   ink: '#3b2a1a',
   /** Price on a parchment button without enough silver. */
   inkBad: '#b02a1c',
+  parchment: hex(NOVA.parchment),
+  /** Behind the map while it loads (the earth brown). */
+  bg: hex(C.bg),
 };
 
 /** Rounded and readable, system fonts only (the game is an offline app): falls back to the classic font. */

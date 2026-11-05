@@ -74,14 +74,13 @@ export class Hud {
 
   constructor(parent: HTMLElement, private host: HudHost) {
     const root = (this.root = h('div', { id: 'hud', 'data-form': formOf() }));
-    for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad }))
+    for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad, parchment: NOVA_CSS.parchment }))
       root.style.setProperty(`--c-${k}`, v);
-    root.style.setProperty('--c-parchment', '#f4e8cc');
     root.style.setProperty('--font', NOVA_FONT);
     const s = host.session;
     this.anchors = new Anchors((r, top) => host.screenOf(r, top));
     this.settings = new SettingsPanel();
-    this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals') });
+    this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats') });
     this.tools = new Tools(s, (d) => host.turn(d));
     this.sheet = new PersonSheet(s, (id) => this.showHouse(id));
     this.labels = new ProblemLabels(this.anchors, () => host.zoom);
@@ -89,7 +88,7 @@ export class Hud {
       this.panels.close();
       this.sheet.show(id, true);
     }, (dx) => host.nudge(dx));
-    this.panels = new Panels(s, () => this.phone, (id) => this.showHouse(id));
+    this.panels = new Panels(s, () => this.phone, (id) => this.showHouse(id), () => this.closeTop());
     // Objetivos opens from the level ring and the goal (top bar).
     for (const [kind, icon, label] of [['alerts', 'alert', T.nova.buttons.alerts], ['stats', 'stats', T.nova.buttons.stats]] as const) {
       const b = iconButton(icon, label, () => this.togglePanel(kind), `panel-${kind}`);
@@ -149,12 +148,16 @@ export class Hud {
     this.top.update(this.phone);
     this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);
     this.measureFree();
+    // The toasts end left of the tool balloon (its cost line explains a failure).
+    const tip = this.tools.tip.classList.contains('hidden') ? null : this.tools.tip.getBoundingClientRect();
+    this.toasts.el.style.right = tip ? `${Math.round(innerWidth - tip.left + 8)}px` : '';
     this.updateNotices();
     this.labels.update(this.host.session.state, this.host.session.city.eco);
     this.famine.classList.toggle('on', this.host.session.state.famine);
     this.balloon.update();
     this.panels.update(this.notices);
     this.sheet.update();
+    this.balloon.el.classList.toggle('under', this.sheet.open);
     for (const [k, b] of this.sideButtons) b.classList.toggle('on', this.panels.open === k);
     this.toasts.update();
     // A locked button may have opened up: buttons are measured again for the arrow.
@@ -261,16 +264,20 @@ export class Hud {
     ]);
   }
 
+  /** Closes a panel or the person sheet (a touch on the map); false when none was open. */
+  closePanels(): boolean {
+    const was = this.sheet.close() || this.panels.close();
+    if (was) this.update();
+    return was;
+  }
+
   /** Esc: closes the settings, the person sheet, a panel or the open balloon; false when nothing was open. */
   closeTop(): boolean {
     if (this.settings.open) {
       this.settings.close();
       return true;
     }
-    if (this.sheet.close() || this.panels.close()) {
-      this.update();
-      return true;
-    }
+    if (this.closePanels()) return true;
     if (this.balloon.rect && this.host.session.selected) {
       this.host.session.deselect();
       return true;

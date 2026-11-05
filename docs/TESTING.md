@@ -375,9 +375,10 @@ Ganchos em `.claude/settings.json` (valem para o agente principal e todos os sub
 
 `npm run test:pwa` serve o `dist/` com `vite preview` e confere no Chromium: o Chrome considera o
 app instalável (sem erros de manifesto), o service worker controla a página, o jogo recarrega sem
-internet e não há erro na página. Também abre a visão 3D com internet (toque no botão 3D) e de
-novo sem internet, e confere que os modelos .glb estão no cache. Rode depois de `npm run build`; ao mudar arquivos em `public/`,
-suba `VERSION` em `public/sw.js` para os celulares baixarem a versão nova.
+internet e não há erro na página. Também abre o jogo 3D com internet e de novo sem internet, e
+confere que os modelos .glb estão no cache. Rode depois de `npm run build`. Os arquivos sem hash
+(página, modelos, ícones) vêm da rede primeiro, então um modelo novo chega sozinho; suba `VERSION`
+em `public/sw.js` só para apagar caches velhos.
 
 Os ícones em `public/icons/` são gerados pelo próprio jogo (o templo sobre o céu):
 `node tools/icons/make-icons.mjs` regera todos.

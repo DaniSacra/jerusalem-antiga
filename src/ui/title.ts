@@ -16,7 +16,7 @@ export function showTitle(parent: HTMLElement = document.body): Promise<{ tutori
     root.style.setProperty('--c-ink', NOVA_CSS.ink);
     root.style.setProperty('--c-muted', NOVA_CSS.muted);
     root.style.setProperty('--c-gold', NOVA_CSS.gold);
-    root.style.setProperty('--c-parchment', '#f4e8cc');
+    root.style.setProperty('--c-parchment', NOVA_CSS.parchment);
     root.style.setProperty('--font', NOVA_FONT);
     const done = (tutorial: boolean) => {
       removeEventListener('keydown', onKey);

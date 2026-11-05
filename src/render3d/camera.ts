@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { snapTurn } from '../game/gestures';
 
 /** Opening distance, and how close and far the camera may go. */
 const DIST0 = 34;
@@ -73,9 +74,9 @@ export class CameraRig {
     this.pointers.clear();
   }
 
-  /** Turns the view by `angle` radians around its focus, smoothly (the turn buttons). */
-  turn(angle: number) {
-    this.yawGoal = (this.yawGoal ?? this.yaw) + angle;
+  /** Turns the view a quarter around its focus to the next standard view, smoothly (the turn buttons). */
+  turn(dir: 1 | -1) {
+    this.yawGoal = snapTurn(this.yawGoal ?? this.yaw, dir);
   }
 
   /** Moves the view by screen pixels (the ground follows the finger). */

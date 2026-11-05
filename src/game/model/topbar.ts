@@ -119,7 +119,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
   const turn = nextFieldTurn(s.week);
   const turnTone: Tone = turn.season === 'winter' && turn.weeks <= RULES.winterWarningWeeks ? 'warn' : 'muted';
   const seasonParts: Part[] = [
-    ...(phone ? [{ text: N.calendarPhone(season, year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), tone: turnTone } as Part]),
+    ...(phone ? [{ text: N.calendarPhone(year, turn) }] : [{ text: N.calendar(season, year, week, true) }, { text: '· ' + N.fieldTurn(turn), tone: turnTone } as Part]),
     ...(s.drought ? [{ text: '· ' + N.drought, tone: 'warn' } as Part] : []),
   ];
   return { level: cityLevel(s), goalFraction: goalFraction(s), pills, goal: goalParts(s, phone), season: seasonParts, seasonIcon: s.drought ? 'drought' : season };

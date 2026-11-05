@@ -12,12 +12,10 @@ interface Pin {
   age: number;
   /** Removed (from the page too) after this long (ms; rising texts). */
   life: number;
+  /** The transform last written, null when hidden, undefined before the first (a still camera writes nothing). */
+  shown?: string | null;
 }
 
-/**
- * Everything pinned to the world (balloon, preview pill, rising texts, the tutorial arrow on a
- * place): one pass per frame that only writes `transform` and `visibility` (no layout reads).
- */
 /**
  * Size of what floats over the buildings at a camera zoom (1 at the opening distance): full size up
  * close, smaller when the camera is far, so a whole town of balloons does not cover the map.
@@ -40,6 +38,11 @@ export function besideX(px: number, w: number, left: number, right: number, gap 
   return toRight ? { x: Math.max(left, right - w), nudge: right - w - r } : { x: left, nudge: left - l };
 }
 
+/**
+ * Everything pinned to the world (balloon, preview pill, rising texts, the tutorial arrow on a
+ * place): one pass per frame that writes `transform` and `visibility` only when they change (no
+ * layout reads).
+ */
 export class Anchors {
   private pins = new Map<HTMLElement, Pin>();
 
@@ -48,7 +51,7 @@ export class Anchors {
   /** Pins an element over a footprint (null: unpinned and left where it is). */
   pin(el: HTMLElement, at: Rect | null, place: Pin['place'], top = 0, life = Infinity) {
     const old = this.pins.get(el);
-    this.pins.set(el, { el, at, top, place, age: old && old.at === at ? old.age : 0, life });
+    this.pins.set(el, { el, at, top, place, age: old && old.at === at ? old.age : 0, life, shown: old?.shown });
   }
 
   unpin(el: HTMLElement) {
@@ -76,7 +79,10 @@ export class Anchors {
 
   private put(p: Pin) {
     const s = this.screenOf(p.at!, p.top);
-    p.el.style.visibility = s ? 'visible' : 'hidden';
-    if (s) p.el.style.transform = p.place(s, p.age);
+    const t = s ? p.place(s, p.age) : null;
+    if (t === p.shown) return;
+    if (p.shown === undefined || (t === null) !== (p.shown === null)) p.el.style.visibility = t === null ? 'hidden' : 'visible';
+    if (t !== null) p.el.style.transform = t;
+    p.shown = t;
   }
 }

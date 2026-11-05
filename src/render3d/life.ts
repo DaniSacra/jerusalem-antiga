@@ -328,6 +328,11 @@ interface Hauler {
 
 /** Cells a second a worker walks at the usual pace. */
 const HAUL_SPEED = 1.1;
+/** Sacks and baskets: one material each for every rebuild of the people (never disposed). */
+const LOAD_MATS = {
+  sack: new THREE.MeshStandardMaterial({ color: 0xb08a58, roughness: 0.95, flatShading: true }),
+  basket: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.95, flatShading: true }),
+};
 
 /**
  * The people of the food buildings (haul.ts says who and where): harvest carriers with a sack on
@@ -352,9 +357,9 @@ export class Haulers {
     this.figures = new Figures(n, shadows);
     const sack = new THREE.IcosahedronGeometry(0.075, 0);
     sack.scale(1, 1.25, 0.8);
-    this.sacks = new THREE.InstancedMesh(sack, new THREE.MeshStandardMaterial({ color: 0xb08a58, roughness: 0.95, flatShading: true }), n);
+    this.sacks = new THREE.InstancedMesh(sack, LOAD_MATS.sack, n);
     const basket = new THREE.CylinderGeometry(0.075, 0.055, 0.06, 8);
-    this.baskets = new THREE.InstancedMesh(basket, new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.95, flatShading: true }), n);
+    this.baskets = new THREE.InstancedMesh(basket, LOAD_MATS.basket, n);
     for (const o of [this.sacks, this.baskets]) {
       o.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       o.castShadow = shadows;
@@ -386,7 +391,8 @@ export class Haulers {
     h.route = b ? legOf(this.s, h.job, b, h.out, h.route, this.rng) : [];
     // Nowhere to go now (no road to a store): try again in a moment, not every frame.
     if (h.route.length < 2) {
-      h.route = b ? [{ x: b.x + b.w / 2, y: b.y + b.h / 2 }] : [{ x: 0, y: 0 }];
+      // Its building is gone (until the people are rebuilt): hidden, not in a corner of the map.
+      h.route = b ? [{ x: b.x + b.w / 2, y: b.y + b.h / 2 }] : [];
       h.wait = 2;
     }
   }
@@ -420,6 +426,12 @@ export class Haulers {
   }
 
   private draw(i: number, h: Hauler, time: number, walking: boolean) {
+    if (!h.route.length) {
+      this.figures.hide(i);
+      this.load(this.sacks, i, false, 0, 0, 0, 0, 0, 0, 0);
+      this.load(this.baskets, i, false, 0, 0, 0, 0, 0, 0, 0);
+      return;
+    }
     const a = h.route[Math.min(h.seg, h.route.length - 1)];
     const b = h.route[Math.min(h.seg + 1, h.route.length - 1)];
     const x = a.x + (b.x - a.x) * h.t;

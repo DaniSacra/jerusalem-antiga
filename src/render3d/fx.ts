@@ -350,6 +350,7 @@ export class WorldFx {
   }
 
   private updateScaffolds(dt: number) {
+    if (!this.scaffolds.length) return;
     let n = 0;
     this.scaffolds = this.scaffolds.filter((f) => (f.age += dt) < f.seconds);
     for (const f of this.scaffolds) {

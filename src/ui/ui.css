@@ -13,6 +13,7 @@
   --margin: 8px; --gap: 6px; --num: 15px; --text: 13px; --small: 12px; --big: 20px;
   --level: 56px; --pill: 30px; --btn: 44px; --tool: 44px; --col: 132px;
 }
+@media (max-width: 700px) { #hud[data-form='phone'] { --level: 48px; } }
 :where(#hud button) { font: inherit; color: inherit; }
 #hud button { cursor: pointer; pointer-events: auto; touch-action: none; }
 #hud .hit { pointer-events: auto; }
@@ -38,7 +39,13 @@
 .pill svg { width: calc(var(--pill) * 0.6); height: calc(var(--pill) * 0.6); flex: none; }
 .pill.alarm { animation: hud-blink 1s ease-in-out infinite; }
 @keyframes hud-blink { 50% { background: rgba(142, 42, 31, 0.92); } }
-.goal { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.goal { max-width: 100%; min-width: 0; }
+/* Only the goal's text is cut short: its label and progress ("0/1") always show. */
+.goal > * { flex: none; }
+.goal > :nth-child(2) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Every pill takes taps (they open Estatísticas) so nothing is built under the top bar. */
+.top .pill { pointer-events: auto; cursor: pointer; }
+.pill .parts { display: inline-flex; align-items: baseline; gap: 4px; }
 .bar { width: 80px; height: 8px; border-radius: 4px; background: #5a4630; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--c-gold); }
 .top .right { display: flex; gap: var(--gap); align-items: flex-start; flex: none; }
@@ -92,12 +99,16 @@
 .act.dim { background: #8a8174; color: #2b1f14; }
 .act.confirm { background: #c0392b; border-color: var(--c-gold); }
 .act.close { flex: none; width: 44px; }
+/* The house balloon stays out of sight while a person sheet is open over it. */
+.balloon.under { opacity: 0; pointer-events: none; }
+.panelbox .x { float: right; margin: 0 0 6px 10px; position: sticky; top: 0; z-index: 1; }
+.sheet .head .act { margin-left: auto; flex: none; }
 .fig svg, .fig { display: block; }
 /* The famine tone over the map (under the interface). */
 .famine { position: absolute; inset: 0; background: #c0392b; opacity: 0; transition: opacity 0.6s; pointer-events: none; mix-blend-mode: multiply; }
 .famine.on { opacity: 0.22; }
 /* Problem balloons over the buildings (pinned to the world; under every control). */
-.need { width: 34px; height: 40px; padding: 4px 4px 10px; background: #f4e8cc; border: 2px solid #3b2a1a; border-radius: 12px 12px 12px 12px; clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 50% 100%, 38% 78%, 0 78%); pointer-events: none; transform-origin: 0 0; }
+.need { width: 34px; height: 40px; padding: 4px 4px 10px; background: var(--c-parchment); border: 2px solid #3b2a1a; border-radius: 12px 12px 12px 12px; clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 50% 100%, 38% 78%, 0 78%); pointer-events: none; transform-origin: 0 0; }
 .need svg { width: 26px; height: 26px; display: block; }
 .need .lock { position: absolute; right: -2px; top: 14px; width: 14px; height: 14px; }
 .need .lock svg { width: 14px; height: 14px; }
@@ -106,7 +117,7 @@
 #hud[data-form='phone'] .toolballoon { width: 220px; }
 /* Side buttons: Objetivos, Avisos (with the red selo), Estatísticas under the turns. */
 .side button { position: relative; }
-.badge { position: absolute; right: -6px; top: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: #b0302a; border: 1.5px solid var(--c-text); color: var(--c-text); font-size: 12px; font-weight: 800; line-height: 19px; }
+.badge { position: absolute; right: -10px; top: -10px; min-width: 20px; height: 22px; padding: 0 5px; border-radius: 11px; background: #b0302a; border: 1.5px solid var(--c-text); color: var(--c-text); font-size: 12px; font-weight: 800; line-height: 19px; }
 .side button.pulse { animation: hud-pulse 0.52s ease-in-out 4; }
 @keyframes hud-pulse { 50% { transform: scale(1.18); } }
 .side button.on { background: var(--c-gold); color: var(--c-ink); }
