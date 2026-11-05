@@ -12,7 +12,7 @@ import { fieldHands, frameLight, streetShare } from './time/light';
 import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
 import { WeatherClock, type WeatherNow } from './time/weather';
 import LOOK from './look3d.json';
-import { MAX_HANDS, World } from './world';
+import { MAX_HANDS, World, type CityLayer } from './world';
 
 /** The Meshy model pack (public/models/meshy); keys it lacks keep the code models. */
 export const PACK = './models/meshy/manifest.json';
@@ -74,14 +74,14 @@ export class Stage {
   /** The first seconds (shaders compiling) do not count for the quality. */
   private checkedAt = performance.now() + 4000;
   private slow = 0;
-  private dirtyAt: number | null = null;
+  private pending = new Set<CityLayer>();
   private builtAt = 0;
   private size = { w: 1, h: 1 };
 
   constructor(
     private s: GameState,
-    private seed: number,
-    private models: Record<ModelKey, Prototype>,
+    seed: number,
+    models: Record<ModelKey, Prototype>,
     centre: THREE.Vector3,
   ) {
     const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
@@ -150,20 +150,23 @@ export class Stage {
     this.weather.reset();
   }
 
-  /** The city changed: it is drawn again soon (at most every REBUILD_MS). */
-  cityChanged() {
-    this.dirtyAt ??= performance.now();
+  /** Layers of the city changed: they are drawn again soon (at most every REBUILD_MS). */
+  cityChanged(layers: readonly CityLayer[]) {
+    for (const l of layers) this.pending.add(l);
   }
 
-  /** Draws the city again now when it changed. */
+  /** Draws again the layers that changed, when it is time. */
   private rebuild(now: number) {
-    if (this.dirtyAt === null || now - this.builtAt < REBUILD_MS) return;
-    this.dirtyAt = null;
+    if (!this.pending.size || now - this.builtAt < REBUILD_MS) return;
+    const t0 = performance.now();
+    this.world.sync([...this.pending]);
+    this.pending.clear();
     this.builtAt = now;
-    this.world.dispose();
-    this.world = new World(this.s, this.seed, this.models, true);
-    this.scene.add(this.world.group);
+    this.lastRebuildMs = performance.now() - t0;
   }
+
+  /** How long the last redraw of city layers took (ms; the performance script reads it). */
+  lastRebuildMs = 0;
 
   fps() {
     const st = this.stamps;
@@ -265,7 +268,7 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, label: this.label };
+    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, label: this.label, rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

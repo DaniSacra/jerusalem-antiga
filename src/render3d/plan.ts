@@ -65,6 +65,8 @@ export const MODEL_KEYS: ModelKey[] = [
 export const VACANT_TINT = 0.7;
 /** Where the barred gate of an empty house stands (model x, z; front +z), by the level kept: before its door. */
 export const CLOSED_AT: Record<2 | 3 | 4, [number, number]> = { 2: [0.3, 0.86], 3: [0.05, 0.86], 4: [0, 0.9] };
+/** The workshop kiln (model x, z; the code and the Meshy model have it there): smoke, night fire and the level-3 chimney. */
+export const KILN: [number, number] = [0.8, -0.1];
 /** Per level of a service building (index = level): height and brightness (richer stone at the top). */
 const SERVICE = [
   { sy: 1, tint: 1 },

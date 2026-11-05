@@ -6,5 +6,8 @@
   "market": { "file": "market.glb", "rotationDeg": 90 },
   "lumber": { "file": "lumber.glb" },
   "quarry": { "file": "quarry.glb" },
-  "temple": { "file": "temple.glb" }
+  "temple": { "file": "temple.glb" },
+  "workshop": { "file": "workshop.glb" },
+  "fisher": { "file": "fisher.glb" },
+  "gatherer": { "file": "gatherer.glb" }
 }

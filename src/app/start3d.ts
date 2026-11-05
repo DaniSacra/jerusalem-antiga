@@ -1,6 +1,7 @@
 import { Session } from '../game/session';
 import { tutorialSeen } from '../game/tutorial';
 import { T } from '../render/strings';
+import { showTitle } from '../ui/title';
 
 /** Dev builds: `?seed=N` fixes the map (the visual tests use it). */
 function devSeed(): number | null {
@@ -11,16 +12,18 @@ function devSeed(): number | null {
 
 /**
  * The 3D game on its own (`?view=3d`, or the 3D setting): a new session drawn by Three.js under the
- * HTML interface, no Phaser at all. A defeat starts a new session in place.
+ * HTML interface, no Phaser at all, after the HTML title screen. A defeat starts a new session in
+ * place (no title).
  */
-export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0) {
-  const { Game3D } = await import('../render3d/game3d');
-  const session = new Session({ seed, tutorial: false, seen: tutorialSeen() });
+export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 0, title = true) {
+  // The title screen shows while Three.js and the models download.
+  const [{ Game3D }, { tutorial }] = await Promise.all([import('../render3d/game3d'), title ? showTitle() : { tutorial: false }]);
+  const session = new Session({ seed, tutorial, seen: tutorialSeen() });
   const game = await Game3D.open(session, {
     exit: null,
     restart: (sameMap) => {
       game.close();
-      void start3d(sameMap ? seed : undefined);
+      void start3d(sameMap ? seed : undefined, false);
     },
   });
   const s = session.state;

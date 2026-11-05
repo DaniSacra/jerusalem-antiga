@@ -487,6 +487,12 @@ export const T = {
       on: 'ligado',
       off: 'desligado',
       slow: 'aparelho lento',
+      /** Which map the game opens with (3D or the classic 2D). */
+      view: 'Mapa',
+      view3d: 'em 3D',
+      view2d: 'em 2D (clássico)',
+      /** Switching from the 3D started on its own starts a new game in 2D. */
+      viewNewGame: 'O 2D começa uma partida nova',
     },
     inspect: {
       next: (cur: string, next: string) => `${cur} → ${next}`,

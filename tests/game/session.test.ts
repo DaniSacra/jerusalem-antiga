@@ -151,4 +151,20 @@ describe('session (one game, without drawing)', () => {
     s.rotate();
     expect(s.rotated).toBe(true);
   });
+
+  it('a closed view lets go of the session; another view attached stays', () => {
+    const s = new Session({ seed: 3, tutorial: false, seen: true });
+    const said: string[] = [];
+    const view = (tag: string): SessionView => ({ modalOpen: false, redraw: () => {}, overlay: () => {}, toast: (m) => said.push(`${tag}:${m}`), out: () => {}, drawSpots: () => {}, glideTo: () => {}, openCategory: () => {}, setTutorial: () => {} });
+    const a = view('a');
+    const b = view('b');
+    s.attach(a);
+    s.detach(a);
+    s.say('x');
+    expect(said).toEqual([]);
+    s.attach(b);
+    s.detach(a);
+    s.say('y');
+    expect(said).toEqual(['b:y']);
+  });
 });

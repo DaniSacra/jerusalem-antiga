@@ -113,6 +113,24 @@ describe('gestures on the map (every view)', () => {
     expect(g.aimAt(ptr({ sx: 50, sy: 950 }, { touch: true }))).toBeNull();
   });
 
+  it('only Rua builds by drag: Casa, Campo and Demolir act once, where they are released', () => {
+    for (const tool of ['house', 'field', 'clear'] as const) {
+      const { s, g } = setup();
+      s.state.silver = 5000;
+      s.state.wood = 500;
+      // Something to demolish along the drag.
+      for (let x = 2; x <= 12; x++) s.state.roads[indexOf(s.state, x, 2)] = tool === 'clear';
+      s.refresh();
+      s.selectTool(tool);
+      const before = { buildings: s.state.buildings.length, roads: s.state.roads.filter(Boolean).length };
+      g.down(ptr(px({ x: 2, y: 2 })));
+      for (let x = 3; x <= 12; x++) g.move(ptr(px({ x, y: 2 }), { t: 1000 }), true);
+      g.up(ptr(px({ x: 12, y: 2 }), { t: 1000 }));
+      if (tool === 'clear') expect(s.state.roads.filter(Boolean).length).toBe(before.roads - 1);
+      else expect(s.state.buildings.length).toBe(before.buildings + 1);
+    }
+  });
+
   it('the right button always moves the map; the wheel zooms', () => {
     const { s, g, cam } = setup();
     s.selectTool('road');

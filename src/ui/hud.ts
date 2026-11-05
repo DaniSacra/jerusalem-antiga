@@ -1,22 +1,14 @@
-import {
-  BUILDINGS,
-  costOf,
-  GOALS,
-  indexOf,
-  materialsOf,
-  MATERIALS,
-  nextLevelOf,
-  unlockingGoal,
-  type BuildableKind,
-  type Rect,
-} from '../core';
+import { BUILDINGS, type BuildableKind, type Rect } from '../core';
+import { buildColumn } from '../game/model/build';
+import { balloonOf } from '../game/model/inspect';
 import { topBar, type Part, type Tone as PartTone } from '../game/model/topbar';
 import type { Session } from '../game/session';
 import { ToastQueue, type ToastOptions, type Tone } from '../game/toastQueue';
 import { NOVA_CSS, NOVA_FONT } from '../render/palette';
+import { saveSettings, settings } from '../render/settings';
 import { T } from '../render/strings';
-import { COLUMN_ORDER, keyOf, toolName, type Tool } from '../render/tools';
-import { h, keyed, onTap, setText } from './dom';
+import { COLUMN_ORDER, toolName, type Tool } from '../render/tools';
+import { formOf, h, keyed, onTap, setText } from './dom';
 import { ICONS } from './icons';
 import './ui.css';
 
@@ -30,10 +22,10 @@ export interface HudHost {
   exit: (() => void) | null;
   /** A new game: the same map or a new one. */
   restart(sameMap: boolean): void;
+  /** The player chose the classic 2D map (back to it, or a new game in it). */
+  toClassic(): void;
 }
 
-/** Phone or PC, decided on the real screen (short, or a touch-first pointer), as `layout.ts > IS_PHONE`. */
-export const formOf = () => (innerHeight < 500 || matchMedia('(pointer: coarse)').matches ? 'phone' : 'pc');
 
 /** How long a floating text lasts (ms). */
 const FLOAT_MS = 1600;
@@ -112,6 +104,10 @@ export class Hud {
       onTap(exit, () => host.exit?.());
       right.append(exit);
     }
+    const gear = h('button.round.pill', { 'data-spot': 'settings', 'aria-label': T.nova.buttons.settings });
+    gear.innerHTML = ICONS.gear;
+    onTap(gear, () => this.toggleSettings());
+    right.append(gear);
     const top = h('header.top', {}, h('div.left', {}, this.level, h('div.rows', {}, this.pills, this.goal)), right);
 
     const turns = h('nav.side');
@@ -141,7 +137,7 @@ export class Hud {
     this.tutorial = h('div.tutorial.hidden', {}, this.tutorialText, skip);
     this.arrow.innerHTML = ICONS.arrow;
 
-    root.append(this.tag, this.balloon, top, turns, tools, this.column, this.toastBox, this.tutorial, this.arrow);
+    root.append(this.tag, this.balloon, top, turns, tools, this.column, this.toastBox, this.tutorial, this.arrow, this.settingsBox);
     parent.append(root);
     addEventListener('resize', this.onResize);
   }
@@ -197,19 +193,12 @@ export class Hud {
     this.speed.setAttribute('aria-label', s.speed === 0 ? 'pausado' : `${s.speed}x`);
 
     for (const [t, el] of this.tools) el.classList.toggle('on', s.tool === t);
-    for (const [k, el] of this.builds) {
-      const locked = !st.unlocked.includes(k);
-      const cost = costOf(k);
-      const m = materialsOf(k);
-      const short = st.silver < cost || MATERIALS.some((x) => (m[x] ?? 0) > st[x]);
-      el.classList.toggle('on', s.tool === k);
-      el.classList.toggle('locked', locked);
-      el.classList.toggle('short', !locked && short);
-      const goal = unlockingGoal(k) ?? 0;
-      const price = locked
-        ? T.nova.lockedGoal(goal, GOALS[goal - 1]?.fromYear)
-        : [T.nova.silverCost(cost), ...MATERIALS.filter((x) => m[x]).map((x) => T.nova.materialCost(m[x]!, x))].join(' · ') + (this.phone ? '' : ` · ${keyOf(k)}`);
-      setText(el.querySelector('small')!, price);
+    for (const btn of buildColumn(st, s.tool, this.phone)) {
+      const el = this.builds.get(btn.kind)!;
+      el.classList.toggle('on', btn.on);
+      el.classList.toggle('locked', btn.locked);
+      el.classList.toggle('short', btn.short);
+      setText(el.querySelector('small')!, btn.line);
     }
 
     this.updateBalloon();
@@ -217,42 +206,31 @@ export class Hud {
     this.drawToasts();
   }
 
-  /** The tapped building's balloon: its name, level and road, and Melhorar / Demolir. */
+  /** The tapped building's balloon: its name, road and level, and Melhorar / Demolir (`balloonOf`). */
   private updateBalloon() {
     const s = this.host.session;
-    const st = s.state;
     const c = s.selected;
-    const b = c ? st.grid[indexOf(st, c.x, c.y)] : null;
-    const road = c && !b && st.roads[indexOf(st, c.x, c.y)];
-    if (!c || (!b && !road)) {
+    const bal = balloonOf(s.state, c);
+    if (!c || !bal) {
       this.balloon.classList.add('hidden');
       this.balloonAt = null;
       return;
     }
-    const N = T.nova.inspect;
-    const rect = b ? { x: b.x, y: b.y, w: b.w, h: b.h } : { x: c.x, y: c.y, w: 1, h: 1 };
-    this.balloonAt = rect;
-    const next = b ? nextLevelOf(b) : null;
-    const key = JSON.stringify([rect, b?.kind, b?.level, b?.connected, next?.cost, st.silver >= (next?.cost ?? 0)]);
-    keyed(this.balloon, key, () => {
-      const lines: (HTMLElement | null)[] = [];
-      if (b) {
-        lines.push(h('h3', {}, BUILDINGS[b.kind].name));
-        if (b.kind !== 'altar') lines.push(h('div', { class: b.connected ? 't-good' : 't-bad' }, `${b.connected ? '✓' : '✗'} ${b.connected ? N.connected : N.disconnected}`));
-        if (BUILDINGS[b.kind].levels?.length) lines.push(h('div.t-gold', {}, N.levelOf(b.level, BUILDINGS[b.kind].levels!.length + 1)));
-      } else lines.push(h('h3', {}, T.need.road));
+    this.balloonAt = bal.rect;
+    const affordable = s.state.silver >= (bal.upgrade?.cost ?? 0);
+    keyed(this.balloon, bal.key + affordable, () => {
       const acts = h('div.acts');
-      if (next) {
-        const up = h('button.act.gold', {}, N.upgrade(next.cost, next.materials));
+      if (bal.upgrade) {
+        const up = h('button.act.gold', {}, bal.upgrade.label);
         onTap(up, () => s.upgradeAt(c));
         acts.append(up);
       }
-      if (!b || (b.kind !== 'altar' && b.kind !== 'temple')) {
-        const del = h('button.act.red', {}, N.demolish);
+      if (bal.demolish) {
+        const del = h('button.act.red', {}, T.nova.inspect.demolish);
         onTap(del, () => s.demolishAt(c));
         acts.append(del);
       }
-      return [...lines, acts.childElementCount ? acts : null];
+      return [h('h3', {}, bal.title), ...bal.lines.map((l) => h('div', { class: tone(l.tone) || null }, l.text)), acts.childElementCount ? acts : null];
     });
     this.balloon.classList.remove('hidden');
   }
@@ -410,8 +388,50 @@ export class Hud {
     this.modal = null;
   }
 
-  /** Esc: closes the open balloon; false when nothing was open. */
+  // ---------- settings (the gear) ----------
+
+  private settingsBox = h('div.settings.panel.hidden');
+
+  get settingsOpen() {
+    return !this.settingsBox.classList.contains('hidden');
+  }
+
+  /** The gear's panel: day and night, and which map the game opens with (3D or the classic 2D). */
+  private toggleSettings() {
+    if (this.settingsOpen) {
+      this.settingsBox.classList.add('hidden');
+      return;
+    }
+    const S = T.nova.settings;
+    const row = (label: string, value: string, spot: string, fn: () => void, note?: string) => {
+      const b = h('button.act', { 'data-spot': spot }, value);
+      onTap(b, fn);
+      return h('div.row', {}, h('span', {}, label), b, note ? h('small.t-muted', {}, note) : null);
+    };
+    this.settingsBox.replaceChildren(
+      h('h3', {}, T.nova.buttons.settings),
+      row(S.dayNight, settings.dayNight ? S.on : S.off, 'set-daynight', () => {
+        settings.dayNight = !settings.dayNight;
+        saveSettings();
+        this.toggleSettings();
+        this.toggleSettings();
+      }),
+      row(S.view, S.view3d, 'set-view', () => {
+        settings.view = '2d';
+        saveSettings();
+        this.settingsBox.classList.add('hidden');
+        this.host.toClassic();
+      }, this.host.exit ? undefined : S.viewNewGame),
+    );
+    this.settingsBox.classList.remove('hidden');
+  }
+
+  /** Esc: closes the settings or the open balloon; false when nothing was open. */
   closeTop(): boolean {
+    if (this.settingsOpen) {
+      this.settingsBox.classList.add('hidden');
+      return true;
+    }
     if (this.balloonAt && this.host.session.selected) {
       this.host.session.deselect();
       return true;

@@ -30,12 +30,15 @@ export function keyed(el: HTMLElement & { _key?: string }, key: string, build: (
   el.replaceChildren(...(build().filter(Boolean) as (Node | string)[]));
 }
 
-/** A button that only fires for a press that began on it (a drag from the map passing over it does nothing). */
+/** A button that only fires for a press that began on it (a drag from the map passing over it does nothing), and never taps through. */
 export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
   let down: number | null = null;
   el.addEventListener('pointerdown', (e) => {
     down = e.pointerId;
     e.stopPropagation();
+    // No mouse events after a touch: a button that closes the 3D would otherwise "tap through"
+    // to what wakes up under it (the 2D's buttons in the same corner).
+    e.preventDefault();
   });
   el.addEventListener('pointerup', (e) => {
     if (down !== e.pointerId) return;
@@ -46,3 +49,6 @@ export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
   el.addEventListener('pointercancel', () => (down = null));
   el.addEventListener('pointerleave', () => (down = null));
 }
+
+/** Phone or PC, decided on the real screen (short, or a touch-first pointer), as `layout.ts > IS_PHONE`. */
+export const formOf = () => (innerHeight < 500 || matchMedia('(pointer: coarse)').matches ? 'phone' : 'pc');

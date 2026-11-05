@@ -34,7 +34,7 @@ simulado com GPU.
 Povo, os gráficos, os materiais, o inspetor por morador, os passos do lenhador e do casal no tutorial,
 as áreas do Templo e "Onde pôr…". Além disso, os 54 cenários visuais estão presos aos internos do
 Phaser, o `GameScene` guarda regras de controle que precisam sair dele antes, e o `World` 3D não sabe
-se atualizar com o jogo andando. A conta nova está na seção 7: **~42–57 h**.
+se atualizar com o jogo andando. A conta nova está na seção 7: **~46–62 h** (revista em 11.3).
 
 ---
 
@@ -67,8 +67,8 @@ se atualizar com o jogo andando. A conta nova está na seção 7: **~42–57 h**
 
 Regras de dependência (o `code-reviewer` confere):
 - `src/core` não importa nada de fora dele (como hoje).
-- `src/game` importa só `core`, `data` e `render/strings.ts` (que vai para `src/game/strings.ts` na
-  fase 5; até lá fica onde está para não quebrar o 2D). Testado com Vitest em Node.
+- `src/game` importa só `core`, `data`, `render/strings.ts` e `render/tools.ts` (sem Phaser; vão para `src/game` na
+  fase 5; até lá ficam onde estão para não quebrar o 2D). Testado com Vitest em Node.
 - `src/render3d` importa `core`, `game` e `three`. Nunca DOM de interface, nunca `src/ui`.
 - `src/ui` importa `core`, `game` e o DOM. Nunca `three`.
 - `src/app` é o único lugar que conhece os dois lados.
@@ -179,8 +179,8 @@ Clique em botão HTML   ──► ui/* onTap ───────────�
 | Zoom | pinça | roda (no ponto do cursor) |
 | Girar | dois dedos girando; ↺ ↻ nas Configurações | Q/E (90° animado); Shift + arrastar direito (livre) |
 | Tocar numa construção | toque (Mover) | clique (Mover); hover avermelha com Demolir |
-| Rua, Casa, Campo, Demolir | arrastar depois de 150 ms com um dedo | arrastar |
-| Construção única | ao soltar, mira 90 px acima do dedo | ao soltar, no cursor |
+| Rua (só ela, `DRAG_TOOLS`; decisão do usuário) | arrastar depois de 150 ms com um dedo | arrastar |
+| Todas as outras (Casa, Campo, Demolir e as únicas) | ao soltar, mira 90 px acima do dedo | ao soltar, no cursor |
 | Atalhos | – | 1, 2, 0, 3–6, R, Espaço, Esc (cadeia de hoje) |
 
 - **"Sobre a interface" vira DOM:** os botões HTML recebem os eventos; o canvas só recebe o que cai
@@ -399,15 +399,19 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   controle fica no Phaser; screenshots iguais às de antes.
 - **Risco:** conflito com outros agentes em `src/render` e `src/scenes`; fazer com a árvore parada.
 
-### Fase 1 — Mapa jogável em 3D com HUD mínimo · 10–13 h
+### Fase 1 — Mapa jogável em 3D com HUD mínimo · 14–18 h (era 10–13; seção 11)
 - **Andamento (2026-11-05):** o botão 3D do 2D abre o **jogo em 3D na mesma sessão** (no lugar da
   visão só de olhar, que saiu) e `?view=3d` abre direto. Feitos: `render3d/stage.ts` (cena, luz,
   clima, partículas e qualidade, saídos de `view.ts`), `game3d.ts` (SessionView + GestureView,
   ponteiro → `Gestures`, teclas com WASD), `marks.ts` + `overlay.ts` (prévia no chão e fantasma),
   câmera guiada pelo jogo (`panBy`, `zoomAt`, `turnBy`, inclinação pelo zoom), `World` redesenhado
   quando `diff` acusa mudança; `ui/hud.ts` (barra do topo, ferramentas, coluna, toasts, tutorial e
-  seta, balão com Melhorar/Demolir, pílula da prévia, vitória e derrota, textos subindo). Faltam
-  para fechar a fase: tela inicial e engrenagem em HTML, `touch3d`, `input3d-pc` e `hud3d-*`.
+  seta, balão com Melhorar/Demolir, pílula da prévia, vitória e derrota, textos subindo). Depois:
+  tela inicial (`ui/title.ts`) e engrenagem em HTML (dia e noite, Mapa 3D/2D). Faltam para fechar a
+  fase: `hud3d-*` e os passos da revisão (seção 11). Já feitos da revisão: mundo por camada
+  (`World.sync`: terra uma vez, relevo ajustado no lugar, cidade e pessoas à parte), `Session.detach`,
+  `game/model/build.ts` e `inspect.ts`; `touch3d` e `input3d-pc` escritos; os outros passos, que entram
+  antes da Fase 2.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar
@@ -475,12 +479,12 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
 | Fase | Horas |
 |---|---|
 | 0 Costuras | 7–9 |
-| 1 Mapa jogável + HUD mínimo | 10–13 |
+| 1 Mapa jogável + HUD mínimo (com os passos da revisão, seção 11) | 14–18 |
 | 2 Interface completa | 9–12 |
 | 3 Tutorial, Templo, efeitos e vida | 8–11 |
 | 4 3D padrão, testes, desempenho, PWA, revisões | 6–9 |
 | 5 Phaser sai | 2–3 |
-| **Total** | **42–57 h** |
+| **Total** | **46–62 h** |
 
 A faixa de cima vale se o usuário pedir paridade de arte alta (seção 10, item 5) ou se houver muitas
 features novas de interface no meio da migração. Modelos novos no Meshy não estão contados.
@@ -596,3 +600,97 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 8. **Ordem com os pacotes de jogo:** começar a migração já (depois do P4) ou fazer antes "Obras com
    tempo". Recomendo migrar já: cada pacote novo de interface em Phaser vira trabalho jogado fora.
 9. **Tela cheia em celulares compridos** (hoje fora do escopo) passa a valer de graça com o HTML: ok?
+
+---
+
+## 11. Revisão (2026-11-05)
+
+Revisão do `architect` sobre `a94e2a4`, `74c17d6` e a árvore de trabalho (Fase 0 feita, Fase 1 parte
+1). `tsc` limpo, 1 380 testes Vitest passando. Os arquivos de modelos em obra do `sprite-artist`
+(`models.ts`, `plan.ts`, `world.ts` KILN, `public/models/meshy`) ficaram fora.
+
+### 11.1 Camadas: o que está certo e o que fura
+
+Certo: `src/game` não importa Three, Phaser nem `src/ui`; `src/ui` não importa Three; a lógica pura
+(`gestures`, `placement`, `events`, `toastQueue`, `model/preview`, `model/topbar`, `diff`, `marks`,
+`picking`) tem Vitest; `?view=3d` não baixa o Phaser (`start2d` 1,45 MB fica fora; `game3d` 690 KB).
+`render/tools.ts`, `palette.ts`, `settings.ts`, `strings.ts`, `Seasons.ts` e `install.ts` não usam
+Phaser: importá-los de `game`/`ui`/`render3d` é aceito até a Fase 5 (a regra 2.1 passa a citar
+`tools.ts` também).
+
+Furos:
+| Onde | O quê | Correção |
+|---|---|---|
+| `render3d/game3d.ts:10`, `:89` | o `render3d` importa e cria o `Hud` (`src/ui`) | dividir (passo 3) |
+| `render3d/game3d.ts:72-78`, `:144-150` | o `render3d` cria a raiz DOM da página e escuta o teclado da janela | idem: isso é do `app` |
+| `render3d/game3d.ts:243-246` | `location.href` dentro do render | idem |
+| `ui/hud.ts:205-218` | preço, "falta", cadeado e tecla de cada botão da coluna calculados na interface, sem teste | `game/model/build.ts` (passo 4) |
+| `ui/hud.ts:226-263` | conteúdo do balão tocado lido do estado na interface | `game/model/inspect.ts` (passo 4) |
+| `game/tutorial.ts:10,18` | `localStorage` dentro de `src/game` (funciona no Node por causa do `try`, mas é API do navegador) | passar `seen`/`save` de fora (`app`) |
+| `game/session.ts:151` | `attach` sem `detach`: a sessão continua falando com o `Game3D` fechado até o 2D reatar | `detach(view)` no `close()` |
+
+### 11.2 Pontos fracos para as Fases 2–5
+
+1. **O mundo inteiro é refeito a cada mudança** (`stage.ts:159-166`). `diff.ts` diz *quais* camadas
+   mudaram, mas o `Stage` ignora e refaz tudo: o relevo de 144x144 quadrados (sempre igual, vem da
+   semente), o rio, as 900 árvores da borda, todas as instâncias, os moradores (que **voltam ao
+   começo** do caminho) e as famílias. Num arrasto de rua isso acontece a cada 250 ms; a chegada de
+   uma família também dispara (`people` conta `families.length`). É o maior risco de travadas no
+   celular com 150 construções e a base errada para os efeitos da Fase 3 (andaime, árvore caindo).
+2. **`Game3D` é três coisas** (visão Three, controlador do jogo e dono da página). Com painéis, ficha,
+   balões presos e tutorial, ele e o `Hud` crescem juntos e se acoplam pela `HudHost`.
+3. **`Hud` uma classe só** (468 linhas com a fase 1 mínima). Com Objetivos, Avisos, Estatísticas,
+   ficha, balão completo e modais passaria de 1 500. Precisa de componentes antes da Fase 2.
+4. **DOM por quadro:** `screenOf` chama `getBoundingClientRect` do canvas a cada chamada (balão,
+   pílula, seta, cada "−5"), e `setArrow` com alvo de botão mede o botão a cada quadro
+   (`game3d.ts:348` → `hud.ts:359`). Escrever `style` e logo medir força recálculo de estilo.
+   `overUi` faz `elementFromPoint` a cada `pointermove`. Barato hoje, caro com 6–8 âncoras.
+5. **Modelos bloqueiam a abertura:** `Game3D.open` espera o pacote .glb inteiro (~3 MB) antes do
+   primeiro quadro (a seção 2.3 pede o contrário).
+6. **Sem `webglcontextlost`/`restored`** e sem laço econômico (10 qps parado): tela preta no iOS ao
+   voltar do app, e calor/bateria.
+7. **Dois contextos WebGL** ao abrir o 3D pelo botão do 2D (o Phaser dorme mas guarda as texturas):
+   memória a mais no celular. Aceitável como plano B; some na Fase 4/5. O caminho `?view=3d` não tem.
+8. **Picking:** a caixa de cada construção vai de `y = 0` ao topo (`picking.ts:45`), não da altura do
+   chão; e a lista de caixas é refeita a cada movimento com Demolir (`game3d.ts:185`). Pequeno; ajustar
+   junto com o passo 2.
+9. **`out()` ignora os efeitos** (`game3d.ts:281`): construir e demolir não dão retorno no mundo. Para
+   um jogo de sobrevivência, o anel/poeira e os balões de problema (`labels.ts`) importam mais que
+   arte nova.
+
+### 11.3 Ordem e escopo
+
+A ordem 1 → 5 continua valendo. Mudanças:
+- **Fechar a Fase 1 com os passos abaixo antes de abrir a Fase 2** (sem eles, cada painel novo pesa
+  em cima do `Hud` monolítico e do mundo refeito).
+- **Da Fase 3 para a 2:** anel ao construir e poeira ao demolir (`render3d/fx.ts` mínimo) e os balões
+  de problema (`labels.ts`, já estavam na 2): são retorno de jogo, não enfeite.
+- **Lista de paridade:** "Rua, Casa, Campo, Demolir arrastando" vira "só Rua arrasta" (seção 2.4).
+- Estimativa: a Fase 1 sobe para **14–18 h** (passos 1–5 abaixo); o total fica **~46–62 h**.
+
+### 11.4 Próximos passos, em ordem
+
+| # | Passo | Horas |
+|---|---|---|
+| 1 | **Medir antes de mexer.** `view3d-perf.mjs` abre `?view=3d` direto (sem o 2D), monta 150 construções, roda a 3x e faz um arrasto de rua e hover; perfis celular (844x390, DPR 2,6, CPU 4x) e PC (1366x768). Gancho `view3d.timings()` com `performance.now()` em volta de `rebuild`, `refresh` (readCity + modelos + `Hud.update`) e do JS do quadro; e da CDP `LayoutCount`/`RecalcStyleCount` por segundo e `JSHeapUsedSize`. Números contra a tabela 2.8. | 2–3 |
+| 2 | **Mundo vivo por camada** (`render3d/live.ts`, o que a seção 2.3 já pedia): relevo, rio e árvores da borda feitos uma vez; `buildings` e `props` reconstroem só o grupo de instâncias da camada que mudou (KISS: refazer a camada inteira, sem slots O(1) enquanto o passo 1 não mostrar necessidade); `people` atualiza a rede e a quantidade dos `Walkers` sem zerar quem anda; famílias andando não reconstroem nada. `World` vira o dono das camadas; `Stage` só chama `live.sync(keys)`. | 4–6 |
+| 3 | **Corrigir as camadas** (11.1): `render3d/scene3d.ts` (hoje `Game3D` sem DOM de página nem `Hud`: `Stage`, câmera, `Overlay`, `cellAt`, `screenOf` com o retângulo do canvas guardado no `resize`) e `app/play3d.ts` (raiz da página, `Hud`, `Gestures`, teclas, `SessionView`). `Session.detach`, armazenamento do tutorial injetado. Sem mudança visível. | 2–3 |
+| 4 | **Interface em componentes antes da Fase 2:** `game/model/build.ts` e `game/model/inspect.ts` com Vitest; `Hud` vira só a raiz e a forma, com `ui/topbar.ts`, `column.ts`, `balloon.ts`, `toasts.ts`, `tutorial.ts`, `modal.ts` e `anchors.ts` (um único passe por quadro para tudo que é preso ao mundo; retângulos de botões medidos só em `update`/`resize`). Cada componente: `update(model)` compara e só toca o DOM que mudou. | 3–4 |
+| 5 | **Fechar a Fase 1:** cenários `touch3d`, `input3d-pc`, `hud3d-phone|wide|pc|small-phone`; abrir com os modelos por código e trocar pelos .glb quando chegarem (usa o passo 2); `webglcontextlost/restored` refaz a cena do estado; laço a 10 qps parado. | 4–5 |
+
+Depois disso, Fase 2 como escrita, com `fx.ts` mínimo e `labels.ts` no começo.
+
+### 11.5 Desempenho no celular: riscos e como medir
+
+| Risco | Medida | Alvo |
+|---|---|---|
+| Travada no arrasto de rua (mundo refeito) | `timings().rebuild` máx. e quadros > 50 ms durante o arrasto | ≤ 8 ms por sync; 0 quadros > 50 ms |
+| Preenchimento (sombra PCFSoft 2048, DPR até 2, partículas) | qps com 150 construções, de dia, à noite e na chuva; `info().calls/triangles` | ≥ 30 qps; ≤ 120 chamadas; ≤ 300 mil triângulos |
+| DOM por quadro | CDP `LayoutCount`/`RecalcStyleCount` por segundo com balão aberto e tutorial | ~0 layouts por quadro (só `transform`) |
+| Lixo por quadro (`{...weather}`, `new Vector3` em `screenOf`, texto do rótulo) | `JSHeapUsedSize` em 30 s parado; pausas de GC no perfil | serra baixa, sem pausas > 8 ms |
+| Primeira abertura | tempo até o primeiro quadro com rede "4G rápido" | < 3 s, sem esperar .glb |
+| Calor e bateria | qps com o jogo pausado e câmera parada | 10 qps |
+| Perda de contexto | `WEBGL_lose_context` no teste: a cidade volta igual | sem tela preta |
+
+A medida simulada (CPU 4x, GPU do WSL ou SwiftShader) não substitui um aparelho: rodar `npm run dev`
+na rede e abrir `?view=3d&perf=1` num celular médio real, com o `info()` na tela, uma vez por fase.

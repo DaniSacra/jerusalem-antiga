@@ -33,6 +33,8 @@ export interface Game3DOptions {
 
 /** Rough height of each building's box for picking (a tap on a roof picks the building). */
 const PICK_TOP = 1.4;
+/** Midday (the day and night option off). */
+const NOON = (LOOK.day.sunrise + LOOK.day.sunset) / 2;
 const TEMPLE_TOP = 3;
 
 /**
@@ -238,11 +240,17 @@ export class Game3D implements SessionView, GestureView, HudHost {
     this.opts.restart(sameMap);
   }
 
+  toClassic() {
+    if (this.exit) this.exit();
+    else location.href = location.pathname;
+  }
+
   // ---------------------------------------------------------------- SessionView
 
   redraw() {
     const keys = cityKeys(this.session.state);
-    if (changedLayers(this.keys, keys).length) this.stage.cityChanged();
+    const layers = changedLayers(this.keys, keys);
+    if (layers.length) this.stage.cityChanged(layers);
     this.keys = keys;
     this.marksDirty = true;
     this.hud.update();
@@ -314,7 +322,7 @@ export class Game3D implements SessionView, GestureView, HudHost {
     if (this.marksDirty) this.drawMarks();
     this.pointTutorial();
     this.hud.frame(dt * 1000);
-    this.stage.frame(dt, this.clock.elapsedTime, s.state.week + s.weekFrac, this.dayT, this.rig);
+    this.stage.frame(dt, this.clock.elapsedTime, s.state.week + s.weekFrac, settings.dayNight ? this.dayT : NOON, this.rig);
   }
 
   private drawMarks() {
@@ -351,6 +359,7 @@ export class Game3D implements SessionView, GestureView, HudHost {
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.session.detach(this);
     for (const f of this.off) f();
     this.off = [];
     this.hud.dispose();

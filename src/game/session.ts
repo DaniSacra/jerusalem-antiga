@@ -152,6 +152,11 @@ export class Session {
     this.view = view;
   }
 
+  /** A view closing lets go of the session (only if it is the one attached). */
+  detach(view: SessionView) {
+    if (this.view === view) this.view = null;
+  }
+
   get speed(): Speed {
     return SPEEDS[this.speedIndex];
   }

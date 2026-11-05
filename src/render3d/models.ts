@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { extraOf, footprintOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
+import { extraOf, footprintOf, KILN, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
 import { patch } from './shaders';
 
 export type { ModelKey };
@@ -281,19 +281,22 @@ function market(): Piece[] {
 }
 
 function workshop(): Piece[] {
+  // Laid out like the Meshy model: a tall workroom at the back left (the level 2–3 room stands on
+  // its roof at 1.6), a domed kiln on the right, a shed and pots in front.
   return [
-    box(1.7, 1.0, 1.3, -0.45, 0, -0.65, COLORS.mud),
-    box(1.8, 0.07, 1.4, -0.45, 1.0, -0.65, COLORS.roofMud),
-    box(0.35, 0.6, 0.04, -0.45, 0, 0.01, COLORS.dark),
+    box(1.0, 1.6, 1.0, -0.85, 0, -0.85, COLORS.mud),
+    box(1.1, 0.07, 1.1, -0.85, 1.55, -0.85, COLORS.roofMud),
+    box(0.35, 0.6, 0.04, -0.85, 0, -0.34, COLORS.dark),
+    box(1.6, 1.0, 0.25, 0.55, 0, -1.2, COLORS.mud),
     // Open shed with a work table.
-    ...[[0.5, 0.2], [1.3, 0.2], [0.5, 1.2], [1.3, 1.2]].map(([x, z]) => box(0.07, 0.85, 0.07, x, 0, z, COLORS.wood)),
-    box(1.0, 0.05, 1.2, 0.9, 0.85, 0.7, COLORS.cloth),
-    box(0.6, 0.35, 0.4, 0.9, 0, 0.7, COLORS.wood),
+    ...[[-1.3, 0.3], [0.3, 0.3], [-1.3, 1.2], [0.3, 1.2]].map(([x, z]) => box(0.07, 0.85, 0.07, x, 0, z, COLORS.wood)),
+    box(1.7, 0.05, 1.0, -0.5, 0.85, 0.75, COLORS.cloth),
+    box(0.6, 0.35, 0.4, -0.5, 0, 0.75, COLORS.wood),
     // Kiln, pots and a wood pile.
-    blob(0.38, -0.9, 0.2, 0.75, COLORS.mudDark, 0.8, 1),
-    cyl(0.1, 0.08, 0.22, 6, -0.25, 0, 0.9, COLORS.red),
-    cyl(0.09, 0.07, 0.18, 6, -0.05, 0, 1.1, COLORS.ochre),
-    box(0.6, 0.25, 0.3, 1.1, 0, -0.9, COLORS.trunk),
+    blob(0.32, KILN[0], 0.2, KILN[1], COLORS.mudDark, 0.9, 1),
+    cyl(0.1, 0.08, 0.22, 6, 0.55, 0, 0.6, COLORS.red),
+    cyl(0.09, 0.07, 0.18, 6, 0.85, 0, 0.75, COLORS.ochre),
+    box(0.6, 0.25, 0.3, 1.0, 0, -0.75, COLORS.trunk),
   ];
 }
 
@@ -540,23 +543,27 @@ function granaryUp(level: 2 | 3): Piece[] {
  */
 function workshopUp(level: 2 | 3): Piece[] {
   const top = level === 3 ? 0.72 : 0.5;
+  // The room stands on the workroom roof (1.6 in the Meshy and the code model).
+  const roof = 1.6;
   const out: Piece[] = [
     ...stoneDress(3, 3, level),
-    box(1.0, top, 0.9, -0.8, 1.07, -0.8, COLORS.limestone),
-    box(1.08, 0.06, 0.98, -0.8, 1.07 + top, -0.8, COLORS.limestoneDark),
-    box(0.16, 0.18, 0.03, -0.8, 1.07 + top * 0.4, -0.34, COLORS.dark),
+    box(1.0, top, 0.9, -0.85, roof, -0.85, COLORS.limestone),
+    box(1.08, 0.06, 0.98, -0.85, roof + top, -0.85, COLORS.limestoneDark),
+    box(0.16, 0.18, 0.03, -0.85, roof + top * 0.4, -0.39, COLORS.dark),
     // Shelf of pots in front, between the kiln and the shed.
     box(0.8, 0.05, 0.24, 0.05, 0.3, 1.32, COLORS.wood),
     box(0.05, 0.3, 0.05, -0.3, 0, 1.32, COLORS.wood),
     box(0.05, 0.3, 0.05, 0.4, 0, 1.32, COLORS.wood),
     ...jars(4, -0.22, 0.35, 1.32, level === 3 ? [COLORS.blue, COLORS.gold, COLORS.red] : [COLORS.red, COLORS.ochre, COLORS.mudDark]),
-    blob(0.26, 0.15, 0.12, -0.05, COLORS.mudDark, 0.8, 1),
+    // A second kiln in the front left corner.
+    blob(0.26, -0.95, 0.12, 0.8, COLORS.mudDark, 0.8, 1),
   ];
   if (level === 3) {
-    out.push(box(1.04, 0.05, 0.94, -0.8, 1.07 + top - 0.08, -0.8, COLORS.gold));
-    out.push(cyl(0.12, 0.17, 1.15, 7, -0.9, 0.25, 0.75, COLORS.mudDark), cyl(0.15, 0.15, 0.06, 7, -0.9, 1.4, 0.75, COLORS.limestone));
-    out.push(box(1.1, 0.03, 0.5, -0.8, 0.95, 0.1, COLORS.red), box(0.04, 0.95, 0.04, -1.3, 0, 0.3, COLORS.wood), box(0.04, 0.95, 0.04, -0.3, 0, 0.3, COLORS.wood));
-    out.push(...jars(3, 0.45, 0, -0.15, [COLORS.blue, COLORS.gold]));
+    out.push(box(1.04, 0.05, 0.94, -0.85, roof + top - 0.08, -0.85, COLORS.gold));
+    // Tall chimney on the kiln (the smoke leaves from its top, see world.ts).
+    out.push(cyl(0.1, 0.14, 1.0, 7, KILN[0], 0.75, KILN[1], COLORS.mudDark), cyl(0.13, 0.13, 0.06, 7, KILN[0], 1.75, KILN[1], COLORS.limestone));
+    out.push(box(1.1, 0.03, 0.5, -0.85, 0.95, 0.1, COLORS.red), box(0.04, 0.95, 0.04, -1.35, 0, 0.3, COLORS.wood), box(0.04, 0.95, 0.04, -0.35, 0, 0.3, COLORS.wood));
+    out.push(...jars(3, -1.25, 0, 1.25, [COLORS.blue, COLORS.gold]));
   }
   return out;
 }

@@ -1,0 +1,113 @@
+{
+  "style": "Stylized low-poly game asset, desert colors (sand, ochre, mud brick, pale limestone, olive green), neutral lighting, flat base, single centered object, no extra ground beyond the base.",
+  "models": {
+    "house-1": {
+      "polycount": 3000,
+      "prompt": "Small nomad tent of dark brown and black woven goat-hair cloth, Judean hills about 500 BC, low sloped roof held by wooden poles and ropes tied to stakes, one side open, two clay water jars beside the entrance, on a square packed-earth base."
+    },
+    "house-2": {
+      "polycount": 4000,
+      "prompt": "Small one-room house of sun-dried mud brick, ancient Jerusalem about 500 BC, cube shape, flat roof of wooden beams and packed mud with a low parapet, one small wooden door at the front, one tiny window, plain plastered ochre walls, on a square base."
+    },
+    "house-3": {
+      "polycount": 5000,
+      "prompt": "House of ancient Jerusalem about 500 BC, lower walls of rough pale limestone blocks and upper walls of mud brick, one small square window, wooden door at the front, flat roof terrace with clay jars, a potted plant and a small outside stair along one wall, on a square base."
+    },
+    "house-4": {
+      "polycount": 2000,
+      "prompt": "Tall two-storey Judean four-room house of ancient Jerusalem about 500 BC, a compact block almost a cube, as tall as it is wide, clearly two full storeys high, ground floor of thick pale cream limestone blocks, upper storey of light beige mud plaster, a small open square inner courtyard in the middle with stone pillars, flat roof terrace with a low parapet, clay jars and a laundry line, outside stone stair climbing one side wall, few tiny windows, one wooden door, no balconies, no railings, no arches, not orange, on a square base."
+    },
+    "plaza": {
+      "polycount": 4000,
+      "prompt": "Game tile of a town square of ancient Jerusalem about 500 BC: one thick square slab paved with big pale cream limestone flagstones is the main object and fills the whole model. A round stone well with dark water stands in the centre of the slab. Four low stone benches are built onto the slab near its edges, facing the well. Two clay jars stand by the well. Seen from above: a pale paved square with a dark round well in the middle. Nothing floating, no roof, no awning, no poles, no tree."
+    },
+    "market": {
+      "polycount": 7000,
+      "prompt": "Long open-air market of ancient Jerusalem about 500 BC, a row of three wooden stalls with striped linen awnings in ochre, cream and faded red, woven baskets of grain and fruit, clay jars and amphorae, rolled cloth, on a rectangular packed-earth base twice as long as wide."
+    },
+    "lumber": {
+      "polycount": 4000,
+      "prompt": "Woodcutter's yard of ancient Judea, small cabin built of rough logs with a flat roof, a neat stack of cut logs, a tree stump chopping block with an axe stuck in it, scattered wood chips, on a square packed-earth base."
+    },
+    "quarry": {
+      "polycount": 2000,
+      "prompt": "Limestone quarry of ancient Jerusalem about 500 BC. The main mass is a big solid hill of pale cream limestone rock filling most of the base, its front face cut away into three large stair-like steps with flat tops and sharp vertical cuts. On the ground in front, a few rectangular cut stone blocks stacked in a pile. Beside the hill a sturdy wooden crane of three thick log poles tied at the top as a tripod with a pulley, a short rope down to a block on the ground. Nothing floating, no pyramid, no thin pole, on a square packed-earth base."
+    },
+    "temple": {
+      "polycount": 9000,
+      "prompt": "Second Temple of Jerusalem about 515 BC, complete and intact, simple and imposing, all pale cream limestone. A tall boxy sanctuary with a flat roof and a taller flat-topped entrance porch, two free-standing plain columns before the doorway. It stands in a square courtyard with a low wall lined inside by plain square pillars, a rough unhewn stone altar in front. No triangular pediment, not a Greek temple, no ruins, no statues, no carvings, no Babylonian or Egyptian ornaments, on a square stone platform base."
+    },
+    "olive": {
+      "polycount": 2000,
+      "prompt": "Old olive tree, short thick gnarled twisted grey-brown trunk, wide rounded canopy made of a few big solid rounded clumps of dull olive-green foliage, smooth chunky blobs, no thin leaves, on a small round patch of earth."
+    },
+    "plaza-1st": {
+      "polycount": 4000,
+      "prompt": "Square town plaza of ancient Jerusalem, the whole square paved with large pale limestone slabs as a thick flat stone platform with a low curb, one long low stone bench along one edge, one small olive tree in a square stone planter in a corner, a square linen sun awning on four wooden poles over the bench, no well, no fountain."
+    },
+    "altar": {
+      "polycount": 4000,
+      "prompt": "A massive rough fieldstone altar of ancient Israel about 500 BC: one solid square block built of big rough uncut grey-beige boulders, chunky and craggy, half as wide as the base and waist high, a rough boulder horn on each top corner, glowing orange embers and grey ash on its flat top, a smooth sloping earthen ramp, not stairs, rising to the top from the front, all standing on a low wide square platform of pale limestone slabs that fills the whole base. No steps, no stairs, no columns, no arches, no gate."
+    },
+    "granary": {
+      "polycount": 4000,
+      "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch."
+    },
+    "workshop": {
+      "polycount": 5000,
+      "prompt": "Potter's workshop of ancient Jerusalem about 500 BC: a flat-roofed mud-brick workroom at the back left with a wooden door, an open shed of four wooden posts with a flat linen roof on the right covering a potter's wheel and a work table, a round domed clay kiln with a small fire opening at the front left, rows of red and ochre clay pots drying on the ground, a small pile of firewood, on a square packed-earth base."
+    },
+    "fisher": {
+      "polycount": 4000,
+      "prompt": "Fisherman's hut on a riverbank of ancient Judea about 500 BC: a small low mud-brick hut with a flat roof of reeds at the back, a wooden drying rack beside it with a fishing net and a few fish hanging, a small wooden rowing boat pulled up on the sand at the front, coiled ropes and a wicker fish basket, on a square sandy base."
+    },
+    "gatherer": {
+      "polycount": 4000,
+      "prompt": "Forager's shelter of ancient Judea about 500 BC: a small low mud-brick hut with a flat roof of branches and palm leaves at the back, one leafy fig tree beside it with a chunky rounded crown, woven wicker baskets full of figs, dates, olives and green herbs in front, bundles of herbs drying on a wooden pole, one clay jar, on a square packed-earth base."
+    },
+    "park": {
+      "polycount": 4000,
+      "prompt": "Small square walled garden of ancient Jerusalem about 500 BC: a flat square lawn of bright green grass fills the base, an ankle-high pale limestone kerb around all four edges, a round pale stone fountain basin with blue water in the exact centre, four small olive trees with short thick trunks and solid smooth rounded olive-green crowns, one in each corner, red and yellow flower beds, a sandy path from the front to the fountain. No tall walls, no arches, no niches, no buildings."
+    },
+    "altar-prev": {
+      "polycount": 5000,
+      "prompt": "Large open-air altar of the town square of ancient Jerusalem about 500 BC: a big square block of rough unhewn fieldstones piled without any cut marks, as wide as it is tall, a sloping ramp of earth and stones climbing to its flat top from the front, a shallow round fire pit of ash and embers in the middle of the top, four rough horn stones on the top corners, a ring of pale limestone slabs paving the ground around it, no statues, no carvings, no columns, on a square base."
+    },
+    "park-prev": {
+      "polycount": 4000,
+      "prompt": "Small walled garden of ancient Jerusalem about 500 BC: green grass inside a low wall of pale limestone with an opening in the front, two small olive trees with short gnarled trunks and chunky rounded olive-green crowns made of smooth blobs, one long stone bench, a small round stone basin of water in the middle, beds of red and yellow flowers, a gravel path, on a square base."
+    },
+    "plaza-prev": {
+      "polycount": 4000,
+      "prompt": "Open square town plaza of ancient Jerusalem about 500 BC: a low flat platform paved with large pale limestone slabs in two tones, a round stone well-head with a wooden beam on two stone posts in the centre, low stone benches along the back and left edges, a few clay jars by the well, one small fig tree with a chunky rounded crown in the back corner, no awning, no tent, no poles, no roof, open to the sky, on a square base."
+    },
+    "granary-prev": {
+      "polycount": 5000,
+      "prompt": "Granary of ancient Jerusalem about 500 BC: a square courtyard enclosed by low mud-brick walls with an opening in the front wall, a long flat-roofed mud-brick store house along the back wall with a wooden door, in front of it three round beehive-shaped mud-plastered grain silos with domed tops standing in a row, pale linen grain sacks and clay storage jars stacked near the gate, on a square packed-earth base."
+    },
+    "altar@2": {
+      "polycount": 5000,
+      "prompt": "A solid square altar of ancient Israel about 500 BC: one massive low cube-shaped heap of rough uncut grey-beige fieldstones bedded in earth, solid all the way through with no opening, about half as tall as it is wide, a small burning wood fire on its flat top, a sloping ramp of earth and stones leading up to the top from the front side, pale limestone paving around the base, no columns, no pillars, no arches, no gateway, no lintel, on a square base."
+    },
+    "granary@2": {
+      "polycount": 5000,
+      "prompt": "Granary yard of ancient Jerusalem about 500 BC: a square yard filling the whole square base, closed by smooth knee-high walls of light beige mud plaster with a gap in the middle of the front wall. Along the back wall a long low flat-roofed store house of light beige plaster with one wooden door. In the open yard in front of it three big round beehive-shaped grain silos of pale plaster with smooth domed tops, standing in a row and clearly visible from above. Pale linen grain sacks and clay jars by the gap. No arches, no towers, no battlements, no thatch."
+    },
+    "park@2": {
+      "polycount": 4000,
+      "prompt": "Small public garden of ancient Jerusalem about 500 BC: a square lawn of green grass enclosed on all four sides by a low knee-high wall of pale limestone blocks with a gap in the front wall, three small round olive trees with short trunks and chunky rounded olive-green crowns made of smooth blobs, one long low stone bench, a small round stone water basin in the centre, beds of red and yellow flowers along the walls, a sandy path from the gap to the basin, no arches, no niches, no tall walls, on a square base."
+    },
+    "plaza@4": {
+      "polycount": 4000,
+      "prompt": "Busy square town plaza of ancient Jerusalem about 500 BC: large pale cream limestone paving slabs with a low stone curb around the edge, in the centre a round stone well-head with a wooden crossbeam on two short stone posts, long low stone benches along the back and left edges, a stone water trough, a cluster of clay jars and baskets by the well, one small fig tree with a chunky rounded green crown in the back corner, everything low, no awning, no tent, no tall poles, no roof, on a square base."
+    },
+    "altar@3": {
+      "polycount": 4000,
+      "prompt": "Ancient Israelite altar of Jerusalem about 500 BC: a wide square stepped platform of pale limestone slabs fills the whole square base, two low steps. In the middle a big solid square block of rough uncut grey-beige fieldstones, waist high, a raised stone horn on each of its four top corners and a dark ash fire bed on its flat top. A long straight sloping stone ramp runs from the front edge up to the top of the block. Solid and simple, no columns, no arches, no gate, no roof."
+    },
+    "plaza@5": {
+      "polycount": 4000,
+      "prompt": "Square paved town plaza of ancient Jerusalem about 500 BC: a thin flat square platform covered with large pale cream limestone paving slabs in a grid fills the whole base. In the exact centre a round low stone well with dark water inside. Four long low stone benches, one along each edge of the square, facing the well. A few clay jars beside the well. Everything low and flat, open to the sky, no roof, no awning, no poles, no tree, no walls."
+    }
+  }
+}

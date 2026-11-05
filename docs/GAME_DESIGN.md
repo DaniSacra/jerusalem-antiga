@@ -159,8 +159,8 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Comida perdida ao demolir** (`foodLostIfRemoved` em `readouts.ts`): quanto da comida guardada
   estragaria na hora se a construção ou rua da célula sumisse (um celeiro, ou uma rua cujo corte
   desliga um celeiro, baixa o estoque); 0 quando nada se perde. Serve à prévia de Demolir
-  ("Perde N de comida"). No celular, Demolir arrastado pula o que perderia comida e avisa uma vez
-  por gesto: "Isso perde comida: toque nele para demolir".
+  ("Perde N de comida"). No celular, o primeiro toque de Demolir no que perderia comida abre o
+  balão dele (para confirmar ali), em vez de demolir.
 
 ## Lenha e inverno (Pacote 4)
 Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
@@ -667,14 +667,20 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     esquerda, Mover/Rua/Demolir embaixo à esquerda, a coluna com as 12 construções à direita (preço
     ou "objetivo N"), toasts no meio embaixo, a frase do tutorial com "Pular tutorial" e a seta, o
     balão da construção tocada (nome, ligada à rua, nível, Melhorar e Demolir), a pílula sobre a
-    prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. Painéis,
-    ficha de pessoa, engrenagem e tela inicial vêm na Fase 2.
+    prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. Painéis
+    (objetivos, avisos, estatísticas, povo) e ficha de pessoa vêm na Fase 2.
+  - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
+    fica salvo) e "Mapa: em 3D", que troca para o 2D clássico (volta à mesma partida quando o 3D
+    veio do botão 3D; aberto direto em 3D, avisa "O 2D começa uma partida nova"). Esc fecha.
+  - **Tela inicial em HTML** (3D aberto direto): nome, como jogar, controles, "Começar" (Enter no
+    PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js e os
+    modelos baixam enquanto ela está aberta.
   - No chão: a prévia da ferramenta como no 2D (o modelo translúcido em branco, amarelo "falta
     ligar à rua" ou vermelho, a área do serviço e as casas que ele atenderia, o que já está coberto),
     a rua marcada do tutorial, as áreas do Templo, os lugares de "Onde construir" e, com Demolir, a
     construção sob o cursor em vermelho.
-  - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; com Rua,
-    Demolir ou Campo arrastar constrói; construção única no soltar (no toque, mirada 90 px acima do
+  - Controles (os mesmos gestos do 2D, `src/game/gestures.ts`): arrastar com Mover move; só a Rua
+    constrói arrastando; as outras construções e Demolir agem uma vez, ao soltar (no toque, mirada 90 px acima do
     dedo); pinça ou roda dá zoom em volta do dedo/cursor; dois dedos girando giram; botão direito ou
     do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os botões giram um quarto de volta. A
     inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
@@ -1029,7 +1035,7 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
 | | Celular | PC |
 |---|---|---|
 | Mover (Ver) | arrastar move a câmera; tocar seleciona | idem com o mouse |
-| Ferramentas de construção | arrastar constrói; dois dedos movem | arrastar constrói; botão direito move |
+| Ferramentas de construção | Rua: arrastar constrói; as outras: tocar (arrastar ajusta a prévia); dois dedos movem | idem com o mouse; botão direito move |
 | Zoom | pinça | roda do mouse |
 
 - **Tamanho da tela:** a largura do jogo é 1280 e a altura acompanha o formato da tela, entre
@@ -1039,9 +1045,10 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   visão gira; as regras não mudam. A câmera continua olhando o mesmo
   ponto, as junções das ruas e a ordem de desenho acompanham o giro, e as construções mantêm a luz
   do mesmo lado (o Mercado troca entre o desenho 2 x 4 e 4 x 2 conforme fica na tela).
-- Rua, Casa, Campo e Limpar constroem arrastando; o arraste preenche as células em passos
-  ortogonais, então a rua fica sempre conectada.
-- Praça, Pescador, Coletora, Celeiro, Mercado, Oficina, Parque e Templo são colocados **ao soltar
+- **Só a Rua constrói arrastando** (decisão do usuário, 2026-11-05: o jogo é de sobrevivência,
+  cada construção é uma escolha); o arraste preenche as células em passos ortogonais, então a rua
+  fica sempre conectada.
+- Todas as outras construções (Casa e Campo inclusive) e Demolir agem uma vez, **ao soltar
   o dedo**: dá para arrastar para
   ajustar a prévia, e o segundo dedo de uma pinça nunca constrói por engano. No toque, eles miram
   90 px acima do dedo, para a prévia não ficar escondida; se o ponto mirado cair sob a interface,

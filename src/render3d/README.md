@@ -56,9 +56,16 @@ arquivo que não carrega (sem internet antes do primeiro uso) fica com o modelo 
 também saiu do manifesto: o toldo sobre postes lia como tenda; a praça é o modelo por código (lajes
 claras em dois tons, poço, bancos e uma figueira).
 
-Os acréscimos `up-granary-2/3`, `up-market-2/3` e `up-workshop-3` são sempre por código, por cima do
+No pacote hoje: `house-1..4`, `market`, `lumber`, `quarry`, `temple`, `workshop`, `fisher` e
+`gatherer`. `altar`, `granary`, `park` e `plaza` foram tentados no Meshy e ficaram com o modelo por
+código (as tentativas saíram piores; ver CREDITS.md). Scripts em `scripts/meshy/` (gerar, empacotar a
+1024 px, simplificar).
+
+Os acréscimos `up-granary-2/3`, `up-market-2/3` e `up-workshop-2/3` são sempre por código, por cima do
 modelo (mesmo giro e altura): celeiro com andar de pedra, portal e toldo no terraço; mercado com toldo
-azul e, no 3, colunata de pedra; oficina com quarto de pedra, prateleira de jarros e, no 3, chaminé alta.
+azul e, no 3, colunata de pedra; oficina com quarto de pedra no teto da oficina de trabalho (1,6 de
+altura, no fundo à esquerda, como no modelo Meshy), prateleira de jarros e, no 3, chaminé alta sobre o
+forno (`KILN` em `plan.ts`, de onde saem também a fumaça e o fogo da noite).
 Casa vazia que guardou o nível: tom `VACANT_TINT` (< 0,8), que os shaders desbotam (cinza empoeirado)
 e apagam as janelas, sem fumaça, e o portão `closed` diante da porta (`CLOSED_AT`).
 

@@ -95,3 +95,21 @@
 .modal .act { max-width: 290px; min-height: 56px; font-size: var(--num); }
 .hidden { display: none !important; }
 .float { font-size: var(--num); font-weight: 800; white-space: nowrap; text-shadow: 0 1px 2px #000, 0 0 4px rgba(0, 0, 0, 0.6); }
+
+/* ---------- title screen ---------- */
+.title-screen .title-bg { background: radial-gradient(ellipse at 50% 40%, #c9a66b, #6b5236 75%); }
+.title-screen .card { text-align: left; max-height: calc(100vh - 24px); overflow-y: auto; }
+.title-screen h1 { margin: 0 0 12px; text-align: center; font-size: calc(var(--big) * 1.6); }
+.title-screen ol { margin: 0 0 10px; padding-left: 1.4em; font-size: var(--num); font-weight: 700; line-height: 1.35; }
+.title-screen li { margin-bottom: 6px; }
+.title-screen .controls { text-align: center; color: #6b5a44; font-size: var(--text); }
+.title-screen .install { position: absolute; right: var(--margin); top: var(--margin); max-width: 60vw; color: #fff8e4; text-align: right; pointer-events: auto; }
+#hud[data-form='phone'].title-screen .card { padding: 14px 18px; }
+#hud[data-form='phone'].title-screen ol { font-size: var(--text); }
+
+/* ---------- settings (gear) ---------- */
+.settings { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); width: 280px; background: rgba(36, 25, 14, 0.97); padding: 12px 14px; border-radius: 16px; pointer-events: auto; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
+.settings h3 { margin: 0 0 4px; font-size: var(--num); }
+.settings .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; font-size: var(--text); font-weight: 700; }
+.settings .row .act { flex: none; min-width: 120px; padding: 0 12px; }
+.settings .row small { grid-column: 1 / -1; font-size: var(--small); }

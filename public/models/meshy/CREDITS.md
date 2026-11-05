@@ -1,8 +1,8 @@
 # Modelos Meshy (prova 3D)
 
-Gerados no Meshy (text-to-3D) em 2026-11-04 para a prova em Three.js e usados pela visão 3D do
-jogo (`src/render3d`; o manifesto aqui inclui `lumber` e `quarry` e deixa `olive` de fora). Scripts
-no branch `spike/threejs`, em `scripts/meshy/`:
+Gerados no Meshy (text-to-3D) em 2026-11-04 (1.ª e 2.ª leva) e 2026-11-05 (3.ª leva, no fim) e
+usados pela visão 3D do jogo (`src/render3d`; o manifesto deixa `olive` e `plaza` de fora). Scripts
+em `scripts/meshy/` (no main desde a 3.ª leva; `remesh.mjs` e `shots.mjs` só no branch `spike/threejs`):
 `generate.mjs` (preview e refine), `pack.mjs` (textura reduzida a 1024 px JPEG), `simplify.mjs`
 (versão leve local com meshoptimizer), `remesh.mjs` (Remesh do Meshy, testado e descartado),
 `shots.mjs` (capturas da prova com e sem o pacote). Prompts atuais em `scripts/meshy/prompts.json`; ids de todas
@@ -146,3 +146,53 @@ Os de `house-4` e `quarry` abaixo foram substituídos na 2.ª leva (acima).
   - Tentativa 1 (descartada: copa cinza de cacos finos): Old olive tree, short thick gnarled twisted
     trunk, wide rounded canopy of grey-green silvery leaves in a few chunky clusters, on a small round
     patch of earth.
+
+## 3.ª leva (prédios que faltavam, 2026-11-05)
+
+Saldo no início: **756 créditos**. Teto autorizado pelo usuário: 80 % do saldo inicial = 604 créditos
+(até 40 tarefas de 15). Mesma configuração e estilo comum das levas anteriores; versão leve com
+`simplify.mjs`. Scripts agora também em `scripts/meshy/` no main.
+
+| Chave | Arquivo | Triângulos (bruto) | Tamanho | Tentativa | Preview | Refine | Créditos | Resultado |
+|---|---|---|---|---|---|---|---|---|
+| `workshop` oficina | workshop.glb | 2 498 (4 908) | 337 KB | 1 | 01a1ac23-95a5-72fd-8819-d62b774edd74 | 01a1ac24-19bd-70fb-b929-51ad093e9600 | 15 | **em uso** |
+| `fisher` pescador | fisher.glb | 2 000 (3 814) | 260 KB | 1 | 01a1ac23-95ac-77d7-9777-30882bc26674 | 01a1ac23-f03f-74cc-a12f-d14bc1b94ad6 | 15 | **em uso** |
+| `gatherer` coletora | gatherer.glb | 1 999 (3 737) | 285 KB | 1 | 01a1ac23-95d4-7083-bc61-d499de1659f6 | 01a1ac23-f075-72af-a22c-8042931f7225 | 15 | **em uso** |
+| `altar` | — | (4 780) | — | 1 | 01a1ac23-95a0-76cc-b12b-a128d273ac7f | 01a1ac24-1b34-7266-8cf2-dfcea0882031 | 15 | descartado: dois pilares com lintel (parecia dólmen), não um altar |
+| `altar` | — | (4 780) | — | 2 | 01a1ac27-6c68-7777-9d44-6bc52b9c2c35 | 01a1ac27-f236-7468-88fc-bbf2d29ded09 | 15 | descartado: cubo liso e menor que o altar por código (rampa, chifres, bacia de ouro) |
+| `granary` celeiro | — | (4 773) | — | 1 | 01a1ac23-959c-732d-a21b-e51eb812db68 | 01a1ac24-1b79-7140-8513-32aed995bbe4 | 15 | descartado: base girada 45° (losango), arcos, silos escondidos; de cima lia como caixa marrom |
+| `granary` celeiro | — | — | — | 2 | 01a1ac34-12dd-731c-8e38-9adabae8b77d | 01a1ac34-9a3b-74a4-bcf5-19fb587fc83b | 15 | descartado: telheiro aberto com dois potes, sem base, paredes soltas |
+| `park` parque | — | (3 429) | — | 1 | 01a1ac23-95d8-71e4-9b09-5cee2998eece | 01a1ac24-1ab7-70ea-9ed1-e61fcd204d0b | 15 | descartado: nicho de pedra em arco no meio, folhas pretas, só uma árvore grande |
+| `park` parque | — | (3 830) | — | 2 | 01a1ac27-6c6b-7599-a258-cf6af7470239 | 01a1ac27-c7c4-7031-8e60-f29e7b2be734 | 15 | descartado: muro alto e rasgado, chão vermelho e branco, árvores de folhas soltas |
+| `plaza` praça | — | — | — | 3 | 01a1ac23-95ec-7159-91d0-7c9830add460 | 01a1ac23-f14c-7154-a0cd-d3eaa35da0a2 | 15 | descartado: laje vazia com um poste solto e um vaso |
+| `plaza` praça | — | — | — | 4 | 01a1ac27-6c70-7403-b5de-a0e41fbe211a | 01a1ac27-c82c-7230-8621-74b3464a77bc | 15 | descartado: saiu só um poço, sem lajes nem bancos |
+
+Altar, celeiro, parque e praça ficam com o modelo por código (as duas tentativas de cada um saíram
+piores que ele). A oficina do Meshy tem a oficina de trabalho alta (1,6) no fundo à esquerda e o
+forno à direita: o modelo por código foi rearrumado igual, o quarto de pedra do nível 2–3 fica no
+teto (1,6), e a chaminé do nível 3, a fumaça e o fogo da noite saem do forno (`KILN` em `plan.ts`).
+
+Prompts da 3.ª leva (antes do estilo comum; `target_polycount` entre parênteses):
+
+- `workshop` (5000): Potter's workshop of ancient Jerusalem about 500 BC: a flat-roofed mud-brick
+  workroom at the back left with a wooden door, an open shed of four wooden posts with a flat linen
+  roof on the right covering a potter's wheel and a work table, a round domed clay kiln with a small
+  fire opening at the front left, rows of red and ochre clay pots drying on the ground, a small pile
+  of firewood, on a square packed-earth base.
+- `fisher` (4000): Fisherman's hut on a riverbank of ancient Judea about 500 BC: a small low
+  mud-brick hut with a flat roof of reeds at the back, a wooden drying rack beside it with a fishing
+  net and a few fish hanging, a small wooden rowing boat pulled up on the sand at the front, coiled
+  ropes and a wicker fish basket, on a square sandy base.
+- `gatherer` (4000): Forager's shelter of ancient Judea about 500 BC: a small low mud-brick hut with
+  a flat roof of branches and palm leaves at the back, one leafy fig tree beside it with a chunky
+  rounded crown, woven wicker baskets full of figs, dates, olives and green herbs in front, bundles of
+  herbs drying on a wooden pole, one clay jar, on a square packed-earth base.
+- Os prompts descartados (altar, celeiro, parque, praça, tentativas 1 e 2) estão em
+  `scripts/meshy/prompts.json` (`<chave>-prev` é a 1.ª tentativa) e `scripts/meshy/tasks.json`.
+  A praça perdeu o toldo e os postes do prompt (o motivo de ter saído do manifesto), mas o Meshy
+  devolveu cenas vazias.
+
+3.ª leva: 11 tarefas (7 modelos + 4 novas tentativas) = 165 créditos. Saldo: 756 antes, 591 depois.
+Total gasto em todas as levas: 475. Não foram gerados árvores, pedras nem campos: aparecem centenas
+de vezes (a oliveira de 1 235 triângulos já pesava ~500 mil triângulos na cena) e os campos mudam de
+cor com a estação pelo material do código, o que uma textura do Meshy perderia.

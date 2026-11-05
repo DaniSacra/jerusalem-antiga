@@ -1935,7 +1935,9 @@ async function view3dScenario(page, suffix) {
       const b = await spotOf('[data-spot="build-house"]');
       assert(b[2] >= 44 && b[3] >= 40, `the Casa button is thumb-sized (${b[2]}x${b[3]})`);
       await hit(b[0], b[1]);
-      await page.waitForFunction(() => window.session.tool === 'house', null, { timeout: 5000 });
+      await page.waitForFunction(() => window.session.tool === 'house', null, { timeout: 5000 }).catch(() => {});
+      const picked = await page.evaluate((b) => ({ tool: window.session.tool, under: document.elementFromPoint(b[0], b[1])?.outerHTML.slice(0, 80) }), b);
+      assert(picked.tool === 'house', `the Casa button picks Casa (${JSON.stringify({ ...picked, b })})`);
       const cell = await page.evaluate(() => {
         const s = window.state;
         for (let y = 20; y < 36; y++)
@@ -1955,9 +1957,11 @@ async function view3dScenario(page, suffix) {
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${OUT}/view3d-${suffix}-ghost.png` });
       }
-      // Casa builds by drag (as Rua and Campo), so a touch aims right under the finger.
-      await hit(p.x, p.y);
-      await page.waitForFunction((n) => window.state.buildings.length > n, before, { timeout: 5000 });
+      // A single building on touch is aimed 90 px above the finger (the finger does not hide it).
+      await hit(p.x, p.y + (phone ? 90 : 0));
+      await page.waitForFunction((n) => window.state.buildings.length > n, before, { timeout: 5000 }).catch(() => {});
+      const built = await page.evaluate(([n, p]) => ({ added: window.state.buildings.length - n, tool: window.session.tool, hover: window.session.hover, at: window.view3d.cellAt(p.x, p.y), under: document.elementFromPoint(p.x, p.y)?.tagName }), [before, p]);
+      assert(built.added > 0, `a tap builds the house (${JSON.stringify({ ...built, cell, p })})`);
       assert(await page.evaluate((c) => window.state.grid[c.y * window.state.cols + c.x]?.kind === 'house', cell), 'the house stands on the aimed cell');
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${OUT}/view3d-${suffix}-built.png` });
@@ -2005,6 +2009,17 @@ async function view3dScenario(page, suffix) {
 async function play3dScenario(page, suffix) {
   const phone = suffix === 'phone';
   await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  // The HTML title screen first: Começar (no "Rever o tutorial" before the first game).
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
+  assert(!(await page.$('[data-spot="tutorial-again"]')), 'no "Rever o tutorial" before the tutorial was seen');
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}-title.png` });
+  const startBtn = await page.evaluate(() => {
+    const b = document.querySelector('[data-spot="start"]').getBoundingClientRect();
+    return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height];
+  });
+  assert(startBtn[3] >= 44, `Começar is thumb-sized (${startBtn[2]}x${startBtn[3]})`);
+  if (phone) await cdpTapPage(page, startBtn[0], startBtn[1]);
+  else await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
   await page.waitForTimeout(1500);
   const st = await page.evaluate(() => ({ phaser: !!window.Phaser || !!window.game?.scene || performance.getEntriesByType('resource').some((e) => /phaser/i.test(e.name)), canvases: document.querySelectorAll('canvas').length, form: document.querySelector('#hud').dataset.form, tutorial: !document.querySelector('.tutorial').classList.contains('hidden') }));
@@ -2050,6 +2065,109 @@ async function play3dScenario(page, suffix) {
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/play3d-${suffix}-road.png` });
   assert((await roads()) >= before + pts.length - 1, `the drag built the road (${before} → ${await roads()})`);
+
+  // The gear: day and night on and off (always midday when off), and the map choice.
+  const hitSpot = async (spot) => {
+    const r = await page.evaluate((spot) => {
+      const b = document.querySelector(`[data-spot="${spot}"]`).getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    }, spot);
+    if (phone) await cdpTapPage(page, r[0], r[1]);
+    else await page.mouse.click(r[0], r[1]);
+  };
+  await hitSpot('settings');
+  await page.waitForSelector('.settings:not(.hidden)', { timeout: 5000 });
+  const day0 = await page.evaluate(() => JSON.parse(localStorage.getItem('jerusalem-antiga.settings') ?? '{}').dayNight ?? true);
+  await hitSpot('set-daynight');
+  const day1 = await page.evaluate(() => JSON.parse(localStorage.getItem('jerusalem-antiga.settings')).dayNight);
+  assert(day1 === !day0, `the gear switches day and night (${day0} → ${day1})`);
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}-settings.png` });
+  await hitSpot('set-daynight');
+  if (phone) await hitSpot('settings');
+  else await page.keyboard.press('Escape');
+  await page.waitForSelector('.settings.hidden', { state: 'attached', timeout: 5000 });
+}
+
+/** Opens the 3D game on its own and leaves the title screen (tutorial marked as seen). */
+async function open3dGame(page) {
+  await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
+  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.evaluate(() => window.session.setSpeed(0));
+}
+
+/** The 3D camera on PC: WASD moves, Q/E turn a quarter, the wheel zooms about the cursor, the right button drags the map, Space and digits pick speed and tools. */
+async function input3dScenario(page) {
+  await open3dGame(page);
+  const cam = () => page.evaluate(() => ({ x: window.view3d.rig.focus.x, z: window.view3d.rig.focus.z, yaw: window.view3d.rig.heading, zoom: window.view3d.rig.zoom }));
+  const c0 = await cam();
+  await page.mouse.move(600, 380);
+  for (let k = 0; k < 4; k++) await page.keyboard.press('d');
+  const c1 = await cam();
+  assert(Math.hypot(c1.x - c0.x, c1.z - c0.z) > 1, `D moves the camera (${JSON.stringify([c0, c1])})`);
+  await page.keyboard.press('q');
+  await page.waitForTimeout(800);
+  const c2 = await cam();
+  assert(Math.abs(Math.abs(c2.yaw - c1.yaw) - Math.PI / 2) < 0.01, `Q turns a quarter (${c1.yaw} → ${c2.yaw})`);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(300);
+  const c3 = await cam();
+  assert(c3.zoom > c2.zoom, `the wheel zooms in (${c2.zoom} → ${c3.zoom})`);
+  await page.mouse.move(600, 380);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(700, 420, { steps: 5 });
+  await page.mouse.up({ button: 'right' });
+  const c4 = await cam();
+  assert(Math.hypot(c4.x - c3.x, c4.z - c3.z) > 0.5, 'the right button drags the map');
+  await page.keyboard.press('2');
+  assert((await page.evaluate(() => window.session.tool)) === 'road', '2 picks Rua');
+  await page.keyboard.press('Escape');
+  assert((await page.evaluate(() => window.session.tool)) === 'view', 'Esc goes back to Mover');
+  await page.keyboard.press(' ');
+  assert((await page.evaluate(() => window.session.speed)) !== 0, 'Space changes the speed');
+  await page.screenshot({ path: `${OUT}/input3d-pc.png` });
+}
+
+/** The 3D on touch: a pinch zooms and never builds, a two-finger twist turns, one finger with Mover moves the map. */
+async function touch3dScenario(page) {
+  await open3dGame(page);
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+  const cam = () => page.evaluate(() => ({ x: window.view3d.rig.focus.x, z: window.view3d.rig.focus.z, yaw: window.view3d.rig.heading, zoom: window.view3d.rig.zoom }));
+  // One finger with Mover moves the map.
+  const c0 = await cam();
+  await touch('touchStart', [[420, 200]]);
+  for (let k = 1; k <= 5; k++) await touch('touchMove', [[420 - k * 20, 200]]);
+  await touch('touchEnd', []);
+  const c1 = await cam();
+  assert(Math.hypot(c1.x - c0.x, c1.z - c0.z) > 0.5, 'one finger with Mover moves the map');
+  // With Rua in hand, a pinch zooms and builds nothing.
+  await page.evaluate(() => window.session.selectTool('road'));
+  const roads = () => page.evaluate(() => window.state.roads.filter(Boolean).length);
+  const r0 = await roads();
+  await touch('touchStart', [[380, 200], [460, 200]]);
+  for (let k = 1; k <= 6; k++) {
+    await touch('touchMove', [[380 - k * 15, 200], [460 + k * 15, 200]]);
+    await page.waitForTimeout(40);
+  }
+  await touch('touchEnd', []);
+  const c2 = await cam();
+  assert(c2.zoom > c1.zoom * 1.3, `a pinch zooms in (${c1.zoom} → ${c2.zoom})`);
+  assert((await roads()) === r0, 'a pinch with Rua builds no road');
+  // A two-finger twist turns the map.
+  await touch('touchStart', [[380, 200], [460, 200]]);
+  for (let k = 1; k <= 6; k++) {
+    const a = (k * Math.PI) / 24;
+    await touch('touchMove', [[420 - 40 * Math.cos(a), 200 - 40 * Math.sin(a)], [420 + 40 * Math.cos(a), 200 + 40 * Math.sin(a)]]);
+    await page.waitForTimeout(40);
+  }
+  await touch('touchEnd', []);
+  const c3 = await cam();
+  assert(Math.abs(c3.yaw - c2.yaw) > 0.3, `a twist turns the map (${c2.yaw} → ${c3.yaw})`);
+  assert((await roads()) === r0, 'a twist with Rua builds no road');
+  await page.screenshot({ path: `${OUT}/touch3d.png` });
 }
 
 const scenarios = {
@@ -2218,7 +2336,7 @@ const scenarios = {
 
     await tool(page, 2); // Rua
     await mouseDrag(page, [[27, 24], [32, 24]]);
-    await tool(page, 3); // Moradia: Casa first, 2x2, so dragging 6 cells places 3 houses
+    await tool(page, 3); // Moradia: Casa first; only Rua builds by drag, so a drag places one house where it is released
     assert(await page.evaluate(() => window.game.tool === 'house'), 'key 3 picks the house');
     await mouseDrag(page, [[27, 25], [32, 25]]);
     // The same key again: the next one of Moradia, Praça (called directly: a key press is sometimes lost or doubled under software rendering).
@@ -2235,7 +2353,7 @@ const scenarios = {
 
     const after = await stats(page);
     assert(after.roads === before.roads + 6, `dragged road adds 6 cells (got ${after.roads - before.roads})`);
-    assert(after.houses.length === before.houses.length + 3, `dragged 3 houses (got ${after.houses.length - before.houses.length})`);
+    assert(after.houses.length === before.houses.length + 1, `a drag with Casa places one house (got ${after.houses.length - before.houses.length})`);
     assert(after.buildings.includes('field') && after.buildings.includes('plaza'), 'field and plaza placed');
   },
 
@@ -2361,6 +2479,8 @@ const scenarios = {
   'view3d-pc': { context: PC, run: (page) => view3dScenario(page, 'pc') },
   play3d: { context: PHONE, run: (page) => play3dScenario(page, 'phone') },
   'play3d-pc': { context: PC, run: (page) => play3dScenario(page, 'pc') },
+  'input3d-pc': { context: PC, run: input3dScenario },
+  touch3d: { context: PHONE, run: touch3dScenario },
 
   async 'town-art'(page) {
     await startGame(page);

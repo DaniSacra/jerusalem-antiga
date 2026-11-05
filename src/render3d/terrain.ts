@@ -33,11 +33,16 @@ export class Terrain {
   private flat: Float32Array;
 
   constructor(private s: GameState, private seed: number) {
-    // Flatness per cell: 1 on roads and buildings, fading out over two cells.
+    this.flat = new Float32Array(s.cols * s.rows);
+    this.flatten();
+  }
+
+  /** Flatness per cell: 1 on roads and buildings, fading out over two cells (again when the city changes). */
+  flatten() {
+    const s = this.s;
     const { cols, rows } = s;
     const occ = new Float32Array(cols * rows);
     for (let i = 0; i < occ.length; i++) occ[i] = s.roads[i] || s.grid[i] ? 1 : 0;
-    this.flat = new Float32Array(cols * rows);
     const R = 3;
     for (let y = 0; y < rows; y++)
       for (let x = 0; x < cols; x++) {
@@ -83,6 +88,28 @@ export class Terrain {
     return land - river * RIVER_DEPTH;
   }
 
+  private geometry: THREE.BufferGeometry | null = null;
+
+  /**
+   * The city changed (a road or a building came or went): the flat ground under the city follows,
+   * moving only the heights of the mesh already built (only the map's vertices can change).
+   */
+  reshape() {
+    this.flatten();
+    const g = this.geometry;
+    if (!g) return;
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    const { cols, rows } = this.s;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      if (x < -1 || z < -1 || x > cols + 1 || z > rows + 1) continue;
+      pos.setY(i, this.height(x, z));
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+  }
+
   /** Share of the four cells around a grid corner that are grass (0..1). */
   private grassAt(x: number, z: number) {
     let grass = 0;
@@ -112,6 +139,7 @@ export class Terrain {
     }
     g.setAttribute('aGround', new THREE.BufferAttribute(ground, 3));
     g.computeVertexNormals();
+    this.geometry = g;
     const material = patch(new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), { snow: true, terrain: true });
     const m = new THREE.Mesh(g, material);
     m.receiveShadow = true;
