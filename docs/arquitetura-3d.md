@@ -438,8 +438,11 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   objetivo, como no 2D), Avisos com selo e pulso, Estatísticas com as três abas e o gráfico em SVG,
   balão da construção escolhida, balões de problema com cadeado, tom de fome. Os painéis e o balão
   medem a área livre (`--free-bottom`) e rolam por dentro. Cenários `ui3d-phone` e `ui3d-pc`.
-  Falta na Fase 2: Configurações completas (girar e visão), pílula "Rende N…", "−5"/"Perde N de
-  comida", escala dos balões de problema no zoom afastado e o `nudge` do balão.
+- **Fase 2, parte 2 (2026-11-05) — Fase 2 fechada:** a pílula da prévia diz o que a construção rende
+  ou o que Demolir custa/perde (`outputOf` em `game/model/preview.ts`, o `tagFor` da Nova como dado);
+  balões de problema em escala com o zoom (`labelScale`); o balão empurra a câmera uma vez quando
+  cobriria a construção (`besideX`, o `nudge` da Nova). "−5" e "Perde N de comida" já subiam (eventos
+  `floatBad`). Configurações: girar fica nos botões ↺↻ e a troca de visão saiu (2D congelado).
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar

@@ -682,8 +682,13 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     construção na coluna mostra o balão dela ao lado do botão (custo, manutenção, efeito, "Saldo
     depois", "Comida depois"). Sobre as construções com problema, um balão com o ícone da
     necessidade (sem rua, sem trabalhadores, sem fonte, praça, mercado, parque, triste; cadeado
-    quando ainda bloqueada); na fome, o mapa fica avermelhado. Esc fecha na ordem: engrenagem,
-    ficha ou painel, balão.
+    quando ainda bloqueada), em tamanho cheio de perto e menores de longe (até 60%); na fome, o mapa
+    fica avermelhado. Esc fecha na ordem: engrenagem, ficha ou painel, balão. Quando o balão não cabe
+    de nenhum lado (a casa com moradores no celular), a câmera desliza uma vez para tirar a
+    construção de baixo dele. A pílula sobre a prévia diz o que a construção dá ali, como no 2D:
+    "Rende N…", "Corta 1 árvore a cada N sem", "Divide o bosque…", "Comida depois", "Sem rua ao
+    lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
+    ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
     fica salvo). Esc fecha. (A troca para o 2D saiu: o 2D está congelado.)
   - **Tela inicial em HTML** (3D aberto direto): nome, como jogar, controles, "Começar" (Enter no

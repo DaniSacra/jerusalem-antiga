@@ -1,5 +1,5 @@
 import { balloonNeed, needLocked, type BalloonKind, type Economy, type GameState } from '../core';
-import type { Anchors } from './anchors';
+import { labelScale, type Anchors } from './anchors';
 import { h } from './dom';
 
 const svg = (body: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -22,13 +22,20 @@ const TOP = 1.7;
 /**
  * Problem balloons over the buildings, the first problem of each (`balloonNeed`, the 2D's order):
  * no road, no workers, no source, the service a house misses (with a lock while it is still locked),
- * a sad house. HTML pinned to the world: the same size at any zoom, so they stay legible.
+ * a sad house. HTML pinned to the world: full size up close, smaller from far (`labelScale`).
  */
 export class ProblemLabels {
   readonly el = h('div.labels');
   private shown = new Map<number, { el: HTMLElement; key: string }>();
 
-  constructor(private anchors: Anchors) {}
+  constructor(
+    private anchors: Anchors,
+    private zoom: () => number,
+  ) {}
+
+  /** Over the footprint, its tip on the point, scaled from it. */
+  private place = (p: { x: number; y: number }) =>
+    `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${labelScale(this.zoom()).toFixed(2)}) translate(-50%, -100%)`;
 
   update(s: GameState, eco: Economy) {
     const seen = new Set<number>();
@@ -49,7 +56,7 @@ export class ProblemLabels {
         cur.el.dataset.need = need;
         cur.el.innerHTML = NEED[need] + (locked ? `<span class="lock">${LOCK}</span>` : '');
       }
-      this.anchors.pin(cur.el, { x: b.x, y: b.y, w: b.w, h: b.h }, (p) => `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`, TOP);
+      this.anchors.pin(cur.el, { x: b.x, y: b.y, w: b.w, h: b.h }, this.place, TOP);
     }
     for (const [id, cur] of this.shown)
       if (!seen.has(id)) {

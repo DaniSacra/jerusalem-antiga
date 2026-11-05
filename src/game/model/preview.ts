@@ -1,6 +1,16 @@
 import {
   BUILDINGS,
+  borderCells,
   checkClear,
+  computeEconomy,
+  foodAfter,
+  foodLostIfRemoved,
+  harvestsIn,
+  indexOf,
+  isTree,
+  sharedTrees,
+  weeksPerCut,
+  weeksToHarvest,
   checkPlace,
   costOf,
   onlyNeedsRoad,
@@ -30,8 +40,10 @@ export interface Preview {
   service: ServiceKind | null;
   reach: Rect | null;
   served: Building[];
-  /** Lines over the preview ("Atende 3 casas", "Cabe aqui: falta ligar à rua", "Falta prata…"). */
+  /** Lines over the preview ("Atende 3 casas", "Rende 2 de comida/sem", "Falta prata…"). */
   lines: string[];
+  /** The pill is a warning (red): food lost, nothing yielded off the road, food going negative. */
+  bad: boolean;
 }
 
 /** The preview of `tool` centred on `hover` (null without a hovered cell or with Mover). */
@@ -58,7 +70,45 @@ export function previewOf(s: GameState, tool: Tool, hover: Cell | null, rotated 
   // Red only for lack of silver: say so, or the red looks like a bad spot.
   else if (!check.ok && place && (check.reason === 'silver' || check.reason === 'debt')) lines.push(check.reason === 'silver' ? T.missingSilver(costOf(place)) : T.fail.debt);
   const fit: PreviewFit = roadOnly ? 'road' : check.ok ? 'ok' : 'bad';
-  return { rect: { x: o.x, y: o.y, w, h }, fit, kind: place, service, reach, served, lines };
+  const rect = { x: o.x, y: o.y, w, h };
+  const out = outputOf(s, tool, rect);
+  return { rect, fit, kind: place, service, reach, served, lines: [...out.lines, ...lines], bad: out.bad };
+}
+
+/**
+ * What the tool gives or takes on that spot: with Demolir, cutting a tree or the food a granary (or
+ * the road to one) would spoil; for a gatherer, field or lumber camp, what it brings with the workers
+ * there are, the city's food after it, or why it brings nothing (winter, no road).
+ */
+export function outputOf(s: GameState, tool: Tool, r: Rect): { lines: string[]; bad: boolean } {
+  const N = T.nova;
+  const none = { lines: [], bad: false };
+  if (tool === 'clear') {
+    const i = indexOf(s, r.x, r.y);
+    if (i < 0) return none;
+    const b = s.grid[i];
+    if (!b && !s.roads[i] && isTree(s.feature[i])) return { lines: [N.cutTree], bad: false };
+    if (b ? !BUILDINGS[b.kind].storage : !s.roads[i]) return none;
+    const lost = foodLostIfRemoved(s, r.x, r.y);
+    return lost > 0 ? { lines: [N.foodLost(lost)], bad: true } : none;
+  }
+  if (tool === 'view' || tool === 'road') return none;
+  const def = BUILDINGS[tool];
+  if (!def.gather && !def.harvest) return none;
+  if (def.harvest && !harvestsIn(s.week)) return { lines: [N.inspect.frozen(weeksToHarvest(s.week))], bad: false };
+  // Off the road it brings nothing: say so instead of "Rende 0".
+  if (def.gather && !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) return { lines: [N.offRoad], bad: true };
+  const after = foodAfter(s, tool, { x: r.x, y: r.y, rotated: false });
+  const lines = [N.yields(after.yields, after.product)];
+  if (tool === 'lumber') {
+    const every = weeksPerCut(after.yields);
+    if (every) lines.push(N.cutsEvery(every));
+  }
+  if ((tool === 'lumber' || tool === 'gatherer') && sharedTrees(s, r.x, r.y, tool) > 0) lines.push(N.sharesGrove(tool));
+  // Wood and stone: the food line only when its workers would lower the food.
+  const food = after.product === 'food' || after.delta < computeEconomy(s).foodDelta;
+  if (food) lines.push(N.foodAfter(after.delta));
+  return { lines, bad: food && after.delta < 0 };
 }
 
 /** Cells of a coverage map that are on (the area a service already reaches). */

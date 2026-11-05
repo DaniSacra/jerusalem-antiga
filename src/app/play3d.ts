@@ -178,13 +178,15 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.scene.turn(dir);
   }
 
-  restart(sameMap: boolean) {
-    this.opts.restart(sameMap);
+  nudge(dx: number) {
+    // The ground now at the screen centre moved by -dx comes to the centre: the map slides dx.
+    const r = this.root.getBoundingClientRect();
+    const c = this.scene.cellAt(r.width / 2 - dx, r.height / 2, false);
+    if (c) this.scene.glideTo({ x: c.x, y: c.y, w: 1, h: 1 });
   }
 
-  toClassic() {
-    if (this.exit) this.exit();
-    else location.href = location.pathname;
+  restart(sameMap: boolean) {
+    this.opts.restart(sameMap);
   }
 
   // ---------------------------------------------------------------- SessionView
@@ -286,7 +288,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
       spots: s.spots ? s.spotRects() : null,
       doomed: s.doomed,
     });
-    this.hud.setTag(marks.preview?.lines ?? null, marks.preview?.rect ?? null);
+    this.hud.setTag(marks.preview?.lines ?? null, marks.preview?.rect ?? null, marks.preview?.bad);
   }
 
   private pointTutorial() {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Anchors } from '../../src/ui/anchors';
+import { Anchors, besideX, labelScale } from '../../src/ui/anchors';
 
 /** A stand-in for an element: only what Anchors touches. */
 const fake = () => {
@@ -37,5 +37,31 @@ describe('things pinned to the 3D world', () => {
     a.unpin(as(still));
     a.frame(16);
     expect(still.style.transform).toBe('');
+  });
+});
+
+describe('balloons over the buildings at each zoom', () => {
+  it('full size up close, never under 60% from far', () => {
+    expect(labelScale(3)).toBe(1);
+    expect(labelScale(1)).toBe(1);
+    expect(labelScale(0.8)).toBeCloseTo(0.8);
+    expect(labelScale(0.49)).toBe(0.6);
+  });
+});
+
+describe('the balloon beside its building', () => {
+  it('right of it when it fits, else left; no camera move then', () => {
+    expect(besideX(100, 200, 60, 700)).toEqual({ x: 130, nudge: 0 });
+    expect(besideX(600, 200, 60, 700)).toEqual({ x: 370, nudge: 0 });
+  });
+
+  it('too wide for both sides: kept inside, and the building is asked to move away from it', () => {
+    // Building in the middle of a narrow area, more room on the right: balloon on the right edge,
+    // the building moves left by what is missing.
+    const r = besideX(300, 400, 60, 682);
+    expect(r).toEqual({ x: 282, nudge: 282 - 330 });
+    // More room on the left: the balloon at the left edge, the building moves right.
+    const l = besideX(450, 400, 60, 682);
+    expect(l).toEqual({ x: 60, nudge: 60 - (450 - 30 - 400) });
   });
 });

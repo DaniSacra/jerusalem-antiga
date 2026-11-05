@@ -2292,7 +2292,46 @@ async function ui3dScenario(page, name) {
   assert(tip.shown && tip.text.startsWith('Praça') && tip.text.includes('prata'), `the chosen building's balloon (${tip.text})`);
   await page.screenshot({ path: `${OUT}/ui3d-${name}-tool.png` });
   lap('panels to tool');
-  await page.evaluate(() => window.session.selectTool('view'));
+  // The preview pill: what a gatherer would bring there (or that it brings nothing off the road),
+  // and with Demolir the silver to cut a tree.
+  const pill = (tool, cell) =>
+    page.evaluate(([tool, cell]) => {
+      window.session.selectTool(tool);
+      window.session.setHover(cell);
+      window.session.refresh();
+      return new Promise((ok) => setTimeout(() => {
+        const t = document.querySelector('.tag');
+        ok({ shown: !t.classList.contains('hidden'), text: t.textContent, bad: t.classList.contains('bad') });
+      }, 250));
+    }, [tool, cell]);
+  const far = await pill('gatherer', { x: 4, y: 4 });
+  assert(far.shown && far.bad && far.text.startsWith('Sem rua'), `a gatherer off the road says it brings nothing (${JSON.stringify(far)})`);
+  const tree = await page.evaluate(() => {
+    const s = window.state;
+    for (let i = 0; i < s.feature.length; i++) if ((s.feature[i] === 'olive' || s.feature[i] === 'palm') && !s.grid[i] && !s.roads[i]) return { x: i % s.cols, y: Math.floor(i / s.cols) };
+    return null;
+  });
+  if (tree) {
+    const cut = await pill('clear', tree);
+    assert(cut.shown && cut.text.startsWith('Cortar árvore'), `Demolir on a tree tells its price (${JSON.stringify(cut)})`);
+  }
+  const near = await page.evaluate(() => {
+    const s = window.state;
+    for (let y = 2; y < s.rows - 2; y++)
+      for (let x = 2; x < s.cols - 2; x++)
+        if (window.core.checkPlace(s, 'gatherer', x, y).ok && window.core.borderCells(s, { x, y, w: 2, h: 2 }).some((c) => s.network[window.core.indexOf(s, c.x, c.y)])) return { x, y };
+    return null;
+  });
+  const yields = await pill('gatherer', near);
+  assert(yields.shown && yields.text.startsWith('Rende'), `a gatherer by the road says what it brings (${JSON.stringify(yields)})`);
+  await page.evaluate((c) => window.view3d.rig.set({ x: c.x + 0.5, z: c.y + 0.5 }), near);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/ui3d-${name}-pill.png` });
+  await page.evaluate(() => {
+    window.session.setHover(null);
+    window.session.selectTool('view');
+    window.view3d.rig.set({ x: 23, z: 29 });
+  });
   // Problem balloons: a building off the road shows the road icon; famine tints the map.
   await page.evaluate(() => {
     const { state: s, core } = window;
@@ -2306,6 +2345,20 @@ async function ui3dScenario(page, name) {
   const marks = await page.evaluate(() => ({ road: document.querySelectorAll('.need[data-need="road"]').length, famine: document.querySelector('.famine').classList.contains('on') }));
   assert(marks.road >= 1 && marks.famine, `problem balloons and the famine tone (${JSON.stringify(marks)})`);
   await page.screenshot({ path: `${OUT}/ui3d-${name}-problems.png` });
+  // From far they shrink (never under 60%).
+  const sizes = await page.evaluate(async () => {
+    const w = () => document.querySelector('.need').getBoundingClientRect().width;
+    const r = window.view3d.rig;
+    r.zoomAt(innerWidth / 2, innerHeight / 2, 3);
+    await new Promise((ok) => setTimeout(ok, 250));
+    const near = w();
+    r.zoomAt(innerWidth / 2, innerHeight / 2, 0.5);
+    await new Promise((ok) => setTimeout(ok, 250));
+    const far = w();
+    r.zoomAt(innerWidth / 2, innerHeight / 2, 1);
+    return { near, far };
+  });
+  assert(sizes.far < sizes.near * 0.75 && sizes.far >= sizes.near * 0.55, `problem balloons smaller from far (${JSON.stringify(sizes)})`);
   lap('problems');
   void ids;
 }

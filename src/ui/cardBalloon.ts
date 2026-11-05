@@ -2,7 +2,7 @@ import type { BuildableKind, Rect } from '../core';
 import { cardOf, type Card, type CardAction } from '../game/model/card';
 import type { Session } from '../game/session';
 import { T } from '../render/strings';
-import type { Anchors } from './anchors';
+import { besideX, type Anchors } from './anchors';
 import { h, onTap } from './dom';
 import { cardLine } from './lines';
 
@@ -36,14 +36,25 @@ export class CardBalloon {
     private free: () => Free,
     private phone: () => boolean,
     private openPerson: (id: number) => void,
+    private nudge: (dx: number) => void,
   ) {}
 
-  /** Beside the building (right of it, else left), kept in the free area. */
+  /** The building the camera was last moved aside for (once per tap). */
+  private nudgedFor = '';
+
+  /**
+   * Beside the building (right of it, else left), kept in the free area. Too wide for either side
+   * (the phone house with its people), the camera moves the building aside once.
+   */
   private at = (p: { x: number; y: number }) => {
     const f = this.free();
     const { w, h: ht } = this.size;
-    const right = p.x + 30;
-    const x = right + w <= f.right ? right : p.x - 30 - w >= f.left ? p.x - 30 - w : Math.max(f.left, Math.min(f.right - w, right));
+    const { x, nudge } = besideX(p.x, w, f.left, f.right);
+    const cell = JSON.stringify(this.s.selected);
+    if (nudge && this.nudgedFor !== cell) {
+      this.nudgedFor = cell;
+      this.nudge(nudge);
+    }
     const y = Math.max(f.top, Math.min(f.bottom - ht, p.y - ht / 2));
     return `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   };

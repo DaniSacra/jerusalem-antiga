@@ -18,6 +18,27 @@ interface Pin {
  * Everything pinned to the world (balloon, preview pill, rising texts, the tutorial arrow on a
  * place): one pass per frame that only writes `transform` and `visibility` (no layout reads).
  */
+/**
+ * Size of what floats over the buildings at a camera zoom (1 at the opening distance): full size up
+ * close, smaller when the camera is far, so a whole town of balloons does not cover the map.
+ */
+export const labelScale = (zoom: number) => Math.min(1, Math.max(0.6, zoom));
+
+/**
+ * Where a balloon `w` wide goes beside a building at screen x `px`, between `left` and `right`: right
+ * of it if it fits, else left of it. When neither fits it is kept inside and covers the building:
+ * `nudge` is how far the camera should move the building on screen to clear it (0 when it fits).
+ */
+export function besideX(px: number, w: number, left: number, right: number, gap = 30): { x: number; nudge: number } {
+  const r = px + gap;
+  const l = px - gap - w;
+  if (r + w <= right) return { x: r, nudge: 0 };
+  if (l >= left) return { x: l, nudge: 0 };
+  // The side with more room: the building moves away from the balloon by what is missing.
+  const toRight = right - px >= px - left;
+  return toRight ? { x: Math.max(left, right - w), nudge: right - w - r } : { x: left, nudge: left - l };
+}
+
 export class Anchors {
   private pins = new Map<HTMLElement, Pin>();
 

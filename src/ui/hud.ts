@@ -29,10 +29,12 @@ export interface HudHost {
   exit: (() => void) | null;
   /** A new game: the same map or a new one. */
   restart(sameMap: boolean): void;
-  /** The player chose the classic 2D map (back to it, or a new game in it). */
-  toClassic(): void;
+  /** The camera's zoom (1 at the opening distance). */
+  readonly zoom: number;
   /** The camera slides to a footprint. */
   glideTo(r: Rect): void;
+  /** The camera slides so the map moves `dx` px sideways on screen. */
+  nudge(dx: number): void;
 }
 
 /** How long a floating text lasts (ms). */
@@ -82,11 +84,11 @@ export class Hud {
     this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals') });
     this.tools = new Tools(s, (d) => host.turn(d));
     this.sheet = new PersonSheet(s, (id) => this.showHouse(id));
-    this.labels = new ProblemLabels(this.anchors);
+    this.labels = new ProblemLabels(this.anchors, () => host.zoom);
     this.balloon = new CardBalloon(s, this.anchors, () => this.free, () => this.phone, (id) => {
       this.panels.close();
       this.sheet.show(id, true);
-    });
+    }, (dx) => host.nudge(dx));
     this.panels = new Panels(s, () => this.phone, (id) => this.showHouse(id));
     // Objetivos opens from the level ring and the goal (top bar).
     for (const [kind, icon, label] of [['alerts', 'alert', T.nova.buttons.alerts], ['stats', 'stats', T.nova.buttons.stats]] as const) {
@@ -211,9 +213,10 @@ export class Hud {
   }
 
   /** The lines over the previewed building (null hides the pill). */
-  setTag(lines: string[] | null, at: Rect | null) {
+  setTag(lines: string[] | null, at: Rect | null, bad = false) {
     const on = !!lines?.length && !!at;
     this.tag.classList.toggle('hidden', !on);
+    this.tag.classList.toggle('bad', bad);
     if (!on) return this.anchors.unpin(this.tag);
     setText(this.tag, lines!.join('\n'));
     this.anchors.pin(this.tag, at, (p) => `translate(${Math.round(p.x)}px, ${Math.round(p.y - 8)}px) translate(-50%, -100%)`);
