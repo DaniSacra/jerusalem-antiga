@@ -1622,7 +1622,7 @@ async function granaryUpgrade(page, suffix) {
   });
   await openBalloon(page, 25, 30);
   let a = await action();
-  assert(a && a.label === 'Melhorar · 60' && !a.dim, `gold Melhorar with the cost (${JSON.stringify(a?.label)})`);
+  assert(a && a.label === 'Melhorar · 60 · 20 pedra' && !a.dim, `gold Melhorar with the cost (${JSON.stringify(a?.label)})`);
   const lines = await inspectorLines(page);
   assert(lines.some((l) => l.startsWith('Nível 2: guarda 600')), `the next level line (${lines})`);
   assert((await minUiText(page)) >= 11.9, 'no text under 12 real px in the granary balloon');
@@ -2051,6 +2051,7 @@ const scenarios = {
     const missing = await page.evaluate(() => {
       const { state: s, core } = window;
       const bad = [];
+      Object.assign(s, { silver: 5000, wood: 1000, stone: 1000 }); // every building here costs materials
       for (let x = 12; x <= 39; x++) core.place(s, 'road', x, 13);
       for (let y = 13; y <= 18; y++) core.place(s, 'road', 12, y);
       const put = (k, x, y, level, extra = {}) => {
@@ -2679,7 +2680,7 @@ const scenarios = {
     await startGame(page);
     await page.evaluate(() => {
       const s = window.state;
-      Object.assign(s, { silver: 900, wood: 150, stone: 300 }); // the temple also costs wood and stone
+      Object.assign(s, { silver: 900, wood: 600, stone: 600 }); // the temple also costs wood and stone
       s.goalIndex = window.core.GOALS.length - 1; // last goal: build the temple
       s.unlocked.push('temple');
       s.feature = s.feature.map(() => null);
