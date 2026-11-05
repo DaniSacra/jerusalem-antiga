@@ -443,6 +443,14 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   balões de problema em escala com o zoom (`labelScale`); o balão empurra a câmera uma vez quando
   cobriria a construção (`besideX`, o `nudge` da Nova). "−5" e "Perde N de comida" já subiam (eventos
   `floatBad`). Configurações: girar fica nos botões ↺↻ e a troca de visão saiu (2D congelado).
+- **Fase 3, parte 1 (2026-11-05) — tutorial:** o tutorial já vinha da `Session`; faltavam ajustes do 3D,
+  achados pelo `tutorial3d-phone|pc` (o tutorial inteiro com toques de verdade): a câmera leva o lugar
+  ao meio do mapa livre, acima do balão do tutorial e, no toque, com espaço para o dedo
+  (`Hud.focusPoint`, `Scene3D.glideTo(r, at)`); um deslize pedido durante um arrasto espera soltar (o
+  mapa não anda sob o dedo; só um toque novo o cancela); a coluna rola até o botão que a seta aponta;
+  o balão da construção escolhida fica acima do balão do tutorial; o balão da construção tocada não
+  passa da área livre quando a construção está sob a coluna (`besideX`). "Entendi" não existe mais
+  (o 2D nunca o mostrava).
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar

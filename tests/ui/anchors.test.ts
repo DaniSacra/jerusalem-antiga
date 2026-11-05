@@ -64,4 +64,11 @@ describe('the balloon beside its building', () => {
     const l = besideX(450, 400, 60, 682);
     expect(l).toEqual({ x: 60, nudge: 60 - (450 - 30 - 400) });
   });
+
+  it('a building past the free area (under the column) keeps the balloon inside and comes back', () => {
+    const r = besideX(570, 271, 60, 505);
+    expect(r.x).toBe(60);
+    expect(r.x + 271).toBeLessThanOrEqual(505);
+    expect(r.nudge).toBeLessThan(0);
+  });
 });

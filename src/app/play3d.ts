@@ -35,7 +35,8 @@ export class Play3D implements SessionView, GestureView, HudHost {
   private off: (() => void)[] = [];
   private marksDirty = true;
   private closed = false;
-  private lastTouch = false;
+  /** The last input was a finger (a touch screen until the first input says otherwise). */
+  private lastTouch = navigator.maxTouchPoints > 0;
   /** Something happened since the last frame drawn (input, the game): draw the next one. */
   private wake = true;
 
@@ -234,8 +235,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.marksDirty = true;
   }
 
+  /** To the middle of the free map (on touch a single building leaves room for the finger under it). */
   glideTo(r: Rect | null) {
-    this.scene.glideTo(r);
+    const lift = this.lastTouch && r && r.w * r.h <= 9 ? TOUCH_LIFT : 0;
+    this.scene.glideTo(r, r ? this.hud.focusPoint(lift) : undefined);
   }
 
   openCategory(_c: BuildingCategory) {

@@ -34,7 +34,8 @@ export class Tools {
     }
   }
 
-  update(phone: boolean) {
+  /** `bottom`: the tool balloon stays above it (the tutorial bubble's top when it shows). */
+  update(phone: boolean, bottom = innerHeight - 8) {
     const s = this.s;
     for (const [t, el] of this.toolEls) el.classList.toggle('on', s.tool === t);
     for (const btn of buildColumn(s.state, s.tool, phone)) {
@@ -44,10 +45,10 @@ export class Tools {
       el.classList.toggle('short', btn.short);
       setText(el.querySelector('small')!, btn.line);
     }
-    this.updateTip(phone);
+    this.updateTip(phone, bottom);
   }
 
-  private updateTip(phone: boolean) {
+  private updateTip(phone: boolean, bottom: number) {
     const s = this.s;
     const kind = s.tool as BuildableKind;
     const btn = this.builds.get(kind);
@@ -67,15 +68,22 @@ export class Tools {
     const b = btn.getBoundingClientRect();
     const col = this.column.getBoundingClientRect();
     const h = this.tip.offsetHeight;
-    const y = Math.max(8, Math.min(innerHeight - h - 8, b.top + b.height / 2 - h / 2));
+    const y = Math.max(8, Math.min(bottom - h, b.top + b.height / 2 - h / 2));
     this.tip.style.transform = `translate(${Math.round(col.left - 10 - this.tip.offsetWidth)}px, ${Math.round(y)}px)`;
   }
 
-  /** Where the tutorial arrow points for a tool or building button (measured: call on update/resize only). */
+  /** Where the tutorial arrow points for a tool or building button, scrolled into view (measured: call on update/resize only). */
   arrowFor(tool: Tool): { x: number; y: number; dir: 'down' | 'right' } | null {
     const build = this.builds.get(tool as BuildableKind);
     const el = this.toolEls.get(tool) ?? build;
     if (!el) return null;
+    // A building below the fold of the column (the phone): scroll it into view first.
+    if (build) {
+      const c = this.column.getBoundingClientRect();
+      const b = build.getBoundingClientRect();
+      if (b.bottom > c.bottom - 6) this.column.scrollTop += b.bottom - c.bottom + 12;
+      else if (b.top < c.top + 6) this.column.scrollTop -= c.top - b.top + 12;
+    }
     const r = el.getBoundingClientRect();
     return build ? { x: r.left - 4, y: r.top + r.height / 2, dir: 'right' } : { x: r.left + r.width / 2, y: r.top - 4, dir: 'down' };
   }

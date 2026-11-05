@@ -47,6 +47,7 @@ export class Scene3D {
   private keys: CityKeys;
   private dayT: number;
   private glide: THREE.Vector3 | null = null;
+  private pressing = false;
   /** The canvas on the page, measured on resize (screen points need it every frame). */
   private box = { left: 0, top: 0, width: 1, height: 1 };
 
@@ -156,9 +157,18 @@ export class Scene3D {
     this.rig.turn((dir * Math.PI) / 2);
   }
 
-  /** The camera slides to a footprint (null: stops sliding). */
-  glideTo(r: Rect | null) {
+  /**
+   * The camera slides to a footprint (null: stops sliding): to the screen centre, or to the screen
+   * point `at` (the middle of the free map, above the interface).
+   */
+  glideTo(r: Rect | null, at?: { x: number; y: number }) {
     this.glide = r && new THREE.Vector3(r.x + r.w / 2, 0, r.y + r.h / 2);
+    if (!this.glide || !at) return;
+    // Panning keeps the ground offset between two screen points: shift the goal by it.
+    const rect = this.el.getBoundingClientRect();
+    const mid = this.rig.groundAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    const there = this.rig.groundAt(at.x, at.y);
+    if (mid && there) this.glide.add(mid.sub(there));
   }
 
   /** The camera is not sliding nor turning on its own. */
@@ -229,9 +239,13 @@ export class Scene3D {
    */
   frame(dt: number, time: number, week: number, speed: number, dayNight: boolean, pressing: boolean) {
     this.dayT = advanceDay(this.dayT, dt * speed, dayNight, VISUAL.dayNight.cycleSeconds);
+    // A new press stops the slide; one asked during a drag (the tutorial's after the road) waits for
+    // the release, so the map never moves under the finger.
+    const pressed = pressing && !this.pressing;
+    this.pressing = pressing;
     if (this.glide) {
-      if (pressing) this.glide = null;
-      else {
+      if (pressed) this.glide = null;
+      else if (!pressing) {
         const f = this.rig.focus;
         const k = Math.min(1, dt * 4);
         this.rig.set({ x: f.x + (this.glide.x - f.x) * k, z: f.z + (this.glide.z - f.z) * k });

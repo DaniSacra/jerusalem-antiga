@@ -2363,6 +2363,245 @@ async function ui3dScenario(page, name) {
   void ids;
 }
 
+/**
+ * The whole tutorial in the 3D game, as a new player plays it: real taps or clicks on the buttons
+ * and on the map (single buildings aimed 90 px above the finger on touch), a drag along the marked
+ * road. Each step: the arrow points at the step's button, then at its place; the camera brings the
+ * place onto the free map; the preview pill says what it yields or serves.
+ */
+async function tutorial3dScenario(page, name) {
+  const phone = name === 'phone';
+  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.evaluate(() => window.session.setSpeed(0));
+  await page.waitForTimeout(600);
+  const shotStep = (step) => page.screenshot({ path: `${OUT}/tutorial3d-${name}-${step}.png` });
+  const step = () => page.evaluate(() => window.session.guide?.step?.id ?? null);
+  const settle = async () => {
+    await page.waitForFunction(() => !window.view3d.game.scene.glide, null, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(250);
+  };
+  const tap = async (x, y) => {
+    if (phone) await cdpTapPage(page, x, y);
+    else {
+      await page.mouse.click(x, y);
+      await page.waitForTimeout(150);
+    }
+  };
+  const tapSpot = async (spot) => {
+    const r = await page.evaluate((spot) => {
+      const b = document.querySelector(`[data-spot="${spot}"]`).getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    }, spot);
+    await tap(r[0], r[1]);
+  };
+  /** The cell a tap must hit for a building to take the rect (the hover is its centre cell). */
+  const aimOf = (r) => ({ x: r.x + Math.floor((r.w - 1) / 2), y: r.y + Math.floor((r.h - 1) / 2) });
+  /** The step's place is on the free map: not under the interface, the bubble or a toast. */
+  const inView = async (label) => {
+    await settle();
+    const r = await page.evaluate((phone) => {
+      const at = window.session.stepSpot(window.session.guide.step.id);
+      if (!at) return null;
+      const c = { x: at.x + Math.floor((at.w - 1) / 2), y: at.y + Math.floor((at.h - 1) / 2) };
+      const p = window.view3d.cellPoint(c.x, c.y);
+      const pts = [[p.x, p.y], ...(phone && at.w * at.h <= 9 ? [[p.x, p.y + 90]] : [])];
+      const canvas = document.querySelector('.g3d canvas');
+      const bad = pts.filter(([x, y]) => x < 0 || y < 0 || x > innerWidth || y > innerHeight || document.elementFromPoint(x, y) !== canvas).map(([x, y]) => [Math.round(x), Math.round(y), document.elementFromPoint(x, y)?.className]);
+      return { p: [Math.round(p.x), Math.round(p.y)], bad, fp: window.view3d.game.hud.focusPoint(90) };
+    }, phone);
+    assert(r && r.bad.length === 0, `the ${label} place is on the free map after the camera glides (${JSON.stringify(r)})`);
+  };
+  /** The tutorial arrow shows, near a button (by its spot) or over the map. */
+  const arrowAt = (spot) =>
+    page.evaluate((spot) => {
+      const a = document.querySelector('.arrow');
+      if (a.classList.contains('hidden')) return { shown: false };
+      const r = a.getBoundingClientRect();
+      if (!spot) return { shown: true };
+      // How far the arrow's centre is from the button's edge (0 over it).
+      const b = document.querySelector(`[data-spot="${spot}"]`).getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = Math.hypot(Math.max(b.left - cx, 0, cx - b.right), Math.max(b.top - cy, 0, cy - b.bottom));
+      return { shown: true, d: Math.round(d) };
+    }, spot);
+  const pill = async () => {
+    await page.waitForFunction(() => !document.querySelector('.tag').classList.contains('hidden'), null, { timeout: 3000 }).catch(() => {});
+    return page.evaluate(() => {
+      const t = document.querySelector('.tag');
+      return t.classList.contains('hidden') ? '' : t.textContent;
+    });
+  };
+  /** Taps the map at the rect's aim cell (90 px lower on touch: the aim is above the finger). */
+  const build = async (r) => {
+    await settle();
+    const c = aimOf(r);
+    const p = await page.evaluate((c) => window.view3d.cellPoint(c.x, c.y), c);
+    const n = await page.evaluate(() => window.state.buildings.length);
+    await tap(p.x, p.y + (phone ? 90 : 0));
+    await page.waitForFunction((n) => window.state.buildings.length > n, n, { timeout: 5000 }).catch(() => {});
+    return page.evaluate(([n, c]) => ({ added: window.state.buildings.length - n, at: window.state.grid[c.y * window.state.cols + c.x]?.kind ?? null, tool: window.session.tool, silver: window.state.silver }), [n, c]);
+  };
+  const hoverAt = async (r) => {
+    await settle();
+    await page.evaluate((c) => {
+      window.session.setHover(c);
+      window.session.refresh();
+    }, aimOf(r));
+    await page.waitForTimeout(250);
+  };
+
+  const opening = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent));
+  assert(opening.some((m) => m.startsWith('A caravana chegou com')), `the caravan sentence opens the game (${opening})`);
+  assert(!(await page.evaluate(() => document.querySelector('.tutorial').classList.contains('hidden'))), 'the tutorial bubble shows');
+
+  // 1. Road along the marked road; the clock stands still on build steps.
+  assert((await step()) === 'road', `the tutorial starts with the road (${await step()})`);
+  await page.evaluate(() => window.session.setSpeed(3));
+  const week0 = await page.evaluate(() => window.state.week);
+  await page.waitForTimeout(1500);
+  assert((await page.evaluate(() => window.state.week)) === week0, 'the clock stands still on a build step');
+  await page.evaluate(() => window.session.setSpeed(0));
+  await inView('road');
+  const toRua = await arrowAt('tool-road');
+  assert(toRua.shown && toRua.d < 50, `the arrow points at Rua (${JSON.stringify(toRua)})`);
+  await shotStep('1-road');
+  await tapSpot('tool-road');
+  assert((await page.evaluate(() => window.session.tool)) === 'road', 'the Rua button picks the road');
+  assert((await arrowAt(null)).shown, 'then the arrow points at the marked road');
+  const ghost = await page.evaluate(() => window.session.guideGhost.map((c) => ({ x: c.x, y: c.y })));
+  assert(ghost.length >= 2, `a marked road (${ghost.length})`);
+  const pts = await page.evaluate((g) => g.map((c) => window.view3d.cellPoint(c.x, c.y)), ghost);
+  if (phone) {
+    const cdp = await page.context().newCDPSession(page);
+    const t = (type, p) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y, id: 0 }] : [] });
+    await t('touchStart', pts[0]);
+    await page.waitForTimeout(220);
+    for (const p of pts.slice(1)) {
+      await t('touchMove', p);
+      await page.waitForTimeout(60);
+    }
+    await t('touchEnd');
+  } else {
+    await page.mouse.move(pts[0].x, pts[0].y);
+    await page.mouse.down();
+    for (const p of pts.slice(1)) await page.mouse.move(p.x, p.y, { steps: 3 });
+    await page.mouse.up();
+  }
+  await page.waitForFunction(() => window.session.guide?.step?.id !== 'road', null, { timeout: 8000 }).catch(() => {});
+  const built = await page.evaluate((g) => g.map((c) => (window.state.roads[c.y * window.state.cols + c.x] ? 1 : 0)).join(''), ghost);
+  assert((await step()) === 'gather', `dragging the marked road ends step 1 (built ${built})`);
+
+  // 2. Fisher or gatherer at the end of the road.
+  await inView('gather');
+  const spot = await page.evaluate(() => window.session.spot);
+  assert(spot && spot.food >= 1.2, `the road leads to a spot that brings food (${JSON.stringify(spot)})`);
+  const toCol = await arrowAt(`build-${spot.kind}`);
+  assert(toCol.shown && toCol.d < 50, `the arrow points at the ${spot.kind} button (${JSON.stringify(toCol)})`);
+  await shotStep('2-gather');
+  await tapSpot(`build-${spot.kind}`);
+  assert((await page.evaluate(() => window.session.tool)) === spot.kind, `the column picks the ${spot.kind}`);
+  const gatherRect = await page.evaluate(() => window.session.stepSpot('gather'));
+  await hoverAt(gatherRect);
+  const yields = await pill();
+  assert(yields.startsWith('Rende'), `the preview says what it yields (${yields})`);
+  await shotStep('2-preview');
+  const g = await build(gatherRect);
+  assert((await step()) === 'field', `a fisher or gatherer ends step 2 (${JSON.stringify(g)})`);
+
+  // 3. Field.
+  await inView('field');
+  await tapSpot('build-field');
+  await settle();
+  await shotStep('3-field');
+  const f = await build(await page.evaluate(() => window.session.stepSpot('field')));
+  assert((await step()) === 'plaza', `a field ends step 3 (${JSON.stringify(f)})`);
+
+  // 4. Plaza near the tents: the preview says how many houses it serves.
+  await inView('plaza');
+  await tapSpot('build-plaza');
+  await settle();
+  const plazaRect = await page.evaluate(() => window.session.stepSpot('plaza'));
+  await hoverAt(plazaRect);
+  const serves = await pill();
+  assert(serves.startsWith('Atende'), `the plaza preview says how many houses it serves (${serves})`);
+  await shotStep('4-plaza');
+  const pz = await build(plazaRect);
+  assert((await step()) === 'house', `a plaza ends step 4 (${JSON.stringify(pz)})`);
+
+  // 5. House near the plaza: the green spots show.
+  await tapSpot('build-house');
+  await settle();
+  await inView('house');
+  await shotStep('5-house');
+  const hs = await build(await page.evaluate(() => window.session.stepSpot('house')));
+  assert((await step()) === 'wedding', `a house ends step 5 (${JSON.stringify(hs)})`);
+
+  // 6. The wedding: the clock runs; the step ends with the first wedding or after its weeks.
+  const wedStart = await page.evaluate(() => window.state.week);
+  await page.evaluate(() => window.session.setSpeed(3));
+  await page.waitForTimeout(800);
+  await shotStep('6-wedding');
+  await page.waitForFunction(() => window.session.guide?.step?.id === 'lumber', null, { timeout: 120000 });
+  const wed = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding') }), wedStart);
+  assert(wed.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step ends within weddingStepMaxWeeks (${JSON.stringify(wed)})`);
+
+  // 7. Lumber: its preview says the wood and the cuts.
+  await page.evaluate(() => window.session.setSpeed(0));
+  const lumber = await page.evaluate(() => window.session.lumberHint);
+  assert(lumber && lumber.food > 0, `the lumber step points at a spot with trees (${JSON.stringify(lumber)})`);
+  if (lumber.road.length) {
+    const rua = await arrowAt('tool-road');
+    assert(rua.shown && rua.d < 50, `past the grove's edge the arrow points at Rua first (${JSON.stringify(rua)})`);
+    await page.evaluate((road) => {
+      for (const c of road) window.core.place(window.state, 'road', c.x, c.y);
+      window.session.refresh();
+    }, lumber.road);
+  }
+  await tapSpot('build-lumber');
+  await inView('lumber');
+  const lumberRect = await page.evaluate(() => window.session.stepSpot('lumber'));
+  await hoverAt(lumberRect);
+  const wood = await pill();
+  assert(wood.startsWith('Rende') && wood.includes('madeira') && wood.includes('Corta 1 árvore'), `the lumber preview says the wood and the cuts (${wood})`);
+  await shotStep('7-lumber');
+  const tipOver = await page.evaluate(() => {
+    const a = document.querySelector('.toolballoon').getBoundingClientRect();
+    const b = document.querySelector('.tutorial').getBoundingClientRect();
+    return a.bottom > b.top + 1 && a.right > b.left && b.right > a.left;
+  });
+  assert(!tipOver, 'the chosen building\'s balloon stays above the tutorial bubble');
+  const lb = await build(lumberRect);
+  await page.waitForFunction(() => window.session.guide?.step === null, null, { timeout: 60000 }).catch(() => {});
+  assert(await page.evaluate(() => !!window.session.guide && !window.session.guide.running), `the main steps end after the lumber step (${JSON.stringify(lb)})`);
+  await page.waitForTimeout(300);
+  const end = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '));
+  assert(end.includes('Casais novos precisam de casa'), `the last tutorial toast says couples need houses (${end})`);
+  assert(await page.evaluate(() => document.querySelector('.tutorial').classList.contains('hidden')), 'the bubble closes between the main steps and the market');
+
+  // The goal that unlocks the market brings its short step.
+  await page.evaluate(() => {
+    window.state.unlocked.push('market');
+    window.state.silver = 500;
+    window.session.guide.marketUnlocked();
+    window.session.refresh();
+  });
+  assert((await step()) === 'market', 'unlocking the market starts its step');
+  await shotStep('8-market');
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    const to = core.RULES.map.altar;
+    const spots = core.placeSpots(s, 'market').sort((a, b) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y)));
+    core.place(s, 'market', spots[0].x, spots[0].y);
+    window.session.refresh();
+  });
+  assert((await step()) === null, 'a market ends the tutorial');
+  assert(await page.evaluate(() => localStorage.getItem('jerusalem.tutorialDone') === '1'), 'the tutorial is remembered as done');
+}
+
 /** The 3D keeps the phone cool and survives a lost GPU: 10 frames a second while paused and still; the city comes back after the WebGL context is lost and restored. */
 async function context3dScenario(page) {
   await open3dGame(page);
@@ -2802,6 +3041,8 @@ const scenarios = {
   'input3d-pc': { context: PC, run: input3dScenario },
   touch3d: { context: PHONE, run: touch3dScenario },
   'context3d-pc': { context: PC, run: context3dScenario },
+  'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
+  'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
   'ui3d-phone': { context: PHONE, run: (page) => ui3dScenario(page, 'phone') },
   'ui3d-pc': { context: PC, run: (page) => ui3dScenario(page, 'pc') },
   'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },

@@ -80,7 +80,8 @@ export class CardBalloon {
       this.build(card);
     }
     this.el.classList.remove('hidden');
-    this.measure(hidden || rebuilt);
+    // Measured on every update (not per frame): fonts and wrapping can change its size after a build.
+    this.measure(hidden || rebuilt || this.el.offsetWidth !== this.size.w || this.el.offsetHeight !== this.size.h);
   }
 
   private maxH = 0;

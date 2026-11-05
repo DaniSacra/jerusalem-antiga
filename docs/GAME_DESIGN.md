@@ -685,7 +685,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     quando ainda bloqueada), em tamanho cheio de perto e menores de longe (até 60%); na fome, o mapa
     fica avermelhado. Esc fecha na ordem: engrenagem, ficha ou painel, balão. Quando o balão não cabe
     de nenhum lado (a casa com moradores no celular), a câmera desliza uma vez para tirar a
-    construção de baixo dele. A pílula sobre a prévia diz o que a construção dá ali, como no 2D:
+    construção de baixo dele. No tutorial, a câmera leva o lugar de cada passo ao meio do mapa livre
+    (acima do balão do tutorial; no toque, com espaço para o dedo abaixo dele) e só desliza depois que
+    o dedo solta; a coluna rola até o botão que a seta aponta. A pílula sobre a prévia diz o que a construção dá ali, como no 2D:
     "Rende N…", "Corta 1 árvore a cada N sem", "Divide o bosque…", "Comida depois", "Sem rua ao
     lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
     ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.

@@ -147,7 +147,7 @@ export class Hud {
   /** After each refresh of the session. */
   update() {
     this.top.update(this.phone);
-    this.tools.update(this.phone);
+    this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);
     this.measureFree();
     this.updateNotices();
     this.labels.update(this.host.session.state, this.host.session.city.eco);
@@ -220,6 +220,17 @@ export class Hud {
     if (!on) return this.anchors.unpin(this.tag);
     setText(this.tag, lines!.join('\n'));
     this.anchors.pin(this.tag, at, (p) => `translate(${Math.round(p.x)}px, ${Math.round(p.y - 8)}px) translate(-50%, -100%)`);
+  }
+
+  /**
+   * Where the camera brings a place: the middle of the free map, above the tutorial bubble when it
+   * shows, and `lift` px higher so a point that far below it stays free too (the finger on touch).
+   */
+  focusPoint(lift = 0): { x: number; y: number } {
+    const f = this.free;
+    const bubble = this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : f.bottom;
+    const bottom = Math.min(f.bottom, bubble) - lift;
+    return { x: (f.left + f.right) / 2, y: Math.max(f.top + 20, (f.top + bottom) / 2) };
   }
 
   /** A short text rising from a building and fading (a house's gain, a failure on the spot). */
