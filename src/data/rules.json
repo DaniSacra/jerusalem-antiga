@@ -1,7 +1,7 @@
 {
   "startSilver": 180,
   "startUnlocked": ["road", "house", "field", "plaza", "fisher", "gatherer", "lumber"],
-  "startMaterials": { "wood": 20, "stone": 0 },
+  "startMaterials": { "wood": 40, "stone": 0 },
   "treeRegrowWeeks": 104,
   "weekSeconds": 3.2,
   "unemploymentAlert": 6,
@@ -16,7 +16,7 @@
   "drought": { "chance": 0.25, "harvestFactor": 0.25, "safeYears": 2, "neverTwice": true },
   "weeksToUpgrade": [11, 15],
   "weeksToDowngrade": 3,
-  "winter": { "foodFactor": 1.4, "tentFoodFactor": 1.75 },
+  "winter": { "foodFactor": 1.6, "tentFoodFactor": 2 },
   "famineDropChance": 0.12,
   "famineLeaveChance": 0.1,
   "debtWeeksToLose": 24,
@@ -67,8 +67,8 @@
   "caravans": {
     "start": { "families": [3, 5], "foodWeeks": [18, 24] },
     "later": [
-      { "weeks": [52, 98], "families": [3, 3], "chance": 1, "engaged": 1 },
-      { "weeks": [156, 260], "families": [2, 4], "chance": 1 },
+      { "weeks": [52, 98], "families": [3, 3], "chance": 1, "engaged": 2 },
+      { "weeks": [156, 260], "families": [2, 3], "chance": 1 },
       { "weeks": [312, 415], "families": [2, 3], "chance": 0.5 }
     ],
     "warnWeeks": [4, 8],

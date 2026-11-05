@@ -49,11 +49,11 @@ describe('goals', () => {
     expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? g.milestone ?? null, g.reward, g.unlock ?? null])).toEqual([
       ['milestone', 1, 'firstWedding', 20, null],
       ['foodUntilSpring', 1, null, 30, 'granary'],
-      ['milestone', 1, 'firstBirth', 30, null],
+      ['milestone', 1, 'firstBirth', 30, 'quarry'],
       ['houses', 3, 2, 40, 'market'],
       ['milestone', 1, 'firstCaravan', 50, 'workshop'],
-      ['residents', 30, null, 50, 'quarry'],
-      ['houses', 3, 3, 60, 'park'],
+      ['residents', 30, null, 50, null],
+      ['houses', 6, 3, 60, 'park'],
       ['milestone', 1, 'firstGrownUp', 80, null],
       ['residents', 45, null, 80, null],
       ['houses', 4, 4, 80, null],
@@ -88,16 +88,16 @@ describe('goals', () => {
     });
   });
 
-  it('the plaza is unlocked from the start; goal 7 (3 stone houses) unlocks the park', () => {
+  it('the plaza is unlocked from the start; goal 7 (6 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
     const goal = GOALS[6];
-    expect(goal).toMatchObject({ type: 'houses', target: 3, level: 3, unlock: 'park' });
+    expect(goal).toMatchObject({ type: 'houses', target: 6, level: 3, unlock: 'park' });
     const s = emptyGame({ goalIndex: 6, silver: 0, unlocked: [...RULES.startUnlocked] });
-    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 3);
+    for (let k = 0; k < goal.target; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 3);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(events[0]).toEqual({ type: 'goal', index: 6, reward: goal.reward, unlock: 'park' });
@@ -238,9 +238,9 @@ describe('goals', () => {
   });
 
   it('completes one goal per check, even when the next one is already met', () => {
-    // Four big houses meet "30 residents" and "3 stone houses" at once.
+    // Six big houses meet "30 residents" and "6 stone houses" at once.
     const s = emptyGame({ goalIndex: 5 });
-    for (const y of [27, 29, 31, 33]) put(s, 'house', ROADSIDE, y, TOP);
+    for (const y of [27, 29, 31, 33, 35, 37]) put(s, 'house', ROADSIDE, y, TOP);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(s.goalIndex).toBe(6);

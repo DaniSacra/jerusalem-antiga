@@ -12,7 +12,6 @@ import {
   foodAfter,
   gatherCells,
   gatherYield,
-  GOALS,
   HOUSE_LEVELS,
   housesWaiting,
   indexOf,
@@ -35,7 +34,7 @@ import {
   type GameState,
   type Placeable,
 } from '../src/core';
-import { constRng, EAST, emptyGame, meetGoal, put, ROADSIDE, UP_WEEKS, westOf } from './helpers';
+import { constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = UP_WEEKS;
@@ -74,17 +73,17 @@ const lumberAt = (s: GameState) => put(s, 'lumber', EAST, 30);
 describe('materials data', () => {
   it('lumber and quarry: work buildings gathering wood from trees and stone from rocks', () => {
     expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 0.5, w: 2, h: 2, jobs: 2, cutEvery: 10 });
-    expect(lumber).toEqual({ source: 'tree', radius: 3, perCell: 0.25, max: 3, product: 'wood' });
+    expect(lumber).toEqual({ source: 'tree', radius: 3, perCell: 0.25, max: 2, product: 'wood' });
     expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 1, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
-    expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.4, max: 3, product: 'stone' });
+    expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.4, max: 2, product: 'stone' });
   });
 
   it('building costs: wood for houses and works, stone for the park, both for the temple; food and wood never need material', () => {
     const cost = (k: Placeable) => materialsOf(k);
-    expect(cost('house')).toEqual({ wood: 5 });
+    expect(cost('house')).toEqual({ wood: 10 });
     for (const k of ['granary', 'market', 'workshop', 'quarry'] as const) expect(cost(k)).toEqual({ wood: 10 });
     expect(cost('park')).toEqual({ stone: 5 });
-    expect(cost('temple')).toEqual({ stone: 300, wood: 150 });
+    expect(cost('temple')).toEqual({ stone: 300, wood: 300 });
     for (const k of ['road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(cost(k)).toEqual({});
   });
 
@@ -94,21 +93,21 @@ describe('materials data', () => {
     expect(upgradeGain(3)!.materials).toEqual({ stone: 10, wood: 5 });
   });
 
-  it('the caravan brings 20 wood and no stone; the lumber is open from the start, the quarry from goal 6 (30 residents)', () => {
+  it('the caravan brings 40 wood and no stone; the lumber is open from the start, the quarry from goal 3 (first birth)', () => {
     const s = createGame(createRng(7));
-    expect([s.wood, s.stone]).toEqual([20, 0]);
+    expect([s.wood, s.stone]).toEqual([40, 0]);
     expect(s.stumps).toEqual([]);
     expect(s.unlocked).toContain('lumber');
     expect(s.unlocked).not.toContain('quarry');
-    expect(unlockingGoal('quarry')).toBe(6);
+    expect(unlockingGoal('quarry')).toBe(3);
     expect(checkPlace(s, 'quarry', 0, 0).ok).toBe(false);
   });
 
-  it('goal 6 (30 residents) unlocks the quarry', () => {
-    const s = emptyGame({ goalIndex: 5, unlocked: ['road', 'house'] });
-    meetGoal(s, GOALS[5]);
+  it('goal 3 (first birth) unlocks the quarry', () => {
+    const s = emptyGame({ goalIndex: 2, unlocked: ['road', 'house'] });
+    s.milestones.push('firstBirth');
     checkGoal(s, []);
-    expect(s.goalIndex).toBe(6);
+    expect(s.goalIndex).toBe(3);
     expect(s.unlocked).toContain('quarry');
   });
 });
@@ -290,13 +289,14 @@ describe('stumps', () => {
 describe('building with materials', () => {
   it('fails without the material and spends nothing; with it, pays silver and material', () => {
     const s = city();
+    const wood = BUILDINGS.house.materials!.wood!;
     s.silver = 100;
-    s.wood = 4;
+    s.wood = wood - 1;
     expect(missingMaterial(s, 'house')).toBe('wood');
     expect(checkPlace(s, 'house', EAST, 33)).toEqual({ ok: false, reason: 'materials' });
     expect(place(s, 'house', EAST, 33)).toEqual({ ok: false, reason: 'materials' });
-    expect([s.silver, s.wood]).toEqual([100, 4]);
-    s.wood = 5;
+    expect([s.silver, s.wood]).toEqual([100, wood - 1]);
+    s.wood = wood;
     expect(missingMaterial(s, 'house')).toBeNull();
     expect(place(s, 'house', EAST, 33).ok).toBe(true);
     expect([s.silver, s.wood]).toEqual([100 - BUILDINGS.house.cost, 0]);
@@ -312,9 +312,9 @@ describe('building with materials', () => {
     expect(missingMaterial(s, 'temple')).toBe('wood');
   });
 
-  it('the temple pays 800 silver, 300 stone and 150 wood', () => {
+  it('the temple pays 800 silver, 300 stone and 300 wood', () => {
     const s = city();
-    Object.assign(s, { silver: 1000, wood: 200, stone: 400 });
+    Object.assign(s, { silver: 1000, wood: 350, stone: 400 });
     expect(place(s, 'temple', EAST, 34).ok).toBe(true);
     expect([s.silver, s.stone, s.wood]).toEqual([200, 100, 50]);
   });

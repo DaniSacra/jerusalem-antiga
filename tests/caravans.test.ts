@@ -207,9 +207,9 @@ describe('later caravans', () => {
     }
   });
 
-  it('the first caravan surely brings a young engaged pair', () => {
-    expect(C.later[0].engaged).toBe(1);
-    for (const seed of SEEDS) expect(createGame(createRng(seed)).caravans[0].engaged).toBe(1);
+  it('the first caravan surely brings two young engaged pairs', () => {
+    expect(C.later[0].engaged).toBe(2);
+    for (const seed of SEEDS) expect(createGame(createRng(seed)).caravans[0].engaged).toBe(2);
   });
 
   it('an engaged pair: two youths of two family names, engaged; they take one house and marry there (a wedding of the year)', () => {

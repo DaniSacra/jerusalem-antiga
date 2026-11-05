@@ -42,6 +42,15 @@ Mantidos:
   dizer "tem gente". Motivo: preserva o invariante usado em ~20 lugares do código (KISS)
 - 2026-11-04 (diretor): "terceira geração" = filho de alguém nascido na cidade. Motivo: os jovens da
   caravana já são filhos de fundadores; "neto da caravana" aconteceria no Ano 1–2
+- 2026-11-05 (diretor): calibração do P3 + Povo aprovada inteira (`docs/revisoes/2026-11-05/decisao-p3.md`):
+  Pedreira no objetivo 3, objetivo 7 = 6 casas de pedra, casa 10 madeira, madeira inicial 40,
+  Lenhador e Pedreira `max` 2, Templo 300 madeira, 2 noivos na 1ª caravana, 2ª caravana [2, 3],
+  inverno 1,6/2. Motivo: a madeira vira o freio da moradia (pedido "à Banished") sem quebrar A1, W2 e A9
+- 2026-11-05 (diretor): A6 62% aceito (ruído; `winterFactor` 0,4 derrubaria A9). Toast que volta
+  depois do balão: só 1, o aviso que ainda vale; notícias passadas saem. Pílula da pedra só depois da
+  Pedreira também no PC; sem balão de material no mapa (a falta é do estoque, não do lugar)
+- Pendente do usuário: A2 → "Comum 50–80%, Distraído ≤ 20%, derrotas ≤ 5%" (recomendado); pedra nos
+  níveis de serviço (20/40) para W4 antes do merge do P3 (recomendado, ~3–4 h)
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
 1. Povo (agora) · 2. Madeira e pedra (recalibrar) · 3. Lenha e inverno · 4. Obras com tempo ·

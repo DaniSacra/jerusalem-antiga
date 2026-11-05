@@ -46,6 +46,13 @@ import {
   bandCounts,
   household,
   roomIn,
+  housesWaiting,
+  materialsOf,
+  missingMaterial,
+  levelMaterials,
+  sharedTrees,
+  MATERIALS,
+  type Material,
   type Building,
   type Person,
   type BuildableKind,
@@ -94,14 +101,18 @@ export interface Profile {
   houseDelayFactor: number;
   /** Chance of never preparing houses for an announced caravan (drawn once per caravan). */
   caravanSkip: number;
+  /** Weeks a material shortage must last before the bot builds another lumber or quarry (planners use production instead). */
+  materialWait: number;
+  /** Keeps wood (and stone) for the houses about to climb and for new houses before spending it on other buildings. */
+  materialReserve: boolean;
 }
 
 export const PROFILES: Record<string, Profile> = {
-  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0 },
+  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true },
   /** Expert that sows no fields; feeds the city with fishers and gatherers. */
-  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0 },
-  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0 },
-  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5 },
+  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true },
+  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true },
+  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false },
 };
 
 // ------------------------------------------------------------------ geometry
@@ -200,8 +211,20 @@ const TEMPLE_UNLOCK = GOALS.findIndex((g) => g.unlock === 'temple');
 const SAVINGS_FREE: ReadonlySet<BuildableKind> = new Set<BuildableKind>(['fisher', 'gatherer', 'field', 'granary', 'house', 'temple']);
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+type Producer = 'lumber' | 'quarry';
+/** The building that makes each material, and the one each building makes. */
+const PRODUCER: Record<Material, Producer> = { wood: 'lumber', stone: 'quarry' };
+/** Most productive lumbers or quarries a bot keeps. */
+const MAX_PRODUCERS = 4;
+/** Below this a lumber or quarry counts as stopped (its grove is cut). */
+const DEAD_YIELD = 0.5;
+/** Goal index from which the planner expects big houses (more stone). */
+const BIG_HOUSES_GOAL = GOALS.findIndex((g) => g.type === 'houses' && (g.level ?? 0) >= 4);
+
 export class SurvivalBot {
   stats: Stats = { actions: 0, built: {}, roadCells: 0 };
+  /** Materials a wanted build lacked during the last `act` (the next act reacts to it; the runner reads it for W3). */
+  lacked: Record<Material, boolean> = { wood: false, stone: false };
   private streak: Record<string, number> = {};
   /** A pending target: the bot laid road toward it and builds it once connected. */
   private pending: { kind: BuildableKind; r: Rect; dig: boolean } | null = null;
@@ -238,8 +261,33 @@ export class SurvivalBot {
     return SAVINGS_FREE.has(kind) || s.silver - costOf(kind) >= this.savings(s);
   }
 
+  /** Wood or stone kept back from other buildings: houses ready (or, for a planner, about) to climb, a new house, the temple. */
+  private materialKeep(s: GameState, m: Material): number {
+    if (!this.p.materialReserve) return 0;
+    let keep = m === 'wood' ? (materialsOf('house').wood ?? 0) * (this.p.planner ? 2 : 1) : 0;
+    for (const h of s.buildings) {
+      if (h.kind !== 'house' || h.level === 0 || h.level + 1 >= HOUSE_LEVELS.length) continue;
+      if (h.waiting || (this.p.planner && h.upStreak >= h.upWeeks - 4)) keep += levelMaterials(h.level + 1)[m] ?? 0;
+    }
+    const temple = materialsOf('temple')[m] ?? 0;
+    // Once the temple is open everyone with a reserve keeps its material; the planner starts earlier (see `reserved`).
+    if (s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple')) keep += temple;
+    else if (this.reserved) keep += s.unlocked.includes('temple') ? temple : temple / 2;
+    return keep;
+  }
+
+  /** Has the materials for this build and keeps the reserve (houses, lumbers and quarries never wait for it). */
+  private hasMaterials(s: GameState, kind: BuildableKind): boolean {
+    const miss = missingMaterial(s, kind);
+    if (miss) { this.lacked[miss] = true; return false; }
+    if (kind === 'house' || kind === 'lumber' || kind === 'quarry' || kind === 'temple') return true;
+    const cost = materialsOf(kind);
+    return MATERIALS.every((m) => !cost[m] || s[m] - cost[m]! >= this.materialKeep(s, m));
+  }
+
   private bump(k: string, on: boolean) { this.streak[k] = on ? (this.streak[k] ?? 0) + 1 : 0; }
   private seen(k: string, factor = 1) { return (this.streak[k] ?? 0) > this.p.delay * factor; }
+  private lasted(k: string, weeks: number) { return (this.streak[k] ?? 0) > weeks; }
   /** Caravans (by week) the bot decided not to prepare for (`caravanSkip`). */
   private skipped = new Map<number, boolean>();
   private prepares(c: { week: number }) {
@@ -261,6 +309,15 @@ export class SurvivalBot {
     this.bump('couples', waitingCouples(s).length > 0);
     this.bump('caravan', announcedCaravan(s) !== null);
     for (const [level, kind] of EVOLUTION) this.bump(`stall_${kind}`, stalled(s, level, kind).length > 0);
+    // Materials: houses waiting (the alert), a build that lacked them (the toast), the temple short of them.
+    const waitingMat = housesWaiting(s);
+    const templeOpen = s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple');
+    for (const m of MATERIALS) {
+      this.bump(`wait_${m}`, waitingMat[m] > 0);
+      this.bump(`short_${m}`, this.lacked[m]);
+      this.bump(`temple_${m}`, templeOpen && s[m] < (materialsOf('temple')[m] ?? 0));
+      this.lacked[m] = false;
+    }
     this.updateReserve(s);
     if (this.rng() < this.p.idleChance) return;
     for (let k = 0; k < this.p.actions; k++) {
@@ -306,6 +363,9 @@ export class SurvivalBot {
       if ((want || spoil || plan || (this.p.granaryEarly && granaries === 0)) && this.place(s, 'granary')) return true;
     }
 
+    // 2b. Materials: lumbers and quarries.
+    if (this.materials(s)) return true;
+
     // 3. Evolution: family houses stalled for the next unlocked service (1 → plaza, 2 → market, 3 → park).
     // Workshops for jobs come first only while their field bonus is below the cap the player reads.
     const bonusLeft = fieldBonus(s) < (BUILDINGS.workshop.fieldBonusMax ?? 0);
@@ -322,13 +382,14 @@ export class SurvivalBot {
 
     // 5. Temple: built as soon as it is unlocked and affordable (with a little margin).
     const templeReady = s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple');
-    if (templeReady && s.silver >= costOf('temple') + 40) {
+    const templeMaterials = !missingMaterial(s, 'temple');
+    if (templeReady && s.silver >= costOf('temple') + 40 && templeMaterials) {
       if (this.reserved) return this.reach(s, 'temple', this.reserved);
       if (templeSpots(s).length) return this.place(s, 'temple');
     }
     if (goal?.type === 'build' && goal.kind === 'temple') {
       if (templeSpots(s).length) {
-        if (s.silver >= costOf('temple')) return this.place(s, 'temple');
+        if (s.silver >= costOf('temple') && templeMaterials) return this.place(s, 'temple');
       } else if (this.place(s, 'temple')) return true;
       if (this.p.planner || this.p.savesTemple) return false; // saves
     }
@@ -351,10 +412,9 @@ export class SurvivalBot {
   private trim(s: GameState): boolean {
     const eco = computeEconomy(s);
     if (eco.silverDelta >= 0 && s.silver + eco.silverDelta * (RULES.debtWeeksToLose - s.debtWeeks) >= 0) return false;
-    const granaries = s.buildings.filter((b) => b.kind === 'granary').length;
     const value = (b: Building) => {
       if (b.kind === 'plaza' || b.kind === 'market' || b.kind === 'park') return 2 * s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cheb(h, b) <= (BUILDINGS[b.kind].radius ?? 0)).length;
-      if (b.kind === 'fisher' || b.kind === 'gatherer') return gatherYield(s, b) * 3;
+      if (b.kind === 'fisher' || b.kind === 'gatherer' || b.kind === 'lumber' || b.kind === 'quarry') return gatherYield(s, b) * 3;
       if (b.kind === 'field') return 3;
       if (b.kind === 'granary') return s.food > RULES.baseFoodStorage ? 6 : 1;
       return 4;
@@ -362,11 +422,66 @@ export class SurvivalBot {
     const isFood = (x: Building) => x.kind === 'fisher' || x.kind === 'gatherer' || x.kind === 'field';
     const per = (b: Building) => value(b) / (statOf(b, 'upkeep') || 1);
     // Never the last granary (its food would spoil) nor the last two food buildings.
-    const keep = (b: Building) => (isFood(b) && s.buildings.filter(isFood).length <= 2) || (b.kind === 'granary' && granaries <= 1);
+    const last = (kind: BuildableKind) => s.buildings.filter((x) => x.kind === kind).length <= 1;
+    const keep = (b: Building) => (isFood(b) && s.buildings.filter(isFood).length <= 2) || ((b.kind === 'granary' || b.kind === 'lumber' || b.kind === 'quarry') && last(b.kind));
     const cands = s.buildings.filter((b) => statOf(b, 'upkeep') > 0 && !BUILDINGS[b.kind].protected && !keep(b)).sort((a, b) => per(a) - per(b));
     if (!cands.length) return false;
     this.stats.built.trim = (this.stats.built.trim ?? 0) + 1;
     return clearCell(s, cands[0].x, cands[0].y).ok;
+  }
+
+  // ---------------------------------------------------------------- materials
+
+  /** Builds a lumber or a quarry when the profile thinks the city needs one more (see `wantsProducer`). */
+  private materials(s: GameState): boolean {
+    for (const m of MATERIALS) {
+      const kind = PRODUCER[m];
+      if (!s.unlocked.includes(kind)) continue;
+      // Only the ones still making something count (a lumber in a cut grove makes little until it regrows).
+      const all = s.buildings.filter((b) => b.kind === kind);
+      const own = all.filter((b) => gatherYield(s, b) >= DEAD_YIELD);
+      if (own.length >= MAX_PRODUCERS) continue;
+      const made = own.reduce((a, b) => a + gatherYield(s, b), 0);
+      const essential = own.length === 0 || housesWaiting(s)[m] > 0;
+      if (!this.wantsProducer(s, m, own.length, made) || !this.place(s, kind, false, essential)) continue;
+      // A new producer: the shortage starts to count again. The attentive players pull down the
+      // ones that stopped producing (the distracted one leaves them standing).
+      for (const k of [`wait_${m}`, `short_${m}`, `temple_${m}`]) this.streak[k] = 0;
+      if (!this.p.reactsToBalloons) {
+        for (const b of all) if (gatherYield(s, b) < DEAD_YIELD && clearCell(s, b.x, b.y).ok) this.stats.built[`${kind}Down`] = (this.stats.built[`${kind}Down`] ?? 0) + 1;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Eficiente (planner): the first lumber at once and the first quarry at its unlock, then more while
+   * the production is below `materialNeed`. Comum: the first lumber when the wood runs low, the first
+   * quarry when the goal asks for stone houses, or when a shortage shows; another after `materialWait`
+   * weeks of shortage. Distraido: only after seeing the warning (houses waiting, a build that failed).
+   */
+  private wantsProducer(s: GameState, m: Material, n: number, made: number): boolean {
+    const f = this.p.houseDelayFactor;
+    const short = this.seen(`wait_${m}`, f) || this.seen(`short_${m}`, f) || this.seen(`temple_${m}`, f);
+    const long = [`wait_${m}`, `short_${m}`, `temple_${m}`].some((k) => this.lasted(k, this.p.materialWait));
+    // The planner adds one only while the stock is low (it does not pile up more than it plans to use).
+    if (this.p.planner) return n === 0 || ((made < this.materialNeed(s, m) || long) && s[m] < this.materialKeep(s, m) + 40);
+    if (n === 0) {
+      if (short) return true;
+      if (this.p.reactsToBalloons) return false;
+      const goal = currentGoal(s);
+      return m === 'wood' ? s.wood < 15 : goal?.type === 'houses' && (goal.level ?? 0) >= 3;
+    }
+    return long || (short && made < 1);
+  }
+
+  /** Planner: material per week to aim for (grows with the city, the big houses and the temple savings). */
+  private materialNeed(s: GameState, m: Material): number {
+    const houses = s.buildings.filter((b) => b.kind === 'house' && b.level > 0).length;
+    const temple = this.reserved !== null && s[m] < (materialsOf('temple')[m] ?? 0);
+    if (m === 'wood') return 2 + houses * 0.08 + (temple ? 2 : 0);
+    return 2.5 + (s.goalIndex >= BIG_HOUSES_GOAL ? 2.5 : 0) + (temple ? 3 : 0);
   }
 
   // ---------------------------------------------------------------- food
@@ -464,17 +579,20 @@ export class SurvivalBot {
     const altar = altarRect(s);
     let best: { r: Rect; d: number; v: number } | null = null;
     // Food and the temple are worth a long road; other buildings a short one (SERVICE_ROAD).
-    const reach = far || kind === 'fisher' || kind === 'gatherer' || (kind === 'field' && this.p.planner) || kind === 'temple' ? this.p.roadReach : Math.min(this.p.roadReach, SERVICE_ROAD);
+    const gathers = kind === 'fisher' || kind === 'gatherer' || kind === 'lumber' || kind === 'quarry';
+    const reach = far || gathers || (kind === 'field' && this.p.planner) || kind === 'temple' ? this.p.roadReach : Math.min(this.p.roadReach, SERVICE_ROAD);
     for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
       const r = { x, y, w, h };
       if (!this.open(s, r, kind)) continue;
       const { d } = rectReach(s, r, rd);
       if (d > reach) continue;
       let v = 0;
-      if (kind === 'fisher' || kind === 'gatherer') {
+      if (gathers) {
         const g = gatherYield(s, fake(s, kind, r));
-        if (g < 0.5) continue;
+        if (g < (kind === 'lumber' || kind === 'quarry' ? 1 : 0.5)) continue;
         v = g * 10;
+        // The planner keeps lumbers and gatherers in different groves (the preview's "shares the grove").
+        if (this.p.planner && (kind === 'lumber' || kind === 'gatherer')) v -= sharedTrees(s, x, y, kind) * (kind === 'lumber' ? 1 : 0.5);
       } else if (kind === 'field') {
         v = this.p.planner && byRiver(s, fake(s, kind, r)) ? 3 : 0;
         v -= cheb(r, altar) < 5 ? 2 : 0; // keep the altar's ground for houses
@@ -491,16 +609,18 @@ export class SurvivalBot {
     return best && { r: best.r, d: best.d, dig };
   }
 
-  private place(s: GameState, kind: BuildableKind, emergency = false): boolean {
+  /** `essential`: built even without free workers (the first lumber or quarry, or one for houses waiting on it). */
+  private place(s: GameState, kind: BuildableKind, emergency = false, essential = false): boolean {
     if (!s.unlocked.includes(kind) || s.silver < costOf(kind)) return false;
+    if (!this.hasMaterials(s, kind)) return false;
     if (!emergency && kind !== 'temple' && !this.affords(s, kind)) return false;
     if (!emergency && !this.spends(s, kind)) return false;
-    if (this.p.staffAware && BUILDINGS[kind].jobs > 0 && kind !== 'fisher' && kind !== 'gatherer' && kind !== 'field' && kind !== 'granary' && kind !== 'temple') {
+    if (this.p.staffAware && !essential && BUILDINGS[kind].jobs > 0 && kind !== 'fisher' && kind !== 'gatherer' && kind !== 'field' && kind !== 'granary' && kind !== 'temple') {
       const eco = computeEconomy(s);
       if (eco.yearJobs + BUILDINGS[kind].jobs > eco.workers + 1) return false;
     }
     // A boxed-in city lays a long road (demolishing if needed) to reach open land for food and services.
-    const far = ['granary', 'field', 'fisher', 'gatherer', 'market', 'plaza', 'park'].includes(kind);
+    const far = ['granary', 'field', 'fisher', 'gatherer', 'lumber', 'quarry', 'market', 'plaza', 'park'].includes(kind);
     const spot = this.spotFor(s, kind) ?? (far ? this.spotFor(s, kind, false, true) : null);
     if (!spot) return false;
     return this.reach(s, kind, spot.r, spot.dig);
@@ -508,7 +628,7 @@ export class SurvivalBot {
 
   /** Builds the rect if it touches the network, else lays one road stroke toward it. */
   private reach(s: GameState, kind: BuildableKind, r: Rect, dig = false): boolean {
-    if (s.silver < costOf(kind)) return false;
+    if (s.silver < costOf(kind) || !this.hasMaterials(s, kind)) return false;
     const rd = roadDist(s, dig);
     const { d, cell } = rectReach(s, r, rd);
     if (d === 0) {
@@ -553,7 +673,7 @@ export class SurvivalBot {
   }
 
   private service(s: GameState, kind: ServiceBuilding, targets: Building[]) {
-    if (s.silver < costOf(kind) || !this.affords(s, kind) || !this.spends(s, kind)) return false;
+    if (s.silver < costOf(kind) || !this.affords(s, kind) || !this.spends(s, kind) || !this.hasMaterials(s, kind)) return false;
     const { w, h } = dimsOf(kind);
     const rad = BUILDINGS[kind].radius ?? 0;
     // Spots touching the network, or a few road cells away (the bot lays the road first).
@@ -583,7 +703,10 @@ export class SurvivalBot {
 
   private houses(s: GameState, max: number) {
     const cost = costOf('house');
-    if (s.silver < cost) return false;
+    if (s.silver < cost || !this.hasMaterials(s, 'house')) return false;
+    const woodEach = materialsOf('house').wood ?? 0;
+    const byWood = woodEach ? Math.floor(s.wood / woodEach) : Infinity;
+    if (byWood < Math.min(max, this.p.housesPerAction)) this.lacked.wood = true;
     const { w, h } = dimsOf('house');
     const altar = altarRect(s);
     const goal = currentGoal(s);
@@ -613,7 +736,7 @@ export class SurvivalBot {
     cands.sort((a, b) => b.v - a.v);
     let n = 0;
     for (const c of cands) {
-      if (n >= Math.min(max, this.p.housesPerAction) || s.silver < cost) break;
+      if (n >= Math.min(max, this.p.housesPerAction, byWood) || s.silver < cost) break;
       if (place(s, 'house', c.r.x, c.r.y).ok) n++;
     }
     this.stats.built.house = (this.stats.built.house ?? 0) + n;
@@ -746,6 +869,10 @@ export interface Result {
   endTempleAny: boolean;
   /** A4: largest residents(year N) / residents(year N-1) from year 2 on (completed years before the end). */
   growthMax: number;
+  /** A4 without recoveries: largest residents(year N) / the best year-end before it or the founding caravan (a city back at an old size is not an explosion). */
+  growthPeak: number;
+  /** Residents in the founding caravan. */
+  residentsStart: number;
   /** Couples that left for lack of a house, and the longest wait of a couple (weeks). */
   couplesLeft: number;
   coupleWaitMax: number;
@@ -765,6 +892,38 @@ export interface Result {
   endResidents: number;
   /** Week each milestone, residents mark (`res<n>`, n = 10..200 by 5) and houses mark (`h<level>x<n>`) was first reached: for goal design. */
   marks: Record<string, number>;
+  /** P3 materials: the numbers below (W1-W6 of plano-p3 8.2 and the 8.3 reports). */
+  mat: MatResult;
+}
+
+export interface MatResult {
+  /** Most lumbers / quarries standing at once. */
+  lumbers: number;
+  quarries: number;
+  /** Weeks with at least one house waiting for wood / stone, and the longest wait of a single house (any material). */
+  waitWeeks: Record<Material, number>;
+  houseWaitMax: number;
+  /** W3: weeks of year 1 in which the bot wanted to build and lacked wood. */
+  woodBlockedY1: number;
+  /** Weeks (all game) in which a wanted build lacked wood / stone. */
+  blocked: Record<Material, number>;
+  /** W4: longest run of wood or stone above 300 before the temple is unlocked. */
+  idle300: number;
+  /** W5: adults without work at week 200 (NaN if the game ended before). */
+  unemployed200: number;
+  /** Stumps standing at weeks 260 and 520, and trees cut in the game. */
+  stumps260: number;
+  stumps520: number;
+  cut: number;
+  /** Made, spent on buildings and spent on house levels. */
+  made: Record<Material, number>;
+  spentBuild: Record<Material, number>;
+  spentLevel: Record<Material, number>;
+  /** Stock at the end of each year. */
+  byYear: Record<Material, number[]>;
+  /** What the temple waited for last (silver, wood or stone), and weeks from its unlock to its building. */
+  templeLast: string | null;
+  templeWait: number;
 }
 
 const riverDistance = (s: GameState) => {
@@ -802,9 +961,21 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, templeGap: null, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
     endSilver: 0, endIncome: 0, endTempleRoom: false, endTempleAny: false,
-    growthMax: NaN, couplesLeft: 0, coupleWaitMax: 0, caravansArrived: 0, caravansAll: 0, caravansSome: 0, g15: null, coupleBlocksByYear: [],
+    growthMax: NaN, growthPeak: NaN, residentsStart: computeEconomy(s).residents, couplesLeft: 0, coupleWaitMax: 0, caravansArrived: 0, caravansAll: 0, caravansSome: 0, g15: null, coupleBlocksByYear: [],
     endBands: { child: 0, adult: 0, elder: 0 }, endUnemployed: 0, deathAge: NaN, endResidents: 0, marks: {},
+    mat: {
+      lumbers: 0, quarries: 0, waitWeeks: { wood: 0, stone: 0 }, houseWaitMax: 0, woodBlockedY1: 0, blocked: { wood: 0, stone: 0 }, idle300: 0, unemployed200: NaN,
+      stumps260: 0, stumps520: 0, cut: 0, made: { wood: 0, stone: 0 }, spentBuild: { wood: 0, stone: 0 }, spentLevel: { wood: 0, stone: 0 },
+      byYear: { wood: [], stone: [] }, templeLast: null, templeWait: NaN,
+    },
   };
+  const mat = res.mat;
+  const houseWait = new Map<number, number>();
+  let matRun = 0;
+  let templeUnlockWeek: number | null = null;
+  /** Week each temple resource last became enough (null: not enough now). */
+  const enoughSince: Record<string, number | null> = { silver: null, wood: null, stone: null };
+  const templeCost: Record<string, number> = { silver: costOf('temple'), ...materialsOf('temple') };
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
   let richRun = 0;
@@ -814,7 +985,22 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const trees = () => s.feature.filter((f) => f === 'palm' || f === 'olive').length;
   while (s.week < maxWeeks) {
     const t0 = trees();
+    for (const k of Object.keys(enoughSince)) {
+      const have = k === 'silver' ? s.silver : s[k as Material];
+      enoughSince[k] = have >= (templeCost[k] ?? 0) ? (enoughSince[k] ?? s.week) : null;
+    }
+    const hadTemple = s.buildings.some((b) => b.kind === 'temple');
+    const before = { wood: s.wood, stone: s.stone };
     bot.act(s);
+    for (const m of MATERIALS) {
+      mat.spentBuild[m] += Math.max(0, before[m] - s[m]);
+      if (bot.lacked[m]) mat.blocked[m]++;
+    }
+    if (s.week < 52 && bot.lacked.wood) mat.woodBlockedY1++;
+    if (!hadTemple && s.buildings.some((b) => b.kind === 'temple')) {
+      mat.templeLast = Object.keys(enoughSince).reduce((a, k) => ((enoughSince[k] ?? -1) > (enoughSince[a] ?? -1) ? k : a), 'silver');
+      if (templeUnlockWeek !== null) mat.templeWait = s.week - templeUnlockWeek;
+    }
     res.clearSpent += (t0 - trees()) * RULES.treeClearCost;
     const eco = computeEconomy(s);
     const block = birthBlock(s, eco) ?? 'open';
@@ -847,7 +1033,32 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (res.firstGranaryWeek === null && s.buildings.some((b) => b.kind === 'granary' && b.connected)) res.firstGranaryWeek = s.week;
     const goalBefore = s.goalIndex;
     const wasDrought = s.drought;
+    const mid = { wood: s.wood, stone: s.stone };
     const events = stepWeek(s, rng);
+    for (const m of MATERIALS) {
+      mat.made[m] += eco[m];
+      // What the week's production does not explain went into house levels.
+      mat.spentLevel[m] += Math.max(0, mid[m] + eco[m] - s[m]);
+    }
+    mat.cut += events.filter((e) => e.type === 'treeCut').length;
+    for (const b of s.buildings) {
+      if (b.kind !== 'house') continue;
+      if (!b.waiting) { houseWait.delete(b.id); continue; }
+      const w = (houseWait.get(b.id) ?? 0) + 1;
+      houseWait.set(b.id, w);
+      mat.houseWaitMax = Math.max(mat.houseWaitMax, w);
+    }
+    const waitingNow = housesWaiting(s);
+    for (const m of MATERIALS) if (waitingNow[m] > 0) mat.waitWeeks[m]++;
+    mat.lumbers = Math.max(mat.lumbers, s.buildings.filter((b) => b.kind === 'lumber').length);
+    mat.quarries = Math.max(mat.quarries, s.buildings.filter((b) => b.kind === 'quarry').length);
+    if (templeUnlockWeek === null && s.unlocked.includes('temple')) templeUnlockWeek = s.week;
+    matRun = (s.wood > 300 || s.stone > 300) && !s.unlocked.includes('temple') ? matRun + 1 : 0;
+    mat.idle300 = Math.max(mat.idle300, matRun);
+    if (s.week === 200) mat.unemployed200 = unemployed(s);
+    if (s.week === 260) mat.stumps260 = s.stumps.length;
+    if (s.week === 520) mat.stumps520 = s.stumps.length;
+    if (s.week % 52 === 0) for (const m of MATERIALS) mat.byYear[m].push(s[m]);
     if (s.drought && !wasDrought) { res.droughtYears++; dryYear = true; }
     if (seasonOf(s.week) === 'autumn' && s.week % RULES.weeksPerSeason === 0) dryYear = false;
     for (let g = goalBefore; g < s.goalIndex; g++) res.goalWeeks[g] = s.week;
@@ -929,7 +1140,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   res.levelsAtEnd = [1, 2, 3, 4].map((l) => s.buildings.filter((b) => b.kind === 'house' && b.level === l).length);
   // A4: growth of each completed year over the one before, from year 2 on.
   const ry = res.residentsByYear;
+  const start = res.residentsStart;
   for (let y = 1; y < ry.length; y++) if (ry[y - 1] > 0) res.growthMax = Math.max(Number.isNaN(res.growthMax) ? 0 : res.growthMax, ry[y] / ry[y - 1]);
+  for (let y = 1; y < ry.length; y++) {
+    const best = Math.max(start, ...ry.slice(0, y));
+    if (best > 0) res.growthPeak = Math.max(Number.isNaN(res.growthPeak) ? 0 : res.growthPeak, ry[y] / best);
+  }
   res.endBands = bandCounts(s);
   res.endUnemployed = unemployed(s);
   const ages = s.departed.filter((p) => p.end?.cause === 'age').map((p) => ageOf(p, p.end!.week)).sort((a, b) => a - b);

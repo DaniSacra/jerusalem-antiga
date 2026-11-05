@@ -469,9 +469,9 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 17 | Chegue a 175 moradores | 175 | +200 | – |
 | 18 | Construa o Templo | 1 | vitória | – |
 
-Calibração do Pacote Povo (`docs/revisoes/2026-11-05/sim-tester-povo.md`): com estes números o
-Comum cumpre os objetivos 5 a 17 nas semanas ~75, 89, 90, 191, 196, 197, 273, 298, 355, 398, 462,
-530 e 594 (mediana; rodada 2 das decisões do usuário), um a cada ~1 a 5 min.
+Calibração do Povo com o Pacote 3 (`docs/revisoes/2026-11-05/sim-tester-p3.md`): com estes números
+o Comum cumpre os objetivos 5 a 17 nas semanas ~76, 96, 122, 194, 211, 221, 275, 325, 380, 423, 511,
+578 e 617 (mediana de 100 partidas), um a cada ~1 a 5 min; vence em ~33 min.
 
 Tipos de objetivo no core: `milestone` (cumpre quando o marco foi alcançado, mesmo antes de o
 objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
