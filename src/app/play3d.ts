@@ -9,6 +9,9 @@ import { Scene3D, type Scene3DOptions } from '../render3d/scene3d';
 import type { Level, ViewOverride } from '../render3d/stage';
 import { Hud, type HudHost } from '../ui/hud';
 
+/** Time between frames while the game is paused and nothing moves (10 a second). */
+const IDLE_FRAME_MS = 100;
+
 export interface Play3DOptions extends Scene3DOptions {
   /** Back to the 2D game (null when there is none). */
   exit: (() => void) | null;
@@ -33,6 +36,8 @@ export class Play3D implements SessionView, GestureView, HudHost {
   private marksDirty = true;
   private closed = false;
   private lastTouch = false;
+  /** Something happened since the last frame drawn (input, the game): draw the next one. */
+  private wake = true;
 
   private constructor(
     readonly session: Session,
@@ -59,7 +64,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
 
   /** Opens the 3D game on a session; throws when the device cannot draw WebGL 2. */
   static async open(session: Session, opts: Play3DOptions): Promise<Play3D> {
-    const scene = await Scene3D.create(session.state, session.seed, opts);
+    const scene = Scene3D.create(session.state, session.seed, opts);
     try {
       return new Play3D(session, scene, opts);
     } catch (e) {
@@ -107,6 +112,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
       runKey(c, this.session, { closeTop: () => this.hud.closeTop(), turnMap: (d) => this.turn(d), panBy: (dx, dy) => this.panBy(dx, dy) });
     });
     on<Event>(window, 'resize', () => this.resize());
+    // Any input on the page (map or interface) wakes the frame rate up (see `loop`).
+    const wake = () => (this.wake = true);
+    for (const t of ['pointerdown', 'pointermove', 'pointerup', 'wheel']) on<Event>(this.root, t, wake, { capture: true, passive: true });
+    on<Event>(window, 'keydown', wake, { capture: true });
   }
 
   private resize() {
@@ -155,6 +164,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
   }
 
   hoverChanged() {
+    this.wake = true;
     this.marksDirty = true;
   }
 
@@ -180,21 +190,25 @@ export class Play3D implements SessionView, GestureView, HudHost {
   // ---------------------------------------------------------------- SessionView
 
   redraw() {
+    this.wake = true;
     this.scene.cityChanged();
     this.marksDirty = true;
     this.hud.update();
   }
 
   overlay() {
+    this.wake = true;
     this.marksDirty = true;
     this.hud.update();
   }
 
   toast(msg: string, tone: Tone, opt?: ToastOptions) {
+    this.wake = true;
     this.hud.toast(msg, tone, opt);
   }
 
   out(o: GameOut) {
+    this.wake = true;
     this.scene.effect(o);
     switch (o.do) {
       case 'victory':
@@ -234,6 +248,12 @@ export class Play3D implements SessionView, GestureView, HudHost {
 
   private loop() {
     const now = performance.now();
+    // Paused and nothing moving: 10 frames a second are enough (heat and battery on a phone).
+    if (this.idle && now - this.last < IDLE_FRAME_MS) {
+      this.scene.stage.holdQuality();
+      return;
+    }
+    this.wake = false;
     const dt = Math.min((now - this.last) / 1000, 0.1);
     this.last = now;
     const s = this.session;
@@ -243,6 +263,12 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.hud.frame(dt * 1000);
     const speed = this.modalOpen ? 0 : s.speed;
     this.scene.frame(dt, (now - this.start) / 1000, s.state.week + s.weekFrac, speed, settings.dayNight, !!this.gestures.press);
+  }
+
+  /** The game stands still, the camera too, and nothing happened since the last frame. */
+  private get idle() {
+    const s = this.session;
+    return !this.wake && (s.speed === 0 || this.modalOpen) && !this.gestures.press && !this.marksDirty && this.scene.still;
   }
 
   private drawMarks() {
@@ -294,6 +320,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
       view3d: {
         get frames() {
           return stage.frames;
+        },
+        /** The model pack arrived (or failed, or none was asked): the city has its final look. */
+        get ready() {
+          return g.scene.ready;
         },
         fps: () => stage.fps(),
         rig,

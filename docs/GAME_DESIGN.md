@@ -665,16 +665,22 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - Interface HTML (Fase 1): barra do topo (nível com anel do objetivo, pílulas de prata, comida,
     madeira/pedra, moradores e alegria, objetivo, estação, velocidade), dois botões de girar à
     esquerda, Mover/Rua/Demolir embaixo à esquerda, a coluna com as 12 construções à direita (preço
-    ou "objetivo N"), toasts no meio embaixo, a frase do tutorial com "Pular tutorial" e a seta, o
+    ou "objetivo N"), toasts embaixo entre as ferramentas e a coluna, a frase do tutorial com "Pular tutorial" e a seta, o
     balão da construção tocada (nome, ligada à rua, nível, Melhorar e Demolir), a pílula sobre a
-    prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. Painéis
+    prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. O balão fica ao
+    lado da construção, mas sempre na área livre do mapa (nunca sobre a barra, a coluna ou as
+    ferramentas; construção fora da tela: na borda dessa área). Painéis
     (objetivos, avisos, estatísticas, povo) e ficha de pessoa vêm na Fase 2.
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
     fica salvo) e "Mapa: em 3D", que troca para o 2D clássico (volta à mesma partida quando o 3D
     veio do botão 3D; aberto direto em 3D, avisa "O 2D começa uma partida nova"). Esc fecha.
   - **Tela inicial em HTML** (3D aberto direto): nome, como jogar, controles, "Começar" (Enter no
-    PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js e os
-    modelos baixam enquanto ela está aberta.
+    PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
+    enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do
+    pacote (Meshy) quando eles chegam.
+  - **Bateria:** com o jogo pausado e nada se mexendo, o 3D desenha 10 quadros por segundo; qualquer
+    toque, tecla ou acontecimento volta ao ritmo normal. Se o celular perde o contexto gráfico (ao
+    voltar de outro app), a cidade é redesenhada quando ele volta.
   - No chão: a prévia da ferramenta como no 2D (o modelo translúcido em branco, amarelo "falta
     ligar à rua" ou vermelho, a área do serviço e as casas que ele atenderia, o que já está coberto),
     a rua marcada do tutorial, as áreas do Templo, os lugares de "Onde construir" e, com Demolir, a

@@ -12,7 +12,8 @@ import { marksOf, type Marks, type MarksInput } from './marks';
 import { Overlay } from './overlay';
 import { cellOfPoint, pickBox, rayToGround, type PickBox } from './picking';
 import { yawOfRotation } from './plan';
-import { canRun3D, loadModels, Stage, type Level } from './stage';
+import { codeModels, loadModelPack, type ModelKey, type Prototype } from './models';
+import { canRun3D, PACK, Stage, type Level } from './stage';
 import { advanceDay, dayTime, nightness } from './time/day';
 
 export interface Scene3DOptions {
@@ -53,7 +54,7 @@ export class Scene3D {
     private s: GameState,
     stage: Stage,
     opts: Scene3DOptions,
-    models: Awaited<ReturnType<typeof loadModels>>,
+    models: Record<ModelKey, Prototype>,
   ) {
     this.stage = stage;
     this.dayT = dayTime(opts.dayT ?? LOOK.day.start);
@@ -69,17 +70,40 @@ export class Scene3D {
     this.keys = cityKeys(s);
   }
 
-  /** Builds the scene for a game; throws when the device cannot draw WebGL 2. */
-  static async create(s: GameState, seed: number, opts: Scene3DOptions): Promise<Scene3D> {
+  /** True once the model pack arrived, failed or was not asked for (the city has its final look). */
+  ready = false;
+  private disposed = false;
+
+  /**
+   * Builds the scene for a game with the code models at once; the .glb pack (when asked) replaces
+   * them when it arrives, so the first frame never waits for the download. Throws when the device
+   * cannot draw WebGL 2.
+   */
+  static create(s: GameState, seed: number, opts: Scene3DOptions): Scene3D {
     if (!canRun3D()) throw new Error('no WebGL 2');
-    const models = await loadModels(opts.pack);
+    const models = codeModels();
     const stage = new Stage(s, seed, models, new THREE.Vector3(s.cols / 2, 0, s.rows / 2));
+    let scene: Scene3D;
     try {
-      return new Scene3D(s, stage, opts, models);
+      scene = new Scene3D(s, stage, opts, models);
     } catch (e) {
       stage.dispose();
       throw e;
     }
+    const pack = opts.pack === undefined ? PACK : opts.pack;
+    if (!pack) scene.ready = true;
+    else
+      loadModelPack(pack, models)
+        .then((m) => scene.setModels(m))
+        .catch(() => {})
+        .finally(() => (scene.ready = true));
+    return scene;
+  }
+
+  private setModels(m: Record<ModelKey, Prototype>) {
+    if (this.disposed) return;
+    this.stage.setModels(m);
+    this.overlay.models = m;
   }
 
   get el() {
@@ -135,6 +159,11 @@ export class Scene3D {
   /** The camera slides to a footprint (null: stops sliding). */
   glideTo(r: Rect | null) {
     this.glide = r && new THREE.Vector3(r.x + r.w / 2, 0, r.y + r.h / 2);
+  }
+
+  /** The camera is not sliding nor turning on its own. */
+  get still(): boolean {
+    return !this.glide && !this.rig.turningNow;
   }
 
   // ---------------------------------------------------------------- the game's changes
@@ -221,6 +250,7 @@ export class Scene3D {
   }
 
   dispose() {
+    this.disposed = true;
     this.overlay.dispose();
     this.fx.dispose();
     this.stage.dispose();

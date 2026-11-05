@@ -46,7 +46,7 @@ try {
   await page.goto(`http://localhost:${PORT}/?view=3d&seed=5`, { timeout: 90000 });
   await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
   await page.evaluate(() => window.session.setSpeed(0));
   const renderer = await page.evaluate(() => {
     const g = document.createElement('canvas').getContext('webgl2');
@@ -80,6 +80,8 @@ try {
     return s.buildings.length;
   });
   console.log(`renderer: ${renderer} | CPU 4x slower | ${buildings} buildings`);
+  // The game runs at 3x while measuring (paused and still, the 3D drops to 10 frames a second).
+  await page.evaluate(() => window.session.setSpeed(3));
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   const CONDITIONS = {

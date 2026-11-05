@@ -4,7 +4,7 @@ import type { ToastOptions, Tone } from '../game/toastQueue';
 import { NOVA_CSS, NOVA_FONT } from '../render/palette';
 import { T } from '../render/strings';
 import { Anchors } from './anchors';
-import { Balloon } from './balloon';
+import { Balloon, type Free } from './balloon';
 import { formOf, h, setText } from './dom';
 import { Modal } from './modal';
 import { SettingsPanel } from './settings';
@@ -48,6 +48,8 @@ export class Hud {
   private modal: Modal;
   private settings: SettingsPanel;
   private tag = h('div.anchor.tag.panel.hidden');
+  /** The map's free area, measured on update and resize (the balloon stays in it). */
+  private free: Free = { left: 8, top: 8, right: innerWidth - 8, bottom: innerHeight - 8 };
 
   constructor(parent: HTMLElement, private host: HudHost) {
     const root = (this.root = h('div', { id: 'hud', 'data-form': formOf() }));
@@ -60,7 +62,7 @@ export class Hud {
     this.settings = new SettingsPanel({ standalone: !host.exit, toClassic: () => host.toClassic() });
     this.top = new TopBar(s, { exit: host.exit, settings: () => this.settings.toggle() });
     this.tools = new Tools(s, (d) => host.turn(d));
-    this.balloon = new Balloon(s, this.anchors);
+    this.balloon = new Balloon(s, this.anchors, () => this.free);
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.modal = new Modal(root);
     root.append(this.tag, this.balloon.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.settings.el);
@@ -71,7 +73,18 @@ export class Hud {
   private onResize = () => {
     this.root.setAttribute('data-form', formOf());
     this.tutorial.remeasure();
+    this.measureFree();
   };
+
+  /** Below the top bar, left of the column, above the tools (8 px clear of each). */
+  private measureFree() {
+    const bottomOf = (els: Iterable<Element>) => Math.max(0, ...[...els].map((e) => e.getBoundingClientRect().bottom));
+    const top = bottomOf(this.top.el.querySelectorAll('.pill, .level, button'));
+    const col = this.tools.column.getBoundingClientRect();
+    const tools = this.tools.tools.getBoundingClientRect();
+    const right = col.width ? col.left : innerWidth;
+    this.free = { left: 8, top: top + 8, right: right - 8, bottom: (tools.height ? tools.top : innerHeight) - 8 };
+  }
 
   dispose() {
     removeEventListener('resize', this.onResize);
@@ -96,6 +109,7 @@ export class Hud {
   update() {
     this.top.update(this.phone);
     this.tools.update(this.phone);
+    this.measureFree();
     this.balloon.update();
     this.toasts.update();
     // A locked button may have opened up: buttons are measured again for the arrow.

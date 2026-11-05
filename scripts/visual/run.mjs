@@ -1881,7 +1881,7 @@ async function view3dScenario(page, suffix) {
   };
   for (const round of [1, 2]) {
     await press3d();
-    await page.waitForFunction(() => window.view3d?.frames > 3, null, { timeout: 180000 });
+    await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3, null, { timeout: 180000 });
     const st = await page.evaluate(() => ({ attached: window.view3d.game.session === window.session, running: window.game.game.loop.running, canvases: document.querySelectorAll('canvas').length, label: window.view3d.info().label }));
     assert(st.attached, 'the 3D plays the same session as the 2D');
     assert(!st.running, 'the 2D loop sleeps while the 3D is open');
@@ -2020,7 +2020,7 @@ async function play3dScenario(page, suffix) {
   assert(startBtn[3] >= 44, `Começar is thumb-sized (${startBtn[2]}x${startBtn[3]})`);
   if (phone) await cdpTapPage(page, startBtn[0], startBtn[1]);
   else await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
   await page.waitForTimeout(1500);
   const st = await page.evaluate(() => ({ phaser: !!window.Phaser || !!window.game?.scene || performance.getEntriesByType('resource').some((e) => /phaser/i.test(e.name)), canvases: document.querySelectorAll('canvas').length, form: document.querySelector('#hud').dataset.form, tutorial: !document.querySelector('.tutorial').classList.contains('hidden') }));
   assert(!st.phaser, 'the 3D game loads no Phaser');
@@ -2094,7 +2094,7 @@ async function open3dGame(page) {
   await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
   await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.view3d?.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
   await page.evaluate(() => window.session.setSpeed(0));
 }
 
@@ -2168,6 +2168,133 @@ async function touch3dScenario(page) {
   assert(Math.abs(c3.yaw - c2.yaw) > 0.3, `a twist turns the map (${c2.yaw} → ${c3.yaw})`);
   assert((await roads()) === r0, 'a twist with Rua builds no road');
   await page.screenshot({ path: `${OUT}/touch3d.png` });
+}
+
+/** The 3D keeps the phone cool and survives a lost GPU: 10 frames a second while paused and still; the city comes back after the WebGL context is lost and restored. */
+async function context3dScenario(page) {
+  await open3dGame(page);
+  await page.waitForFunction(() => window.view3d.ready, null, { timeout: 60000 });
+  const framesIn = (ms) => page.evaluate((ms) => new Promise((ok) => { const f0 = window.view3d.frames; setTimeout(() => ok(window.view3d.frames - f0), ms); }), ms);
+  await page.waitForTimeout(500);
+  const paused = await framesIn(2000);
+  assert(paused <= 26, `paused and still: about 10 frames a second (${paused} in 2 s)`);
+  await page.evaluate(() => window.session.setSpeed(1));
+  const running = await framesIn(2000);
+  assert(running > paused, `running draws more frames than paused (${running} vs ${paused} in 2 s)`);
+  await page.evaluate(() => window.session.setSpeed(0));
+  const lost = await page.evaluate(() => {
+    const gl = document.querySelector('.g3d canvas').getContext('webgl2');
+    const ext = gl.getExtension('WEBGL_lose_context');
+    if (!ext) return false;
+    window.__lose = ext;
+    ext.loseContext();
+    return true;
+  });
+  assert(lost, 'the WebGL context can be lost (WEBGL_lose_context)');
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.__lose.restoreContext());
+  const f0 = await page.evaluate(() => window.view3d.frames);
+  await page.waitForFunction((f0) => window.view3d.frames > f0 + 5, f0, { timeout: 30000 });
+  // A tap wakes the frame rate up; the city is drawn again in full.
+  await page.mouse.move(600, 300);
+  await page.waitForTimeout(300);
+  const info = await page.evaluate(() => window.view3d.info());
+  assert(info.calls > 20 && info.triangles > 20000, `the city is drawn again after the context came back (${info.calls} calls, ${info.triangles} triangles)`);
+  await page.screenshot({ path: `${OUT}/context3d-pc.png` });
+}
+
+/**
+ * The 3D interface on a screen size: no text under 12 px, touch targets of 44 px or more on a phone,
+ * nothing overlapping (top bar, turns, tools, column, toasts, tutorial), all on screen; with the
+ * tutorial bubble, a balloon open and a toast, then the settings panel.
+ */
+async function hud3dScenario(page, name) {
+  await page.addInitScript(() => localStorage.removeItem('jerusalem.tutorialDone'));
+  await page.goto(`${URL.replace(/\?.*$/, '')}?view=3d&seed=7`, { timeout: 90000 });
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.evaluate(() => window.session.setSpeed(0));
+  await page.waitForTimeout(400);
+  const check = () =>
+    page.evaluate(() => {
+      const hud = document.getElementById('hud');
+      const phone = hud.dataset.form === 'phone';
+      const shown = (el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('.hidden');
+      };
+      const bad = [];
+      for (const el of hud.querySelectorAll('*')) {
+        if (!shown(el)) continue;
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (own && parseFloat(getComputedStyle(el).fontSize) < 12) bad.push(`small text "${el.textContent.trim().slice(0, 20)}" ${getComputedStyle(el).fontSize}`);
+      }
+      if (phone)
+        for (const b of hud.querySelectorAll('button')) {
+          if (!shown(b)) continue;
+          const r = b.getBoundingClientRect();
+          if (Math.min(r.width, r.height) < 44) bad.push(`small button ${b.dataset.spot ?? b.textContent.trim().slice(0, 12)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+      const W = innerWidth;
+      const H = innerHeight;
+      // Each control (button, pill, toast, the tutorial bubble) by its group; two groups must not overlap.
+      const GROUPS = ['header.top', 'nav.side', 'nav.tools', 'nav.column', '.toasts', '.tutorial', '.balloon', '.settings', '.arrow'];
+      const items = [];
+      for (const el of hud.querySelectorAll('button, .pill, .level, .toast, .tutorial, .balloon, .settings, .arrow')) {
+        if (!shown(el)) continue;
+        const g = GROUPS.find((q) => el.closest(q));
+        if (!g) continue;
+        let r = el.getBoundingClientRect();
+        // Inside a scrolling list (the column): only the part in view counts.
+        const box = el.closest('nav.column')?.getBoundingClientRect();
+        if (box && g === 'nav.column') {
+          if (r.bottom <= box.top || r.top >= box.bottom) continue;
+          r = { left: r.left, right: r.right, top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom) };
+        }
+        items.push({ g, r, name: el.dataset.spot ?? el.className });
+      }
+      for (const { g, r, name } of items) if (r.left < -1 || r.top < -1 || r.right > W + 1 || r.bottom > H + 1) bad.push(`${g} ${name} off screen ${JSON.stringify([r.left, r.top, r.right, r.bottom].map(Math.round))}`);
+      for (let i = 0; i < items.length; i++)
+        for (let j = i + 1; j < items.length; j++) {
+          const A = items[i];
+          const B = items[j];
+          // The settings panel is a menu dropping from the gear: it may cover the column while open.
+          if (A.g === B.g || A.g === '.settings' || B.g === '.settings') continue;
+          // Toasts pass over a balloon for a few seconds (drawn on top of it, so they stay readable).
+          const pair = [A.g, B.g].sort().join();
+          if (pair === '.balloon,.toasts') continue;
+          const [a, b] = [A.r, B.r];
+          if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) bad.push(`${A.g} ${A.name} overlaps ${B.g} ${B.name}`);
+        }
+      return { phone, bad: [...new Set(bad)], n: items.length };
+    });
+  // With the tutorial bubble and a toast.
+  await page.evaluate(() => window.session.say('Uma mensagem de teste para ver o tamanho', 'info'));
+  await page.waitForTimeout(300);
+  const a = await check();
+  await page.screenshot({ path: `${OUT}/hud3d-${name}.png` });
+  assert(a.bad.length === 0, `tutorial and toast: ${a.bad.join('; ')}`);
+  assert(await page.evaluate(() => !document.querySelector('.tutorial').classList.contains('hidden')), 'the tutorial bubble shows on a first game');
+  // A balloon open on the altar: it stays clear of the controls.
+  await page.evaluate(() => {
+    window.session.skipTutorial();
+    const altar = window.state.buildings.find((b) => b.kind === 'altar');
+    window.session.selectTool('view');
+    window.session.select({ x: altar.x, y: altar.y });
+  });
+  await page.waitForTimeout(300);
+  const b = await check();
+  await page.screenshot({ path: `${OUT}/hud3d-${name}-balloon.png` });
+  assert(b.bad.length === 0, `balloon: ${b.bad.join('; ')}`);
+  // The settings panel.
+  await page.keyboard.press('Escape');
+  await page.click('[data-spot="settings"]');
+  await page.waitForTimeout(200);
+  const c = await check();
+  await page.screenshot({ path: `${OUT}/hud3d-${name}-settings.png` });
+  assert(c.bad.length === 0, `settings: ${c.bad.join('; ')}`);
 }
 
 const scenarios = {
@@ -2481,6 +2608,11 @@ const scenarios = {
   'play3d-pc': { context: PC, run: (page) => play3dScenario(page, 'pc') },
   'input3d-pc': { context: PC, run: input3dScenario },
   touch3d: { context: PHONE, run: touch3dScenario },
+  'context3d-pc': { context: PC, run: context3dScenario },
+  'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },
+  'hud3d-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => hud3dScenario(page, 'wide') },
+  'hud3d-small-phone': { context: { ...PHONE, viewport: { width: 667, height: 375 } }, run: (page) => hud3dScenario(page, 'small-phone') },
+  'hud3d-pc': { context: PC, run: (page) => hud3dScenario(page, 'pc') },
 
   async 'town-art'(page) {
     await startGame(page);
@@ -3351,7 +3483,7 @@ async function novaScenario(page, suffix) {
     await press('side-3d');
     const closed = await page.evaluate(() => ({ panel: window.game.ui.view.panels.open, balloon: window.game.ui.view.inspector.open, selected: window.game.selected }));
     assert(!closed.panel && !closed.balloon && !closed.selected, `the 3D button closes the panel and the balloon (${JSON.stringify(closed)})`);
-    await page.waitForFunction(() => window.view3d?.frames > 3 && document.querySelector('[data-spot="exit3d"]'), null, { timeout: 180000 });
+    await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && document.querySelector('[data-spot="exit3d"]'), null, { timeout: 180000 });
     const r = await page.evaluate(() => {
       const b = document.querySelector('[data-spot="exit3d"]').getBoundingClientRect();
       return [b.x + b.width / 2, b.y + b.height / 2];

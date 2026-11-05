@@ -224,6 +224,11 @@ export class CameraRig {
     if (k.has('q') || k.has('e')) this.yawGoal = null;
   }
 
+  /** A quarter turn is still on its way. */
+  get turningNow(): boolean {
+    return this.yawGoal !== null;
+  }
+
   /** The ground point the camera looks at. */
   get focus(): THREE.Vector3 {
     return this.target;

@@ -70,6 +70,12 @@ export class World {
     this.buildPeople();
   }
 
+  /** Other models for the city (the .glb pack arrived): its buildings and props are drawn again. */
+  setModels(models: Record<ModelKey, Prototype>) {
+    this.models = models;
+    this.buildCity();
+  }
+
   /**
    * Lifts the building on cell (x, y) by `dy` and stretches it upward (its hop, see `WorldFx.hop`);
    * (0, 1) puts it back. A building drawn again meanwhile simply stands still.

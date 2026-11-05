@@ -26,7 +26,7 @@ export class Overlay {
 
   constructor(
     private height: (x: number, z: number) => number,
-    private models: Record<ModelKey, Prototype>,
+    public models: Record<ModelKey, Prototype>,
   ) {
     const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), m);

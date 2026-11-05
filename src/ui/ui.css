@@ -78,8 +78,10 @@
 @keyframes hud-bob { to { transform: translateY(-12px); } }
 
 /* ---------- toasts, tutorial, modal ---------- */
-.toasts { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--margin) + var(--tool) + 30px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; width: min(560px, 70vw); }
-.toast { padding: 7px 14px; border-radius: 16px; font-size: var(--num); font-weight: 700; text-align: center; animation: hud-in 0.15s ease; }
+/* In the map's free width: clear of the tools (and the tutorial arrow over them) on the left and the
+   build column on the right, centred in what is left. */
+.toasts { position: absolute; left: calc(var(--margin) * 2 + (var(--tool) + 14px) * 3); right: calc(var(--margin) * 2 + var(--col)); bottom: calc(var(--margin) + var(--tool) + 30px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; pointer-events: none; }
+.toast { max-width: min(560px, 100%); padding: 7px 14px; border-radius: 16px; font-size: var(--num); font-weight: 700; text-align: center; animation: hud-in 0.15s ease; }
 .toast.bad { background: rgba(142, 42, 31, 0.94); } .toast.good { background: rgba(46, 94, 34, 0.94); }
 .toast.quiet { color: var(--c-muted); font-weight: 400; } .toast.big { font-size: calc(var(--num) * 1.2); border: 2px solid var(--c-gold); }
 @keyframes hud-in { from { opacity: 0; } }

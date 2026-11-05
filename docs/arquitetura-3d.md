@@ -417,7 +417,14 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   raiz e a composição de `ui/{topbar,tools,balloon,toasts,tutorial,modal,settings}.ts`, com
   `ui/anchors.ts` (um passe por quadro para o que fica preso ao mundo: balão, pílula, textos subindo,
   seta num lugar; só `transform`/`visibility`, testado em `tests/ui`); os botões são medidos para a
-  seta só depois de um `update` ou `resize`, não a cada quadro.
+  seta só depois de um `update` ou `resize`, não a cada quadro. Passo 5: o 3D abre com os modelos por
+  código e troca pelos .glb quando chegam (`Scene3D.create` síncrono, `World.setModels`; os testes
+  esperam `view3d.ready`); pausado e parado, 10 quadros por segundo (`Play3D.idle`; a qualidade
+  automática não conta esses quadros, `Stage.holdQuality`); perda do contexto WebGL testada
+  (`context3d-pc`: o Three.js recria tudo); `hud3d-phone|wide|small-phone|pc` escritos, e com eles o
+  balão passou a ficar na área livre do mapa (abaixo da barra, à esquerda da coluna, acima das
+  ferramentas) e os avisos entre as ferramentas e a coluna. **Fase 1 fechada**; o "pronto quando"
+  de jogar até o objetivo 4 em 3D fica para o `playtester` na Fase 4.
 - **Entra:** `?view=3d` abre o jogo em 3D: relógio andando, `LiveWorld` por diferença, picking, prévia
   (fantasma, ladrilhos, raio, amarelo "falta ligar à rua"), grade, arrasto de rua/casa/campo/Demolir,
   construções únicas ao soltar, Mercado girando (R e toque de novo), Demolir avermelhado e "Cortar

@@ -4,7 +4,7 @@ import { SeasonClock } from '../render/Seasons';
 import { T } from '../render/strings';
 import { Atmosphere } from './atmosphere';
 import type { CameraRig } from './camera';
-import { codeModels, COLORS, CROPS, loadModelPack, materialOf, type ModelKey, type Prototype } from './models';
+import { COLORS, CROPS, materialOf, type ModelKey, type Prototype } from './models';
 import { Particles } from './particles';
 import { setColor, U } from './shaders';
 import { mixColor } from './time/color';
@@ -37,12 +37,6 @@ export function canRun3D(): boolean {
   } catch {
     return false;
   }
-}
-
-/** The code models, with the Meshy pack over them when it loads. */
-export async function loadModels(pack: string | null = PACK): Promise<Record<ModelKey, Prototype>> {
-  const models = codeModels();
-  return pack ? loadModelPack(pack, models).catch(() => models) : models;
 }
 
 /** Rebuilding the city waits at least this long after the last one (a road drag changes it per cell). */
@@ -150,6 +144,11 @@ export class Stage {
     this.seasons.force(o?.force ?? null);
     this.climate.force(o?.force ?? null);
     this.weather.reset();
+  }
+
+  /** Other models arrived (the .glb pack after the code ones): the city is drawn again with them. */
+  setModels(models: Record<ModelKey, Prototype>) {
+    this.world.setModels(models);
   }
 
   /** Layers of the city changed: they are drawn again soon (at most every REBUILD_MS). */
@@ -268,6 +267,13 @@ export class Stage {
   }
 
   /** Automatic quality: one step down when the frame rate stays under 30 for two windows in a row. */
+  /** Frames are being skipped on purpose (paused and still): the frame rate says nothing about the device now. */
+  holdQuality() {
+    this.stamps.length = 0;
+    this.checkedAt = performance.now() + 1000;
+    this.slow = 0;
+  }
+
   private checkQuality(now: number): boolean {
     const st = this.stamps;
     st.push(now);
