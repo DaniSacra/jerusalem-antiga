@@ -78,19 +78,34 @@ Mantidos:
   praça + pedra (sai o mercado); mercado só para a casa grande, liberado depois da oficina. Motivo: o
   Ano 1 é sobreviver com poucas casas, e o mercado só faz sentido com o que trocar. Gado fica para o
   Pacote C (uma mecânica por vez).
+- 2026-11-06 (diretor, depois do relatório `sim-tester-b1.md`; plano, seção 1b): entram já
+  `lumber.gather.max` 2 → 2,5 (P1) e os objetivos 17/18 com 130/160 moradores (P2). Medido junto:
+  Comum vence 69% em 33,5 min, pior espera 83 sem. Motivo: o frio e a demora vêm da madeira do meio da
+  partida, não do Ano 1 (S1–S4 iguais). O B2 não muda o teto de cada lenhador; a rodada do B2 mede com
+  e sem P1 + P2, e o P1 sai primeiro se algo quebrar. P3 (nascimento antes do inverno, 5 casas de
+  barro) entra como ajuste na rodada do B3. `baseFoodStorage` 60: fora por agora
+- 2026-11-06 (diretor): B3 revisado. A Tenda continua com 0,3 de lenha (com 0,5 a reserva só atrasava o
+  1º barro, S2 12 → 22, e o frio no Ano 1 ficava em 2%). O perigo do Ano 1 passa a ser a tenda no
+  inverno: bebês até 4 anos e idosos morrem com 1%/sem mesmo com lenha. Critérios F2, D1–D3 refeitos
+  (sai "frio no Ano 1 em 20–40%"). Motivo: a sobrevivência do Ano 1 sem desfazer a reserva do B1
 
 ## Agora: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
 - **B1 "Madeira antes da praça"** (sem mecânica nova): exigências novas das casas, Praça no objetivo
   5, Mercado no 7 ("Construa uma oficina"), objetivo 3 "Passe o primeiro inverno" (`firstSpring`),
   casa não gasta a lenha do inverno ao subir, tutorial sem praça. 19 objetivos (sai 125 moradores).
-  **Feito 2026-11-06** (código e testes); falta o sim-tester medir S1–S4.
+  **Feito 2026-11-06** (código e testes). Medido (`sim-tester-b1.md`): S1–S4 passam; A1/A2 falham
+  (Comum 37% em 39,6 min) → P1 + P2 entram (Decisões).
 - **B2 "Cada um no seu trabalho"** (mecânica nova): `Person.jobId`, produção por local × lotação,
   local vazio rende 0, mudar profissão pela ficha da pessoa, desemprego = adulto sem vaga.
   **Feito 2026-11-06** (código e testes; `src/core/work.ts`); falta o sim-tester medir J1–J3 e
-  pôr nos bots a troca de profissão (seção 3 "Bots").
-- **B3 "O frio pesa"** (mecânica nova): tenda queima 0,5/sem; morte de frio por semana de inverno
-  (tenda 0,5% vulneráveis; sem lenha tenda 4%/1%, casa 1%/0; com fome dobra).
+  pôr nos bots a troca de profissão (seção 3 "Bots"). A mesma rodada mede o main com e sem P1 + P2.
+- **B3 "O frio pesa"** (mecânica nova, revisado 2026-11-06): lenha da tenda igual (0,3); morte de frio
+  por semana de inverno, por pessoa (vulnerável = até 4 anos ou idoso): tenda com lenha 1%/0, tenda sem
+  lenha 4%/1%, barro ou melhor sem lenha 1%/0, com lenha 0; com fome dobra. Junto, o ajuste P3.
+  Critérios: F1 frio em algum inverno 40–70%; F2 2–4 tendas com gente no 1º inverno; D1 20–40% das
+  partidas com morte de frio no Ano 1 (p90 ≤ 2); D2 mediana ≤ 3 na partida; D3 Distraído perde no
+  Ano 1 ≤ 10%. ~3–3,5 h + 1–1,5 h de sim.
 - B4 "Alegria desde o começo": DEPOIS, decidir após o playtest do B3.
 - Critérios novos S1–S4, J1–J3, F1–F2, D1–D3 (seção 7 do plano). ~19–24 h para B1–B3.
 - Fora: gado, pasto, roupas, doenças, comércio do mercado, história, visual do Pacote A.

@@ -15,7 +15,7 @@
   { "type": "residents", "target": 65,  "reward": 100, "text": "Chegue a 65 moradores" },
   { "type": "residents", "target": 85,  "reward": 120, "text": "Chegue a 85 moradores" },
   { "type": "residents", "target": 100, "reward": 120, "unlock": "temple", "text": "Chegue a 100 moradores" },
-  { "type": "residents", "target": 150, "reward": 175, "text": "Chegue a 150 moradores" },
-  { "type": "residents", "target": 175, "reward": 200, "text": "Chegue a 175 moradores" },
+  { "type": "residents", "target": 130, "reward": 175, "text": "Chegue a 130 moradores" },
+  { "type": "residents", "target": 160, "reward": 200, "text": "Chegue a 160 moradores" },
   { "type": "build",     "target": 1,   "kind": "temple", "reward": 0, "victory": true, "text": "Construa o Templo" }
 ]

@@ -41,6 +41,31 @@ B1 não tem mecânica nova (dados, exigências, objetivos). B2 e B3 têm uma cad
 Fora do Pacote B: gado, pasto, roupas, doenças, eventos novos, comércio do mercado, história,
 qualquer mudança visual do Pacote A.
 
+## 1b. Decisões de 2026-11-06 depois do B1/B2
+Base: relatório `sim-tester-b1.md` (B1 medido em d90403f; B2 já no main em f1ccb01, ainda sem medida).
+
+| Item | Pilares | Decisão |
+|---|---|---|
+| P1 `lumber.gather.max` 2 → **2,5** | 2 ritmo, 1 (não mexe no Ano 1: S1–S4 iguais) | **ENTRA AGORA**: o frio de hoje vem da madeira do meio da partida (templo, casas, lenha), não do Ano 1; sem P1 o B3 mata demais depois do Ano 1 (D2) |
+| P2 objetivos 17/18: 150/175 → **130/160** moradores | 2 ritmo | **ENTRA AGORA**: tira a pior espera (139 → 83 sem) sem mexer em nenhuma regra |
+| P3 nascimento antes do inverno (3 ↔ 4) e barro 3 → **5** casas | 2 ritmo, 5 evoluir | **ENTRA COM O B3** (ajuste, medido na rodada do B3): tira as duas metas "já cumpridas"; "5 casas de barro" empurra para fora das tendas, que é a mensagem do B3 |
+| `rules.baseFoodStorage` 100 → 60 | 1 | **FORA por agora**: mexe no celeiro da partida inteira; a meta 1 é a do tutorial e ensina a coisa certa |
+| Tenda `firewood` 0,3 → 0,5 (antiga regra 1 do B3) | 1 contra 5 | **FORA**: a reserva de lenha converte lenha a mais em barro atrasado (S2 12 → 22), não em frio (2%) |
+
+**P1 e o B2.** O `max` é o teto de cada lenhador; o B2 só multiplica pelo grupo dele (pessoas / vagas).
+Com gente sobrando (o caso do Comum), o lenhador fica cheio e rende o teto, como antes. Não há motivo
+para esperar. P1 + P2 entram juntos como dados, e a **rodada de medida do B2** (J1–J3) mede o main com
+e sem P1 + P2. Se P1 quebrar algo com o B2 (A2 do Distraído > 20% ou J1), sai o P1 primeiro; P2 fica.
+
+Dados (aplicar já; a rodada do B2 confirma): `buildings.json > lumber.gather.max` 2,5;
+`goals.json` objetivo 17 `target` 130 e 18 `target` 160; textos "Chegue a 130 moradores" e
+"Chegue a 160 moradores". `docs/GAME_DESIGN.md` (Objetivos, Lenhador) no mesmo passo.
+
+**Onde fica a sobrevivência do Ano 1.** A reserva de lenha do B1 faz o Ano 1 quase nunca passar frio,
+e isso é bom (pilar 1: há caminho de volta). O perigo do Ano 1 passa a ser **morar em tenda no
+inverno**, mesmo com lenha. A escolha do jogador é tirar as famílias com crianças pequenas e idosos da
+tenda antes da semana 13. A falta de lenha fica como o perigo maior, mais para a frente.
+
 ## 2. B1 "Madeira antes da praça" (sem mecânica nova)
 
 ### Regras
@@ -143,34 +168,46 @@ qualquer mudança visual do Pacote A.
   Antes do inverno, se a lenha falta, move um lavrador para o lenhador.
 - Distraído: nunca muda profissão.
 
-## 4. B3 "O frio pesa" (mecânica nova: morrer de frio)
+## 4. B3 "O frio pesa" (mecânica nova: morrer de frio) — revisado 2026-11-06 depois do B1
+
+Revisão: a lenha da tenda fica em 0,3 (a 0,5 só atrasava o barro, ver 1b). O perigo do Ano 1 é a
+tenda no inverno, com ou sem lenha. A falta de lenha (frio) pesa mais e vem sobretudo depois do Ano 1.
+Base de medida: main com B2 + P1 + P2 (seção 1b). P3 entra na mesma rodada, como ajuste.
 
 ### Regras
-1. **Tenda gasta mais lenha:** Tenda 0,3 → **0,5** por semana no inverno (6,5 por inverno). Com
-   5 tendas, 32,5 dos 40 de madeira iniciais. Construir casas (10) e subir para barro (5) disputam a
-   mesma madeira.
+1. **Lenha igual:** Tenda 0,3 por semana no inverno (sem mudança). A reserva de lenha do B1 fica igual.
 2. **Morte de frio**, a cada semana de inverno, por pessoa, sorteio próprio:
 
 | Onde | Vulnerável (até 4 anos ou idoso) | Outros |
 |---|---|---|
-| Tenda, com lenha | 0,5% | 0 |
+| Tenda, com lenha | **1%** | 0 |
 | Tenda, sem lenha (frio) | 4% | 1% |
 | Barro ou melhor, sem lenha | 1% | 0 |
 | Barro ou melhor, com lenha | 0 | 0 |
 
 3. **Fome e frio juntos:** as chances da tabela dobram. O sorteio da casa (cair ou ir embora)
    continua um só, como hoje.
-4. Morte de frio usa a morte atual (viúvo, órfão, casa que esvazia guarda o nível), causa nova
-   `coldDeath`. Marca `winterLoss` (não vence o marco do inverno).
+4. Morte de frio usa a morte atual (viúvo, órfão, vaga do B2 livre, casa que esvazia guarda o nível),
+   causa nova `coldDeath`. Marca `winterLoss` (o marco do inverno não sai; `firstSpring` sai igual).
 5. Ordem na semana: depois da queima da lenha e antes das casas.
 
-Conta esperada (5 tendas, 15 pessoas, ~3 vulneráveis): inverno com lenha ≈ 0,2 mortes. 4 semanas
-de frio ≈ 1 morte. Inverno inteiro sem lenha ≈ 3–4 mortes, mais as tendas que vão embora.
+Conta esperada:
+- **Ano 1 do Comum:** o 1º barro sai na semana ~12, então 3–4 tendas passam o inverno com gente, com
+  ~2–3 vulneráveis (bebês nascidos desde a semana 7 e idosos da caravana). 13 semanas × 2–3 × 1% ≈
+  0,3–0,4 mortes: **cerca de 1 partida em 3 perde alguém no 1º inverno**. Quem tira as famílias com
+  bebês da tenda antes da semana 13 não perde ninguém.
+- **Depois do Ano 1:** frio de ~12 semanas na partida (medido com P1), quase tudo em barro ou melhor,
+  ~10–15 vulneráveis × 12 × 1% ≈ 1–2 mortes na partida. Sem P1 (30 semanas) seriam ~4–5: por isso
+  o P1 vem antes.
 
 ### Dados
-- `houses.json > firewood`: Tenda 0,5.
-- `rules.json > coldDeath`: `{ "childAge": 4, "tent": [0.005, 0], "tentCold": [0.04, 0.01],
-  "houseCold": [0.01, 0], "famineFactor": 2 }` (pares = vulnerável, outros).
+- `houses.json`: sem mudança.
+- `rules.json > coldDeath`: `{ "childAge": 4, "tent": [0.01, 0], "tentCold": [0.04, 0.01],
+  "houseCold": [0.01, 0], "famineFactor": 2 }` (pares = vulnerável, outros). Idoso = a idade de
+  idoso que já existe (50).
+- Com P3 (ajuste na mesma rodada): `goals.json` objetivos 3 e 4 trocam de lugar (prêmios e "libera"
+  acompanham a posição: Pedreira no 4) e o objetivo 5 pede **5** casas de barro ("Tenha 5 casas de
+  barro").
 
 ### Na tela (copywriter)
 - Toast "Morreu Ana, 3 anos: frio na tenda" (discreto, como a morte por idade; 1 por semana, o resto
@@ -182,7 +219,7 @@ de frio ≈ 1 morte. Inverno inteiro sem lenha ≈ 3–4 mortes, mais as tendas 
 - Derrota e Estatísticas: mortes de frio no ano.
 
 ### Testes do core
-- Tenda com lenha: só vulneráveis morrem (chance 0,005, rng fixo); adulto nunca.
+- Tenda com lenha: só vulneráveis morrem (chance 0,01, rng fixo); adulto nunca.
 - Sem lenha: chances da tabela por tipo de casa; barro com lenha: ninguém morre.
 - Fome + frio dobra; fora do inverno ninguém morre de frio.
 - Morte de frio libera cônjuge, vaga de trabalho (B2) e esvazia a casa quando é o último.
@@ -213,8 +250,8 @@ de frio ≈ 1 morte. Inverno inteiro sem lenha ≈ 3–4 mortes, mais as tendas 
 | 14 | Chegue a 65 moradores | residents 65 | 100 | – |
 | 15 | Chegue a 85 moradores | residents 85 | 120 | – |
 | 16 | Chegue a 100 moradores | residents 100 | 120 | Templo |
-| 17 | Chegue a 150 moradores | residents 150 | 175 | – |
-| 18 | Chegue a 175 moradores | residents 175 | 200 | – |
+| 17 | Chegue a 130 moradores (era 150; P2, seção 1b) | residents 130 | 175 | – |
+| 18 | Chegue a 160 moradores (era 175; P2, seção 1b) | residents 160 | 200 | – |
 | 19 | Construa o Templo | build temple | vitória | – |
 
 - `firstSpring`: semana 1 da primavera do Ano 1 com alguém morando. Não é "inverno vencido" (que
@@ -236,27 +273,37 @@ Comum ≤ 5%), A9 (Ano 2: ≥ 3 casamentos, ≥ 5 nascimentos), W2 (espera por m
 | J1 | Local de trabalho vazio por > 8 semanas seguidas (Comum, partidas) | ≤ 10% | B2 |
 | J2 | Desempregados no Ano 1 (Comum, mediana semanal) | ≤ 2 | B2 |
 | J3 | Distraído (não muda profissão) com lenhador vazio em algum inverno | ≥ 40% | B2 |
-| F1 | Comum com frio em algum inverno | 40–70% | B3 |
-| F2 | Comum com frio no Ano 1 | 20–40% | B3 |
-| D1 | Mortes de frio no Ano 1 (Comum) | mediana 0–1, p90 ≤ 3 | B3 |
-| D2 | Mortes de frio na partida (Comum, mediana) | ≤ 4 | B3 |
-| D3 | Mortes de frio no Ano 1 (Distraído, mediana) | ≥ 2 | B3 |
+| F1 | Comum com frio em algum inverno (partidas; hoje 87% sem P1) | 40–70% | B3 |
+| F2 | Tendas com gente na semana 1 do inverno do Ano 1 (Comum, mediana) | 2–4 | B3 |
+| D1 | Comum com ≥ 1 morte de frio no Ano 1 (partidas); mortes no Ano 1, p90 | 20–40%; ≤ 2 | B3 |
+| D2 | Mortes de frio na partida (Comum): mediana; p90 | ≤ 3; ≤ 6 | B3 |
+| D3 | Derrota no Ano 1 (Distraído: frio por cima da fome não pode virar fim) | ≤ 10% | B3 |
+
+Revisão de 2026-11-06 (seção 1b): o antigo F2 "frio no Ano 1 em 20–40%" sai. Com a reserva de lenha
+ele não passa de 2%, e forçar o frio no Ano 1 desfaz o B1. O F2 novo mede se o risco existe (tendas no
+inverno); o D1 mede se ele morde. O antigo D3 (Distraído com ≥ 2 mortes de frio) sai: o Distraído já
+perde gente pela fome, e o que importa é ele não perder a cidade. Na rodada do B3, S1, S2 (8–20) e S4
+também precisam continuar passando, e vale medir o Comum com o perfil `tutorial` (D1 ≤ 40%).
 
 Alavancas, uma por rodada, nesta ordem:
-1. S1 alto ou F2 baixo: Tenda `firewood` 0,5 → 0,6. F2 alto ou S4 > 2%: 0,5 → 0,4.
-2. F2 alto: `startMaterials.wood` 40 → 50.
-3. D1 alto: `coldDeath.tentCold` [0,04, 0,01] → [0,03, 0,005].
-4. S2 cedo demais (< 8): Barro `materials.wood` 5 → 10.
-5. J2 alto: Coletora `jobs` 1 → 2 (teto igual).
-6. W2 ou A1 longos: Lenhador `gather.max` 2 → 2,5.
-7. S3 cedo: Oficina para o objetivo 8.
+- B3:
+  1. D1 baixo (< 20%): `coldDeath.tent` [0,01, 0] → [0,015, 0]. D1 alto (> 40% ou p90 > 2) ou
+     S4 > 2%: → [0,0075, 0].
+  2. D2 alto: `coldDeath.houseCold` [0,01, 0] → [0,005, 0].
+  3. F1 alto (> 70%): Barro `firewood` 0,2 → 0,15. F1 baixo (< 40%): Lenhador `gather.max` 2,5 → 2,25.
+  4. F2 baixo (< 2) ou S2 cedo (< 8): Barro `materials.wood` 5 → 8.
+  5. D3 alto: `coldDeath.famineFactor` 2 → 1,5.
+- B1/B2 (ficam): J2 alto: Coletora `jobs` 1 → 2 (teto igual). S3 cedo: Oficina para o objetivo 8.
+  Lenhador `gather.max` 2 → 2,5 já entrou (P1).
+- Fora: Tenda `firewood` (atrasa o barro antes de dar frio) e `startMaterials.wood` (o Ano 1 já não
+  passa frio).
 
 ## 8. Estimativa (uma pessoa)
 | Sub | Trabalho | Tempo |
 |---|---|---|
 | B1 | dados, exigências, reserva de lenha, `firstSpring`, objetivos, tutorial, textos, testes, docs | 3–4 h + 1–1,5 h de sim |
 | B2 | `jobId`, atribuição, produção por local, previsão, ficha "Mudar", balão do local, render, bots, testes | 9–11 h + 1,5–2 h de sim |
-| B3 | lenha da tenda, morte de frio, toasts e avisos, testes | 3–4 h + 1–1,5 h de sim |
+| B3 | morte de frio, P3 nos objetivos, toasts e avisos, testes (revisado: sem mudar a lenha) | 3–3,5 h + 1–1,5 h de sim |
 | B4 | Alegria desde o começo (se aprovado) | 2–3 h + 1 h de sim |
 
 Total B1–B3: **~19–24 h**. Com B4: ~22–28 h. B2 é o maior risco (mexe em toda produção e na

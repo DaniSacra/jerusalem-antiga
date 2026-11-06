@@ -63,8 +63,8 @@ describe('goals', () => {
       ['residents', 65, null, 100, null],
       ['residents', 85, null, 120, null],
       ['residents', 100, null, 120, 'temple'],
-      ['residents', 150, null, 175, null],
-      ['residents', 175, null, 200, null],
+      ['residents', 130, null, 175, null],
+      ['residents', 160, null, 200, null],
       ['build', 1, 'temple', 0, null],
     ]);
     expect(GOALS.at(-1)!.victory).toBe(true);
@@ -84,7 +84,7 @@ describe('goals', () => {
     expect(unlockingGoal('workshop')).toBe(6);
     expect(unlockingGoal('market')).toBe(7);
     expect(unlockingGoal('park')).toBe(9);
-    expect(unlockingGoal('temple')).toBe(16); // built before the 175 residents; the victory still asks for them
+    expect(unlockingGoal('temple')).toBe(16); // built before the 160 residents; the victory still asks for them
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
@@ -274,10 +274,10 @@ describe('years and the temple goal', () => {
     expect(goalOpen(s, later)).toBe(true);
   });
 
-  it('the temple goal is the one right before the victory (175 residents)', () => {
+  it('the temple goal is the one right before the victory (160 residents)', () => {
     const i = GOALS.length - 2;
     expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal: GOALS[i] });
-    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 175 });
+    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 160 });
   });
 
   it('a temple built before the last goal wins the week it is met (and says what it waits for)', () => {

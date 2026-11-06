@@ -82,13 +82,13 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (3 casas de barro); casas de barro no raio viram casas de pedra |
 | Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
 | Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
-| Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
+| Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
 | Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (primeiro nascimento); as rochas não acabam |
 | Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
 | Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
 | Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
-| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (175 moradores); não pode ser demolido; o raio só dá Alegria |
+| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (160 moradores); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -537,8 +537,8 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 14 | Chegue a 65 moradores | 65 | +100 | – |
 | 15 | Chegue a 85 moradores | 85 | +120 | – |
 | 16 | Chegue a 100 moradores | 100 | +120 | Templo |
-| 17 | Chegue a 150 moradores | 150 | +175 | – |
-| 18 | Chegue a 175 moradores | 175 | +200 | – |
+| 17 | Chegue a 130 moradores | 130 | +175 | – |
+| 18 | Chegue a 160 moradores | 160 | +200 | – |
 | 19 | Construa o Templo | 1 | vitória | – |
 
 Ordem do Pacote B1 (sobreviver primeiro): comida, casamento e o primeiro inverno vêm antes de
@@ -562,7 +562,7 @@ objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
 - **`fromYear`** (opcional, nenhum objetivo usa agora): o objetivo só se cumpre a partir desse ano
   (`goalOpen`). O Templo libera no Objetivo 16, para o jogador juntar prata e construí-lo antes (a
   pílula do objetivo termina com "· Templo 312/800" e a lista de objetivos com "Junte 800 para o
-  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 18 (175 moradores) e 19 (o
+  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 18 (160 moradores) e 19 (o
   Templo) se cumprem. Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na
   mesma semana do Objetivo 18 (`checkGoal`, `TEMPLE_GOAL` = o objetivo antes da vitória). Erguido
   antes (`templeWaitsForGoal`), um toast diz o que falta.
