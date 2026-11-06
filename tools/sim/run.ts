@@ -136,6 +136,26 @@ function b2Lines(rs: Result[]): string[] {
       ` | moves med empty ${m((r) => r.b2.moves.empty)} firewood ${m((r) => r.b2.moves.firewood)} | idle w200 med ${m((r) => r.mat.unemployed200)}`,
   ];
 }
+/** Package B3 (plano-sobrevivencia 4 and 7): F1, F2, D1-D3, J1 new, A2b and the defeats. */
+function b3Lines(rs: Result[]): string[] {
+  const n = rs.length;
+  const m = (get: (r: Result) => number, d = 0) => f(med(rs.map(get)), d);
+  const q = (get: (r: Result) => number, x: number) => f(qt(rs.map(get), x));
+  const sum = (k: string) => rs.reduce((a, r) => a + (r.b3.cold[k] ?? 0), 0);
+  const split = (y: string) => ['tent_v', 'tent_o', 'house_v', 'house_o', 'unknown'].map((k) => `${k} ${sum(`${y}_${k}`)}`).join(' ');
+  const lost = rs.filter((r) => r.lost);
+  const causes: Record<string, number> = {};
+  for (const r of lost) causes[r.b3.loss?.cause ?? '?'] = (causes[r.b3.loss?.cause ?? '?'] ?? 0) + 1;
+  const j1Kinds: Record<string, number> = {};
+  for (const r of rs) if (r.b3.j1 > 8 && r.b3.j1Kind) j1Kinds[r.b3.j1Kind] = (j1Kinds[r.b3.j1Kind] ?? 0) + 1;
+  return [
+    `  F1 cold any winter ${pc(rs.filter((r) => r.b1.coldWeeks > 0).length, n)} | F2 tents w13 med ${m((r) => r.b3.tentsW1)} p10-p90 ${q((r) => r.b3.tentsW1, 0.1)}-${q((r) => r.b3.tentsW1, 0.9)} (mud+ ${m((r) => r.b3.housesW1)}, vulnerable in tents med ${m((r) => r.b3.tentVulnW1)} p90 ${q((r) => r.b3.tentVulnW1, 0.9)}; their winter-1 weeks med ${m((r) => r.b3.tentVulnWeeksY1)} p75 ${q((r) => r.b3.tentVulnWeeksY1, 0.75)} p90 ${q((r) => r.b3.tentVulnWeeksY1, 0.9)} zero ${pc(rs.filter((r) => r.b3.tentVulnWeeksY1 === 0).length, n)})` +
+      ` | D1 cold death Y1 runs ${pc(rs.filter((r) => r.b3.coldY1 > 0).length, n)} p90 ${q((r) => r.b3.coldY1, 0.9)} max ${Math.max(...rs.map((r) => r.b3.coldY1))} | D2 per game med ${m((r) => r.b3.coldAll)} p90 ${q((r) => r.b3.coldAll, 0.9)} max ${Math.max(...rs.map((r) => r.b3.coldAll))} runs>0 ${pc(rs.filter((r) => r.b3.coldAll > 0).length, n)}`,
+    `  cold deaths (sum) Y1: ${split('Y1')} | all: ${split('all')}`,
+    `  J1new ${pc(rs.filter((r) => r.b3.j1 > 8).length, n)} (live lumber ${pc(rs.filter((r) => r.b3.j1Live > 8).length, n)}) longest med ${m((r) => r.b3.j1)} p90 ${q((r) => r.b3.j1, 0.9)} kinds ${Object.entries(j1Kinds).map(([k, v]) => `${k} ${v}`).join(', ') || '-'}` +
+      ` | A2b/D3 lost ${pc(lost.length, n)} Y1 ${pc(lost.filter((r) => r.weeks <= 52).length, n)} wk med ${f(med(lost.map((r) => r.weeks)))} causes ${Object.entries(causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'} | end residents med ${m((r) => r.endResidents)} <5 ${pc(rs.filter((r) => r.endResidents < 5).length, n)}`,
+  ];
+}
 /** A5 read per goal: the median wait for each goal (from the goal before; runs that reached it) and the worst of them. */
 function worstGoalGap(rs: Result[]): string {
   const gaps = GOALS.map((_, i) => med(rs.map((r) => (r.goalWeeks[i] ?? NaN) - (i ? (r.goalWeeks[i - 1] ?? NaN) : 0))));
@@ -163,6 +183,8 @@ for (const name of bots) {
     for (const l of materialLines(rs)) console.log(l);
     for (const l of b1Lines(rs)) console.log(l);
     for (const l of b2Lines(rs)) console.log(l);
+    for (const l of b3Lines(rs)) console.log(l);
+    if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -187,6 +209,8 @@ for (const name of bots) {
   for (const l of materialLines(rs)) console.log(l);
   for (const l of b1Lines(rs)) console.log(l);
   for (const l of b2Lines(rs)) console.log(l);
+  for (const l of b3Lines(rs)) console.log(l);
+  if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
   console.log(`end people med child/adult/elder ${['child', 'adult', 'elder'].map((k) => f(med(rs.map((r) => r.endBands[k as 'child'])))).join('/')} | unemployed ${f(med(rs.map((r) => r.endUnemployed)))} | death age med ${f(med(rs.map((r) => r.deathAge)))} | couples left med ${f(med(rs.map((r) => r.couplesLeft)))} (runs with any ${rs.filter((r) => r.couplesLeft > 0).length}) | couple wait max med ${f(med(rs.map((r) => r.coupleWaitMax)))} | caravans arrived ${rs.reduce((a, r) => a + r.caravansArrived, 0)} all housed ${rs.reduce((a, r) => a + r.caravansAll, 0)} some ${rs.reduce((a, r) => a + r.caravansSome, 0)}`);
   console.log(`caravans: families stayed ${rs.reduce((a, r) => a + r.caravanHoused, 0)} went on ${rs.reduce((a, r) => a + r.caravanLeft, 0)} | granaries max at once med ${f(med(rs.map((r) => r.maxGranaries)))} max ${Math.max(...rs.map((r) => r.maxGranaries))}`);
   console.log(`silver below 0: Y1 ${rs.filter((r) => r.debtY1).length}/${n}  Y2 ${rs.filter((r) => r.debtY2).length}/${n}  ever ${rs.filter((r) => r.debtEver).length}/${n} | longest wait on one goal med ${f(med(rs.map((r) => r.goalWait)))} max ${f(Math.max(...rs.map((r) => r.goalWait)))}  runs > 52 wk ${rs.filter((r) => r.goalWait > 52).length} (goals ${[...new Set(rs.filter((r) => r.goalWait > 52).map((r) => r.goalWaitIndex + 1))].sort((x, y) => x - y).join(',') || '-'})`);
@@ -220,6 +244,7 @@ for (const name of bots) {
 }
 if (!args.includes('--json')) console.log(ranking(byBot));
 if (args.includes('--json')) console.log(JSON.stringify(all));
+if (args.includes('--coldrows')) for (const r of all) console.log(`cold ${r.bot} s${r.seed} ${r.won ? 'W' + r.weeks : r.lost ? 'L' + r.weeks : '-'} deaths ${r.b3.coldAll} byYear ${r.b3.coldByYear.join(',')} coldWks ${r.b3.coldWeeksByYear.join(',')} tents ${r.b3.tentsByWinter.join(',')}`);
 if (args.includes('--rows')) for (const r of all) console.log([r.bot, r.seed, r.families0, r.foodWeeks0, r.riverDist, r.year1 ? 'Y1ok' : 'Y1x', r.residents52, r.famineY1, r.firstHarvestWeek, r.firstGranaryWeek, r.won ? r.weeks : r.lost ? 'L' + r.weeks : '-', JSON.stringify(r.built)].join(' '));
 
 if (args.includes('--trace')) {

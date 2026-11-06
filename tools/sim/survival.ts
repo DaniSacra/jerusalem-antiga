@@ -57,6 +57,8 @@ import {
   madeByCrew,
   setJob,
   canWork,
+  upkeepPaid,
+  vulnerable,
   firewoodShort,
   MATERIALS,
   type Material,
@@ -251,6 +253,8 @@ const DEAD_YIELD = 0.5;
 const BIG_HOUSES_GOAL = GOALS.findIndex((g) => g.type === 'houses' && (g.level ?? 0) >= 4);
 
 const FOOD_KINDS: ReadonlySet<string> = new Set(['fisher', 'gatherer', 'field']);
+/** J1 (plano-sobrevivencia 1c): the workplaces whose emptiness the player must answer. */
+const J1_KINDS: ReadonlySet<string> = new Set(['fisher', 'gatherer', 'field', 'lumber', 'market']);
 /** A connected food building with nobody in it (a frozen field in winter does not count). */
 const emptyFood = (s: GameState) => {
   const crews = crewCounts(s);
@@ -560,7 +564,9 @@ export class SurvivalBot {
       return 4;
     };
     const isFood = (x: Building) => x.kind === 'fisher' || x.kind === 'gatherer' || x.kind === 'field';
-    const per = (b: Building) => value(b) / (statOf(b, 'upkeep') || 1);
+    const crews = crewCounts(s);
+    // What each building pays now (an empty workplace pays half, its balloon says so) and what it makes (nothing when empty).
+    const per = (b: Building) => (madeByCrew(b.kind) && !crews.get(b.id) ? 0 : value(b)) / (upkeepPaid(b, crews) || 1);
     // Never the last granary (its food would spoil) nor the last two food buildings.
     const last = (kind: BuildableKind) => s.buildings.filter((x) => x.kind === kind).length <= 1;
     const keep = (b: Building) => (isFood(b) && s.buildings.filter(isFood).length <= 2) || ((b.kind === 'granary' || b.kind === 'lumber' || b.kind === 'quarry') && last(b.kind));
@@ -806,7 +812,7 @@ export class SurvivalBot {
   }
 
   /** A planner keeps 20 weeks of a negative balance in the bank (counting the new upkeep). */
-  private affords(s: GameState, kind: BuildableKind, cost = costOf(kind), upkeep = BUILDINGS[kind].upkeep ?? 0) {
+  private affords(s: GameState, kind: BuildableKind, cost = costOf(kind), upkeep = (BUILDINGS[kind].upkeep ?? 0) * (madeByCrew(kind) && unemployed(s) === 0 ? RULES.emptyUpkeepFactor : 1)) {
     if (!this.p.planner) return true;
     const after = computeEconomy(s).silverDelta - upkeep;
     return !(after < 0 && s.silver - cost < -after * 20);
@@ -1069,6 +1075,32 @@ export interface Result {
   b1: B1Result;
   /** Package B2: jobs. */
   b2: B2Result;
+  /** Package B3: cold deaths, tents in the first winter, J1 (new), defeats. */
+  b3: B3Result;
+}
+
+export interface B3Result {
+  /** Cold deaths by `<Y1|all>_<tent|house>_<v|o>` (v: vulnerable, a small child or an elder; o: others). */
+  cold: Record<string, number>;
+  coldY1: number;
+  coldAll: number;
+  /** Cold deaths and cold weeks (no firewood) by year (0-based), and the tents with people in each winter's first week. */
+  coldByYear: number[];
+  coldWeeksByYear: number[];
+  tentsByWinter: number[];
+  /** F2: tents (level 1) with people at winter week 1 of year 1 (week 13), and the vulnerable living in them. */
+  tentsW1: number;
+  tentVulnW1: number;
+  /** Person-weeks of vulnerable people living in a tent in the winter of year 1 (the D1 exposure). */
+  tentVulnWeeksY1: number;
+  /** Mud-brick or better houses with people at week 13. */
+  housesW1: number;
+  /** J1 new (plano 1c): longest run of a connected food, lumber or market place with nobody, out of winter (winter pauses it), while someone could be moved there; the same without lumbers in a cut grove; its kind. */
+  j1: number;
+  j1Live: number;
+  j1Kind: string | null;
+  /** The defeat: week, the read cause and the numbers behind it (null: not lost). */
+  loss: { week: number; cause: string; residents: number; adults: number; children: number; famine26: number; taxes: number; upkeep: number; emptyUpkeep: number; emptyPlaces: number; cold: number } | null;
 }
 
 export interface B2Result {
@@ -1189,7 +1221,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     },
     b1: { coldY1: 0, coldWeeks: 0, coldWinters: 0, woodY1: [], holdY1: 0, holdAll: 0, holdHouses: 0, endsY1: {}, idleY1: NaN, unlockWeek: {}, firstLumber: null, emptyWeek: null },
     b2: { emptyWeeks: 0, emptyY1: 0, emptyByKind: {}, emptyLongest: 0, emptyLongestKind: null, emptyLongestActive: 0, emptyLongestNoField: 0, lumberEmptyWinter: false, liveLumberEmptyWinter: false, noWoodWinter: false, moves: bot.moves },
+    b3: { cold: {}, coldY1: 0, coldAll: 0, coldByYear: [], coldWeeksByYear: [], tentsByWinter: [], tentsW1: NaN, tentVulnW1: NaN, tentVulnWeeksY1: 0, housesW1: NaN, j1: 0, j1Live: 0, j1Kind: null, loss: null },
   };
+  const b3 = res.b3;
+  const j1Run = new Map<number, number>();
+  const j1LiveRun = new Map<number, number>();
+  const famineLast: boolean[] = [];
   const b1 = res.b1;
   const b2 = res.b2;
   const emptyRun = new Map<number, number>();
@@ -1286,7 +1323,72 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.week % 4 === 0 && s.week <= 52) b1.woodY1.push(s.wood);
     if (s.week < 52) idleY1.push(unemployed(s));
     b1.firstLumber ??= s.buildings.some((b) => b.kind === 'lumber') ? s.week : null;
+    // B3 J1 (new): an empty food / lumber / market place someone could be moved to (winter pauses the run).
+    if (!winter) {
+      const byId = new Map(s.buildings.map((b) => [b.id, b]));
+      const adults = s.people.filter((p) => canWork(s, p));
+      for (const b of crewPlaces(s)) {
+        if (!J1_KINDS.has(b.kind)) continue;
+        const movable = !crews.get(b.id) && adults.some((p) => {
+          if (p.jobId == null) return true;
+          const at = byId.get(p.jobId);
+          return !!at && at.id !== b.id && (crews.get(at.id) ?? 0) >= 2 && (at.kind === b.kind || jobRank(at.kind) > jobRank(b.kind));
+        });
+        const w = movable ? (j1Run.get(b.id) ?? 0) + 1 : 0;
+        j1Run.set(b.id, w);
+        if (w > b3.j1) { b3.j1 = w; b3.j1Kind = b.kind; }
+        const live = movable && !((b.kind === 'lumber') && gatherYield(s, b) < DEAD_YIELD);
+        const wl = live ? (j1LiveRun.get(b.id) ?? 0) + 1 : 0;
+        j1LiveRun.set(b.id, wl);
+        b3.j1Live = Math.max(b3.j1Live, wl);
+      }
+    }
+    if (s.week % 52 === RULES.weeksPerSeason) b3.tentsByWinter.push(s.buildings.filter((b) => b.kind === 'house' && b.level === 1 && household(s, b.id).length > 0).length);
+    if (winter && s.cold) { const yr = Math.floor(s.week / 52); while (b3.coldWeeksByYear.length <= yr) b3.coldWeeksByYear.push(0); b3.coldWeeksByYear[yr]++; }
+    // F2: who lives in tents when the first winter begins.
+    if (s.week === RULES.weeksPerSeason) {
+      const lived = s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && household(s, b.id).length > 0);
+      const tents = lived.filter((b) => b.level === 1);
+      b3.tentsW1 = tents.length;
+      b3.housesW1 = lived.length - tents.length;
+      b3.tentVulnW1 = tents.reduce((a, b) => a + household(s, b.id).filter((p) => vulnerable(s, p)).length, 0);
+    }
+    // Who could die of cold this week: their house level and whether they are vulnerable (read before the step).
+    const coldWho = new Map<number, string>();
+    if (winter) for (const p of s.people) {
+      if (p.houseId === null) continue;
+      const home = s.buildings.find((b) => b.id === p.houseId);
+      if (!home || home.level === 0) continue;
+      const k = `${home.level === 1 ? 'tent' : 'house'}_${vulnerable(s, p) ? 'v' : 'o'}`;
+      coldWho.set(p.id, k);
+      if (k === 'tent_v' && s.week < 52) b3.tentVulnWeeksY1++;
+    }
     const events = stepWeek(s, rng);
+    for (const e of events) {
+      if (e.type !== 'coldDeath') continue;
+      const k = coldWho.get(e.id) ?? 'unknown';
+      b3.coldAll++;
+      const yr = Math.floor((s.week - 1) / 52);
+      while (b3.coldByYear.length <= yr) b3.coldByYear.push(0);
+      b3.coldByYear[yr]++;
+      b3.cold[`all_${k}`] = (b3.cold[`all_${k}`] ?? 0) + 1;
+      if (s.week <= 52) { b3.coldY1++; b3.cold[`Y1_${k}`] = (b3.cold[`Y1_${k}`] ?? 0) + 1; }
+    }
+    famineLast.push(s.famine);
+    if (famineLast.length > 26) famineLast.shift();
+    if (s.lost) {
+      const c2 = crewCounts(s);
+      const eco2 = computeEconomy(s);
+      const places = s.buildings.filter((b) => madeByCrew(b.kind) && statOf(b, 'jobs') > 0 && !c2.get(b.id));
+      const emptyUpkeep = places.reduce((a, b) => a + upkeepPaid(b, c2), 0);
+      const upkeep = Object.values(eco2.upkeep).reduce((a, v) => a + (v ?? 0), 0);
+      const bands = bandCounts(s);
+      const famine26 = famineLast.filter(Boolean).length;
+      // The read cause: an emptied city, a long famine, empty places costing at least the deficit, other upkeep, or a balance back above 0 too late.
+      const deficit = upkeep - eco2.taxes;
+      const cause = eco2.residents < 5 ? 'emptied' : famine26 >= 13 ? 'famine' : deficit <= 0 ? 'lateRecovery' : emptyUpkeep >= deficit ? 'emptyPlaces' : 'overbuilt';
+      b3.loss = { week: s.week, cause, residents: eco2.residents, adults: bands.adult, children: bands.child, famine26, taxes: eco2.taxes, upkeep: Math.round(upkeep * 100) / 100, emptyUpkeep: Math.round(emptyUpkeep * 100) / 100, emptyPlaces: places.length, cold: b3.coldAll };
+    }
     for (const k of s.unlocked) b1.unlockWeek[k] ??= s.week;
     if (s.cold) { b1.coldWeeks++; if (s.week < 52) b1.coldY1++; coldYears.add(Math.floor(s.week / 52)); b1.coldWinters = coldYears.size; }
     for (const b of s.buildings) if (b.kind === 'house' && b.firewoodHold) { b1.holdAll++; if (s.week < 52) b1.holdY1++; held.add(b.id); }
