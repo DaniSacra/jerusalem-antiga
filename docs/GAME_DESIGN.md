@@ -790,7 +790,18 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
     ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
-    fica salvo). Esc fecha.
+    fica salvo), "Música: ligado/desligado" e "Volume − 50% +" (passos de 10%; salvos). Esc fecha.
+  - **Música** (`src/game/music/score.ts` e `mix.ts`, puros; `src/app/music.ts`, Web Audio): fundo
+    calmo gerado no navegador, original por construção. Peças de 16 compassos (forma AABA) em Ré,
+    Sol, Fá ou Dó maior, 60–76 batidas por minuto, com progressões escritas à mão, um motivo de 2
+    compassos repetido e variado, melodia na pentatônica (notas do acorde nos tempos fortes) e
+    final no I; harpa, flauta, fundo de acordes e baixo (no máximo 6 vozes), com eco; 15–40 s de
+    silêncio entre as peças. O clima segue o jogo a cada peça: primavera e verão na harpa, outono e
+    inverno na flauta, mais lentos e graves; à noite mais baixa (−30%), lenta e esparsa; na chuva um
+    pouco mais baixa. Ligada por padrão a 50% (curva volume²); começa no primeiro toque, clique ou
+    tecla (regra dos navegadores), toca no título e com o jogo pausado; aba escondida: some em 0,3 s
+    e o áudio é suspenso, volta em 4 s. Tecla **M** liga e desliga no PC. A chave de silêncio do
+    iPhone cala a música.
   - **Tela inicial em HTML**: nome, como jogar, controles, "Começar" (Enter no
     PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
     enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do

@@ -1,12 +1,13 @@
 import type { BuildingCategory } from '../core';
 import { CATEGORY_KEYS, TOOL_KEYS, type Tool } from './tools';
 import type { Session } from './session';
+import { saveSettings, settings } from './settings';
 
 /** What a key does (PC): the same table for every view. */
 export type KeyCommand =
   | { tool: Tool }
   | { category: BuildingCategory }
-  | { do: 'speed' | 'rotate' | 'escape' }
+  | { do: 'speed' | 'rotate' | 'escape' | 'music' }
   | { turn: 1 | -1 }
   | { pan: { dx: number; dy: number } };
 
@@ -31,7 +32,7 @@ const PAN: Record<string, { dx: number; dy: number }> = {
 
 /**
  * The command of a key (`KeyboardEvent.key`): 1 Mover, 2 Rua, 0 Demolir, 3–6 the categories,
- * Space the speed, R turns the building, Q/E turn the map, Esc closes or goes back to Mover.
+ * Space the speed, R turns the building, Q/E turn the map, M the music on/off, Esc closes or goes back to Mover.
  * `pan`: WASD and the arrows move the camera (the 3D view; the 2D keeps them off).
  */
 export function keyCommand(key: string, pan = false): KeyCommand | null {
@@ -43,6 +44,7 @@ export function keyCommand(key: string, pan = false): KeyCommand | null {
   if (k === 'q') return { turn: -1 };
   if (k === 'e') return { turn: 1 };
   if (k === 'escape') return { do: 'escape' };
+  if (k === 'm') return { do: 'music' };
   if (pan && PAN[k]) return { pan: PAN[k] };
   return null;
 }
@@ -63,6 +65,10 @@ export function runKey(c: KeyCommand, s: Session, v: KeyView) {
   else if ('pan' in c) v.panBy?.(c.pan.dx, c.pan.dy);
   else if (c.do === 'speed') s.cycleSpeed();
   else if (c.do === 'rotate') s.rotate();
+  else if (c.do === 'music') {
+    settings.music = !settings.music;
+    saveSettings();
+  }
   else if (!v.closeTop()) {
     if (s.tool === 'view' && s.selected) s.deselect();
     else s.selectTool('view');

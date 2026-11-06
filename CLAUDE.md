@@ -21,6 +21,7 @@ matching doc in the same change.
 - `npm run test:visual` — the Playwright scenarios, screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
 - `npm run test:pwa` — after a build: the app is installable and opens offline (PWA)
+- `node scripts/music-render.mjs [seconds]` — renders music samples to `screenshots/music/*.wav` for listening
 
 ## Git
 - Only the main agent commits or pushes, and only when the user explicitly asks.
@@ -81,7 +82,8 @@ the change have been looked at.
   and input only. Pure look and UI logic lives in modules without Three.js or DOM (`src/game`, the
   pure files of `src/render3d` and `src/ui`) and has Vitest tests. Game rules belong in core.
 - `src/game`: the session, gestures, keys, view models (`model/`), on-screen text (`strings.ts`),
-  colours (`palette.ts`), seasons look (`seasons.ts`), settings and notices. No Three.js, no DOM.
+  colours (`palette.ts`), seasons look (`seasons.ts`), settings, notices and the music score
+  (`music/`). No Three.js, no DOM, no Web Audio (that is `src/app/music.ts` only).
 - Every new or changed rule in core needs Vitest tests in `tests/`.
 - Code, comments and commits in English; on-screen text in Portuguese (`src/game/strings.ts`).
 - DRY and KISS. Do not add story, verses or mechanics that were not requested.

@@ -10,6 +10,7 @@ import { setColor, U } from './shaders';
 import { mixColor } from './time/color';
 import { fieldHands, frameLight, streetShare } from './time/light';
 import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
+import { nightness } from './time/day';
 import { WeatherClock, type WeatherNow } from './time/weather';
 import LOOK from './look3d.json';
 import { MAX_HANDS, World, type CityLayer } from './world';
@@ -56,6 +57,8 @@ export class Stage {
   readonly atmo: Atmosphere;
   world: World;
   level: Level = 'high';
+  /** What the music listens to, set each frame: how dark it is (0..1) and the rain falling (0..1). */
+  readonly ambience = { night: 0, rain: 0 };
   override: ViewOverride | null = null;
   frames = 0;
   /** The week of the last frame (its season and year read in `info()`). */
@@ -215,6 +218,8 @@ export class Stage {
     const w: WeatherNow = { ...this.weather.at(pos), ...o?.weather };
     const t = o?.day ?? dayT;
     const L = frameLight(t, t, 1, s3, w, look.clouds);
+    this.ambience.night = nightness(t);
+    this.ambience.rain = w.rain;
 
     atmo.apply(L, time, w.wind, s3.heat * (1 - w.rain), rig.camera, rig.distance);
     // Shadows: re-rendered while they show; every other or third frame at lower quality.

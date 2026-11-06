@@ -294,6 +294,11 @@ export class Scene3D {
     this.fx.update(dt, time, 1 - 0.65 * nightness(dayT));
   }
 
+  /** How dark it is and how much rain falls now (the music's mood). */
+  get ambience(): { readonly night: number; readonly rain: number } {
+    return this.stage.ambience;
+  }
+
   dispose() {
     this.disposed = true;
     this.overlay.dispose();

@@ -512,6 +512,9 @@ export const T = {
     },
     settings: {
       dayNight: 'Dia e noite',
+      music: 'Música',
+      volume: 'Volume',
+      volumeValue: (v: number) => `${Math.round(v * 100)}%`,
       on: 'ligado',
       off: 'desligado',
     },

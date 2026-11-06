@@ -209,6 +209,63 @@ async function play3dScenario(page, suffix) {
   await page.waitForSelector('.settings.hidden', { state: 'attached', timeout: 5000 });
 }
 
+/**
+ * Music (not heard: its state via `window.music`): no audio before the first gesture, running after;
+ * the gear turns it off and the volume − / + moves the target; both persist after a reload; a hidden
+ * tab suspends it. Shoots the settings panel.
+ */
+async function music3dScenario(page, name) {
+  const phone = name === 'phone';
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`${BASE}?seed=7`, { timeout: 90000 });
+  await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
+  const st = () => page.evaluate(() => window.music.state());
+  assert((await st()).ctx === 'none', `no audio before the first gesture (${JSON.stringify(await st())})`);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
+  await page.waitForFunction(() => window.music.state().ctx === 'running', null, { timeout: 10000 }).catch(() => {});
+  const on = await st();
+  assert(on.ctx === 'running' && on.target > 0, `the music runs after the first gesture (${JSON.stringify(on)})`);
+  const hitSpot = async (spot) => {
+    const r = await page.evaluate((spot) => {
+      const b = document.querySelector(`[data-spot="${spot}"]`).getBoundingClientRect();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    }, spot);
+    if (phone) await cdpTapPage(page, r[0], r[1]);
+    else await page.mouse.click(r[0], r[1]);
+    await page.waitForTimeout(150);
+  };
+  await hitSpot('settings');
+  await page.waitForSelector('.settings:not(.hidden)', { timeout: 5000 });
+  await hitSpot('set-volume-up');
+  const louder = await st();
+  assert(louder.target > on.target, `+ raises the volume (${on.target} → ${louder.target})`);
+  await hitSpot('set-volume-down');
+  await hitSpot('set-volume-down');
+  await page.screenshot({ path: `${OUT}/music3d-${name}-settings.png` });
+  await hitSpot('set-music');
+  assert((await st()).target === 0, 'the gear turns the music off');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('jerusalem-antiga.settings')));
+  assert(saved.music === false && saved.musicVolume === 0.4, `off and the volume are saved (${JSON.stringify(saved)})`);
+  if (!phone) {
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('m');
+    await page.waitForTimeout(150);
+    assert((await st()).target > 0, 'M turns the music back on');
+  } else await hitSpot('set-music');
+  // A hidden tab fades out and suspends the audio.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(800);
+  const hidden = await st();
+  assert(hidden.target === 0 && hidden.ctx === 'suspended', `a hidden tab suspends the music (${JSON.stringify(hidden)})`);
+  assert(!errors.length, `no page errors (${errors.join(' | ')})`);
+}
+
 /** Opens the 3D game on its own and leaves the title screen (tutorial marked as seen). */
 async function open3dGame(page, seed = 7) {
   await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
@@ -1143,6 +1200,8 @@ const scenarios = {
   'hud3d-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => hud3dScenario(page, 'wide') },
   'hud3d-small-phone': { context: { ...PHONE, viewport: { width: 667, height: 375 } }, run: (page) => hud3dScenario(page, 'small-phone') },
   'hud3d-pc': { context: PC, run: (page) => hud3dScenario(page, 'pc') },
+  'music3d-phone': { context: PHONE, run: (page) => music3dScenario(page, 'phone') },
+  'music3d-pc': { context: PC, run: (page) => music3dScenario(page, 'pc') },
 
 };
 
