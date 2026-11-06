@@ -96,7 +96,7 @@ describe('materials data', () => {
     expect(cost('house')).toEqual({ wood: 10 });
     for (const k of ['granary', 'market', 'workshop', 'quarry'] as const) expect(cost(k)).toEqual({ wood: 10 });
     expect(cost('park')).toEqual({ stone: 5 });
-    expect(cost('temple')).toEqual({ stone: 300, wood: 300 });
+    expect(cost('temple')).toEqual({ stone: 300, wood: 200 });
     for (const k of ['road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(cost(k)).toEqual({});
   });
 
@@ -324,11 +324,11 @@ describe('building with materials', () => {
     expect(missingMaterial(s, 'temple')).toBe('wood');
   });
 
-  it('the temple pays 800 silver, 300 stone and 300 wood', () => {
+  it('the temple pays 800 silver, 300 stone and 200 wood', () => {
     const s = city();
     Object.assign(s, { silver: 1000, wood: 350, stone: 400 });
     expect(place(s, 'temple', EAST, 34).ok).toBe(true);
-    expect([s.silver, s.stone, s.wood]).toEqual([200, 100, 50]);
+    expect([s.silver, s.stone, s.wood]).toEqual([200, 100, 150]);
   });
 });
 

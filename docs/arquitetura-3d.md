@@ -802,3 +802,100 @@ cada rua; (2) `Terrain.flatten` espalha só as células ocupadas e `reshape` nã
 planura não mudou (rua em chão já plano). Ainda há ~1 quadro > 50 ms por reconstrução (a cidade inteira
 refeita, ~10 ms na CPU lenta + envio à GPU): o próximo passo, se pesar no aparelho real, é separar as
 ruas num instanciador próprio.
+
+---
+
+## 12. Música (plano, 2026-11-06)
+
+Pedido do usuário em `docs/design.md` ("música"): fundo calmo para horas de jogo, tons maiores, clima
+de tema de vila de aventura (Zelda citado só como clima), **original**, com desligar e volume. Quando
+entra é decisão do game-director; aqui fica só a forma.
+
+### 12.1 Opções
+
+| | (a) Gerada no navegador (Web Audio) | (b) Arquivos prontos (OGG/MP3) | (c) Híbrido (gerador + poucas amostras) |
+|---|---|---|---|
+| Original | Sim, por construção (progressões e motivos escritos por nós) | Só se compusermos; CC0/royalty-free é de terceiros (licença a anotar e conferir) | Sim (notas nossas; amostras CC0 de instrumento são timbre, não música) |
+| Repetição em horas | Variação sem fim (semente por peça) | 3–4 faixas = ~12 min em laço; cansa | Sem fim |
+| Tamanho / PWA | ~8–12 KB de código; nada a pôr no cache | ~0,7 MB/min (Opus 96k): 10 min ≈ 7 MB, mais que o código (0,9 MB) e os .glb (4,2 MB) juntos | código + ~200–500 KB de amostras (rede primeiro no `sw.js`, como os .glb) |
+| Qualidade | Risco: osciladores soam "chiptune" se mal feitos | A melhor, se a fonte for boa | Boa; risco menor |
+| Estações / noite | Barato (parâmetros por frase) | Caro (faixas extras, cruzar) | Barato |
+| Custo | Menor | Achar/validar licença, mixar, cortar laços | (a) + 3–4 h |
+
+**Recomendação: (a)**, com a porta aberta para (c). A voz é uma função só
+(`voice(ctx, out, t, midi, dur, vel)`); se a audição do passo 5 reprovar o timbre, troca-se a voz
+por amostras CC0 pequenas sem mexer no gerador. (b) fica fora: pesa no PWA, repete e não é nossa.
+
+### 12.2 Desenho
+
+**Música, não sorteio de notas.** O gerador não toca notas ao acaso: tem um banco escrito à mão de
+progressões em tom maior (I–vi–IV–V, I–IV–I–V, IV–V–iii–vi, I–iii–IV–V…), forma AABA de 8 compassos,
+um motivo de 2 compassos repetido e variado (transposto para o acorde, ritmo trocado), melodia na
+pentatônica maior com notas do acorde nos tempos fortes e graus conjuntos entre elas. Tons: Ré, Sol,
+Fá, Dó maior. Andamento 60–76 bpm. Vozes (≤ 6 ao mesmo tempo): harpa (triângulo filtrado, ataque
+curto, cauda longa), flauta (seno + vibrato leve), fundo de acordes (dois senos desafinados, ataque
+lento), baixo suave. Eco: um `ConvolverNode` com resposta gerada uma vez (ruído decaindo ~1,8 s); se
+pesar no celular, um atraso com realimentação e passa-baixa. **Silêncio entre peças** (15–40 s): é o
+que deixa horas de jogo descansadas.
+
+**Clima (barato, só na fronteira de frase):** `mood({ season, night, rain })` muda andamento,
+instrumento da melodia, registro, densidade de notas e volume alvo. Primavera/verão: harpa, mais
+notas; outono: flauta, mais grave; inverno: mais lento, fundo e poucas notas; noite: -30 % de volume,
+esparsa, só flauta e fundo. A estação e o `nightness` já existem em `render3d/time` (puros).
+
+**Camadas (respeitando `CLAUDE.md`):**
+- `src/game/music/score.ts` (puro, sem Web Audio): `piece(seed, mood) → Bar[]`, cada nota
+  `{ voice, beat, midi, dur, vel }`. Gerador com o `rng` semeado que já existe.
+- `src/game/music/mix.ts` (puro): `targetGain({ on, volume, hidden, night })` com curva perceptiva
+  (`volume²`), duração dos fades (entrada 4 s, saída 1,5 s, aba escondida 0,3 s) e `mood(...)`.
+- `src/app/music.ts` (Web Audio, a única parte com `AudioContext`): cria o contexto **no primeiro
+  toque/clique/tecla** (`pointerdown`/`keydown` com `once`, dentro do gesto, para o iOS); agenda as
+  notas com antecedência de ~1 s num `setTimeout` a cada 250 ms (**nunca por quadro**, nada no laço
+  do Three); `visibilitychange` escondida → fade 0,3 s e `ctx.suspend()`; visível → `resume()` e fade
+  4 s; fades por `gain.linearRampToValueAtTime`. Lê clima do `view3d` uma vez por frase.
+- `src/game/settings.ts`: `music: boolean` (padrão ligado) e `musicVolume: number` (0–1, passos de
+  0,1; padrão 0,5). O `load()` atual já completa campos novos com os padrões.
+- `src/ui/settings.ts`: linha "Música: Ligada/Desligada" e linha de volume com botões − e + (mesmo
+  estilo e alvo de toque das outras linhas; sem `<input range>` para não fugir do visual). Textos em
+  `strings.ts` (copywriter). No PC, tecla **M** liga/desliga (livre em `keys.ts`; entra na ajuda de
+  atalhos e no `GAME_DESIGN.md`).
+- Dev: `window.music` com `state()` → `{ ctx: 'none'|'suspended'|'running', target, playing, mood }`.
+
+**Custo no celular:** a síntese roda na thread de áudio; no JS são ~4 chamadas a cada 250 ms. Alvo:
+qps igual com e sem música no `view3d-perf.mjs`, < 1 % de CPU de JS. Com o jogo na aba escondida o
+contexto fica suspenso (zero custo). Sem Web Audio (raro), a música some em silêncio, sem erro.
+
+### 12.3 Testes
+
+- **Vitest** (`tests/game/music*.test.ts`): mesma semente → mesma peça; toda nota no tom e na faixa da
+  voz; polifonia ≤ 6; frase de 8 compassos e cadência final no I; `mood` por estação/noite;
+  `targetGain` = 0 com música desligada ou aba escondida, curva monotônica; padrões e leitura antiga
+  de `settings`.
+- **Playwright** (não se ouve; confere o estado pelo `window.music`): `music-phone` (844x390, toque) e
+  `music-pc` (1366x768): antes do primeiro toque `ctx` = `none`; depois `running`; desligar → `target`
+  0 e continua desligado após recarregar; volume − / + muda `target`; aba escondida (forçar
+  `visibilityState` + evento) → `suspended`; sem erros no console; captura do painel de configurações
+  nos dois tamanhos. `test:pwa` inalterado (não há arquivo novo).
+- **Audição** (`scripts/music-render.mjs`): `OfflineAudioContext` no Playwright grava 3 min em WAV
+  (uma peça por estação e uma de noite) em `screenshots/` para o usuário ouvir. É o teste de qualidade.
+
+### 12.4 Passos e horas
+
+| # | Passo | Horas |
+|---|---|---|
+| 1 | `score.ts` + `mix.ts` puros (banco de progressões, motivos, forma, `mood`) com Vitest | 4–6 |
+| 2 | `app/music.ts`: vozes, eco, agendador, desbloqueio no gesto, aba escondida, fades, `window.music` | 3–4 |
+| 3 | Configurações (campos, painel, tecla M, textos) | 1,5–2 |
+| 4 | Cenários Playwright + medida de qps com e sem música | 1,5–2 |
+| 5 | `music-render.mjs` + uma rodada de ajuste de timbre e mixagem depois da audição do usuário | 2–3 |
+| 6 | Docs: `GAME_DESIGN.md` (opção, tecla), `TESTING.md` (cenários, script), `CLAUDE.md` (módulos) | 0,5–1 |
+| | **Total** | **12,5–18** |
+| (c) | Se a audição reprovar: amostras CC0 de harpa/flauta (~300 KB, licença anotada) no lugar das vozes | +3–4 |
+
+**Pronto quando:** `npm test`, `tsc`, `test:visual` e `test:pwa` passam; qps igual com música; o
+usuário ouviu as gravações do passo 5 e aprovou.
+
+**Fora:** efeitos sonoros (cliques, obras, sinos), músicas de vitória/derrota, trilha por evento.
+**Decisões do usuário:** música ligada por padrão? (proposta: sim, 50 %); tocar com o jogo pausado?
+(proposta: sim); tocar na tela de título? (proposta: sim, após o primeiro toque); aprovar o timbre na
+audição. No iPhone a chave de silêncio cala a música (proposta: respeitar).

@@ -88,7 +88,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
 | Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
-| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (160 moradores); não pode ser demolido; o raio só dá Alegria |
+| Templo | 800 + 300 pedra + 200 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (160 moradores); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -129,7 +129,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   Lenhadores e Pedreiras ligados × a lotação de cada um (`Economy.wood`, `Economy.stone`, o "+N/sem").
   Demolir não devolve material.
 - **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 10 madeira; Celeiro,
-  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 300 madeira. **Não
+  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 200 madeira. **Não
   custam material:** Rua, Campo, Praça, Pescador, Coletora e Lenhador (comida e madeira nunca
   travam por material). Construir exige prata **e** material e paga os dois; sem material, falha
   com a razão `materials` sem gastar nada (a prata é conferida antes). `missingMaterial(s, kind)`

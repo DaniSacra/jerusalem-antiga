@@ -63,10 +63,10 @@
 .side { position: absolute; left: var(--margin); top: calc(var(--margin) + var(--level) + var(--gap) * 2); display: flex; flex-direction: column; gap: 10px; }
 .tools { position: absolute; left: var(--margin); bottom: var(--margin); display: flex; gap: 10px; }
 .tool { width: var(--tool); display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 0; }
-.tool .disc { width: var(--tool); height: var(--tool); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
+.tool .disc { box-sizing: border-box; flex: none; width: var(--tool); height: var(--tool); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
 .tool .disc svg { width: 55%; height: 55%; }
 .tool.on .disc { box-shadow: 0 0 0 4px var(--c-gold), 0 0 14px var(--c-gold); }
-.tool span { font-size: var(--small); font-weight: 700; background: rgba(36, 25, 14, 0.78); padding: 1px 8px; border-radius: 9px; }
+.tool .label { font-size: var(--small); font-weight: 700; background: rgba(36, 25, 14, 0.78); padding: 1px 8px; border-radius: 9px; }
 .column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); bottom: var(--margin); width: var(--col); display: flex; flex-direction: column; gap: 6px;
   overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; pointer-events: auto; }
 .column::-webkit-scrollbar { display: none; }

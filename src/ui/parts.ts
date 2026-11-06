@@ -36,7 +36,7 @@ export function iconButton(icon: string, label: string, onPick: () => void, spot
 export function toolButton(tool: Tool, onPick: () => void) {
   const disc = h('span.disc');
   disc.innerHTML = ICONS[tool] ?? '';
-  const b = h('button.tool', { 'data-spot': `tool-${tool}`, 'aria-label': toolName(tool) }, disc, h('span', {}, toolName(tool)));
+  const b = h('button.tool', { 'data-spot': `tool-${tool}`, 'aria-label': toolName(tool) }, disc, h('span.label', {}, toolName(tool)));
   onTap(b, onPick);
   return b;
 }

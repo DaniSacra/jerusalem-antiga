@@ -146,6 +146,10 @@ function b3Lines(rs: Result[]): string[] {
   const lost = rs.filter((r) => r.lost);
   const causes: Record<string, number> = {};
   for (const r of lost) causes[r.b3.loss?.cause ?? '?'] = (causes[r.b3.loss?.cause ?? '?'] ?? 0) + 1;
+  const won = rs.filter((r) => r.won);
+  const nowin = rs.filter((r) => !r.won);
+  const u5lost = lost.map((r) => r.b3.loss?.under5Weeks ?? NaN).filter(Number.isFinite);
+  const u5ghost = rs.filter((r) => !r.lost && !r.won && r.b3.under5Weeks !== null).map((r) => r.b3.under5Weeks as number);
   const j1Kinds: Record<string, number> = {};
   for (const r of rs) if (r.b3.j1 > 8 && r.b3.j1Kind) j1Kinds[r.b3.j1Kind] = (j1Kinds[r.b3.j1Kind] ?? 0) + 1;
   return [
@@ -153,7 +157,13 @@ function b3Lines(rs: Result[]): string[] {
       ` | D1 cold death Y1 runs ${pc(rs.filter((r) => r.b3.coldY1 > 0).length, n)} p90 ${q((r) => r.b3.coldY1, 0.9)} max ${Math.max(...rs.map((r) => r.b3.coldY1))} | D2 per game med ${m((r) => r.b3.coldAll)} p90 ${q((r) => r.b3.coldAll, 0.9)} max ${Math.max(...rs.map((r) => r.b3.coldAll))} runs>0 ${pc(rs.filter((r) => r.b3.coldAll > 0).length, n)}`,
     `  cold deaths (sum) Y1: ${split('Y1')} | all: ${split('all')}`,
     `  J1new ${pc(rs.filter((r) => r.b3.j1 > 8).length, n)} (live lumber ${pc(rs.filter((r) => r.b3.j1Live > 8).length, n)}) longest med ${m((r) => r.b3.j1)} p90 ${q((r) => r.b3.j1, 0.9)} kinds ${Object.entries(j1Kinds).map(([k, v]) => `${k} ${v}`).join(', ') || '-'}` +
-      ` | A2b/D3 lost ${pc(lost.length, n)} Y1 ${pc(lost.filter((r) => r.weeks <= 52).length, n)} wk med ${f(med(lost.map((r) => r.weeks)))} causes ${Object.entries(causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'} | end residents med ${m((r) => r.endResidents)} <5 ${pc(rs.filter((r) => r.endResidents < 5).length, n)}`,
+      ` | J1 as in B3 (field always) ${pc(rs.filter((r) => r.b3.j1Old > 8).length, n)}` +
+      ` | A2b lost with 5+ residents ${pc(lost.filter((r) => (r.b3.loss?.residents ?? 0) >= 5).length, n)} | D3 lost ${pc(lost.length, n)} Y1 ${pc(lost.filter((r) => r.weeks <= 52).length, n)} wk med ${f(med(lost.map((r) => r.weeks)))} causes ${Object.entries(causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'} | end residents med ${m((r) => r.endResidents)} <5 ${pc(rs.filter((r) => r.endResidents < 5).length, n)}`,
+    `  under 5 → defeat wks (lost under 5: ${u5lost.length}) med ${f(med(u5lost))} p75 ${f(qt(u5lost, 0.75))} p90 ${f(qt(u5lost, 0.9))} max ${u5lost.length ? Math.max(...u5lost) : '-'} >26 ${u5lost.filter((w) => w > 26).length}` +
+      ` | not lost, ended under 5: ${u5ghost.length} wks med ${f(med(u5ghost))} max ${u5ghost.length ? Math.max(...u5ghost) : '-'}`,
+    `  no win ${pc(nowin.length, n)} (lost ${lost.length}, unfinished ${nowin.length - lost.length}; reached g${GOALS.length - 1} ${nowin.filter((r) => r.goalWeeks[GOALS.length - 2] != null).length})` +
+      ` cold deaths there med ${f(med(nowin.map((r) => r.b3.coldAll)))} max ${nowin.length ? Math.max(...nowin.map((r) => r.b3.coldAll)) : '-'} end wood med ${f(med(nowin.map((r) => r.mat.end.wood)))} stone ${f(med(nowin.map((r) => r.mat.end.stone)))} silver ${f(med(nowin.map((r) => r.endSilver)))} res ${f(med(nowin.map((r) => r.endResidents)))}` +
+      ` | D2 in wins med ${f(med(won.map((r) => r.b3.coldAll)))} p90 ${f(qt(won.map((r) => r.b3.coldAll), 0.9))} max ${won.length ? Math.max(...won.map((r) => r.b3.coldAll)) : '-'}`,
   ];
 }
 /** A5 read per goal: the median wait for each goal (from the goal before; runs that reached it) and the worst of them. */

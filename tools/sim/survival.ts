@@ -25,6 +25,7 @@ import {
   waitingCouples,
   foodCapacity,
   foodForecast,
+  foodLastsToHarvest,
   gatherYield,
   fieldBonus,
   fieldHarvest,
@@ -1099,8 +1100,12 @@ export interface B3Result {
   j1: number;
   j1Live: number;
   j1Kind: string | null;
+  /** J1 as measured in B3 (a field counts even while the food reaches the spring), for comparison. */
+  j1Old: number;
+  /** Weeks since the residents last dropped under 5 (at the defeat, or at the end of the run); null: never under 5 at the end. */
+  under5Weeks: number | null;
   /** The defeat: week, the read cause and the numbers behind it (null: not lost). */
-  loss: { week: number; cause: string; residents: number; adults: number; children: number; famine26: number; taxes: number; upkeep: number; emptyUpkeep: number; emptyPlaces: number; cold: number } | null;
+  loss: { week: number; cause: string; residents: number; adults: number; children: number; famine26: number; taxes: number; upkeep: number; emptyUpkeep: number; emptyPlaces: number; cold: number; under5Weeks: number | null } | null;
 }
 
 export interface B2Result {
@@ -1221,11 +1226,13 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     },
     b1: { coldY1: 0, coldWeeks: 0, coldWinters: 0, woodY1: [], holdY1: 0, holdAll: 0, holdHouses: 0, endsY1: {}, idleY1: NaN, unlockWeek: {}, firstLumber: null, emptyWeek: null },
     b2: { emptyWeeks: 0, emptyY1: 0, emptyByKind: {}, emptyLongest: 0, emptyLongestKind: null, emptyLongestActive: 0, emptyLongestNoField: 0, lumberEmptyWinter: false, liveLumberEmptyWinter: false, noWoodWinter: false, moves: bot.moves },
-    b3: { cold: {}, coldY1: 0, coldAll: 0, coldByYear: [], coldWeeksByYear: [], tentsByWinter: [], tentsW1: NaN, tentVulnW1: NaN, tentVulnWeeksY1: 0, housesW1: NaN, j1: 0, j1Live: 0, j1Kind: null, loss: null },
+    b3: { cold: {}, coldY1: 0, coldAll: 0, coldByYear: [], coldWeeksByYear: [], tentsByWinter: [], tentsW1: NaN, tentVulnW1: NaN, tentVulnWeeksY1: 0, housesW1: NaN, j1: 0, j1Live: 0, j1Kind: null, j1Old: 0, under5Weeks: null, loss: null },
   };
   const b3 = res.b3;
   const j1Run = new Map<number, number>();
   const j1LiveRun = new Map<number, number>();
+  const j1OldRun = new Map<number, number>();
+  let under5Since: number | null = null;
   const famineLast: boolean[] = [];
   const b1 = res.b1;
   const b2 = res.b2;
@@ -1327,13 +1334,20 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (!winter) {
       const byId = new Map(s.buildings.map((b) => [b.id, b]));
       const adults = s.people.filter((p) => canWork(s, p));
+      // Plano 1d: an empty field does not count while the food forecast reaches the next spring.
+      let foodOk: boolean | null = null;
       for (const b of crewPlaces(s)) {
         if (!J1_KINDS.has(b.kind)) continue;
-        const movable = !crews.get(b.id) && adults.some((p) => {
+        const could = !crews.get(b.id) && adults.some((p) => {
           if (p.jobId == null) return true;
           const at = byId.get(p.jobId);
           return !!at && at.id !== b.id && (crews.get(at.id) ?? 0) >= 2 && (at.kind === b.kind || jobRank(at.kind) > jobRank(b.kind));
         });
+        const wo = could ? (j1OldRun.get(b.id) ?? 0) + 1 : 0;
+        j1OldRun.set(b.id, wo);
+        b3.j1Old = Math.max(b3.j1Old, wo);
+        if (could && b.kind === 'field') foodOk ??= foodLastsToHarvest(s);
+        const movable = could && !(b.kind === 'field' && foodOk);
         const w = movable ? (j1Run.get(b.id) ?? 0) + 1 : 0;
         j1Run.set(b.id, w);
         if (w > b3.j1) { b3.j1 = w; b3.j1Kind = b.kind; }
@@ -1387,7 +1401,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       // The read cause: an emptied city, a long famine, empty places costing at least the deficit, other upkeep, or a balance back above 0 too late.
       const deficit = upkeep - eco2.taxes;
       const cause = eco2.residents < 5 ? 'emptied' : famine26 >= 13 ? 'famine' : deficit <= 0 ? 'lateRecovery' : emptyUpkeep >= deficit ? 'emptyPlaces' : 'overbuilt';
-      b3.loss = { week: s.week, cause, residents: eco2.residents, adults: bands.adult, children: bands.child, famine26, taxes: eco2.taxes, upkeep: Math.round(upkeep * 100) / 100, emptyUpkeep: Math.round(emptyUpkeep * 100) / 100, emptyPlaces: places.length, cold: b3.coldAll };
+      b3.loss = { week: s.week, cause, residents: eco2.residents, adults: bands.adult, children: bands.child, famine26, taxes: eco2.taxes, upkeep: Math.round(upkeep * 100) / 100, emptyUpkeep: Math.round(emptyUpkeep * 100) / 100, emptyPlaces: places.length, cold: b3.coldAll, under5Weeks: under5Since === null ? null : s.week - under5Since };
     }
     for (const k of s.unlocked) b1.unlockWeek[k] ??= s.week;
     if (s.cold) { b1.coldWeeks++; if (s.week < 52) b1.coldY1++; coldYears.add(Math.floor(s.week / 52)); b1.coldWinters = coldYears.size; }
@@ -1451,6 +1465,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     res.left += lefts;
     if (s.week <= 26) res.leftWinter1 += lefts;
     const resid = computeEconomy(s).residents;
+    under5Since = resid < 5 ? (under5Since ?? s.week) : null;
     // Crisis: well below the peak so far, or a long famine; recovered once back at that peak.
     if (crisisPeak === null && res.peak >= 10 && (resid <= 0.75 * res.peak || (s.famine && run + 1 >= 4))) {
       crisisPeak = res.peak;
@@ -1511,6 +1526,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const ages = s.departed.filter((p) => p.end?.cause === 'age').map((p) => ageOf(p, p.end!.week)).sort((a, b) => a - b);
   res.deathAge = ages.length ? ages[Math.floor((ages.length - 1) / 2)] : NaN;
   res.endResidents = computeEconomy(s).residents;
+  b3.under5Weeks = under5Since === null ? null : s.week - under5Since;
   for (const p of s.departed) if (p.end && p.end.week < 52) b1.endsY1[p.end.cause] = (b1.endsY1[p.end.cause] ?? 0) + 1;
   { const a = [...idleY1].sort((x, y) => x - y); b1.idleY1 = a.length ? a[Math.floor((a.length - 1) / 2)] : NaN; }
   for (const [id, w] of Object.entries(s.milestoneWeeks)) res.marks[id] = w as number;
