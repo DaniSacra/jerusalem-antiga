@@ -124,7 +124,27 @@ de adultos. Se o J1 novo passa de 10%, o problema é o aviso ou o balão, não o
 - J1 novo e J2 medidos de novo (o B3 mata adultos e idosos: menos gente para as vagas).
 - Sai das alavancas: `gatherer.jobs` 1 → 2.
 
-## 2. B1 "Madeira antes da praça" (sem mecânica nova)
+## 1d. Fechamento do Pacote B (2026-11-06)
+Base: `sim-tester-b3.md` (medido em 8a8d5ad: B1 + B2 + B3 + P1 + P2 + P3 + metade da manutenção). O
+usuário mandou seguir sem esperar aprovação; ele testa no fim. **O Pacote B está fechado**: nenhum código
+e nenhum dado mudam agora. Comum vence 77% em 32,9 min, 0 derrotas, pior espera 77 sem (4,1 min).
+
+| Item | Pilares | Decisão |
+|---|---|---|
+| A2b reescrito: "derrotas do Distraído **com 5+ moradores** ≤ 25%" (hoje 23%) | 1 (perder exige a cidade quase vazia) | **ENTRA AGORA** (critério): a cidade morta que perde pela dívida é o fim certo, é o pilar 1 ao pé da letra |
+| `emptyUpkeepFactor` fica **0,5** | 1, 3 | **FICA**: a metade é o que leva a cidade morta à tela de derrota; com 0, 68% das partidas do Distraído viram cidade fantasma sem fim, pior que perder |
+| `emptyUpkeepFactor` 0 ou 0,25 | 1 | **FORA**: 0 tira o fim da cidade morta; 0,25 não muda nada (59%) |
+| Derrota quando a cidade fica vazia (sem moradores e sem caravana a caminho) | 1, 7 | **DEPOIS** (pacote "Recuperação e vitória"): com 0,5 a cidade morta já termina pela dívida; o sim-tester mede antes quantas semanas passam entre "< 5 moradores" e a derrota. Se passar de ~26 sem (1,4 min sem nada a fazer), a regra entra lá |
+| D1 reescrito para **5–15%** (p90 ≤ 2); `coldDeath.tent` fica [0,01, 0] | 1, 6 | **ENTRA AGORA** (critério): o Comum sai da tenda na semana 11, então só ~6 pessoa-semanas de risco; todas as mortes do Ano 1 são de vulneráveis em tenda (o perigo certo), e quem demora perde mais (plano 12%). Subir a chance quebra o D2 e apaga a diferença com a tenda sem lenha |
+| `coldDeath.tent` 0,015; `houseCold` 0,005; L3–L5 | — | **FORA**: dentro do ruído ou não precisa (F1, F2, D2, D3 passam) |
+| J1: campo vazio com comida sobrando | 3, 7 | **ACEITO como informação, sem mudança de tela**: o balão do campo vazio já diz "toque numa pessoa e mude a profissão" e paga metade; deixar um campo de reserva vazio com a comida garantida é uma escolha válida. J1 reescrito: o **campo** só conta quando a previsão de comida não chega à primavera; os outros tipos contam como antes (sem campos: 4%, passa) |
+| "Chamar trabalhador" no balão do local vazio | 7 | **DEPOIS** (igual à seção 1): o bot do plano (94%) é o jogador que nunca mexe nas profissões; decidir com o playtest do usuário |
+| Templo e lenha disputam a madeira (22% do Comum trava no Templo com 160 moradores; mediana 26 mortes de frio nessas partidas) | 1, 2, 3 (morrer aos poucos sem ter o que fazer) | **DEPOIS, primeiro da fila**: ajuste "Fim sem frio", sozinho e medido antes do Pacote C. Alavancas em ordem: Templo `materials.wood` 300 → 200; se não bastar, a lenha do inverno guardada antes da reserva do Templo. Alvo: partidas do Comum sem vitória em 1000 sem ≤ 10%, A1 fica em 25–35 min |
+| Prata parada e pedra sobrando (W4) | 3 | **DEPOIS**: iguais desde o B1; precisam de um destino para a prata, que é mecânica (pacotes "Governo" ou "Evoluções") |
+| S3 do Eficiente/Pescador na semana 77 | — | **Aceito**: o alvo é do Comum (98) |
+
+Critérios da seção 7 atualizados: A2b e D1 (acima), J1 com a exceção do campo. Todos os outros passam.
+
 
 ### Regras
 1. **Casa de barro** exige só `road` e paga **5 de madeira** ao subir (igual).
@@ -330,13 +350,13 @@ Comum ≤ 5%), A9 (Ano 2: ≥ 3 casamentos, ≥ 5 nascimentos), W2 (espera por m
 | S2 | 1ª casa de barro (Comum, mediana) | semana 8–20 | B1 |
 | S3 | Mercado liberado (Comum, mediana) | semana ≥ 78 | B1 |
 | S4 | Derrota no Ano 1 (Comum) | ≤ 2% | B1–B3 |
-| J1 | Local de comida, lenhador ou mercado vazio > 8 sem seguidas fora do inverno, com alguém que podia ser movido (Comum, partidas; reescrito na seção 1c) | ≤ 10% | B2 |
-| A2b | Derrotas do Distraído (seção 1c, com a manutenção pela metade) | ≤ 25% | B2–B3 |
+| J1 | Local de comida, lenhador ou mercado vazio > 8 sem seguidas fora do inverno, com alguém que podia ser movido (Comum, partidas; reescrito na seção 1c; o campo só conta quando a comida não chega à primavera, seção 1d) | ≤ 10% | B2 |
+| A2b | Derrotas do Distraído **com 5+ moradores** (seções 1c e 1d, com a manutenção pela metade) | ≤ 25% | B2–B3 |
 | J2 | Desempregados no Ano 1 (Comum, mediana semanal) | ≤ 2 | B2 |
 | J3 | Distraído (não muda profissão) com lenhador vazio em algum inverno | ≥ 40% | B2 |
 | F1 | Comum com frio em algum inverno (partidas; B2: 54% sem P1, 57% com P1) | 40–70% | B3 |
 | F2 | Tendas com gente na semana 1 do inverno do Ano 1 (Comum, mediana) | 2–4 | B3 |
-| D1 | Comum com ≥ 1 morte de frio no Ano 1 (partidas); mortes no Ano 1, p90 | 20–40%; ≤ 2 | B3 |
+| D1 | Comum com ≥ 1 morte de frio no Ano 1 (partidas); mortes no Ano 1, p90 (era 20–40%; seção 1d) | 5–15%; ≤ 2 | B3 |
 | D2 | Mortes de frio na partida (Comum): mediana; p90 | ≤ 3; ≤ 6 | B3 |
 | D3 | Derrota no Ano 1 (Distraído: frio por cima da fome não pode virar fim) | ≤ 10% | B3 |
 

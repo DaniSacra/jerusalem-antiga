@@ -96,8 +96,15 @@ Mantidos:
   real). Balão do local vazio diz "faltam adultos" quando ninguém pode ser movido. P1 fica (protege o D2
   do B3). Alavanca `gatherer.jobs` 2: fora (medida sem efeito). Critério novo A2b: derrotas do
   Distraído ≤ 25%. A9 (casamentos no Ano 2), prata parada e pedra sobrando: depois do Pacote B
+- 2026-11-06 (diretor, depois do `sim-tester-b3.md`; plano, seção 1d): **Pacote B fechado**, sem mudar
+  código nem dados. Comum vence 77% em 32,9 min, 0 derrotas. A2b passa a contar só derrotas com 5+
+  moradores (23%): a cidade morta que perde pela dívida é o pilar 1. `emptyUpkeepFactor` fica 0,5 (com 0,
+  68% das partidas do Distraído viram cidade fantasma sem fim). D1 vira 5–15% com `tent` 0,01 (o Comum sai
+  da tenda na semana 11; todas as mortes do Ano 1 são de vulneráveis em tenda). J1: campo vazio com comida
+  garantida é escolha do jogador, não conta; sem mudança de tela. Templo × lenha (22% travam no Templo,
+  ~26 mortes de frio): ajuste "Fim sem frio" antes do Pacote C. Derrota da cidade vazia: depois
 
-## Agora: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06)
+## Feito: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06, fechado no mesmo dia)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
 - **B1 "Madeira antes da praça"** (sem mecânica nova): exigências novas das casas, Praça no objetivo
   5, Mercado no 7 ("Construa uma oficina"), objetivo 3 "Passe o primeiro inverno" (`firstSpring`),
@@ -113,12 +120,11 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozi
   por semana de inverno, por pessoa (vulnerável = até 4 anos ou idoso): tenda com lenha 1%/0, tenda sem
   lenha 4%/1%, barro ou melhor sem lenha 1%/0, com lenha 0; com fome dobra. Junto, o ajuste P3.
   **Feito 2026-11-06** (código e testes; `src/core/cold.ts`; P3 nos objetivos; toast "O frio levou
-  Ana, 2 anos", tom aprovado pelo usuário); falta o sim-tester medir F1–F2 e D1–D3, junto com a
-  manutenção pela metade, o J1 novo e o A2b (Distraído perde ≤ 25%), com o bot que move gente.
-  Critérios: F1 frio em algum inverno 40–70% (B2: 54%); F2 2–4 tendas com gente no 1º inverno; D1 20–40% das
-  partidas com morte de frio no Ano 1 (p90 ≤ 2); D2 mediana ≤ 3 na partida; D3 Distraído perde no
-  Ano 1 ≤ 10%. ~3–3,5 h + 1–1,5 h de sim.
-- B4 "Alegria desde o começo": DEPOIS, decidir após o playtest do B3.
+  Ana, 2 anos", tom aprovado pelo usuário). Medido (`sim-tester-b3.md`, 8a8d5ad, com a manutenção
+  pela metade): Comum vence 77% em 32,9 min, 0 derrotas; S1–S4, F1 51%, F2 3, D2 1/4, D3 0%, J2 passam.
+  Critérios refeitos no fechamento (plano, seção 1d): D1 5–15% (medido 5%), A2b só derrotas com 5+
+  moradores (23%), J1 sem o campo vazio com comida garantida. **Pacote B fechado em 2026-11-06.**
+- B4 "Alegria desde o começo": DEPOIS, decidir com o playtest do usuário.
 - Critérios novos S1–S4, J1–J3, A2b, F1–F2, D1–D3 (seção 7 do plano). ~19–24 h para B1–B3.
 - Fora: gado, pasto, roupas, doenças, comércio do mercado, história, visual do Pacote A.
 
@@ -131,8 +137,12 @@ partidas do Comum, ≤ 15% no Ano 1) e W4b ≤ 15/100. Alavancas na seção 8 do
 plantio, depósito, manutenção em pedra, frio na alegria e nos nascimentos.
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
-0. Pacote B "Primeiro ano de sobrevivência" (agora) · Pacote C "Gado" (depois do B; o Mercado
-passa a pedir gado)
+0. Pacote B "Primeiro ano de sobrevivência" (feito 2026-11-06) → playtest do usuário (decide o B4
+   "Alegria desde o começo" e o "Chamar trabalhador" no balão) → ajuste "Fim sem frio" (sem mecânica
+   nova, sim-tester mede: Templo `materials.wood` 300 → 200; depois a lenha antes da reserva do Templo;
+   alvo: Comum sem vitória em 1000 sem ≤ 10%, A1 em 25–35 min) → Pacote C "Gado" (o Mercado passa a
+   pedir gado). Em espera: derrota da cidade vazia (pacote "Recuperação e vitória", se a cidade morta
+   levar > 26 sem para perder) e prata/pedra paradas (W4, precisam de destino: "Governo" ou "Evoluções")
 1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (feito, P4) · 4. Obras com tempo ·
 5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
 10. Doenças · 11. Eventos da época · 12. Incêndio
