@@ -127,7 +127,7 @@ export class World {
     const puddles: THREE.Vector3[] = [];
 
     const plan = cityPlan(s);
-    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (p.key.startsWith('road') ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
+    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (p.key === 'road' || p.key === 'trail' || p.key === 'trail-arm' || p.key === 'kerb' ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)
       if (hash(x, y, 20) < VISUAL.seasons.weather.puddleShare) {
         const px = x + 0.5 + (hash(x, y, 21) - 0.5) * 0.4;

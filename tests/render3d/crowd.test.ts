@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { companionOf, CRAFT_LOAD, familyLead, figureLook, groupLength, groupSlots, LOADS, loadOf, memberAt, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
-import { BUILDINGS, type WalkerType } from '../../src/core';
+import { castWalkers, companionOf, CRAFT_LOAD, familyLead, figureLook, groupLength, groupSlots, LOADS, loadOf, memberAt, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
+import { addPerson, BUILDINGS, jobsOf, refreshCity, type WalkerType } from '../../src/core';
+import { emptyGame, put } from '../helpers';
 import WALKERS from '../../src/data/walkers.json';
 
 const WALKER_TYPES_FOR_TESTS = WALKERS.map((w) => w.type as WalkerType);
@@ -109,5 +110,27 @@ describe('families walking home in 3D', () => {
     expect(companionOf('donkeyMan')).toBe('donkey');
     expect(companionOf('shepherd')).toBe('sheep');
     for (const t of WALKER_TYPES_FOR_TESTS.filter((t) => t !== 'donkeyMan' && t !== 'shepherd')) expect(companionOf(t)).toBeNull();
+  });
+
+  it('casts each walker as a different resident: a trade by someone working there, the carriers women', () => {
+    const s = emptyGame();
+    const h = put(s, 'house', 25, 30, 4, false, 0);
+    const add = (sex: 'm' | 'f', age: number) => addPerson(s, { sex, age, houseId: h.id, caravan: 0, clan: 1 }, () => 0.5);
+    const men = [add('m', 30), add('m', 35)];
+    const woman = add('f', 28);
+    const child = add('m', 6);
+    put(s, 'field', 22, 32);
+    refreshCity(s);
+    const jobs = jobsOf(s);
+    const cast = castWalkers(s, ['farmer', 'waterCarrier', 'child', 'elder'], [0.1, 0.2, 0.3, 0.4]);
+    expect(jobs.get(cast[0]!)?.kind).toBe('field');
+    expect(cast[1]).toBe(woman.id);
+    expect(cast[2]).toBe(child.id);
+    // No elder lives here: someone not yet out.
+    expect(cast[3]).not.toBeNull();
+    expect(new Set(cast).size).toBe(4);
+    expect([...men, woman, child].map((p) => p.id)).toEqual(expect.arrayContaining(cast as number[]));
+    // More walkers than residents: the rest are passers-by.
+    expect(castWalkers(s, ['child', 'child', 'child', 'child', 'child'], [0, 0, 0, 0, 0])[4]).toBeNull();
   });
 });

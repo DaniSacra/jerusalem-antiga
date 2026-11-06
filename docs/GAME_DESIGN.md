@@ -1115,6 +1115,13 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   conectada (core). Quantidade = 8 + metade dos moradores, no máximo 140 (`walkerCount`). Balançam
   de leve ao andar, param na pausa e andam mais rápido em 3x. Menos gente na rua à noite e na chuva
   (`crowd` em `look3d.json`).
+- **Quem anda na rua é gente da cidade** (`castWalkers` em `crowd.ts`): cada morador andando é um
+  morador de verdade, cada um uma vez só, vestido como ele mesmo. O tipo de ofício é feito por quem
+  trabalha ali (o lavrador por quem trabalha num campo, o artesão por quem trabalha na oficina, e
+  ele leva o produto dessa oficina). Nos outros tipos vai alguém da idade certa, e a aguadeira e a
+  cesteira são mulheres. Numa cidade com menos moradores que andarilhos, os que sobram são de fora.
+  Com Mover, **tocar ou clicar numa pessoa na rua abre a ficha dela** (26 px de alcance no toque,
+  16 no mouse); fora disso, o toque abre o balão do que está no mapa.
 - **Famílias e caravanas** andam em grupo da entrada até a casa (veja "Aparência e moradores").
 - **Agricultores** curvados sobre as plantações, alguns por campo e mais no arado e na colheita
   (`crowd.fieldHands`); nenhum em campo sem rua.
@@ -1126,12 +1133,13 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   meio-dia.
 - **Fumaça** nas casas de barro ou melhores, nas tendas (fogueira), na oficina e no altar; casa
   vazia não solta fumaça.
-- **Ruas que evoluem** (só visual, `roadWear` em `plan.ts`): a rua acompanha a riqueza das
-  construções ao lado. É **calçada** em lajes de calcário a até 2 células do altar ou do templo
-  (`look3d.json` > `roads.pavedNear`), ao lado de casa de pedra ou casa grande, ou de celeiro,
-  mercado ou oficina no nível 3. É **gasta**, mais clara e com sulcos, ao lado de casa de barro,
-  praça, mercado ou serviço no nível 2. Nos outros lugares é **terra batida**. Na neve as ruas
-  ficam limpas.
+- **Ruas que evoluem** (só visual, `src/render3d/roads.ts`): a rua mostra quanta gente passa por
+  ela. Cada construção manda o seu povo até o altar pelo caminho de rua mais curto: a casa manda os
+  seus moradores, o local de trabalho as suas vagas e os outros serviços 2. Com menos de 6 pessoas
+  passando, a rua é uma **trilha** estreita de terra batida no meio da célula, ligada às ruas ao
+  lado. A partir de 6 vira uma **rua** inteira de terra. A partir de 30 ganha **borda de pedra** nos
+  lados sem rua (`look3d.json` > `roads`). Ruas a até 2 células do altar ou do templo são pelo menos
+  rua. Na neve as ruas ficam limpas.
 - **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
   por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
 - **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e
@@ -1172,7 +1180,7 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   escuro, cubo de barro, casa de pedra e casa grande de calcário (veja "Aparência e moradores"
   para os quintais por variante). Altar 4 x 4 de pedras brutas com chifres, rampa e fogo; Templo
   6 x 6, a construção mais bonita, de calcário com detalhes dourados. Praça de lajes claras com
-  poço, bancos e uma figueira; parque murado com oliveiras.
+  toldo de linho ocre sobre esteira e jarro, bancos e uma figueira (sem poço nem fonte); parque murado com oliveiras.
 - **Ruas:** terra batida, gasta e calçada (veja "Vida na cidade"); poças na chuva.
 - **Árvores:** oliveiras, palmeiras, amendoeiras e figueiras pela estação; toco com muda quando
   volta a crescer (`regrowth`).

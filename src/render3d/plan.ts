@@ -1,5 +1,5 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
-import LOOK from './look3d.json';
+import { roadLevel, roadPieces, roadTraffic, sacredOf } from './roads';
 import VISUAL from '../data/visual.json';
 
 /**
@@ -25,8 +25,8 @@ export type ModelKey =
   | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling' | 'road'
   /** The barred gate, sand drift and dry bush in front of an empty house. */
   | 'closed'
-  /** Worn and paved roads (`roadWear`). */
-  | 'road-1' | 'road-2'
+  /** A trail worn down the middle of a cell, its arm toward a road beside it, and a road's stone kerb (`roads.ts`). */
+  | 'trail' | 'trail-arm' | 'kerb'
   /** Sacks and jars in the granary yard as the food store fills (`stockLevel`). */
   | 'stock-1' | 'stock-2' | 'stock-3'
   /** Things in a lived-in house's yard, by its variant: jars and a potted plant, a washing line. */
@@ -66,7 +66,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
-  'road-1', 'road-2', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  'trail', 'trail-arm', 'kerb', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...EXTRA_KEYS,
 ];
@@ -155,32 +155,6 @@ export function stockLevel(s: GameState): 0 | 1 | 2 | 3 {
   return share >= steps[2] ? 3 : share >= steps[1] ? 2 : share >= steps[0] ? 1 : 0;
 }
 
-/**
- * How a road looks (only looks, never read by the rules): 2 paved with stone near the altar or the
- * temple, or beside a stone house, a big house or a level-3 service; 1 worn and lighter beside a mud
- * house, a market, a plaza or a level-2 service; 0 packed earth otherwise. The streets get richer
- * with the town around them.
- */
-export function roadWear(s: GameState, x: number, y: number, sacred = sacredOf(s)): 0 | 1 | 2 {
-  const near = LOOK.roads.pavedNear;
-  if (sacred.some((b) => Math.max(b.x - x, x - (b.x + b.w - 1), b.y - y, y - (b.y + b.h - 1), 0) <= near)) return 2;
-  let wear: 0 | 1 | 2 = 0;
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const nx = x + dx;
-    const ny = y + dy;
-    if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) continue;
-    const b = s.grid[indexOf(s, nx, ny)];
-    if (!b) continue;
-    const w = b.kind === 'house' ? (b.level >= 3 ? 2 : b.level === 2 ? 1 : 0) : LEVELLED.includes(b.kind) && b.level >= 2 ? b.level - 1 : b.kind === 'market' || b.kind === 'plaza' ? 1 : 0;
-    if (w === 2) return 2;
-    if (w) wear = 1;
-  }
-  return wear;
-}
-
-/** The altar and the temple (their streets are paved). */
-const sacredOf = (s: GameState) => s.buildings.filter((b) => b.kind === 'altar' || b.kind === 'temple');
-
 /** Turn (radians about y) so the front (+z) faces a road next to the building; fixed for the big and long ones. */
 export function facing(s: GameState, b: Building): number {
   if (b.kind === 'altar' || b.kind === 'temple') return 0;
@@ -257,6 +231,7 @@ export function cityPlan(s: GameState): CityPlan {
   const props: Placement[] = [];
   const roads: { x: number; y: number }[] = [];
   const sacred = sacredOf(s);
+  const traffic = roadTraffic(s);
   const stock = stockLevel(s);
   for (let y = 0; y < s.rows; y++)
     for (let x = 0; x < s.cols; x++) {
@@ -265,8 +240,8 @@ export function cityPlan(s: GameState): CityPlan {
       const cx = x + 0.5;
       const cz = y + 0.5;
       if (s.roads[i]) {
-        const wear = roadWear(s, x, y, sacred);
-        props.push({ key: wear ? `road-${wear}` : 'road', x: cx, z: cz, rot: 0, scale: 1, sy: 1, tint: 0.92 + hash(x, y) * 0.12 });
+        const tint = 0.92 + hash(x, y) * 0.12;
+        for (const r of roadPieces(s, x, y, roadLevel(s, traffic, x, y, sacred))) props.push({ key: r.key, x: r.x, z: r.z, rot: r.rot, scale: 1, sy: 1, tint });
         roads.push({ x, y });
         continue;
       }

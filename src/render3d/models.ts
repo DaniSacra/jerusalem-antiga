@@ -53,7 +53,6 @@ export const COLORS = {
   hedge: 0x4f7234,
   grass: 0x84a14e,
   road: 0xab8f6a,
-  roadWorn: 0xc2a984,
   roadStone: 0xcdbfa2,
   roadJoint: 0x9c8c70,
   paving: 0xd9cbad,
@@ -64,7 +63,7 @@ export const COLORS = {
 } as const;
 
 /** Colours of the road surfaces (no snow settles on them). */
-const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadWorn, COLORS.roadStone, COLORS.roadJoint];
+const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint];
 
 /** Crop colours of the four field variants (wheat, barley, lentil, flax). */
 export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
@@ -255,11 +254,12 @@ function plaza(): Piece[] {
       if (Math.abs(x) < 0.4 && Math.abs(z) < 0.4) continue;
       out.push(box(cell - 0.04, 0.03, cell - 0.04, x, 0.02, z, (i + j) % 2 ? COLORS.limestone : COLORS.paving));
     }
-  // Round paving and the well-head with a beam on two stone posts.
+  // Round paving and, in the middle, an ochre linen awning on four poles over a mat and a jar
+  // (no well nor fountain: the design keeps water out of the square).
   out.push(cyl(0.42, 0.42, 0.03, 12, 0, 0.02, 0, COLORS.paving));
-  out.push(cyl(0.25, 0.27, 0.26, 10, 0, 0.04, 0, COLORS.limestoneDark), cyl(0.18, 0.18, 0.02, 10, 0, 0.29, 0, COLORS.water));
-  out.push(box(0.07, 0.4, 0.07, -0.24, 0.04, 0, COLORS.limestone), box(0.07, 0.4, 0.07, 0.24, 0.04, 0, COLORS.limestone), box(0.58, 0.05, 0.06, 0, 0.44, 0, COLORS.wood));
-  // Benches along the back and the left side; a trough; jars by the well.
+  for (const [x, z] of [[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]]) out.push(box(0.035, 0.62, 0.035, x, 0.04, z, COLORS.wood));
+  out.push(box(0.66, 0.025, 0.66, 0, 0.66, 0, COLORS.ochre), box(0.44, 0.012, 0.32, 0, 0.05, 0, COLORS.red), cyl(0.05, 0.04, 0.13, 6, 0.12, 0.05, 0.05, COLORS.mudDark));
+  // Benches along the back and the left side; a long stone seat; jars by the awning.
   out.push(box(1.0, 0.1, 0.18, 0.15, 0.04, -0.78, COLORS.limestoneDark), box(0.18, 0.1, 0.8, -0.78, 0.04, 0.25, COLORS.limestoneDark));
   out.push(box(0.42, 0.1, 0.16, 0.55, 0.04, 0.45, COLORS.limestoneDark));
   out.push(cyl(0.06, 0.045, 0.16, 6, 0.36, 0.04, 0.12, COLORS.mudDark), cyl(0.05, 0.04, 0.13, 6, 0.42, 0.04, -0.06, COLORS.red));
@@ -435,12 +435,14 @@ function granary(): Piece[] {
 const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6)];
 const shrub = (): Piece[] => [blob(0.16, 0, 0.1, 0, COLORS.leafDark, 0.7)];
 const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
-/** A worn road: trodden lighter, with a darker rut down the middle. */
-const roadWorn = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.roadWorn), box(0.16, 0.012, 0.9, 0.12, 0.04, 0, COLORS.road), box(0.12, 0.012, 0.7, -0.2, 0.04, 0.05, COLORS.road)];
-/** A paved road: four limestone slabs a little apart, the joints showing between them. */
-const roadPaved = (): Piece[] => [
-  box(1, 0.04, 1, 0, 0, 0, COLORS.roadJoint),
-  ...[[-0.25, -0.25, 0.46], [0.25, -0.25, 0.46], [-0.25, 0.25, 0.46], [0.25, 0.25, 0.46]].map(([x, z, w], k) => box(w + (k % 2) * 0.02, 0.025, w - (k % 2) * 0.02, x, 0.04, z, COLORS.roadStone)),
+/** A trail: a narrow patch of trodden earth in the middle of the cell (the sand shows around it). */
+const trail = (): Piece[] => [box(0.4, 0.04, 0.4, 0, 0, 0, COLORS.road)];
+/** A trail's arm from the middle toward the road beside it (+z), so trails join. */
+const trailArm = (): Piece[] => [box(0.34, 0.039, 0.52, 0, 0, 0.25, COLORS.road)];
+/** A busy road's stone kerb along its +z side (no road there). */
+const kerb = (): Piece[] => [
+  box(1, 0.075, 0.09, 0, 0, 0.455, COLORS.roadStone),
+  ...[-0.34, 0, 0.34].map((x) => box(0.012, 0.077, 0.092, x, 0, 0.455, COLORS.roadJoint)),
 ];
 
 /** Sacks of grain (blobs), each at (x, y, z) in the granary yard. */
@@ -741,8 +743,9 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
   stump,
   sapling,
   road,
-  'road-1': roadWorn,
-  'road-2': roadPaved,
+  trail,
+  'trail-arm': trailArm,
+  kerb,
   'stock-1': () => stock(1),
   'stock-2': () => stock(2),
   'stock-3': () => stock(3),

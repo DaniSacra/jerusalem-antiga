@@ -141,6 +141,31 @@ export class Scene3D {
   private v = new THREE.Vector3();
 
   /** Screen point over the centre of a footprint, `top` units above the ground (null behind the camera). */
+  /** Screen points of the residents walking now (their heads). */
+  residentPoints(): { id: number; sx: number; sy: number }[] {
+    const out: { id: number; sx: number; sy: number }[] = [];
+    const b = this.box;
+    for (const p of this.stage.world.walkers.residents()) {
+      const v = this.v.set(p.x, p.y, p.z).project(this.rig.camera);
+      if (v.z <= 1) out.push({ id: p.id, sx: b.left + ((v.x + 1) / 2) * b.width, sy: b.top + ((1 - v.y) / 2) * b.height });
+    }
+    return out;
+  }
+
+  /** The resident walking nearest a screen point, within `radius` px of their head (null: none). */
+  personAt(sx: number, sy: number, radius: number): number | null {
+    let best: number | null = null;
+    let bestD = radius;
+    for (const p of this.residentPoints()) {
+      const d = Math.hypot(p.sx - sx, p.sy - sy);
+      if (d < bestD) {
+        bestD = d;
+        best = p.id;
+      }
+    }
+    return best;
+  }
+
   screenOf(r: Rect, top = 0): { x: number; y: number } | null {
     const cx = r.x + r.w / 2;
     const cz = r.y + r.h / 2;

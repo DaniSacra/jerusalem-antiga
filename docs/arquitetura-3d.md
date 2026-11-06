@@ -565,6 +565,11 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   sem quadro acima de 50 ms. O ar tremendo fica só no horizonte do céu,
   porque no chão ele pediria uma passada de pós-processo, cara no celular. Efeito maquete: fora
   (recomendado na seção 10).
+- **Pacote A (2026-11-06, pedido do usuário):** as ruas agora mudam pelo movimento (`roads.ts`:
+  trilha → rua → borda de pedra, pela gente que passa a caminho do altar; isso substitui o
+  `roadWear` pela riqueza do lado). Quem anda na rua é morador real (`castWalkers`), e o toque com
+  Mover abre a ficha (`GestureView.tapPerson`, `Scene3D.personAt` e `residentPoints`,
+  `Hud.showPerson`). A praça ficou sem poço (toldo ocre, como no design).
 
 ---
 

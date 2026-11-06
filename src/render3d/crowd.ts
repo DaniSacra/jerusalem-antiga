@@ -1,4 +1,4 @@
-import type { AgeBand, Craft, Sex, WalkerType } from '../core';
+import { ageBand, jobsOf, type AgeBand, type BuildingKind, type Craft, type GameState, type Sex, type WalkerType } from '../core';
 
 /**
  * How the people of the 3D view look and walk, as plain data (no Three.js): robe and head cover by
@@ -64,7 +64,12 @@ export function walkerPerson(type: WalkerType, k: number): { sex: Sex; band: Age
 /** The look of a resident walker of `type` (the priest in white with a blue head cloth). */
 export function walkerLook(type: WalkerType, k: number): FigureLook {
   const p = walkerPerson(type, k);
-  const look = figureLook(p.sex, p.band, k);
+  return residentLook(type, p.sex, p.band, k);
+}
+
+/** The look of a real resident out as a walker of `type`: their own clothes (as at home), the priest's white. */
+export function residentLook(type: WalkerType, sex: Sex, band: AgeBand, k: number): FigureLook {
+  const look = figureLook(sex, band, k);
   return type === 'priest' ? { ...look, ...PRIEST, mantle: false } : look;
 }
 
@@ -108,6 +113,32 @@ export function loadOf(type: WalkerType, craft: Craft | null = null): Load | nul
     default:
       return null;
   }
+}
+
+/** The workplace of the walker types that walk to or from their work. */
+const WORK_OF: Partial<Record<WalkerType, BuildingKind>> = { farmer: 'field', porter: 'field', artisan: 'workshop', woodcutter: 'lumber', mason: 'quarry', basketWoman: 'gatherer' };
+
+/**
+ * Who each walker on the streets is: a resident of the city, each at most once. A walker of a trade
+ * is someone who works there (the farmer works a field, the artisan a workshop); otherwise someone of
+ * the age the type shows (`walkerPerson`; a woman for the water and basket carriers); otherwise anyone not yet out. `k[i]` (0..1) is the
+ * walker's own draw. Null: nobody left (more walkers than residents in a new town).
+ */
+export function castWalkers(s: GameState, types: readonly WalkerType[], k: readonly number[]): (number | null)[] {
+  const jobs = jobsOf(s);
+  const residents = s.people.filter((p) => p.houseId !== null).sort((a, b) => a.id - b.id);
+  const used = new Set<number>();
+  return types.map((type, i) => {
+    const want = walkerPerson(type, k[i]);
+    const work = WORK_OF[type];
+    const free = residents.filter((p) => !used.has(p.id));
+    // The age the type shows; the water and basket carriers are women.
+    const fits = (p: (typeof residents)[number]) => ageBand(p, s.week) === want.band && (want.sex === 'm' || p.sex === 'f');
+    const pick = (work && free.find((p) => jobs.get(p.id)?.kind === work)) || free.find(fits) || free[Math.floor(k[i] * free.length)];
+    if (!pick) return null;
+    used.add(pick.id);
+    return pick.id;
+  });
 }
 
 /** An animal walking beside a walker: the donkey man leads a donkey with baskets, the shepherd a sheep. */

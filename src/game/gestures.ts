@@ -55,6 +55,8 @@ export interface GestureView {
   cursorChanged(): void;
   /** The hovered cell changed (the interface shows it). */
   hoverChanged(cell: Cell | null): void;
+  /** A tap with Mover on a resident walking the streets: their sheet opens (true), else the map selects. */
+  tapPerson?(sx: number, sy: number, touch: boolean): boolean;
 }
 
 interface Press extends DragMemo {
@@ -239,7 +241,7 @@ export class Gestures {
     const s = this.session;
     if (!g.cancelled) {
       if (this.tool === 'view') {
-        if (!g.moved && g.start) s.select(g.start);
+        if (!g.moved && !this.view.tapPerson?.(p.sx, p.sy, g.touch) && g.start) s.select(g.start);
       } else if (!g.applied) {
         // Single-placement tools drop where the finger is released, so the preview can be adjusted.
         // Releasing a single building over the UI cancels it.

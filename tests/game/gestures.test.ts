@@ -45,7 +45,7 @@ function setup() {
     cursorChanged: () => {},
     hoverChanged: () => {},
   };
-  return { s, g: new Gestures(s, view), cam, toasts };
+  return { s, g: new Gestures(s, view), cam, toasts, view };
 }
 
 const ptr = (p: { sx: number; sy: number }, o: Partial<PointerIn> = {}): PointerIn => ({ id: 1, touch: false, button: 0, t: 0, ...p, ...o });
@@ -55,6 +55,25 @@ describe('gestures on the map (every view)', () => {
   it('a tap with Mover opens the balloon of what is there', () => {
     const { s, g } = setup();
     const a = s.state.buildings.find((b) => b.kind === 'altar')!;
+    const p = px({ x: a.x, y: a.y });
+    g.down(ptr(p));
+    g.up(ptr(p));
+    expect(s.selected).toEqual({ x: a.x, y: a.y });
+  });
+
+  it('a tap with Mover on a resident walking by opens their sheet instead of selecting the ground', () => {
+    const { s, g, view } = setup();
+    const taps: [number, number, boolean][] = [];
+    view.tapPerson = (sx, sy, touch) => {
+      taps.push([sx, sy, touch]);
+      return sx < 100;
+    };
+    const a = s.state.buildings.find((b) => b.kind === 'altar')!;
+    g.down(ptr({ sx: 50, sy: 50 }, { touch: true }));
+    g.up(ptr({ sx: 50, sy: 50 }, { touch: true }));
+    expect(taps).toEqual([[50, 50, true]]);
+    expect(s.selected).toBeNull();
+    // No one there: the map selects as before.
     const p = px({ x: a.x, y: a.y });
     g.down(ptr(p));
     g.up(ptr(p));

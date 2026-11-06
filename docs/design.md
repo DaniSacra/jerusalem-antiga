@@ -73,7 +73,26 @@ Mantidos:
   para o usuário na seção 10 do plano (câmera, sem WebGL 2, paridade de arte, maquete, dia e noite,
   ordem com os pacotes de jogo).
 
-## Agora: P4 "Lenha e inverno" (escopo 2026-11-05)
+- 2026-11-06 (usuário, escopo do diretor): Pacote B "Primeiro ano de sobrevivência"
+  (`docs/revisoes/2026-11-06/plano-sobrevivencia.md`). Barro = rua + madeira (sai a praça); pedra =
+  praça + pedra (sai o mercado); mercado só para a casa grande, liberado depois da oficina. Motivo: o
+  Ano 1 é sobreviver com poucas casas, e o mercado só faz sentido com o que trocar. Gado fica para o
+  Pacote C (uma mecânica por vez).
+
+## Agora: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06)
+Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
+- **B1 "Madeira antes da praça"** (sem mecânica nova): exigências novas das casas, Praça no objetivo
+  5, Mercado no 7 ("Construa uma oficina"), objetivo 3 "Passe o primeiro inverno" (`firstSpring`),
+  casa não gasta a lenha do inverno ao subir, tutorial sem praça. 19 objetivos (sai 125 moradores).
+- **B2 "Cada um no seu trabalho"** (mecânica nova): `Person.jobId`, produção por local × lotação,
+  local vazio rende 0, mudar profissão pela ficha da pessoa, desemprego = adulto sem vaga.
+- **B3 "O frio pesa"** (mecânica nova): tenda queima 0,5/sem; morte de frio por semana de inverno
+  (tenda 0,5% vulneráveis; sem lenha tenda 4%/1%, casa 1%/0; com fome dobra).
+- B4 "Alegria desde o começo": DEPOIS, decidir após o playtest do B3.
+- Critérios novos S1–S4, J1–J3, F1–F2, D1–D3 (seção 7 do plano). ~19–24 h para B1–B3.
+- Fora: gado, pasto, roupas, doenças, comércio do mercado, história, visual do Pacote A.
+
+## Feito: P4 "Lenha e inverno" (escopo 2026-11-05)
 Especificação: `docs/revisoes/2026-11-05/plano-p4.md`. Queima só no inverno e sai depois da
 produção. Frio = madeira insuficiente na semana. Aviso `firewood` ("faltam N de madeira") no outono e
 no inverno. Pílula da madeira vermelha. Toasts de frio. Balão da casa "Lenha no inverno: N/sem".
@@ -82,7 +101,9 @@ partidas do Comum, ≤ 15% no Ano 1) e W4b ≤ 15/100. Alavancas na seção 8 do
 plantio, depósito, manutenção em pedra, frio na alegria e nos nascimentos.
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
-1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (agora, P4) · 4. Obras com tempo ·
+0. Pacote B "Primeiro ano de sobrevivência" (agora) · Pacote C "Gado" (depois do B; o Mercado
+passa a pedir gado)
+1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (feito, P4) · 4. Obras com tempo ·
 5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
 10. Doenças · 11. Eventos da época · 12. Incêndio
 

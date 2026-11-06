@@ -10,9 +10,10 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `scene3d.ts` | a cena sem página: palco, câmera, marcas no chão, efeitos; célula sob o ponteiro, ponto da tela sobre uma célula (retângulo do canvas medido no `resize`), câmera deslizando, um quadro |
 | `stage.ts` | renderizador, céu e luz, clima, partículas, qualidade automática e o `World` refeito por camada (cidade a cada 250 ms no máximo; moradores só com a cidade parada 600 ms) |
 | `marks.ts`, `overlay.ts` | **puro e testado** / desenho: prévia no chão, fantasma, áreas e destaques |
+| `roads.ts` | **puro e testado**: quanta gente passa em cada rua a caminho do altar (`roadTraffic`), trilha, rua ou borda de pedra (`roadLevel`) e as peças de cada célula (`roadPieces`) |
 | `picking.ts`, `diff.ts` | **puros e testados**: raio até o chão e caixas das construções; o que mudou na cidade (camadas) |
 | `plan.ts` | **puro e testado**: o que se desenha do `GameState` (modelo por tipo e nível, casa vazia desbotada com portão trancado, quintal da casa por variante, acréscimos dos níveis 2–3 por tipo, celeiro enchendo, ruas gastas e calçadas, frente para a rua, árvores, tocos e mudas, número de moradores) |
-| `crowd.ts` | **puro e testado**: roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), o que cada tipo de morador carrega (`loadOf`) e o bicho que anda ao lado (`companionOf`), ordem da família ao andar e o seu caminho até a casa |
+| `crowd.ts` | **puro e testado**: quem é cada morador andando (`castWalkers`: um morador real, o ofício por quem trabalha ali), roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), o que cada tipo de morador carrega (`loadOf`) e o bicho que anda ao lado (`companionOf`), ordem da família ao andar e o seu caminho até a casa |
 | `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), o que cada um carrega (jarro, cesto, saco, foice, tora, cajado, carrinho, produtos dos ofícios: uma malha por objeto, presa ao corpo) e as famílias e caravanas andando em grupo (`s.families`) |
 | `animals.ts` | bichos e barcos low-poly instanciados, com a cor nos vértices (jumento, ovelha, cabra, galinha, pomba, barco com pescador): uma chamada por tipo |
 | `ambient.ts` | **puro e testado**: onde ficam os bichos, os barcos e as lavadeiras (`ambientPlan`) e como se mexem (`ambientPose`) |
@@ -50,7 +51,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `fisher` pescador, `gatherer` coletora | 2x2 | `temple` templo | 6x6 |
 | `lumber` lenhador, `quarry` pedreira | 2x2 | `road` rua | 1x1 |
 | `olive`, `palm`, `rock`, `shrub`, `stump` toco, `sapling` muda, `closed` portão trancado | 1x1 | `up-<tipo>-2`/`-3` acréscimos | área do prédio |
-| `road-1` rua gasta, `road-2` rua calçada, `yard-1`/`yard-2` quintal (jarros, varal) | 1x1 | `stock-1..3` estoque no pátio | 3x3 (celeiro) |
+| `trail`/`trail-arm` trilha e braço até a rua ao lado, `kerb` borda de pedra, `yard-1`/`yard-2` quintal (jarros, varal) | 1x1 | `stock-1..3` estoque no pátio | 3x3 (celeiro) |
 | | | `craft-1..5` ofício no pátio (ferraria, carpintaria, tecelagem, tinturaria, curtume) | 3x3 (oficina) |
 
 ```json
@@ -62,7 +63,7 @@ Cada .glb é achatado em partes, uma por material, e instanciado como os modelos
 arquivo que não carrega (sem internet antes do primeiro uso) fica com o modelo por código.
 `olive.glb` está na pasta mas fora do manifesto: aparece centenas de vezes e pesaria demais. `plaza.glb`
 também saiu do manifesto: o toldo sobre postes lia como tenda; a praça é o modelo por código (lajes
-claras em dois tons, poço, bancos e uma figueira).
+claras em dois tons, toldo de linho ocre sobre uma esteira, bancos e uma figueira; sem poço nem fonte).
 
 No pacote hoje: `house-1..4`, `market`, `lumber`, `quarry`, `temple`, `workshop`, `fisher`,
 `gatherer`, `altar` (bloco de pedras brutas com chifres, rampa e brasas; `scale: 3.0` para não encher
@@ -76,9 +77,8 @@ modelo (mesmo giro e altura): celeiro com andar de pedra, portal e toldo no terr
 azul e, no 3, colunata de pedra; oficina com quarto de pedra no teto da oficina de trabalho (1,6 de
 altura, no fundo à esquerda, como no modelo Meshy), prateleira de jarros e, no 3, chaminé alta sobre o
 forno (`KILN` em `plan.ts`, de onde saem também a fumaça e o fogo da noite).
-Também são sempre por código: as ruas gastas e calçadas (`roadWear`: calçada perto do altar e do
-templo e ao lado de casa de pedra, casa grande ou serviço nível 3; gasta ao lado de casa de barro,
-praça, mercado ou serviço nível 2), o estoque no pátio do celeiro ligado (`stockLevel`, pela fração
+Também são sempre por código: as ruas pelo movimento (`roads.ts`: trilha, rua e rua com borda de
+pedra pela gente que passa a caminho do altar; limites em `look3d.json` > `roads`), o estoque no pátio do celeiro ligado (`stockLevel`, pela fração
 comida/capacidade, limites em `visual.json` > `moments.granaryStock`) e o quintal das casas com gente (`yardOf`:
 variante % 3 dá nada, jarros com vaso ou varal, no canto da frente do lado do espelhamento; a
 tenda sempre à direita, longe da fogueira; posição em `YARD_AT`) e o ofício da oficina (`craft-1..5`

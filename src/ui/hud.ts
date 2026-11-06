@@ -186,6 +186,12 @@ export class Hud {
     this.update();
   }
 
+  /** A resident tapped on the street: their sheet opens (panels close). */
+  showPerson(id: number) {
+    this.panels.close();
+    this.sheet.show(id, true);
+  }
+
   /** A family or a sheet's house: the camera goes there and its balloon opens (panels and sheet close). */
   private showHouse(houseId: number) {
     this.panels.close();

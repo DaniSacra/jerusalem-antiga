@@ -1020,6 +1020,21 @@ async function town3dScenario(page) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${OUT}/town3d-pc-people.png` });
   await page.evaluate(() => window.session.setSpeed(0));
+  // Every walker is a resident: a click on one opens their sheet with their name.
+  await page.waitForTimeout(300);
+  const free = (p) => p.sx > 120 && p.sx < 1100 && p.sy > 150 && p.sy < 620;
+  const someone = (await page.evaluate(() => window.view3d.residents())).find(free);
+  assert(someone, 'a resident walks in view');
+  const name = await page.evaluate((id) => window.session.nameOf(id), someone.id);
+  await page.mouse.click(someone.sx, someone.sy);
+  await page.waitForTimeout(400);
+  const sheet = await page.evaluate(() => {
+    const el = document.querySelector('[data-spot="sheet"]');
+    return el && !el.classList.contains('hidden') ? el.textContent : null;
+  });
+  assert(sheet && sheet.includes(name), `a click on a walker opens ${name}'s sheet (${sheet?.slice(0, 60)})`);
+  await page.screenshot({ path: `${OUT}/town3d-pc-person.png` });
+  await page.keyboard.press('Escape');
   // Around the town: pigeons on the altar court, a goat and chickens by the tent, the donkey at the market.
   const ambient = await page.evaluate(() => window.view3d.info().ambient);
   assert(ambient >= 6 + 2 + 3, `animals, boats and washerwomen around the town (${ambient})`);
@@ -1039,6 +1054,10 @@ async function town3dScenario(page) {
   });
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/town3d-pc-river.png` });
+  // The plaza: flagstones, an ochre awning over a mat, benches and a fig tree (no well).
+  await page.evaluate(() => window.view3d.rig.set({ x: 26, z: 45, dist: 6 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-plaza.png` });
   // The workshop's yard shows its craft.
   await page.evaluate(() => window.view3d.rig.set({ x: 22.5, z: 43.5, dist: 7 }));
   await page.waitForTimeout(800);

@@ -12,6 +12,9 @@ import { Hud, type HudHost } from '../ui/hud';
 
 /** Time between frames while the game is paused and nothing moves (10 a second). */
 const IDLE_FRAME_MS = 100;
+/** How near (px) a tap must be to a walking resident's head to open their sheet. */
+const PERSON_REACH_TOUCH = 26;
+const PERSON_REACH_MOUSE = 16;
 
 export interface Play3DOptions extends Scene3DOptions {
   /** A new game after a defeat: the same map or a new one. */
@@ -137,6 +140,14 @@ export class Play3D implements SessionView, GestureView, HudHost {
 
   overUi(sx: number, sy: number) {
     return this.hud.overUi(sx, sy);
+  }
+
+  /** A tap with Mover near a resident on the street opens their sheet (a finger gets a wider reach). */
+  tapPerson(sx: number, sy: number, touch: boolean) {
+    const id = this.scene.personAt(sx, sy, touch ? PERSON_REACH_TOUCH : PERSON_REACH_MOUSE);
+    if (id === null) return false;
+    this.hud.showPerson(id);
+    return true;
   }
 
   panBy(dx: number, dy: number) {
@@ -339,6 +350,8 @@ export class Play3D implements SessionView, GestureView, HudHost {
         /** Screen point of a cell's centre (tests tap there). */
         cellPoint: (x: number, y: number) => g.screenOf({ x, y, w: 1, h: 1 }),
         cellAt: (sx: number, sy: number) => g.cellAt(sx, sy),
+        /** Screen points of the residents walking now (tests tap one). */
+        residents: () => g.scene.residentPoints(),
       },
     });
   }

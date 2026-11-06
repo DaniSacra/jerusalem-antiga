@@ -64,7 +64,7 @@
     "sunCut": 0.75
   },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
-  "roads": { "pavedNear": 2 },
+  "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2 },
   "ambient": { "maxAnimals": 40, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {

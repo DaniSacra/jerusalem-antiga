@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foodCapacity, harvestsIn, indexOf, refreshCity } from '../../src/core';
+import { addPerson, foodCapacity, harvestsIn, indexOf, refreshCity } from '../../src/core';
 import { changedLayers, cityKeys } from '../../src/render3d/diff';
 import { emptyGame, put, road, ROADSIDE } from '../helpers';
 
@@ -33,6 +33,15 @@ describe('what changed in the drawn city', () => {
     expect(changedLayers(a, cityKeys(s))).toEqual([]);
     s.food = foodCapacity(s);
     expect(changedLayers(a, cityKeys(s))).toEqual(['buildings']);
+  });
+
+  it('a street turning from a trail into a road (more people along it) changes the props', () => {
+    const s = emptyGame();
+    const h = put(s, 'house', 25, 40, 1, false, 0);
+    refreshCity(s);
+    const a = cityKeys(s);
+    for (let k = 0; k < 8; k++) addPerson(s, { sex: 'm', age: 30, houseId: h.id, caravan: 0, clan: 1 }, () => 0.5);
+    expect(changedLayers(a, cityKeys(s))).toContain('props');
   });
 
   it('a road changes the props and who walks; a tree cut into a stump only the props', () => {

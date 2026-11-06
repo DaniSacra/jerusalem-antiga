@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, roadWear, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 
@@ -110,7 +110,8 @@ describe('what the 3D view draws', () => {
     expect(near(6)).toEqual(['rock']);
     expect(near(7)).toEqual(['stump']);
     expect(near(8).sort()).toEqual(['sapling', 'stump']);
-    const roads = props.filter((p) => p.key.startsWith('road')).length;
+    // One road or trail centre per road cell (a trail adds arms, a busy road kerbs).
+    const roads = props.filter((p) => p.key === 'road' || p.key === 'trail').length;
     expect(roads).toBe(s.roads.filter((r, i) => r && !s.grid[i]).length);
     expect(cityPlan(s).roads).toHaveLength(roads);
   });
@@ -131,30 +132,6 @@ describe('what the 3D view draws', () => {
     for (const [k, x, y] of spots) put(s, k, x, y);
     const keys = cityPlan(s).buildings.map((p) => p.key);
     for (const [k] of spots) expect(keys).toContain(k);
-  });
-
-  it('paves the streets near the altar and wears the others with the houses and services beside them', () => {
-    const s = emptyGame();
-    // The altar fills 22..25: its ring and the first cells of the road down x = 24 are paved.
-    expect(roadWear(s, 21, 21)).toBe(2);
-    expect(roadWear(s, 24, 27)).toBe(2);
-    expect(roadWear(s, 24, 28)).toBe(0);
-    const h = put(s, 'house', 25, 30, 1);
-    expect(roadWear(s, 24, 30)).toBe(0);
-    h.level = 2;
-    expect([roadWear(s, 24, 30), roadWear(s, 24, 31), roadWear(s, 24, 32)]).toEqual([1, 1, 0]);
-    h.level = 3;
-    expect(roadWear(s, 24, 31)).toBe(2);
-    const m = put(s, 'market', 22, 34);
-    expect(roadWear(s, 24, 35)).toBe(1);
-    m.level = 3;
-    expect(roadWear(s, 24, 35)).toBe(2);
-    // The plan draws each road by its wear, and every wear key is a model.
-    const keys = cityPlan(s).props.filter((p) => Math.floor(p.x) === 24).map((p) => [Math.floor(p.z), p.key]);
-    expect(keys).toContainEqual([28, 'road']);
-    expect(keys).toContainEqual([30, 'road-2']);
-    expect(keys).toContainEqual([27, 'road-2']);
-    for (const k of ['road-1', 'road-2'] as const) expect(MODEL_KEYS).toContain(k);
   });
 
   it('fills the granary yard with the food store, only on a connected granary', () => {

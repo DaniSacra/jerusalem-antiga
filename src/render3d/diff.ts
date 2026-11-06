@@ -1,6 +1,7 @@
 import type { GameState } from '../core';
 import { haulJobs } from './haul';
 import { residentsOf, stockLevel } from './plan';
+import { roadLevel, roadTraffic, sacredOf } from './roads';
 
 /**
  * What changed in the drawn city since the last look, as cheap keys (pure, no Three.js). The live
@@ -10,7 +11,7 @@ import { residentsOf, stockLevel } from './plan';
 export interface CityKeys {
   /** Every building's id, kind, level, kept level, variant, size and connection, and how full the granaries look. */
   buildings: string;
-  /** Roads, trees, rocks and stumps (with the saplings growing on them, by regrowth step). */
+  /** Roads (with their look by traffic), trees, rocks and stumps (with the saplings growing on them, by regrowth step). */
   props: string;
   /** Who walks: the road network, the number of residents and the food workers out (haul.ts). */
   people: string;
@@ -19,8 +20,10 @@ export interface CityKeys {
 export function cityKeys(s: GameState): CityKeys {
   const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}`;
   let props = '';
-  // 'R' a road, else the feature's name or '-' (a set of words where none starts another: no separator needed).
-  for (let i = 0; i < s.roads.length; i++) props += s.roads[i] ? 'R' : (s.feature[i] ?? '-');
+  // A road is its look (0 trail, 1 road, 2 kerbed), else the feature's name or '-'.
+  const traffic = roadTraffic(s);
+  const sacred = sacredOf(s);
+  for (let i = 0; i < s.roads.length; i++) props += s.roads[i] ? roadLevel(s, traffic, i % s.cols, Math.floor(i / s.cols), sacred) : (s.feature[i] ?? '-');
   // Saplings grow on stumps over time: a step of the regrowth changes the key a few times, not every week.
   props += '|' + s.stumps.map((t) => `${t.i}:${Math.floor((s.week - t.week) / 13)}`).join(',');
   let net = 0;

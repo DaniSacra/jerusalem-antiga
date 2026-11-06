@@ -1,9 +1,10 @@
 import VISUAL from '../data/visual.json';
 import * as THREE from 'three';
-import { borderCells, craftOf, createRng, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
+import { ageBand, borderCells, craftOf, createRng, jobsOf, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
 import { COLORS } from './models';
 import type { Terrain } from './terrain';
-import { COMPANION_AT, companionOf, figureLook, LOADS, loadOf, walkerLook, type Load } from './crowd';
+import { castWalkers, COMPANION_AT, companionOf, figureLook, LOADS, loadOf, residentLook, walkerLook } from './crowd';
+import { hash } from './plan';
 import { Herd } from './animals';
 import { HAUL, haulJobs, legOf, waitAfter, type HaulJob, type Pt } from './haul';
 import { Figures } from './figures';
@@ -37,30 +38,44 @@ export class Walkers {
   private donkeys: Herd;
   private sheep: Herd;
   private rng: Rng;
+  /** The resident each walker is (null: a passer-by in a town with fewer residents than walkers). */
+  private people: (number | null)[] = [];
+  /** Where each walker stands now (x, y, z per slot), for a tap. */
+  private at: Float32Array = new Float32Array(0);
   /** Walkers on the streets now (a share of the list: fewer at night and in the rain). */
   private shown = 0;
 
   constructor(private s: GameState, private ground: Terrain, count: number, shadows: boolean) {
     this.rng = createRng(s.week * 31 + 7);
-    // The crafts of the city's workshops: an artisan carries the goods of one of them.
+    // The crafts of the city's workshops: an artisan carries the goods of one of them (his own, when he works there).
     const crafts = s.buildings.filter((b) => b.connected).map(craftOf).filter((c): c is Craft => c !== null);
     let donkeys = 0;
     let sheep = 0;
-    const loads: (Load | null)[] = [];
     for (let i = 0; i < count; i++) {
       const w = this.trip(null);
       if (w) {
         w.seg = Math.floor(this.rng() * (w.path.length - 1));
-        loads.push(loadOf(w.type, crafts.length ? crafts[Math.floor(this.rng() * crafts.length)] : null));
         const beast = companionOf(w.type);
         w.beast = beast === 'donkey' ? donkeys++ : beast === 'sheep' ? sheep++ : -1;
         this.list.push(w);
       }
     }
+    // Each walker is a resident (tap one: its sheet opens), dressed as that person.
+    const draws = this.list.map(() => this.rng());
+    this.people = castWalkers(s, this.list.map((w) => w.type), draws);
+    const jobs = jobsOf(s);
+    const byId = new Map(s.people.map((p) => [p.id, p]));
+    const loads = this.list.map((w, k) => {
+      const id = this.people[k];
+      const own = id !== null ? s.buildings.find((b) => b.id === jobs.get(id)?.buildingId) : undefined;
+      const craft = (own && craftOf(own)) || (crafts.length ? crafts[Math.floor(draws[k] * crafts.length)] : null);
+      return loadOf(w.type, craft);
+    });
     // One mesh only for each thing someone carries (fewer draw calls).
     this.figures = new Figures(count, shadows, LOADS.filter((l) => loads.includes(l)));
     this.list.forEach((w, k) => {
-      this.figures.dress(k, walkerLook(w.type, this.rng()));
+      const p = this.people[k] !== null ? byId.get(this.people[k]!) : undefined;
+      this.figures.dress(k, p ? residentLook(w.type, p.sex, ageBand(p, s.week), hash(p.id, 3)) : walkerLook(w.type, draws[k]));
       this.figures.carry(k, loads[k]);
       w.speed *= this.figures.look(k).pace;
     });
@@ -69,6 +84,15 @@ export class Walkers {
     this.donkeys.count = donkeys;
     this.sheep.count = sheep;
     this.figures.count = this.shown = this.list.length;
+    this.at = new Float32Array(this.list.length * 3);
+  }
+
+  /** The residents on the streets now and where they are (world x, y at the head, z). */
+  *residents(): Generator<{ id: number; x: number; y: number; z: number }> {
+    for (let i = 0; i < this.shown; i++) {
+      const id = this.people[i];
+      if (id !== null && id !== undefined) yield { id, x: this.at[i * 3], y: this.at[i * 3 + 1] + 0.3, z: this.at[i * 3 + 2] };
+    }
   }
 
   /** Shows a share (0..1) of the walkers; the others are indoors. */
@@ -133,7 +157,9 @@ export class Walkers {
         const c = w.path[w.path.length - 1];
         const x = c.x + 0.5 + Math.sin(w.phase) * 0.3;
         const z = c.y + 0.5 + Math.cos(w.phase) * 0.3;
-        this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(time * 8 + w.phase)) * 0.08, z, w.phase, 0, 0);
+        const gy = this.ground.height(x, z);
+        this.at.set([x, gy, z], i * 3);
+        this.figures.place(i, x, gy + 0.04 + Math.abs(Math.sin(time * 8 + w.phase)) * 0.08, z, w.phase, 0, 0);
         if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
         if (!w.cheer) this.list[i] = { ...(this.trip({ ...w, speed: w.speed / 1.3 }) ?? { ...w, path: [...w.path].reverse() }), seg: 0, t: 0, cheer: 0 };
         continue;
@@ -162,7 +188,9 @@ export class Walkers {
       // Two steps per second at the usual pace: a light bob and sway.
       const ph = time * 9 * w.speed + w.phase;
       const yaw = Math.atan2(dx, dz);
-      this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, yaw, 0.04, Math.sin(ph) * 0.06);
+      const gy = this.ground.height(x, z);
+      this.at.set([x, gy, z], i * 3);
+      this.figures.place(i, x, gy + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, yaw, 0.04, Math.sin(ph) * 0.06);
       if (w.beast >= 0) {
         // The animal walks at the walker's right, a little behind.
         const bx = x - dz * COMPANION_AT.side - dx * COMPANION_AT.back;
