@@ -66,6 +66,64 @@ e isso é bom (pilar 1: há caminho de volta). O perigo do Ano 1 passa a ser **m
 inverno**, mesmo com lenha. A escolha do jogador é tirar as famílias com crianças pequenas e idosos da
 tenda antes da semana 13. A falta de lenha fica como o perigo maior, mais para a frente.
 
+## 1c. Decisões depois do B2 medido (2026-11-06)
+Base: `sim-tester-b2.md` (medido em f1ccb01, antes de P1/P2/B3/P3). O usuário mandou seguir sem esperar
+aprovação; ele testa no fim.
+
+| Item | Pilares | Decisão |
+|---|---|---|
+| J1 reescrito: conta só o vazio que o jogador podia resolver | 3 posicionar, 1 simples | **ENTRA AGORA** (critério): local vazio porque faltam adultos (muitas crianças) é a cidade real, não falha do jogo |
+| Balão do local vazio diz a causa certa | 1 simples | **ENTRA AGORA** (interface, copywriter): "mude a profissão" é mentira quando não há adulto para mover |
+| Local de trabalho sem ninguém paga **metade** da manutenção | 1 simples (caminho de volta), 3 | **ENTRA AGORA** (ajuste de regra da manutenção, não mecânica nova; mede na rodada do B3): o Distraído perde 46% por dívida de prédio vazio, e isso pune o descuido sem ensinar |
+| Local vazio sem manutenção nenhuma | 3 posicionar | **FORA**: construir à toa ficaria de graça; vira a alavanca se a metade não bastar |
+| P1 `lumber.gather.max` 2,5 | 2 ritmo, protege D2 | **FICA**: o ganho no B2 é pequeno (+2 pontos), mas o frio do B3 depende da madeira do meio da partida; a alavanca 3 do B3 (2,25) é a volta |
+| Alavanca J2 `gatherer.jobs` 1 → 2 | — | **FORA**: medida, não muda o J2 (7 → 6); o aviso de desemprego resolve |
+| A9 (2 casamentos no Ano 2, alvo ≥ 3) | 2 ritmo | **DEPOIS**: igual desde o B1, não é do B3; rever no pacote seguinte |
+| Prata parada e pedra sobrando (W4) | 3 | **DEPOIS**: iguais ao B1, fora do Pacote B |
+| Prévia `foodAfter` com o bug do bot | — | **FORA**: o jogador só constrói encostado na rua ligada, então a prévia não cai nesse caso |
+
+### Regra nova da manutenção (core, `economy.ts`)
+- Um local de trabalho (`jobs` > 0) com **equipe 0** paga `upkeep × rules.emptyUpkeepFactor` por
+  semana. Dado novo: `rules.json > emptyUpkeepFactor` **0,5**.
+- Vale ligado ou desligado da rua (desligado já não tem ninguém). Vale em qualquer nível (`statOf`).
+- **Não vale** para o Celeiro (guarda mesmo vazio, B2 regra 6) nem para construções sem vagas (Praça,
+  Parque). O Templo já tem manutenção 0.
+- Campo no inverno com lavradores descansando paga cheio (tem equipe).
+- `balanceAfter` (prévia): o prédio novo recebe os adultos sem trabalho, como em `foodAfter`; com
+  alguém, conta cheio; sem ninguém livre, conta metade.
+- Na tela (copywriter): balão do local vazio "Manutenção 0,25/sem (vazio: metade)". Balão do local
+  vazio quando nenhum adulto pode ser movido: "Ninguém trabalha aqui: faltam adultos (N crianças na
+  cidade)". Com alguém para mover, fica o texto atual ("toque numa pessoa e mude a profissão").
+- `docs/GAME_DESIGN.md` (Manutenção, Trabalho) no mesmo passo.
+
+Testes do core:
+- Lenhador ligado vazio paga 0,25; com 1 de 2 pessoas paga 0,5 (cheio).
+- Mercado nível 2 vazio paga 1,5 (3 × 0,5); com 1 pessoa paga 3.
+- Desligado da rua (vazio) paga metade.
+- Celeiro vazio paga cheio; Praça e Parque pagam cheio.
+- Campo no inverno com os lavradores paga cheio.
+- `silverDelta` e `upkeep[kind]` somam as metades; `costliestUpkeep` usa o valor pago.
+- `balanceAfter`: com 2 adultos sem trabalho, o lenhador novo conta 0,5; sem ninguém livre, 0,25.
+
+### J1 novo
+**J1** Comum: partidas com um local de comida, lenhador ou mercado vazio > 8 semanas seguidas, fora do
+inverno, **enquanto alguém podia ser movido** (adulto sem trabalho, ou adulto num local de prioridade
+menor com 2+ pessoas, ou outro local do mesmo tipo com 2+): **≤ 10%**. Só informação (sem alvo):
+semanas-prédio vazias por partida (mediana, p90) e o J1 antigo, para ver quantas vagas sobram por falta
+de adultos. Se o J1 novo passa de 10%, o problema é o aviso ou o balão, não os números.
+
+### Mudanças na rodada do B3
+- Base: main de agora (B2 + P1 + P2 + B3 + P3) **mais a regra da metade**, com o bot Comum final do B2
+  (move gente). O bot do plano (`jobDonors "plan"`, `answersIdle false`) roda também como informação:
+  é o jogador que não mexe nas profissões.
+- F1 parte de **54%** (B2 sem P1; 57% com P1), não de 87%. A faixa 40–70% fica. O bot que põe um
+  lavrador no lenhador no outono faz parte da medida.
+- A2 ganha **A2b: derrotas do Distraído ≤ 25%** (hoje 46%), com a semana e a causa de cada derrota.
+  Alavanca se falhar: `emptyUpkeepFactor` 0,5 → 0 (antes de mexer nos números do frio).
+- A2 inteiro precisa continuar passando com a regra nova (Comum 50–80%, Distraído ≤ 20% de vitória).
+- J1 novo e J2 medidos de novo (o B3 mata adultos e idosos: menos gente para as vagas).
+- Sai das alavancas: `gatherer.jobs` 1 → 2.
+
 ## 2. B1 "Madeira antes da praça" (sem mecânica nova)
 
 ### Regras
@@ -272,10 +330,11 @@ Comum ≤ 5%), A9 (Ano 2: ≥ 3 casamentos, ≥ 5 nascimentos), W2 (espera por m
 | S2 | 1ª casa de barro (Comum, mediana) | semana 8–20 | B1 |
 | S3 | Mercado liberado (Comum, mediana) | semana ≥ 78 | B1 |
 | S4 | Derrota no Ano 1 (Comum) | ≤ 2% | B1–B3 |
-| J1 | Local de trabalho vazio por > 8 semanas seguidas (Comum, partidas) | ≤ 10% | B2 |
+| J1 | Local de comida, lenhador ou mercado vazio > 8 sem seguidas fora do inverno, com alguém que podia ser movido (Comum, partidas; reescrito na seção 1c) | ≤ 10% | B2 |
+| A2b | Derrotas do Distraído (seção 1c, com a manutenção pela metade) | ≤ 25% | B2–B3 |
 | J2 | Desempregados no Ano 1 (Comum, mediana semanal) | ≤ 2 | B2 |
 | J3 | Distraído (não muda profissão) com lenhador vazio em algum inverno | ≥ 40% | B2 |
-| F1 | Comum com frio em algum inverno (partidas; hoje 87% sem P1) | 40–70% | B3 |
+| F1 | Comum com frio em algum inverno (partidas; B2: 54% sem P1, 57% com P1) | 40–70% | B3 |
 | F2 | Tendas com gente na semana 1 do inverno do Ano 1 (Comum, mediana) | 2–4 | B3 |
 | D1 | Comum com ≥ 1 morte de frio no Ano 1 (partidas); mortes no Ano 1, p90 | 20–40%; ≤ 2 | B3 |
 | D2 | Mortes de frio na partida (Comum): mediana; p90 | ≤ 3; ≤ 6 | B3 |
@@ -295,7 +354,8 @@ Alavancas, uma por rodada, nesta ordem:
   3. F1 alto (> 70%): Barro `firewood` 0,2 → 0,15. F1 baixo (< 40%): Lenhador `gather.max` 2,5 → 2,25.
   4. F2 baixo (< 2) ou S2 cedo (< 8): Barro `materials.wood` 5 → 8.
   5. D3 alto: `coldDeath.famineFactor` 2 → 1,5.
-- B1/B2 (ficam): J2 alto: Coletora `jobs` 1 → 2 (teto igual). S3 cedo: Oficina para o objetivo 8.
+  6. A2b alto (> 25%): `emptyUpkeepFactor` 0,5 → 0 (seção 1c).
+- B1/B2 (ficam): S3 cedo: Oficina para o objetivo 8. (Coletora `jobs` 1 → 2 saiu: medida sem efeito.)
   Lenhador `gather.max` 2 → 2,5 já entrou (P1).
 - Fora: Tenda `firewood` (atrasa o barro antes de dar frio) e `startMaterials.wood` (o Ano 1 já não
   passa frio).

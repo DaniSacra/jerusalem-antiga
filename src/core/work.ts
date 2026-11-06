@@ -41,6 +41,22 @@ export function staffOf(b: Building, crews: Map<number, number>): number {
   return seats === 0 ? 0 : Math.min(1, (crews.get(b.id) ?? 0) / seats);
 }
 
+/**
+ * Silver a building pays a week: its upkeep, times `emptyUpkeepFactor` for a workplace whose work
+ * shows (`madeByCrew`) with nobody working there, connected or not (B2 measured: a careless city sank
+ * in debt from empty places). A granary, the plaza and the park pay in full.
+ */
+export function upkeepPaid(b: Building, crews: Map<number, number>): number {
+  const cost = statOf(b, 'upkeep');
+  return madeByCrew(b.kind) && !crews.get(b.id) ? Math.round(cost * RULES.emptyUpkeepFactor * 100) / 100 : cost;
+}
+
+/** Someone could be moved to an empty workplace: an adult without a job, or one at a place with 2 or more workers. */
+export function anyoneToMove(s: GameState): boolean {
+  const crews = crewCounts(s);
+  return s.people.some((p) => canWork(s, p) && (p.jobId == null || (crews.get(p.jobId) ?? 0) >= 2));
+}
+
 const rank = (kind: BuildingKind) => {
   const k = RULES.jobPriority.indexOf(kind);
   return k < 0 ? RULES.jobPriority.length : k;

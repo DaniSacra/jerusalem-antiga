@@ -23,6 +23,7 @@
   "winter": { "foodFactor": 1.6, "tentFoodFactor": 2 },
   "famineDropChance": 0.12,
   "famineLeaveChance": 0.1,
+  "emptyUpkeepFactor": 0.5,
   "coldDeath": { "childAge": 4, "tent": [0.01, 0], "tentCold": [0.04, 0.01], "houseCold": [0.01, 0], "famineFactor": 2 },
   "debtWeeksToLose": 24,
   "debtCaravanWeeks": 52,

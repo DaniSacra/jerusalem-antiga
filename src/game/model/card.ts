@@ -1,5 +1,8 @@
 import {
+  anyoneToMove,
   balanceAfter,
+  bandCounts,
+  upkeepPaid,
   BUILDINGS,
   computeEconomy,
   costOf,
@@ -162,13 +165,14 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
       const crew = crewOf(s, b);
       lines.push({ text: N.crew(crew.length, seatsOf(b)), tone: crew.length ? 'text' : 'bad' });
       if (crew.length) lines.push({ text: '', people: crew.map((p) => chipOf(s, p, jobsOf(s))), cols: phone ? 2 : 1, gap: 2 });
-      else lines.push({ text: N.noWorkers, tone: 'bad' });
+      else lines.push({ text: anyoneToMove(s) ? N.noWorkers : N.noAdults(bandCounts(s).child), tone: 'bad' });
     }
     if (def.fieldBonus) lines.push({ text: N.fieldBonus(Math.round(fieldBonus(s) * 100)), tone: 'good' });
   }
   lines.push(...foodLines(s, b));
   const upkeep = statOf(b, 'upkeep');
-  if (upkeep) lines.push({ text: N.upkeep(upkeep), tone: 'gold' });
+  const paid = upkeepPaid(b, crewCounts(s));
+  if (upkeep) lines.push({ text: paid < upkeep ? N.upkeepEmpty(paid) : N.upkeep(upkeep), tone: 'gold' });
   // Service levels: what the next one changes, and the gold Melhorar (grey without the silver).
   const levels: CardLine[] = [];
   if (def.levels) {

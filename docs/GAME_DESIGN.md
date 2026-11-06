@@ -115,7 +115,12 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   Não dá em dívida, sem prata, sem a pedra (`materials`) ou no topo. Toast "Celeiro subiu para o nível 2".
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
-  coluna mostra custo e manutenção.
+  coluna mostra custo e manutenção. **Local de trabalho vazio paga metade** (`emptyUpkeepFactor`
+  0,5 em `rules.json`, `upkeepPaid` em `work.ts`; decisão depois do B2 medido): vale para os locais
+  cujo trabalho aparece (pescador, coletora, campo, lenhador, pedreira, oficina, mercado), ligados ou
+  não, em qualquer nível, quando ninguém trabalha ali. Celeiro, praça e parque pagam cheio; o campo
+  no inverno com os lavradores descansando também (tem equipe). `Economy.upkeep`, o saldo e
+  `costliestUpkeep` usam o valor pago. A ficha mostra "0,25 por semana (vazio: metade)".
 
 ## Madeira e pedra (Pacote 3)
 
@@ -264,8 +269,9 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `
   vazia: "Nenhuma vaga livre: construa um lenhador, campo ou oficina". Criança, idoso e quem está a
   caminho não têm o botão. Esc ou um toque no mapa fecha a lista.
 - **Balão do local de trabalho:** "Trabalhadores 1/2" e os nomes (tocar abre a ficha); vazio,
-  "Ninguém trabalha aqui: toque numa pessoa e mude a profissão" (o balão sobre o mapa é o de "sem
-  trabalhadores").
+  "Ninguém trabalha aqui: toque numa pessoa e mude a profissão" quando há alguém para mover (um adulto
+  sem trabalho, ou num local com 2 ou mais: `anyoneToMove`); senão "Ninguém trabalha aqui: faltam
+  adultos (N crianças na cidade)" (o balão sobre o mapa é o de "sem trabalhadores").
 - **Toasts:** construir um local que produz sem ninguém livre: "Ninguém livre para o Lenhador:
   mude a profissão de alguém" (uma vez por arrasto); o mercado que perde o último trabalhador (na
   semana, evento `serviceEmpty`, ou pelo "Mudar"): "Mercado vazio: não atende as casas".
@@ -830,7 +836,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   o custo "25 prata · 10 madeira" (cada parte que falta em vermelho com o que a cidade tem:
   "10 madeira (tem 4)"), a manutenção por semana numa linha própria e uma frase do efeito; no PC também vagas, alcance e "Saldo
-  depois: +N/sem" (saldo da semana com a manutenção e a nova construção). Desde o Pacote B2 um
+  depois: +N/sem" (saldo da semana com a manutenção e a nova construção; `balanceAfter` dá as vagas
+  do local novo aos adultos livres, e sem ninguém livre conta a manutenção pela metade). Desde o Pacote B2 um
   local novo só recebe quem está sem trabalho (`foodAfter` põe nele os adultos livres; ninguém é
   tirado de outro local), então "Comida depois: ±X/sem" só muda pelo que ele mesmo faz.
   Celeiro, mercado e oficina dizem até onde melhoram: "Guarda 300 · melhora até 1000",

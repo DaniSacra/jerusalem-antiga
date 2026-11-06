@@ -120,17 +120,17 @@ describe('service building levels', () => {
 });
 
 describe('upkeep from the first week', () => {
-  it('every building pays its upkeep from the week it is built, connected or not: no goal frees it', () => {
+  it('every building pays its upkeep from the week it is built, connected or not: no goal frees it; an empty workplace half', () => {
     const s = emptyGame({ goalIndex: 0 });
     put(s, 'field', EAST, 30);
     put(s, 'plaza', 10, 10); // no road
     put(s, 'market', EAST, 33);
     const e = computeEconomy(s);
-    expect(e.upkeep).toEqual({ field: 0.5, plaza: 0.5, market: 2 });
-    expect(e.silverDelta).toBe(-3);
+    expect(e.upkeep).toEqual({ field: 0.25, plaza: 0.5, market: 1 }); // nobody lives here: field and market empty
+    expect(e.silverDelta).toBe(-1.75);
     const before = s.silver;
     stepWeek(s, constRng(0.99));
-    expect(s.silver).toBe(before - 3);
+    expect(s.silver).toBe(before - 1.75);
   });
 
   it('level-1 upkeep: small food and plaza buildings 0.5, park, granary and workshop 1, market 2, temple and houses 0', () => {

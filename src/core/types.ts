@@ -311,6 +311,8 @@ export interface Rules {
   templeSpotRoadGap: number;
   /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */
   famineLeaveChance: number;
+  /** A workplace with nobody working there pays this share of its upkeep (see `upkeepPaid`). */
+  emptyUpkeepFactor: number;
   /**
    * Cold deaths in winter (Package B3), per resident and week; pairs are [vulnerable, others]
    * (vulnerable: up to `childAge` years old, or an elder). `tent`: a tent with firewood;

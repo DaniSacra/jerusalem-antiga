@@ -9,8 +9,10 @@ const run = (s: GameState, weeks: number) => {
   return events;
 };
 
-/** Weekly upkeep of the market. */
-const U = BUILDINGS.market.upkeep!;
+/** Weekly upkeep of the market, empty (as in `draining`: it pays `emptyUpkeepFactor` of it). */
+const U = BUILDINGS.market.upkeep! * RULES.emptyUpkeepFactor;
+/** Weekly upkeep of a market with people working. */
+const FULL = BUILDINGS.market.upkeep!;
 
 /** A city whose only building is a market: no taxes, U silver of upkeep per week. */
 const draining = (silver: number) => {
@@ -120,18 +122,18 @@ describe('alerts', () => {
     const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs
     for (let k = 0; k < 2; k++) put(s, 'house', ROADSIDE, 29 + 2 * k, 2, false, 9); // crowded: 18 adults
     const tax = 2 * HOUSE_LEVELS[2].tax;
-    expect(tax).toBeLessThan(2 * U);
+    expect(tax).toBeLessThan(2 * FULL);
     // (18 residents and no food buildings: the food and births warnings show too, tested elsewhere)
     expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
-      { kind: 'deficit', balance: tax - 2 * U, costliest: 'market', upkeep: 2 * U }, // taxes - two markets
+      { kind: 'deficit', balance: tax - 2 * FULL, costliest: 'market', upkeep: 2 * FULL }, // taxes - two staffed markets
       { kind: 'unemployed', count: 12, workshopsFull: false },
     ]);
     s.silver = 0;
     s.debtWeeks = 0;
     s.buildings = s.buildings.filter((b) => b !== second);
     refreshCity(s); // its crew is out of work again
-    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([{ kind: 'unemployed', count: 15, workshopsFull: false }]); // balance tax - U > 0, 18 workers for 3 jobs
+    expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([{ kind: 'unemployed', count: 15, workshopsFull: false }]); // balance tax - FULL > 0, 18 workers for 3 jobs
   });
 
   it('the unemployment alert says when the workshops already give their whole field bonus', () => {

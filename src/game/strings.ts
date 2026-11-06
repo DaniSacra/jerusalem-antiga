@@ -559,6 +559,10 @@ export const T = {
       connected: 'ligado à rua',
       disconnected: 'sem rua: não funciona, mas paga manutenção',
       noWorkers: 'Ninguém trabalha aqui: toque numa pessoa e mude a profissão',
+      /** An empty workplace when no adult can be moved (B2 measured). */
+      noAdults: (children: number) => `Ninguém trabalha aqui: faltam adultos${children ? ` (${children} ${children === 1 ? 'criança' : 'crianças'} na cidade)` : ''}`,
+      /** The upkeep of an empty workplace (it pays a share). */
+      upkeepEmpty: (n: number) => `${fmt2(n)} por semana (vazio: metade)`,
       /** The crew of a workplace: who works there of its jobs. */
       crew: (n: number, seats: number) => `Trabalhadores ${n}/${seats}`,
       fewWorkers: (pct: number) => `Faltam trabalhadores: rende ${pct}%`,

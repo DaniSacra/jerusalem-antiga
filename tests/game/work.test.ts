@@ -7,7 +7,7 @@ import { sheetOf } from '../../src/game/model/person';
 import { readEvents } from '../../src/game/events';
 import { Session, type SessionView } from '../../src/game/session';
 import { T } from '../../src/game/strings';
-import { besideRiver, constRng, EAST, emptyGame, LIFE_YEAR, person, put, ROADSIDE, westOf } from '../helpers';
+import { besideRiver, constRng, EAST, emptyGame, fill, LIFE_YEAR, person, put, ROADSIDE, westOf } from '../helpers';
 
 const P = T.nova.people;
 const W = RULES.weeksPerSeason;
@@ -58,13 +58,26 @@ describe('work on screen (plan B2)', () => {
     expect(sheetOf(s, kid).choices).toBeNull();
   });
 
-  it('a workplace balloon says "Trabalhadores n/m" with the names; empty, it says how to staff it', () => {
+  it('a workplace balloon says "Trabalhadores n/m" with the names; empty, it says how to staff it or that adults are missing, and the half upkeep', () => {
     const s = emptyGame();
     const lumber = put(s, 'lumber', EAST, 27);
-    let lines = cardOf(s, lumber, readCity(s), false)!.lines;
-    expect(lines.map((l) => l.text)).toContain(T.nova.inspect.crew(0, 2));
-    expect(lines.map((l) => l.text)).toContain(T.nova.inspect.noWorkers);
+    const texts = () => cardOf(s, lumber, readCity(s), false)!.lines.map((l) => l.text);
+    expect(texts()).toContain(T.nova.inspect.crew(0, 2));
+    expect(texts()).toContain(T.nova.inspect.noAdults(0)); // nobody to move
+    expect(texts()).toContain(T.nova.inspect.upkeepEmpty(BUILDINGS.lumber.upkeep! * RULES.emptyUpkeepFactor));
+    expect(T.nova.inspect.noAdults(3)).toBe('Ninguém trabalha aqui: faltam adultos (3 crianças na cidade)');
+    const tent = put(s, 'house', ROADSIDE, 31, 1, false, 0);
+    fill(s, tent, 2);
+    const field = put(s, 'field', westOf('field'), 33); // takes both: earlier in jobPriority
+    expect(crewOf(s, field)).toHaveLength(2);
+    expect(crewOf(s, lumber)).toEqual([]);
+    expect(texts()).toContain(T.nova.inspect.noWorkers); // someone could be moved
+    s.buildings = s.buildings.filter((b) => b !== field && b !== tent);
+    s.people = [];
+    refreshCity(s);
     put(s, 'house', ROADSIDE, 27, 1, false, 1);
+    let lines = cardOf(s, lumber, readCity(s), false)!.lines;
+    expect(lines.map((l) => l.text)).toContain(T.nova.inspect.upkeep(BUILDINGS.lumber.upkeep!));
     lines = cardOf(s, lumber, readCity(s), false)!.lines;
     expect(lines.map((l) => l.text)).toContain(T.nova.inspect.crew(1, 2));
     expect(lines.find((l) => l.people)!.people!.map((p) => p.id)).toEqual(crewOf(s, lumber).map((p) => p.id));

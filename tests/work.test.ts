@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   assignJobs,
+  balanceAfter,
+  costliestUpkeep,
+  crewCounts,
+  statOf,
+  upkeepPaid,
   BUILDINGS,
   clearCell,
   computeCoverage,
@@ -20,7 +25,7 @@ import {
   unemployed,
   type GameState,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, fill, LIFE_YEAR, person, put, ROADSIDE, westOf } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, fill, hire, LIFE_YEAR, person, put, ROADSIDE, westOf } from './helpers';
 
 const never = constRng(0.99);
 const jobOf = (s: GameState, id: number) => s.people.find((p) => p.id === id)!.jobId ?? null;
@@ -208,5 +213,59 @@ describe('services and crews', () => {
     expect(unemployed(s)).toBe(1);
     const jobs = jobsOf(s);
     expect([...jobs.values()].filter(Boolean)).toHaveLength(2);
+  });
+});
+
+describe('an empty workplace pays half its upkeep (B2 measured)', () => {
+  const half = (k: 'lumber' | 'market' | 'field') => BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor;
+
+  it('a lumber empty pays half, with 1 of 2 the full upkeep; a market at level 2 the same; off the road too', () => {
+    const s = emptyGame();
+    const lumber = put(s, 'lumber', EAST, 27);
+    expect(upkeepPaid(lumber, crewCounts(s))).toBe(half('lumber'));
+    hire(s, lumber, 1);
+    expect(upkeepPaid(lumber, crewCounts(s))).toBe(BUILDINGS.lumber.upkeep);
+    const m = put(s, 'market', westOf('market'), 31);
+    m.level = 2;
+    const full = statOf(m, 'upkeep');
+    expect(upkeepPaid(m, crewCounts(s))).toBe(full * RULES.emptyUpkeepFactor);
+    hire(s, m, 1);
+    expect(upkeepPaid(m, crewCounts(s))).toBe(full);
+    const loose = put(s, 'lumber', 2, 2);
+    expect(loose.connected).toBe(false);
+    expect(upkeepPaid(loose, crewCounts(s))).toBe(half('lumber'));
+  });
+
+  it('a granary, the plaza and the park pay in full though nobody works there; a field resting in winter with its crew too', () => {
+    const s = emptyGame({ week: RULES.weeksPerSeason }); // winter
+    for (const [k, x, y] of [['granary', EAST, 27], ['plaza', ROADSIDE, 27], ['park', ROADSIDE, 30]] as const) {
+      const b = put(s, k, x, y);
+      expect(upkeepPaid(b, crewCounts(s))).toBe(BUILDINGS[k].upkeep);
+    }
+    const field = put(s, 'field', westOf('field'), 34);
+    hire(s, field);
+    expect(upkeepPaid(field, crewCounts(s))).toBe(BUILDINGS.field.upkeep);
+  });
+
+  it('the economy pays what upkeepPaid says: upkeep by kind, the balance and the costliest', () => {
+    const s = emptyGame();
+    put(s, 'lumber', EAST, 27);
+    put(s, 'market', westOf('market'), 31);
+    const e = computeEconomy(s);
+    expect(e.upkeep).toEqual({ lumber: half('lumber'), market: half('market') });
+    expect(e.silverDelta).toBeCloseTo(-half('lumber') - half('market'));
+    expect(costliestUpkeep(e)).toEqual({ kind: 'market', amount: half('market') });
+  });
+
+  it('balanceAfter: with free adults a new lumber counts in full; with nobody free, half', () => {
+    const s = emptyGame();
+    const tent = put(s, 'house', ROADSIDE, 27, 1, false, 0);
+    fill(s, tent, 2);
+    refreshCity(s);
+    const now = computeEconomy(s).silverDelta;
+    expect(balanceAfter(s, 'lumber')).toBeCloseTo(now - BUILDINGS.lumber.upkeep!);
+    put(s, 'field', EAST, 30); // takes both
+    const then = computeEconomy(s).silverDelta;
+    expect(balanceAfter(s, 'lumber')).toBeCloseTo(then - half('lumber'));
   });
 });

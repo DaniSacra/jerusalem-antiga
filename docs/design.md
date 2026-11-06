@@ -88,6 +88,14 @@ Mantidos:
   1º barro, S2 12 → 22, e o frio no Ano 1 ficava em 2%). O perigo do Ano 1 passa a ser a tenda no
   inverno: bebês até 4 anos e idosos morrem com 1%/sem mesmo com lenha. Critérios F2, D1–D3 refeitos
   (sai "frio no Ano 1 em 20–40%"). Motivo: a sobrevivência do Ano 1 sem desfazer a reserva do B1
+- 2026-11-06 (diretor, depois do `sim-tester-b2.md`; plano, seção 1c): local de trabalho com equipe 0
+  paga metade da manutenção (`rules.emptyUpkeepFactor` 0,5; Celeiro, Praça e Parque pagam cheio).
+  Motivo: o Distraído passou de 2% para 46% de derrotas, todas por dívida de prédio vazio; castiga o
+  descuido sem ensinar. Zero ficou fora (construir à toa sairia de graça) e é a alavanca. J1 reescrito:
+  só conta o local vazio > 8 sem quando alguém podia ser movido (o vazio por falta de adultos é a cidade
+  real). Balão do local vazio diz "faltam adultos" quando ninguém pode ser movido. P1 fica (protege o D2
+  do B3). Alavanca `gatherer.jobs` 2: fora (medida sem efeito). Critério novo A2b: derrotas do
+  Distraído ≤ 25%. A9 (casamentos no Ano 2), prata parada e pedra sobrando: depois do Pacote B
 
 ## Agora: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
@@ -98,18 +106,20 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozi
   (Comum 37% em 39,6 min) → P1 + P2 entram (Decisões).
 - **B2 "Cada um no seu trabalho"** (mecânica nova): `Person.jobId`, produção por local × lotação,
   local vazio rende 0, mudar profissão pela ficha da pessoa, desemprego = adulto sem vaga.
-  **Feito 2026-11-06** (código e testes; `src/core/work.ts`); falta o sim-tester medir J1–J3 e
-  pôr nos bots a troca de profissão (seção 3 "Bots"). A mesma rodada mede o main com e sem P1 + P2.
+  **Feito 2026-11-06** (código e testes; `src/core/work.ts`). Medido (`sim-tester-b2.md`): Comum vence
+  71% em 34,0 min, J2 e J3 passam, J1 falha por falta de adultos → J1 reescrito; Distraído perde 46% por
+  dívida → local vazio paga metade da manutenção (ajuste medido na rodada do B3; plano, seção 1c).
 - **B3 "O frio pesa"** (mecânica nova, revisado 2026-11-06): lenha da tenda igual (0,3); morte de frio
   por semana de inverno, por pessoa (vulnerável = até 4 anos ou idoso): tenda com lenha 1%/0, tenda sem
   lenha 4%/1%, barro ou melhor sem lenha 1%/0, com lenha 0; com fome dobra. Junto, o ajuste P3.
   **Feito 2026-11-06** (código e testes; `src/core/cold.ts`; P3 nos objetivos; toast "O frio levou
-  Ana, 2 anos", tom aprovado pelo usuário); falta o sim-tester medir F1–F2 e D1–D3.
-  Critérios: F1 frio em algum inverno 40–70%; F2 2–4 tendas com gente no 1º inverno; D1 20–40% das
+  Ana, 2 anos", tom aprovado pelo usuário); falta o sim-tester medir F1–F2 e D1–D3, junto com a
+  manutenção pela metade, o J1 novo e o A2b (Distraído perde ≤ 25%), com o bot que move gente.
+  Critérios: F1 frio em algum inverno 40–70% (B2: 54%); F2 2–4 tendas com gente no 1º inverno; D1 20–40% das
   partidas com morte de frio no Ano 1 (p90 ≤ 2); D2 mediana ≤ 3 na partida; D3 Distraído perde no
   Ano 1 ≤ 10%. ~3–3,5 h + 1–1,5 h de sim.
 - B4 "Alegria desde o começo": DEPOIS, decidir após o playtest do B3.
-- Critérios novos S1–S4, J1–J3, F1–F2, D1–D3 (seção 7 do plano). ~19–24 h para B1–B3.
+- Critérios novos S1–S4, J1–J3, A2b, F1–F2, D1–D3 (seção 7 do plano). ~19–24 h para B1–B3.
 - Fora: gado, pasto, roupas, doenças, comércio do mercado, história, visual do Pacote A.
 
 ## Feito: P4 "Lenha e inverno" (escopo 2026-11-05)

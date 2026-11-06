@@ -3,7 +3,7 @@ import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './h
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import { ageBand, foodOf } from './people';
 import type { Building, BuildingKind, GameState, Material } from './types';
-import { crewCounts, idleShare, staffOf } from './work';
+import { crewCounts, idleShare, staffOf, upkeepPaid } from './work';
 
 export interface Economy {
   /** People living in the city (not those on the way). */
@@ -61,7 +61,7 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep from
- * the week it is built (more at higher levels, see `statOf`). Each workplace makes by the share
+ * the week it is built (more at higher levels, see `statOf`; an empty workplace half, `upkeepPaid`). Each workplace makes by the share
  * of its jobs that have someone (`staffOf`): nobody there, nothing made. The people living in the
  * city eat; each house with people pays its tax, scaled by its happiness.
  */
@@ -82,7 +82,7 @@ export function computeEconomy(s: GameState): Economy {
   const bonus = fieldBonus(s);
   for (const b of s.buildings) {
     if (b.kind === 'house') continue;
-    const cost = statOf(b, 'upkeep');
+    const cost = upkeepPaid(b, crews);
     if (cost) upkeep[b.kind] = round2((upkeep[b.kind] ?? 0) + cost);
     if (!b.connected) continue;
     const n = statOf(b, 'jobs');

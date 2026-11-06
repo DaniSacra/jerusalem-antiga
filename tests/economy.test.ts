@@ -16,7 +16,7 @@ import {
   unemployed,
   unemploymentAlert,
 } from '../src/core';
-import { atHarvest, besideRiver, EAST, emptyGame, person, put, ROADSIDE, westOf } from './helpers';
+import { hire, atHarvest, besideRiver, EAST, emptyGame, person, put, ROADSIDE, westOf } from './helpers';
 
 const W = RULES.weeksPerSeason;
 /** Weeks of the year a field gives food (all but winter). */
@@ -50,14 +50,14 @@ describe('economy', () => {
     expect(e.efficiency).toBe(1);
   });
 
-  it('ignores jobs and food of disconnected buildings, but still charges their upkeep', () => {
+  it('ignores jobs and food of disconnected buildings, but still charges their upkeep (half while empty)', () => {
     const s = emptyGame();
     put(s, 'house', ROADSIDE, 27, 3);
     const tax = HOUSE_LEVELS[3].tax;
     put(s, 'field', 1, 1);
     put(s, 'workshop', 5, 1);
     put(s, 'market', 9, 1);
-    const up = (k: 'field' | 'workshop' | 'market') => BUILDINGS[k].upkeep!;
+    const up = (k: 'field' | 'workshop' | 'market') => BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor; // nobody works there
     const e = computeEconomy(s);
     expect(e.jobs).toBe(0);
     expect(e.yearJobs).toBe(0);
@@ -67,7 +67,7 @@ describe('economy', () => {
     put(s, 'workshop', westOf('workshop'), 29); // connected: jobs, but no silver
     const f = computeEconomy(s);
     expect(f.jobs).toBe(BUILDINGS.workshop.jobs);
-    expect(f.silverDelta).toBeCloseTo(tax - up('field') - 2 * up('workshop') - up('market'));
+    expect(f.silverDelta).toBeCloseTo(tax - up('field') - up('workshop') - BUILDINGS.workshop.upkeep! - up('market')); // the new one has a crew
   });
 
   it('charges the upkeep of buildings.json from the week they are built; roads, houses and the altar are free', () => {
@@ -79,6 +79,7 @@ describe('economy', () => {
     put(s, 'market', westOf('market') - 2, 31);
     put(s, 'workshop', EAST, 30);
     put(s, 'temple', EAST, 34);
+    for (const b of s.buildings) if (b.kind !== 'house' && BUILDINGS[b.kind].jobs) hire(s, b); // staffed: the full upkeep
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
       field: 0.5,
@@ -94,9 +95,10 @@ describe('economy', () => {
     });
     // The temple has no upkeep: built early, it never drains the city (plano-p2-correcoes 2.1).
     expect(BUILDINGS.temple.upkeep).toBe(0);
-    expect(e.upkeep).toEqual({ plaza: 0.5, field: 0.5, market: 2, workshop: 1 });
-    expect(costliestUpkeep(e)).toEqual({ kind: 'market', amount: 2 });
-    expect(e.silverDelta).toBeCloseTo(e.taxes - 4); // the balance shown as +X/sem
+    // The market stands off the road: nobody can work there, so it pays half.
+    expect(e.upkeep).toEqual({ plaza: 0.5, field: 0.5, market: 1, workshop: 1 });
+    expect(costliestUpkeep(e)?.amount).toBe(1);
+    expect(e.silverDelta).toBeCloseTo(e.taxes - 3); // the balance shown as +X/sem
   });
 
   it('each person eats by age band, the same in every house level out of winter', () => {
@@ -167,13 +169,13 @@ describe('fields make food, not silver', () => {
     expect(e.silverDelta).toBeCloseTo(e.taxes - BUILDINGS.field.upkeep!);
   });
 
-  it('with zero workers the field gives no food', () => {
+  it('with zero workers the field gives no food and pays half its upkeep', () => {
     const s = emptyGame();
     put(s, 'field', westOf('field'), 29);
     atHarvest(s);
     const e = computeEconomy(s);
     expect(e).toMatchObject({ workers: 0, jobs: 2, efficiency: 0, harvest: 0, foodMade: 0 });
-    expect(e.silverDelta).toBeCloseTo(-BUILDINGS.field.upkeep!);
+    expect(e.silverDelta).toBeCloseTo(-BUILDINGS.field.upkeep! * RULES.emptyUpkeepFactor);
   });
 
   it('a disconnected field gives no food or jobs until it touches the network', () => {
@@ -188,7 +190,7 @@ describe('fields make food, not silver', () => {
     e = computeEconomy(s);
     expect(e).toMatchObject({ jobs: 2, yearJobs: 2 });
     expect(e.harvest).toBeCloseTo(BUILDINGS.field.harvest! / FIELD_WEEKS); // only the connected one
-    expect(e.upkeep.field).toBe(2 * BUILDINGS.field.upkeep!); // both pay upkeep
+    expect(e.upkeep.field).toBe(BUILDINGS.field.upkeep! * (1 + RULES.emptyUpkeepFactor)); // both pay upkeep: the empty far one half
   });
 });
 

@@ -64,11 +64,18 @@ export function calendar(week: number): { season: Season; year: number; week: nu
 
 /**
  * Weekly silver balance if one more connected building of this kind existed (its upkeep, jobs
- * and production; the new coverage is left out).
+ * and production; the new coverage is left out). Only the adults without a job take its jobs: with
+ * nobody free a workplace pays half (`upkeepPaid`).
  */
 export function balanceAfter(s: GameState, kind: BuildableKind): number {
   const ghost = { ...newBuilding(-1, kind, { x: 0, y: 0, w: 1, h: 1 }, 0), connected: true };
-  return computeEconomy({ ...s, buildings: [...s.buildings, ghost] }).silverDelta;
+  return computeEconomy({ ...s, buildings: [...s.buildings, ghost], people: crewFor(s, ghost) }).silverDelta;
+}
+
+/** The people with a new building's jobs taken by the adults without a job (the first by id: who exactly changes nothing). */
+function crewFor(s: GameState, ghost: Building): GameState['people'] {
+  let left = seatsOf(ghost);
+  return s.people.map((p) => (left > 0 && p.jobId == null && p.quitWeek !== s.week && canWork(s, p) && left-- ? { ...p, jobId: ghost.id } : p));
 }
 
 export interface FoodAfter {
@@ -94,9 +101,7 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
   const { x, y } = at ?? { x: -s.cols, y: -s.rows };
   const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
   const ghost = { ...newBuilding(-1, kind, { x, y, w, h }, s.week), connected };
-  // The adults without a job take its jobs (the first by id: who exactly does not change the food).
-  let left = seatsOf(ghost);
-  const people = s.people.map((p) => (left > 0 && p.jobId == null && p.quitWeek !== s.week && canWork(s, p) && left-- ? { ...p, jobId: ghost.id } : p));
+  const people = crewFor(s, ghost);
   const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost], people });
   const staff = staffOf(ghost, crewCounts({ ...s, people }));
   const own = round2((gatherYield(s, ghost) + fieldHarvest(s, ghost, s.week)) * staff);
