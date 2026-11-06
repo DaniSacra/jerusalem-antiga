@@ -102,6 +102,10 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[], w
   }
 }
 
+/** The connected `staffedServices` buildings (the market) with someone working there. */
+const staffedServices = (s: GameState) =>
+  s.buildings.filter((b) => b.connected && RULES.staffedServices.includes(b.kind) && s.people.some((p) => p.jobId === b.id));
+
 /** A later caravan (planned or announced) is due within `debtCaravanWeeks`: the debt cannot lose the game yet. */
 export const caravanSpares = (s: GameState) =>
   s.caravans.some((c) => (c.status === 'planned' || c.status === 'announced') && c.week - s.week <= RULES.debtCaravanWeeks);
@@ -209,6 +213,10 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   stepPeople(s, rng, events);
   stepCaravans(s, rng, events);
   moveFamilies(s, events, rng);
+  // Who grew old, left or moved in this week: free their jobs and hand out the free ones (and the market's coverage follows).
+  const staffed = staffedServices(s);
+  refreshCity(s);
+  for (const b of staffed) if (!s.people.some((p) => p.jobId === b.id)) events.push({ type: 'serviceEmpty', kind: b.kind, x: b.x, y: b.y });
   houseMilestones(s, events);
   const after = computeEconomy(s);
   s.peakPopulation = Math.max(s.peakPopulation, after.residents);

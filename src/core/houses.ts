@@ -1,5 +1,5 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
-import { computeEconomy, idleShare, type Economy } from './economy';
+import { idleShare } from './work';
 import { houseHappiness, taxFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
 import { gatherCells, isWorking } from './harvest';
@@ -81,18 +81,18 @@ export function weeksToNextLevel(s: GameState, b: Building): number | null {
 }
 
 /**
- * First problem of a building, shown as a balloon: no road first; then workplaces with no
- * workers at all; then a fisher or gatherer with no river or trees in reach; then, for houses of levels 1-3, the first missing need of the next level (the
+ * First problem of a building, shown as a balloon: no road first; then workplaces nobody works
+ * at (out of a frozen field's winter); then a fisher or gatherer with no river or trees in reach; then, for houses of levels 1-3, the first missing need of the next level (the
  * most useful hint early on); then sad houses.
  */
-export function balloonNeed(s: GameState, b: Building, e: Economy = computeEconomy(s)): BalloonKind | null {
+export function balloonNeed(s: GameState, b: Building): BalloonKind | null {
   if (!b.connected) return 'road';
-  if (BUILDINGS[b.kind].jobs > 0 && e.efficiency === 0 && isWorking(b, s.week)) return 'workers';
+  if (BUILDINGS[b.kind].jobs > 0 && isWorking(b, s.week) && !s.people.some((p) => p.jobId === b.id)) return 'workers';
   if (BUILDINGS[b.kind].gather && gatherCells(s, b) === 0) return 'noSource';
   if (b.kind !== 'house' || b.level < 1) return null;
   const first = b.level < HOUSE_LEVELS.length - 1 ? missingNeeds(s, b, HOUSE_LEVELS[b.level + 1].needs)[0] : undefined;
   if (first) return first; // a locked need shows too (with a lock): the player learns what comes next
-  return houseHappiness(s, b, idleShare(s, e)).mood === 'sad' ? 'sad' : null;
+  return houseHappiness(s, b, idleShare(s)).mood === 'sad' ? 'sad' : null;
 }
 
 /** Houses ready to climb that wait for each material (the `material` alert and the top bar). */

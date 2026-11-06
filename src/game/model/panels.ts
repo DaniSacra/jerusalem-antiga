@@ -1,5 +1,8 @@
 import {
   announcedCaravan,
+  crewCounts,
+  staffOf,
+  unemployed,
   bandCounts,
   BUILDINGS,
   calendar,
@@ -141,7 +144,8 @@ function statsNow({ s, e, forecast: out, notices }: StatsData, phone: boolean): 
   upkeep.push(row(st.balance, `${signed(e.silverDelta)}${per}`, signTone(e.silverDelta)));
 
   // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
-  const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherYield(s, b) : 0), 0) * e.efficiency;
+  const crews = crewCounts(s);
+  const gathered = (kind: BuildingKind) => s.buildings.reduce((n, b) => n + (b.kind === kind ? gatherYield(s, b) * staffOf(b, crews) : 0), 0);
   const lasts = lastsToHarvest(s, out);
   const when = lasts ? st.toHarvest : out!.season === seasonOf(s.week) && out!.weeks < RULES.weeksPerSeason ? st.weeks(out!.weeks) : `${st.weeks(out!.weeks)} · ${N.foodEnds[out!.season]}`;
   const food: PanelSection = [title(st.food)];
@@ -165,14 +169,15 @@ function statsNow({ s, e, forecast: out, notices }: StatsData, phone: boolean): 
     if (waiting[m]) mats.push(row(st.waiting(m), `⚠ ${waiting[m]}`, 'bad'));
   }
   if (s.stumps.length) mats.push(row(st.stumps, fmtInt(s.stumps.length)));
-  const idle = Math.max(0, e.workers - e.jobs);
-  const eff = Math.round(e.efficiency * 100);
+  // Jobs of the year (a frozen field keeps its farmers), who has none, and the jobs nobody took.
+  const idle = unemployed(s);
+  const free = Math.max(0, e.yearJobs - (e.workers - idle));
   const work: PanelSection = [
     title(st.work),
     row(st.workers, fmtInt(e.workers)),
-    row(st.jobs, fmtInt(e.jobs)),
+    row(st.jobs, fmtInt(e.yearJobs)),
     row(st.idle, fmtInt(idle), idle > 0 ? 'warn' : 'text'),
-    row(st.efficiency, `${eff}%`, eff < 100 ? 'bad' : 'good'),
+    row(st.freeJobs, fmtInt(free), free > 0 ? 'warn' : 'text'),
   ];
   const byLevel = housesByLevel(s);
   const houses: PanelSection = [title(st.houses), ...HOUSE_LEVELS.map((l, i) => row(l.name, fmtInt(byLevel[i])))];
@@ -205,6 +210,7 @@ function statsPeople(s: GameState, phone: boolean): PanelSection[] {
     [
       title(st.people),
       pairs((['child', 'adult', 'elder'] as const).map((b) => [st.bands[b], bands[b]])),
+      { parts: [{ text: st.workLine(bands.adult - unemployed(s), bands.adult, unemployed(s)), tone: unemployed(s) ? 'warn' : 'text', plain: true }] },
       title(st.thisYear),
       pairs([
         [st.births, y.births],

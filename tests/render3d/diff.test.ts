@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addPerson, foodCapacity, harvestsIn, indexOf, refreshCity } from '../../src/core';
 import { changedLayers, cityKeys } from '../../src/render3d/diff';
-import { emptyGame, put, road, ROADSIDE } from '../helpers';
+import { emptyGame, hire, put, road, ROADSIDE } from '../helpers';
 
 describe('what changed in the drawn city', () => {
   it('everything the first time, nothing when the city is the same', () => {
@@ -60,7 +60,7 @@ describe('what changed in the drawn city', () => {
     const s = emptyGame();
     s.week = [...Array(52).keys()].find((w) => harvestsIn(w))!;
     const a = cityKeys(s);
-    put(s, 'field', ROADSIDE, 30);
+    hire(s, put(s, 'field', ROADSIDE, 30)); // someone works there: a carrier goes out
     refreshCity(s);
     expect(changedLayers(a, cityKeys(s))).toContain('people');
     const b = cityKeys(s);

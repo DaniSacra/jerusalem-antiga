@@ -93,7 +93,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
   `gatherYield`): produção por semana = mín(`max`, células do recurso no raio × `perCell`) ×
-  eficiência, do produto `gather.product` (comida quando falta; madeira no Lenhador, pedra na
+  a lotação do local (veja Trabalho), do produto `gather.product` (comida quando falta; madeira no Lenhador, pedra na
   Pedreira); Pescador e Coletora rendem **× 0,3 no inverno** (`gather.winterFactor`; também na
   previsão), Lenhador e Pedreira o ano todo. Recurso: rio (Pescador), árvore (Coletora e Lenhador;
   oliveira, amendoeira, figueira e palmeira contam, toco não) ou rocha (Pedreira). Podem ser
@@ -121,7 +121,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 
 - **Estoque da cidade**, como a prata: `wood` e `stone` no estado, **sem limite e sem depósito**.
   Começa com **40 de madeira e 0 de pedra** (`startMaterials`). Entra toda semana a produção dos
-  Lenhadores e Pedreiras ligados × eficiência (`Economy.wood`, `Economy.stone`, o "+N/sem").
+  Lenhadores e Pedreiras ligados × a lotação de cada um (`Economy.wood`, `Economy.stone`, o "+N/sem").
   Demolir não devolve material.
 - **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 10 madeira; Celeiro,
   Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 300 madeira. **Não
@@ -132,7 +132,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - **Evolução das casas** (`materials` em `houses.json`, pago ao subir para o nível): Casa de barro
   5 madeira, Casa de pedra 10 pedra, Casa grande 10 pedra + 5 madeira (terreno e tenda: nada).
   Veja Casas.
-- **Corte** (`trees.ts`): cada Lenhador ligado soma a madeira que fez na semana (com a eficiência)
+- **Corte** (`trees.ts`): cada Lenhador ligado soma a madeira que fez na semana (pela sua equipe)
   em `cutProgress`; a cada **10** (`cutEvery`) corta a **árvore mais próxima no raio** (menor
   distância ao quadrado até a área do Lenhador; empate pela célula de menor índice, ou seja,
   linha de cima e depois coluna da esquerda). A árvore vira **toco** (feature `stump`, guardado em
@@ -214,6 +214,38 @@ Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
   toast "A família de Abias foi embora: tenda sem rua ligada ao altar"; na fome, `reason:
   'famine'` e "… foi embora: fome").
 - Casas desconectadas continuam contando moradores e impostos até regredirem.
+
+## Trabalho (Pacote B2)
+Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `src/core/work.ts`.
+- **Cada adulto tem o seu trabalho** (`Person.jobId`, o id do local; só adultos que moram na
+  cidade, `canWork`). Não há mais eficiência única da cidade: **cada local produz × (pessoas nele /
+  vagas)** (`staffOf`); **local sem ninguém produz 0**. Isso vale para campo, pescador, coletora,
+  lenhador, pedreira e para o bônus da oficina. O **mercado só atende com pelo menos 1 pessoa**
+  (`staffedServices` em `rules.json`); o celeiro guarda mesmo vazio e o templo não muda.
+- **Quem entra sozinho** (`assignJobs`, no `refreshCity`: começo e fim de cada semana e depois de
+  construir, demolir ou mexer em rua): primeiro solta quem não pode mais ficar (fez 50 anos, morreu,
+  saiu da cidade, o local foi demolido ou perdeu a rua, mais gente que vagas: saem os de id maior);
+  depois cada vaga livre vai ao adulto sem trabalho que **mora mais perto** (Manhattan da casa ao
+  local; empate pelo id), com os locais na ordem `jobPriority` (pescador, coletora, campo, lenhador,
+  pedreira, celeiro, mercado, oficina, templo) e, no mesmo tipo, o mais antigo. **O jogo nunca move
+  quem já tem trabalho.**
+- **O campo no inverno** congela, mas os lavradores ficam nele, descansando (contam como empregados).
+- **Mudar a profissão** (`setJob`, jogador): na ficha da pessoa, "Mudar" abre uma lista curta com
+  cada local ligado com vaga livre ("Pescador 0/1", "Lenhador 1/2", o mais perto da casa primeiro)
+  e "Sem trabalho". Grátis e na hora; a vaga deixada vai a quem estiver livre. "Sem trabalho" marca
+  `quitWeek`: a pessoa não volta sozinha na mesma semana (na seguinte, só se houver vaga). Lista
+  vazia: "Nenhuma vaga livre: construa um lenhador, campo ou oficina". Criança, idoso e quem está a
+  caminho não têm o botão. Esc ou um toque no mapa fecha a lista.
+- **Balão do local de trabalho:** "Trabalhadores 1/2" e os nomes (tocar abre a ficha); vazio,
+  "Ninguém trabalha aqui: toque numa pessoa e mude a profissão" (o balão sobre o mapa é o de "sem
+  trabalhadores").
+- **Toasts:** construir um local que produz sem ninguém livre: "Ninguém livre para o Lenhador:
+  mude a profissão de alguém" (uma vez por arrasto); o mercado que perde o último trabalhador (na
+  semana, evento `serviceEmpty`, ou pelo "Mudar"): "Mercado vazio: não atende as casas".
+- **Estatísticas:** aba Agora com adultos, vagas do ano, sem trabalho e vagas livres; aba Povo com
+  "Trabalho: 8 de 10 adultos · 2 sem vaga".
+- **3D:** só anda quem trabalha: um local sem ninguém não manda moradores (`walkers.ts`) nem
+  pescador, coletor ou carregador (`haul.ts`); quem anda até um local é uma pessoa dele (`castWalkers`).
 
 ## Casas
 
@@ -364,13 +396,13 @@ ficar).
 
 - O campo dá comida **na primavera, no verão e no outono**, desde a semana em que é construído:
   **468 por ano** (`harvest` em `buildings.json`) nas 39 semanas fora do inverno, ou seja
-  **12 por semana × eficiência**. **No inverno ele congela** (`harvestsIn`): não dá comida e
-  não ocupa trabalhadores (sem lavradores no desenho), que ficam livres para pescador e
-  coletora. O desafio é guardar comida para o inverno (estoque e celeiro).
+  **12 por semana × a lotação do campo**. **No inverno ele congela** (`harvestsIn`): não dá
+  comida; desde o Pacote B2 os lavradores **ficam nele, descansando** (não migram para o pescador
+  ou a coletora; só o jogador os move). O desafio é guardar comida para o inverno (estoque e celeiro).
 - A prévia mostra "Rende N comida/sem" e "Comida depois: ±X/sem" (veja Interface Nova); no
   inverno, "Congelado no inverno: volta em N sem". O balão do campo diz que ele dá comida na
   primavera, no verão e no outono.
-- O campo tem 2 vagas (as do ano todo contam para o desemprego, veja Objetivos). A colheita é anunciada uma vez por
+- O campo tem 2 vagas, ocupadas o ano todo (veja Trabalho). A colheita é anunciada uma vez por
   ano, na primeira semana da primavera.
 - **Seca:** cada ano é seco ou não, sorteado pela semente do mapa (`drought` em `rules.json`):
   chance **25%**, nunca nos Anos 1 e 2 (`safeYears` 2: a primeira seca possível é na primavera do
@@ -403,10 +435,11 @@ A cada semana, nesta ordem (`simulation.ts`):
 1. Recalcular rede de ruas, conexões e cobertura (praça, mercado, parque e, para a Alegria,
    altar/templo).
 2. Moradores = pessoas que moram em casas. Trabalhadores = os adultos entre elas.
-   Vagas = soma das construções conectadas **que estão trabalhando**: o campo só tem vagas fora
-   do inverno; no inverno os trabalhadores ficam livres para
-   pescador, coletora e o resto (`isWorking`). Eficiência = trabalhadores / vagas, no máximo 100%
-   (100% se não houver vagas). A previsão de comida segue essa eficiência semana a semana.
+   Cada adulto tem o seu trabalho (`Person.jobId`, veja Trabalho); `assignJobs` roda no
+   `refreshCity` (começo e fim da semana e depois de qualquer mudança). Cada local produz × a
+   sua lotação (pessoas nele / vagas, `staffOf`); local vazio produz 0. `Economy.efficiency` só
+   resume as vagas ocupadas das construções que trabalham (para as Estatísticas). A previsão de
+   comida usa a lotação de hoje de cada local.
 3. Comida += colheita (fora do inverno, com o bônus das oficinas) + pesca + coleta (× 0,3 no
    inverno) − consumo. Cada pessoa come pela idade (veja Pessoas); **no inverno come × 1,6**
    (`winter.foodFactor`) e quem mora em **tenda come × 2** (`winter.tentFoodFactor`). Se a
@@ -414,7 +447,7 @@ A cada semana, nesta ordem (`simulation.ts`):
    passa do estoque (100 + celeiros) **estraga**.
 4. Prata += impostos (cada casa com o fator da sua felicidade) − manutenção (sempre; o campo paga o
    ano todo). A prata **pode ficar negativa** (dívida). Esse saldo é o "+X/sem" da pílula.
-   Madeira += produção dos Lenhadores, pedra += produção das Pedreiras (× eficiência). Depois os
+   Madeira += produção dos Lenhadores, pedra += produção das Pedreiras (× a lotação de cada um). Depois os
    tocos com 104 semanas voltam a ser árvores e os Lenhadores cortam (veja Madeira e pedra).
 5. Pessoas (`stepPeople`): aniversários e mortes, idosos que se mudam, noivados, casamentos e
    nascimentos; depois as caravanas (anúncio e chegada, `stepCaravans`); depois todas as famílias
@@ -543,12 +576,14 @@ O balão da Oficina escolhida diz o total: "+10% de comida dos campos (total 20%
 teto" quando chega lá) ou, com o teto já alcançado, "Campos já no teto (+30%): esta oficina só dá
 vagas".
 
-**Aviso de desemprego:** pessoas sem trabalho = trabalhadores − vagas **do ano todo** (`yearJobs`:
-as do campo congelado contam, porque no inverno o agricultor descansa; nunca menos de 0). A
-alegria usa a mesma conta. Com a Oficina liberada e 6 ou mais pessoas sem trabalho (`unemploymentAlert` em `rules.json`), entra
-nos Avisos: "N pessoas sem trabalho: construa um campo ou uma oficina" (só "construa um campo"
-quando as oficinas já dão o bônus inteiro). Some sozinho quando o
-número cai abaixo de 6.
+**Aviso de desemprego** (Pacote B2): pessoas sem trabalho = adultos que moram na cidade sem
+`jobId` (`unemployed`; os lavradores no inverno têm trabalho). A Alegria usa a mesma conta
+(`idleShare`). Com **3 ou mais** (`unemploymentAlert` em `rules.json`), desde o começo (sem a trava
+da Oficina): "N pessoas sem trabalho: faltam vagas. Construa um campo, lenhador ou oficina" (com
+as oficinas no bônus inteiro: "um lenhador ou uma pedreira"). Logo depois, `noCrew`: o primeiro
+local ligado que trabalha esta semana e produz algo (comida, madeira, pedra, o bônus da oficina ou
+a cobertura do mercado; não o celeiro nem o templo) sem ninguém: "Lenhador sem trabalhadores:
+toque numa pessoa e mude a profissão".
 
 ## Aparência e moradores
 
@@ -675,7 +710,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     o texto (uma vez por episódio). **Não há faixa de aviso sobre o mapa;**
   - **Estatísticas** (gráfico): prata (impostos, manutenção por tipo, saldo),
     comida (colheita, pesca, coleta, consumo, saldo, estoque/capacidade, previsão), trabalho
-    (trabalhadores, vagas, sem trabalho, eficiência), casas por nível, alegria (felizes, contentes,
+    (trabalhadores, vagas do ano, sem trabalho, vagas livres), casas por nível, alegria (felizes, contentes,
     tristes e motivos), **materiais** (madeira e pedra: estoque e "+N/sem", em vermelho com
     "Casas esperando madeira/pedra ⚠ N" quando há casa esperando, e o número de tocos), **gráficos das últimas 52 semanas** (veja Histórico), a lista de
     **problemas** (a mesma dos Avisos; só no PC, no celular ela fica no botão Avisos) e a lista de **marcos** com ano e semana.
@@ -768,10 +803,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - **Balão da construção escolhida:** escuro, à esquerda da coluna, com seta para o botão: nome,
   o custo "25 prata · 10 madeira" (cada parte que falta em vermelho com o que a cidade tem:
   "10 madeira (tem 4)"), a manutenção por semana numa linha própria e uma frase do efeito; no PC também vagas, alcance e "Saldo
-  depois: +N/sem" (saldo da semana com a manutenção, as vagas e a produção da nova construção, na
-  eficiência que a cidade teria). Num local de trabalho que
-  não dá comida (mercado, oficina, templo…), quando as vagas dele tiram trabalhadores dos que dão
-  comida, também "Comida depois: ±X/sem" (`foodAfter`; vermelho se negativo), no celular também.
+  depois: +N/sem" (saldo da semana com a manutenção e a nova construção). Desde o Pacote B2 um
+  local novo só recebe quem está sem trabalho (`foodAfter` põe nele os adultos livres; ninguém é
+  tirado de outro local), então "Comida depois: ±X/sem" só muda pelo que ele mesmo faz.
   Celeiro, mercado e oficina dizem até onde melhoram: "Guarda 300 · melhora até 1000",
   "Alcance 5 · melhora até 7", "+10% nos campos · melhora até +30%".
   Fecha ao trocar de ferramenta ou ao tocar no mapa para construir.
@@ -779,8 +813,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   tocar fora:
   - casas: cabeça **"Casa de barro · 3/4 pessoas"** e os **moradores**, um por linha de 44 px
     (figura de criança, adulto ou idoso — a forma diz homem ou mulher —, "Natã, 22" e embaixo a
-    profissão em 12 px: o trabalho do adulto por `jobsOf`, "Sem trabalho" em laranja, "criança",
-    "idoso/idosa", "A caminho"); **celular: duas colunas**, **PC: uma**. Tocar num morador abre a
+    profissão em 12 px: o trabalho do adulto por `jobsOf` ("Lavrador · descansa no inverno" no
+    inverno), "Sem trabalho" em laranja (a ficha diz "Sem trabalho: todas as vagas estão cheias"
+    quando não há vaga livre), "criança", "Descansa (idoso/idosa)", "A caminho"); **celular: duas colunas**, **PC: uma**. Tocar num morador abre a
     **ficha da pessoa**. Linha dos filhos (`houseBirths`, só com um casal que pode ter filhos):
     "✓ Pode ter filhos" ou "✗ Sem filhos: fome / casa cheia / a comida não dura até a primavera /
     o estoque é pequeno. Construa um celeiro". Depois o nível: "nível atual → próximo" (celular:
@@ -894,13 +929,13 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     "Nada para demolir aqui", "Rochas não podem ser removidas");
   - cortar uma árvore faz subir "−5" em vermelho sobre ela (no toque não há pílula de cursor);
   - com Pescador, Coletora ou Campo, uma pílula sobre a prévia diz, em duas linhas, "Rende N
-    comida/sem" (com a eficiência que a cidade terá com as vagas dela) e "Comida depois: ±X/sem"
+    comida/sem" (pelos adultos sem trabalho que iriam para ela) e "Comida depois: ±X/sem"
     (o saldo de comida da cidade com ela; a pílula fica vermelha se negativo); campo no inverno:
     "Congelado no inverno: volta em N sem". Lenhador e Pedreira: "Rende N madeira/sem" (ou pedra),
     no Lenhador "Corta 1 árvore a cada N sem" e, quando o raio pega árvores de uma Coletora,
     "Divide o bosque com a Coletora" (`sharedTrees`); a Coletora diz "Divide o bosque com o
-    Lenhador". "Comida depois" só aparece no Lenhador e na Pedreira quando as vagas deles baixam a
-    comida. Fora da rua ligada, a prévia de qualquer um deles diz "Sem rua ao lado: não rende nada"
+    Lenhador". "Comida depois" não aparece no Lenhador e na Pedreira (eles não tiram ninguém da
+    comida). Fora da rua ligada, a prévia de qualquer um deles diz "Sem rua ao lado: não rende nada"
     em vermelho (no lugar de "Rende 0"); O balão da construção escolhida diz a regra (por
     célula, alcance e teto) ou "Guarda 300 de comida";
   - no inspetor de pescador, coletora e campo trabalhando com menos de 100% de trabalhadores:
@@ -925,7 +960,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 ### Mapa e mensagens
 
 - **Balões** sobre construções com o primeiro problema, nesta ordem: sem rua; depois, em locais de
-  trabalho com eficiência 0, "sem trabalhadores" (trabalhador riscado); pescador "longe do rio" e
+  trabalho sem ninguém nele (fora do campo congelado), "sem trabalhadores" (trabalhador riscado); pescador "longe do rio" e
   coletora "sem árvores" quando rendem 0; depois, para casas
   de nível 1 a 3, a primeira exigência que falta (lajes claras com banco e toldo ocre = praça,
   listras vermelhas = mercado, duas árvores sobre grama = parque); se a construção que falta ainda

@@ -190,3 +190,6 @@
 .settings .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; font-size: var(--text); font-weight: 700; }
 .settings .row .act { flex: none; min-width: 120px; padding: 0 12px; }
 .settings .row small { grid-column: 1 / -1; font-size: var(--small); }
+/* The person sheet's work line: the job and "Mudar" beside it. */
+.sheet .work { display: flex; gap: 10px; align-items: center; }
+.sheet .work .act.small { flex: none; padding: 0 16px; }

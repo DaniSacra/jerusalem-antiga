@@ -1,7 +1,8 @@
-import { computeEconomy, costliestUpkeep, unemploymentAlert, type Economy } from './economy';
+import { computeEconomy, costliestUpkeep, type Economy } from './economy';
+import { crewCounts, madeByCrew, unemploymentAlert } from './work';
 import { BUILDINGS, RULES } from './data';
 import { foodLastsToHarvest } from './forecast';
-import { fieldBonus, foodCapacity } from './harvest';
+import { fieldBonus, foodCapacity, isWorking } from './harvest';
 import { announcedCaravan } from './caravans';
 import { freeHouse } from './families';
 import { birthBlock } from './life';
@@ -39,7 +40,9 @@ export type Alert =
   | { kind: 'drought' }
   | { kind: 'deficit'; balance: number; costliest: BuildingKind; upkeep: number }
   /** `workshopsFull`: the workshops' field bonus is at its cap (another one only adds jobs). */
-  | { kind: 'unemployed'; count: number; workshopsFull: boolean };
+  | { kind: 'unemployed'; count: number; workshopsFull: boolean }
+  /** The first connected workplace (at work this week) that makes something and has nobody: its kind. */
+  | { kind: 'noCrew'; building: BuildingKind };
 
 /** Last weeks of autumn that warn about the winter. */
 const lateAutumn = (week: number) => seasonOf(week) === 'autumn' && week % RULES.weeksPerSeason >= RULES.weeksPerSeason - RULES.winterWarningWeeks;
@@ -71,8 +74,11 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   if (couple && (block === 'food' || block === 'storage')) out.push({ kind: 'noBirths', reason: block });
   const top = costliestUpkeep(eco);
   if (eco.silverDelta < 0 && top) out.push({ kind: 'deficit', balance: eco.silverDelta, costliest: top.kind, upkeep: top.amount });
-  const idle = unemploymentAlert(s, eco);
+  const idle = unemploymentAlert(s);
   if (idle > 0) out.push({ kind: 'unemployed', count: idle, workshopsFull: fieldBonus(s) >= (BUILDINGS.workshop.fieldBonusMax ?? 0) });
+  const crews = crewCounts(s);
+  const empty = s.buildings.find((b) => b.connected && BUILDINGS[b.kind].jobs > 0 && madeByCrew(b.kind) && isWorking(b, s.week) && !crews.get(b.id));
+  if (empty) out.push({ kind: 'noCrew', building: empty.kind });
   for (const material of MATERIALS) {
     if (storageFull(s, material) && s.buildings.some((b) => b.connected && BUILDINGS[b.kind].gather?.product === material)) out.push({ kind: 'storageFull', material });
   }

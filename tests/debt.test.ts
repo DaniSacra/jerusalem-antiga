@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alerts, BUILDINGS, caravanSpares, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
+import { alerts, BUILDINGS, refreshCity, caravanSpares, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
 import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 const never = constRng(0.99);
@@ -114,6 +114,7 @@ describe('alerts', () => {
     expect(alerts(s)).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: -U, costliest: 'market', upkeep: U },
+      { kind: 'noCrew', building: 'market' }, // nobody lives here to work at it
     ]);
     s.unlocked.push('workshop');
     const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs
@@ -129,6 +130,7 @@ describe('alerts', () => {
     s.silver = 0;
     s.debtWeeks = 0;
     s.buildings = s.buildings.filter((b) => b !== second);
+    refreshCity(s); // its crew is out of work again
     expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([{ kind: 'unemployed', count: 15, workshopsFull: false }]); // balance tax - U > 0, 18 workers for 3 jobs
   });
 

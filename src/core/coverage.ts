@@ -1,4 +1,4 @@
-import { statOf } from './data';
+import { RULES, statOf } from './data';
 import { cellsInRadius } from './grid';
 import { SERVICE_KINDS, type BuildingKind, type Coverage, type GameState, type ServiceKind } from './types';
 
@@ -13,11 +13,15 @@ export const SERVICE_SOURCES: Record<ServiceKind, BuildingKind[]> = {
 export const serviceOf = (kind: BuildingKind): ServiceKind | null =>
   SERVICE_KINDS.find((k) => SERVICE_SOURCES[k].includes(kind)) ?? null;
 
-/** Cells covered by connected buildings of a service (radius measured from any footprint cell). */
+/**
+ * Cells covered by connected buildings of a service (radius measured from any footprint cell). A
+ * `staffedServices` building (the market) covers nothing while nobody works there.
+ */
 export function serviceCoverage(s: GameState, service: ServiceKind): boolean[] {
   const covered = new Array<boolean>(s.cols * s.rows).fill(false);
   for (const b of s.buildings) {
     if (!b.connected || !SERVICE_SOURCES[service].includes(b.kind)) continue;
+    if (RULES.staffedServices.includes(b.kind) && !s.people.some((p) => p.jobId === b.id)) continue;
     for (const c of cellsInRadius(s, b.x, b.y, statOf(b, 'radius'), b.w, b.h)) covered[c] = true;
   }
   return covered;

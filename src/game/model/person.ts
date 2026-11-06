@@ -1,6 +1,6 @@
-import { calendar, childrenOf, clanName, HOUSE_LEVELS, jobsOf, personById, type AgeBand, type GameState, type Person } from '../../core';
+import { calendar, canWork, childrenOf, clanName, HOUSE_LEVELS, jobOptions, jobsOf, personById, type AgeBand, type GameState, type Person } from '../../core';
 import { T } from '../strings';
-import { ageNow, bandOf, jobText } from './people';
+import { ageNow, bandOf, jobChoices, jobText } from './people';
 
 /** The person sheet as data (pure): name, family, age, work, house, origin and relatives. */
 
@@ -21,6 +21,8 @@ export interface SheetView {
   dim: boolean;
   age: string;
   job: string | null;
+  /** An adult living here can change job ("Mudar"): the free jobs and "Sem trabalho" (empty: none free). */
+  choices: { id: number | null; label: string }[] | null;
   house: { id: number; name: string } | null;
   origin: string;
   rows: { label: string; kin: Kin[] }[];
@@ -66,7 +68,9 @@ export function sheetOf(s: GameState, p: Person): SheetView {
     sex: p.sex,
     dim: !!end,
     age,
-    job: end ? null : jobText(s, p, jobsOf(s)),
+    // The sheet has room to say why: every job taken (the house's list keeps it short).
+    job: end ? null : canWork(s, p) && p.jobId == null && !jobOptions(s, p.id).length ? T.nova.people.noJobFull : jobText(s, p, jobsOf(s)),
+    choices: !end && canWork(s, p) ? jobChoices(s, p) : null,
     house: home ? { id: home.id, name: HOUSE_LEVELS[home.level]?.name ?? '' } : null,
     origin,
     rows,

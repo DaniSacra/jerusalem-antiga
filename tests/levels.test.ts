@@ -19,7 +19,7 @@ import {
   weeksToNextLevel,
   type GameEvent,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, hire, put, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const WINTER = W;
@@ -99,6 +99,7 @@ describe('service building levels', () => {
   it('a market level widens its reach', () => {
     const s = emptyGame();
     const m = put(s, 'market', EAST, 30);
+    hire(s, m);
     const reach = () => computeCoverage(s).market.filter(Boolean).length;
     const before = reach();
     m.level = 2;
@@ -108,6 +109,8 @@ describe('service building levels', () => {
   it('workshop levels add up to the same cap: one workshop at level 3 gives what three at level 1 give', () => {
     const s = emptyGame();
     const w = put(s, 'workshop', EAST, 30);
+    expect(fieldBonus(s)).toBe(0); // nobody works there: no bonus
+    hire(s, w);
     expect(fieldBonus(s)).toBe(0.1);
     w.level = 3;
     expect(fieldBonus(s)).toBe(0.3);

@@ -8,12 +8,15 @@ import { figureSvg } from './figure';
 /**
  * Ficha da pessoa: opened from a house's people (and from the relatives on another sheet). Name and
  * parent, family, figure, age, work, house (a tap goes there), parents, spouse and children as 44 px
- * buttons; Voltar goes back through the sheets seen before.
+ * buttons; Voltar goes back through the sheets seen before. An adult's work has "Mudar": a short
+ * list of the free jobs (nearest first) and "Sem trabalho"; a tap picks, Esc closes the list.
  */
 export class PersonSheet {
   readonly el = h('div.panelbox.sheet.panel.hidden', { 'data-spot': 'sheet' });
   private current: number | null = null;
   private trail: number[] = [];
+  /** The "Mudar" list is open. */
+  private choosing = false;
 
   constructor(private s: Session, private showHouse: (houseId: number) => void) {}
 
@@ -26,10 +29,17 @@ export class PersonSheet {
     if (fresh) this.trail = [];
     else if (this.current !== null && this.current !== id) this.trail.push(this.current);
     this.current = id;
+    this.choosing = false;
     this.update();
   }
 
   close(): boolean {
+    // Esc or a tap on the map closes the "Mudar" list first.
+    if (this.choosing) {
+      this.choosing = false;
+      this.update();
+      return true;
+    }
     const was = this.open;
     this.current = null;
     this.trail = [];
@@ -50,11 +60,11 @@ export class PersonSheet {
     if (!p) return void this.close();
     const v = sheetOf(this.s.state, p);
     const N = T.nova.people;
-    keyed(this.el, JSON.stringify([v, this.trail.length]), () => {
+    keyed(this.el, JSON.stringify([v, this.trail.length, this.choosing]), () => {
       const fig = h('span.fig.big');
       fig.innerHTML = figureSvg(v.band, v.sex, v.dim);
       const head = h('div.head', {}, fig, h('div', {}, h('div.line.big', {}, v.title), h('div.line.plain.t-muted', {}, v.clan)));
-      const lines = [h('div.line', {}, v.age), v.job ? h('div.line.plain', {}, v.job) : null, h('div.line.plain.t-muted', {}, v.origin)];
+      const lines = [h('div.line', {}, v.age), this.work(v.job, v.choices), h('div.line.plain.t-muted', {}, v.origin)];
       let home: HTMLElement | null = null;
       if (v.house) {
         const id = v.house.id;
@@ -70,6 +80,34 @@ export class PersonSheet {
       return [head, ...lines, home, ...rows];
     });
     this.el.classList.remove('hidden');
+  }
+
+  /** The work line, with "Mudar" for an adult; open, the list of free jobs (or why there is none). */
+  private work(job: string | null, choices: { id: number | null; label: string }[] | null): HTMLElement | null {
+    if (!job) return null;
+    const N = T.nova.people;
+    if (!choices) return h('div.line.plain', {}, job);
+    // Open, the button turns gold (one "Fechar" only, at the top); a tap closes the list again.
+    const change = h('button.act.small', { 'data-spot': 'sheet-job', class: this.choosing ? 'gold' : null }, N.change);
+    onTap(change, () => {
+      this.choosing = !this.choosing;
+      this.update();
+    });
+    const row = h('div.work', {}, h('div.line.plain', {}, job), change);
+    if (!this.choosing) return row;
+    const list = choices.length
+      ? h('div.chips', { 'data-spot': 'job-list' }, ...choices.map((c) => this.choiceButton(c)))
+      : h('div.line.plain.t-bad', {}, N.noOption);
+    return h('div.kin', {}, row, h('div.line.t-gold', {}, N.changeTitle), list);
+  }
+
+  private choiceButton(c: { id: number | null; label: string }) {
+    const b = h('button.chip.family', { 'data-job': c.id ?? 'none' }, c.label);
+    onTap(b, () => {
+      if (this.current !== null && this.s.setJob(this.current, c.id)) this.choosing = false;
+      this.update();
+    });
+    return b;
   }
 
   private kinButton(k: Kin) {

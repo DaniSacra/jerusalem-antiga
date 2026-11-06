@@ -87,6 +87,8 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozi
   **Feito 2026-11-06** (código e testes); falta o sim-tester medir S1–S4.
 - **B2 "Cada um no seu trabalho"** (mecânica nova): `Person.jobId`, produção por local × lotação,
   local vazio rende 0, mudar profissão pela ficha da pessoa, desemprego = adulto sem vaga.
+  **Feito 2026-11-06** (código e testes; `src/core/work.ts`); falta o sim-tester medir J1–J3 e
+  pôr nos bots a troca de profissão (seção 3 "Bots").
 - **B3 "O frio pesa"** (mecânica nova): tenda queima 0,5/sem; morte de frio por semana de inverno
   (tenda 0,5% vulneráveis; sem lenha tenda 4%/1%, casa 1%/0; com fome dobra).
 - B4 "Alegria desde o começo": DEPOIS, decidir após o playtest do B3.

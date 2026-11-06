@@ -1,7 +1,7 @@
-import { HOUSE_LEVELS, RULES, statOf } from './data';
+import { HOUSE_LEVELS, RULES } from './data';
 import { pickName } from './names';
 import { seasonOf } from './seasons';
-import type { AgeBand, Building, BuildingKind, EndCause, GameState, Person, Rng, Sex } from './types';
+import type { AgeBand, Building, EndCause, GameState, Person, Rng, Sex } from './types';
 
 /** People: ages, families and houses. Pure helpers; the weekly rules are in life.ts. */
 
@@ -147,20 +147,4 @@ export function waitingCouples(s: GameState): { man: Person; woman: Person; sinc
     if (woman) out.push({ man, woman, since: man.engaged });
   }
   return out.sort((a, b) => a.since - b.since || a.man.id - b.man.id);
-}
-
-/**
- * Where each adult in the city works this year (read only, for the screen): adults by id fill the
- * jobs of the connected workplaces by id; null = no work. Children and elders are not in the map.
- */
-export function jobsOf(s: GameState): Map<number, { kind: BuildingKind; buildingId: number } | null> {
-  const seats: { kind: BuildingKind; buildingId: number }[] = [];
-  for (const b of [...s.buildings].sort((a, c) => a.id - c.id)) {
-    if (!b.connected) continue;
-    for (let k = 0; k < statOf(b, 'jobs'); k++) seats.push({ kind: b.kind, buildingId: b.id });
-  }
-  const out = new Map<number, { kind: BuildingKind; buildingId: number } | null>();
-  const adults = s.people.filter((p) => p.houseId !== null && ageBand(p, s.week) === 'adult').sort((a, b) => a.id - b.id);
-  adults.forEach((p, k) => out.set(p.id, seats[k] ?? null));
-  return out;
 }

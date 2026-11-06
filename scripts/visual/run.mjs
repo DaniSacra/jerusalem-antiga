@@ -1016,7 +1016,13 @@ async function town3dScenario(page) {
   // Every walker is a resident: a click on one opens their sheet with their name.
   await page.waitForTimeout(300);
   const free = (p) => p.sx > 120 && p.sx < 1100 && p.sy > 150 && p.sy < 620;
-  const someone = (await page.evaluate(() => window.view3d.residents())).find(free);
+  // An adult (who can change job): the sheet shows "Mudar" (plan B2).
+  const adult = (id) => window.core.canWork(window.state, window.state.people.find((p) => p.id === id));
+  const shown = await page.evaluate((src) => {
+    const ok = new Function('return ' + src)();
+    return window.view3d.residents().map((r) => ({ ...r, adult: ok(r.id) }));
+  }, adult.toString());
+  const someone = shown.find((r) => free(r) && r.adult) ?? shown.find(free);
   assert(someone, 'a resident walks in view');
   const name = await page.evaluate((id) => window.session.nameOf(id), someone.id);
   await page.mouse.click(someone.sx, someone.sy);
@@ -1027,6 +1033,20 @@ async function town3dScenario(page) {
   });
   assert(sheet && sheet.includes(name), `a click on a walker opens ${name}'s sheet (${sheet?.slice(0, 60)})`);
   await page.screenshot({ path: `${OUT}/town3d-pc-person.png` });
+  // "Mudar" opens the short list of free jobs (and "Sem trabalho"); Esc closes the list, then the sheet.
+  if (someone.adult) {
+    await page.click('[data-spot="sheet-job"]');
+    await page.waitForTimeout(200);
+    const list = await page.evaluate(() => ({
+      jobs: [...document.querySelectorAll('[data-spot="sheet"] [data-job]')].map((b) => b.textContent),
+      text: document.querySelector('[data-spot="sheet"]').textContent,
+    }));
+    assert(list.jobs.length >= 1 || list.text.includes('Nenhuma vaga livre'), `Mudar lists the free jobs or says there is none (${JSON.stringify(list.jobs)})`);
+    await page.screenshot({ path: `${OUT}/town3d-pc-person-job.png` });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    assert(await page.evaluate(() => !document.querySelector('[data-spot="sheet"]').classList.contains('hidden') && !document.querySelector('[data-job]')), 'Esc closes the list first');
+  }
   await page.keyboard.press('Escape');
   // Around the town: pigeons on the altar court, a goat and chickens by the tent, the donkey at the market.
   const ambient = await page.evaluate(() => window.view3d.info().ambient);

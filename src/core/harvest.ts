@@ -2,6 +2,7 @@ import { BUILDINGS, RULES, statOf } from './data';
 import { borderCells, cellsInRadius, indexOf } from './grid';
 import { seasonOf, WEEKS_PER_YEAR } from './seasons';
 import type { Building, BuildingKind, Feature, GameState, GatherSource, Product, TreeFeature } from './types';
+import { crewCounts, staffOf } from './work';
 
 /**
  * Fields give food in spring, summer and autumn, from the week they are built; in winter they
@@ -21,9 +22,15 @@ export const isWorking = (b: Building, week: number) => !BUILDINGS[b.kind].harve
 /** A field touching the river is watered: a dry year does not hurt it. */
 export const byRiver = (s: GameState, b: Building) => borderCells(s, b).some((c) => s.ground[indexOf(s, c.x, c.y)] === 'river');
 
-/** Extra share of food the fields give: the `fieldBonus` of every connected workshop at its level, at most `fieldBonusMax`. */
+/**
+ * Extra share of food the fields give: the `fieldBonus` of every connected workshop at its level,
+ * times the share of its jobs filled (an empty workshop adds nothing), at most `fieldBonusMax`.
+ */
 export function fieldBonus(s: GameState): number {
-  const sum = s.buildings.reduce((a, b) => a + (b.kind === 'workshop' && b.connected ? statOf(b, 'fieldBonus') : 0), 0);
+  const workshops = s.buildings.filter((b) => b.kind === 'workshop' && b.connected);
+  if (!workshops.length) return 0;
+  const crews = crewCounts(s);
+  const sum = workshops.reduce((a, b) => a + statOf(b, 'fieldBonus') * staffOf(b, crews), 0);
   return Math.min(Math.round(sum * 100) / 100, BUILDINGS.workshop.fieldBonusMax ?? 0);
 }
 

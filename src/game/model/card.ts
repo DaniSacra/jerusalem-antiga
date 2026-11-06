@@ -21,6 +21,10 @@ import {
   indexOf,
   isWalking,
   jobsOf,
+  crewCounts,
+  crewOf,
+  seatsOf,
+  staffOf,
   lackingMaterial,
   makerOf,
   materialMadeBy,
@@ -43,7 +47,7 @@ import {
   type Building,
   type Cell,
   type CityReadout,
-  type Economy,
+  type Person,
   type GameState,
   type LevelStat,
   type NeedKind,
@@ -119,7 +123,7 @@ export function levelStatOf(kind: BuildableKind): (LevelStat & keyof typeof T.no
 }
 
 /** The card of a tapped cell; null for plain land and the river (a tap there closes the balloon). */
-export function cardOf(s: GameState, c: Cell, { eco, births }: CityReadout, phone: boolean): Card | null {
+export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: boolean): Card | null {
   const N = T.nova.inspect;
   const i = indexOf(s, c.x, c.y);
   const b = s.grid[i];
@@ -153,11 +157,16 @@ export function cardOf(s: GameState, c: Cell, { eco, births }: CityReadout, phon
   else {
     const served = housesServed(s, b);
     if (served !== null) lines.push({ text: N.serves(served) });
-    if (def.jobs) lines.push({ text: T.nova.jobs(def.jobs) + (eco.efficiency < 1 && eco.efficiency > 0 ? ` · ${N.efficiency(Math.round(eco.efficiency * 100))}` : '') });
+    if (def.jobs) {
+      // Who works here: "Trabalhadores 1/2" and their names (a tap opens the person's sheet).
+      const crew = crewOf(s, b);
+      lines.push({ text: N.crew(crew.length, seatsOf(b)), tone: crew.length ? 'text' : 'bad' });
+      if (crew.length) lines.push({ text: '', people: crew.map((p) => chipOf(s, p, jobsOf(s))), cols: phone ? 2 : 1, gap: 2 });
+      else lines.push({ text: N.noWorkers, tone: 'bad' });
+    }
     if (def.fieldBonus) lines.push({ text: N.fieldBonus(Math.round(fieldBonus(s) * 100)), tone: 'good' });
-    if (def.jobs && eco.efficiency === 0) lines.push({ text: N.noWorkers, tone: 'bad' });
   }
-  lines.push(...foodLines(s, b, eco));
+  lines.push(...foodLines(s, b));
   const upkeep = statOf(b, 'upkeep');
   if (upkeep) lines.push({ text: N.upkeep(upkeep), tone: 'gold' });
   // Service levels: what the next one changes, and the gold Melhorar (grey without the silver).
@@ -210,14 +219,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
   }
   lines.push({ text: P.head(h.name, h.residents, h.capacity), big: true });
   const jobs = jobsOf(s);
-  const people: PersonChip[] = residentsOf(s, b).map((p) => ({
-    id: p.id,
-    title: P.row(p.name, ageNow(s, p)),
-    sub: isWalking(s, p.id) ? P.walking : jobText(s, p, jobs),
-    subTone: jobs.get(p.id) === null ? 'warn' : undefined,
-    band: bandOf(s, p),
-    sex: p.sex,
-  }));
+  const people: PersonChip[] = residentsOf(s, b).map((p) => chipOf(s, p, jobs));
   if (people.length) lines.push({ text: '', people, cols: phone ? 2 : 1, gap: 4 });
   // Whether they can have children, and who is on the way (phone: at the top of the level column).
   const family: CardLine[] = [];
@@ -284,19 +286,33 @@ function lossLine(s: GameState, c: Cell): CardLine[] {
   return n > 0 ? [ok(false, T.nova.foodLost(n))] : [];
 }
 
+/** A person as a chip in a house's or a workplace's balloon: name, age and work (a tap opens the sheet). */
+function chipOf(s: GameState, p: Person, jobs: ReturnType<typeof jobsOf>): PersonChip {
+  const P = T.nova.people;
+  return {
+    id: p.id,
+    title: P.row(p.name, ageNow(s, p)),
+    sub: isWalking(s, p.id) ? P.walking : jobText(s, p, jobs),
+    subTone: jobs.get(p.id) === null ? 'warn' : undefined,
+    band: bandOf(s, p),
+    sex: p.sex,
+  };
+}
+
 /** Field, fisher, gatherer and granary: when it harvests, what it yields, what it keeps. */
-function foodLines(s: GameState, b: Building, eco: Economy): CardLine[] {
+function foodLines(s: GameState, b: Building): CardLine[] {
   const def = BUILDINGS[b.kind];
   const N = T.nova;
   const out: CardLine[] = [];
+  const staff = staffOf(b, crewCounts(s)); // it makes by its own crew
   if (def.harvest) {
     if (!harvestsIn(s.week)) out.push({ text: N.inspect.frozen(weeksToHarvest(s.week)), tone: 'warn' });
-    else if (b.connected) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * eco.efficiency), tone: 'good' });
+    else if (b.connected) out.push({ text: N.inspect.harvesting(fieldHarvest(s, b, s.week) * staff), tone: 'good' });
     if (s.drought) out.push(byRiver(s, b) ? { text: N.inspect.droughtRiver, tone: 'good' } : { text: N.inspect.droughtDry, tone: 'warn' });
   }
   if (def.gather && b.connected) {
     const raw = gatherYield(s, b);
-    const n = raw * eco.efficiency;
+    const n = raw * staff;
     const made = materialMadeBy(b.kind as BuildableKind);
     // A full store stops it: that line alone, not a green yield beside it. No source only when there
     // is none (without workers the balloon already says "Sem trabalhadores").
@@ -307,7 +323,7 @@ function foodLines(s: GameState, b: Building, eco: Economy): CardLine[] {
     if (every) out.push({ text: N.cutsEvery(every), tone: 'muted', plain: true });
   }
   const working = def.gather || (def.harvest && harvestsIn(s.week));
-  if (working && b.connected && eco.efficiency > 0 && eco.efficiency < 1) out.push({ text: N.inspect.fewWorkers(Math.round(eco.efficiency * 100)), tone: 'warn' });
+  if (working && b.connected && staff > 0 && staff < 1) out.push({ text: N.inspect.fewWorkers(Math.round(staff * 100)), tone: 'warn' });
   if (def.storage) out.push({ text: N.stores(statOf(b, 'storage')), tone: b.connected ? 'text' : 'muted' });
   return out;
 }

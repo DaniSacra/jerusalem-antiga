@@ -11,8 +11,9 @@ export interface WalkerGoal {
 
 const pick = <T>(items: T[], rng: Rng): T | undefined => items[Math.floor(rng() * items.length)];
 
+/** Connected buildings of these kinds with a door; a workplace only while someone works there (plan B2: no ghost workers). */
 const connectedOf = (s: GameState, kinds: BuildingKind[]) =>
-  s.buildings.filter((b) => b.connected && kinds.includes(b.kind) && doorsOf(s, b).length > 0);
+  s.buildings.filter((b) => b.connected && kinds.includes(b.kind) && doorsOf(s, b).length > 0 && (!BUILDINGS[b.kind].jobs || s.people.some((p) => p.jobId === b.id)));
 
 const defOf = (type: WalkerType): WalkerDef => WALKERS.find((w) => w.type === type)!;
 

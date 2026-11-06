@@ -105,6 +105,8 @@ export interface Profile {
   materialWait: number;
   /** Keeps wood (and stone) for the houses about to climb and for new houses before spending it on other buildings. */
   materialReserve: boolean;
+  /** Plays the tutorial's build steps in week 0 (the clock stands still on them, see tutorial.json): food, field, lumber, house. `--profile tutorial=true`. */
+  tutorial?: boolean;
 }
 
 export const PROFILES: Record<string, Profile> = {
@@ -309,7 +311,7 @@ export class SurvivalBot {
     this.bump('spoil', s.spoiled > 0);
     this.bump('deficit', eco.silverDelta < 0);
     // The core counts the jobs of the whole year (frozen fields included), like the on-screen alert.
-    this.bump('idle', unemployed(s, eco) >= RULES.unemploymentAlert);
+    this.bump('idle', unemployed(s) >= RULES.unemploymentAlert);
     this.bump('debt', s.silver < 0);
     this.bump('couples', waitingCouples(s).length > 0);
     this.bump('caravan', announcedCaravan(s) !== null);
@@ -324,11 +326,21 @@ export class SurvivalBot {
       this.lacked[m] = false;
     }
     this.updateReserve(s);
+    if (this.p.tutorial && s.week === 0 && !this.tutored) this.playTutorial(s);
     if (this.rng() < this.p.idleChance) return;
     for (let k = 0; k < this.p.actions; k++) {
       if (!this.step(s)) break;
       this.stats.actions++;
     }
+  }
+
+  private tutored = false;
+  /** The tutorial's build steps (no clock): a fisher or a gatherer, a field, a lumber and a house. */
+  private playTutorial(s: GameState) {
+    this.tutored = true;
+    for (let k = 0; k < 4 && !this.place(s, 'fisher', true, true) && !this.place(s, 'gatherer', true, true); k++);
+    for (const kind of ['field', 'lumber'] as const) for (let k = 0; k < 4 && !s.buildings.some((b) => b.kind === kind && b.connected); k++) if (!this.place(s, kind, true, true)) break;
+    for (let k = 0; k < 3 && !this.houses(s, 1); k++);
   }
 
   private step(s: GameState): boolean {
@@ -367,6 +379,10 @@ export class SurvivalBot {
       if ((spoil || plan) && granaries > 0 && !this.p.foodOnlyInFamine && this.upgradeGranary(s)) return true;
       if ((want || spoil || plan || (this.p.granaryEarly && granaries === 0)) && this.place(s, 'granary')) return true;
     }
+
+    // 2a. A "build" goal on screen (the workshop): every player builds one once it can (the granary and the temple have their own rules).
+    const goalKind = goal?.type === 'build' ? (goal.kind as BuildableKind | undefined) : undefined;
+    if (goal && goalKind && goalKind !== 'granary' && goalKind !== 'temple' && goalProgress(s, goal) < goalTarget(s, goal) && this.place(s, goalKind, false, true)) return true;
 
     // 2b. Materials: lumbers and quarries.
     if (this.materials(s)) return true;
@@ -741,13 +757,14 @@ export class SurvivalBot {
       if (!this.open(s, r) || !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) continue;
       const f = fake(s, 'house', r);
       const plaza = needMet(s, f, 'plaza');
-      if (this.p.planPlazas && !plaza) continue;
+      // Before the plaza is unlocked (B1: it comes with the mud-brick goal) any plot on the network will do.
+      if (this.p.planPlazas && s.unlocked.includes('plaza') && !plaza) continue;
       let v = -cheb(r, altar) * 0.3 + (plaza ? 2 : 0) + (needMet(s, f, 'market') ? 1 : 0) + (bigGoal && needMet(s, f, 'park') ? 6 : 0);
       v += this.rng() * this.p.noise;
       cands.push({ r, v });
     }
     if (!cands.length) {
-      if (this.p.planPlazas) {
+      if (this.p.planPlazas && s.unlocked.includes('plaza')) {
         // Place a plaza near the city edge where plots can go.
         const spot = this.spotFor(s, 'plaza');
         if (spot && spot.d === 0 && s.silver >= costOf('plaza') + cost) { const ok = place(s, 'plaza', spot.r.x, spot.r.y).ok; if (ok) this.stats.built.plaza = (this.stats.built.plaza ?? 0) + 1; return ok; }
@@ -918,6 +935,31 @@ export interface Result {
   marks: Record<string, number>;
   /** P3 materials: the numbers below (W1-W6 of plano-p3 8.2 and the 8.3 reports). */
   mat: MatResult;
+  /** Package B1 (plano-sobrevivencia 7): survival of the first year. */
+  b1: B1Result;
+}
+
+export interface B1Result {
+  /** Weeks with the city cold (no firewood), in year 1 and in the whole game; winters (by year) with any. */
+  coldY1: number;
+  coldWeeks: number;
+  coldWinters: number;
+  /** Wood stock at weeks 0, 4, ..., 52. */
+  woodY1: number[];
+  /** House-weeks in firewoodHold (year 1 / all) and houses that ever sat in it. */
+  holdY1: number;
+  holdAll: number;
+  holdHouses: number;
+  /** People who died / left the city in year 1 (weeks 0-51), by cause. */
+  endsY1: Record<string, number>;
+  /** Unemployed adults per week in year 1 (median of the weeks). */
+  idleY1: number;
+  /** Week each kind was unlocked. */
+  unlockWeek: Record<string, number>;
+  /** Week of the first lumber. */
+  firstLumber: number | null;
+  /** Week the city first had no residents and no family walking in (null: never). */
+  emptyWeek: number | null;
 }
 
 export interface MatResult {
@@ -994,7 +1036,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       stumps260: 0, stumps520: 0, cut: 0, made: { wood: 0, stone: 0 }, spentBuild: { wood: 0, stone: 0 }, spentLevel: { wood: 0, stone: 0 }, end: { wood: 0, stone: 0 },
       byYear: { wood: [], stone: [] }, templeLast: null, templeWait: NaN,
     },
+    b1: { coldY1: 0, coldWeeks: 0, coldWinters: 0, woodY1: [], holdY1: 0, holdAll: 0, holdHouses: 0, endsY1: {}, idleY1: NaN, unlockWeek: {}, firstLumber: null, emptyWeek: null },
   };
+  const b1 = res.b1;
+  const coldYears = new Set<number>();
+  const held = new Set<number>();
+  const idleY1: number[] = [];
   const mat = res.mat;
   const houseWait = new Map<number, number>();
   let matRun = 0;
@@ -1060,7 +1107,15 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     const goalBefore = s.goalIndex;
     const wasDrought = s.drought;
     const mid = { wood: s.wood, stone: s.stone };
+    if (s.week % 4 === 0 && s.week <= 52) b1.woodY1.push(s.wood);
+    if (s.week < 52) idleY1.push(unemployed(s));
+    b1.firstLumber ??= s.buildings.some((b) => b.kind === 'lumber') ? s.week : null;
     const events = stepWeek(s, rng);
+    for (const k of s.unlocked) b1.unlockWeek[k] ??= s.week;
+    if (s.cold) { b1.coldWeeks++; if (s.week < 52) b1.coldY1++; coldYears.add(Math.floor(s.week / 52)); b1.coldWinters = coldYears.size; }
+    for (const b of s.buildings) if (b.kind === 'house' && b.firewoodHold) { b1.holdAll++; if (s.week < 52) b1.holdY1++; held.add(b.id); }
+    b1.holdHouses = held.size;
+    if (b1.emptyWeek === null && s.week > 0 && computeEconomy(s).residents === 0 && s.families.length === 0) b1.emptyWeek = s.week;
     for (const m of MATERIALS) {
       mat.made[m] += eco[m];
       // What the week's production does not explain went into house levels.
@@ -1178,6 +1233,8 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const ages = s.departed.filter((p) => p.end?.cause === 'age').map((p) => ageOf(p, p.end!.week)).sort((a, b) => a - b);
   res.deathAge = ages.length ? ages[Math.floor((ages.length - 1) / 2)] : NaN;
   res.endResidents = computeEconomy(s).residents;
+  for (const p of s.departed) if (p.end && p.end.week < 52) b1.endsY1[p.end.cause] = (b1.endsY1[p.end.cause] ?? 0) + 1;
+  { const a = [...idleY1].sort((x, y) => x - y); b1.idleY1 = a.length ? a[Math.floor((a.length - 1) / 2)] : NaN; }
   for (const [id, w] of Object.entries(s.milestoneWeeks)) res.marks[id] = w as number;
   return res;
 }

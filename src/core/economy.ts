@@ -3,6 +3,7 @@ import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './h
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import { ageBand, foodOf } from './people';
 import type { Building, BuildingKind, GameState, Material } from './types';
+import { crewCounts, idleShare, staffOf } from './work';
 
 export interface Economy {
   /** People living in the city (not those on the way). */
@@ -13,15 +14,15 @@ export interface Economy {
   jobs: number;
   /** Jobs of every connected workplace, frozen fields included: the jobs of the whole year. */
   yearJobs: number;
-  /** 0..1 */
+  /** Share of this week's jobs that have someone (0..1; 1 with no jobs): for the statistics only, each workplace makes by its own crew. */
   efficiency: number;
   foodDelta: number;
-  /** Food the fields harvest this week (after efficiency; 0 outside spring). */
+  /** Food the fields harvest this week (by their crews; 0 outside spring). */
   harvest: number;
-  /** Food made this week (fields, after efficiency) and eaten by the residents; foodDelta = made - eaten. */
+  /** Food made this week (by the crews) and eaten by the residents; foodDelta = made - eaten. */
   foodMade: number;
   foodEaten: number;
-  /** Wood and stone made this week (lumbers and quarries, after efficiency), up to the store cap. */
+  /** Wood and stone made this week (lumbers and quarries, by their crews), up to the store cap. */
   wood: number;
   stone: number;
   /** Share of the made wood and stone that fits the store (1: all of it; 0: the store is full). */
@@ -60,8 +61,9 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Disconnected workplaces neither produce nor offer jobs, but every building pays its upkeep from
- * the week it is built (more at higher levels, see `statOf`). The people living in the city eat
- * and work (adults); each house with people pays its tax, scaled by its happiness.
+ * the week it is built (more at higher levels, see `statOf`). Each workplace makes by the share
+ * of its jobs that have someone (`staffOf`): nobody there, nothing made. The people living in the
+ * city eat; each house with people pays its tax, scaled by its happiness.
  */
 export function computeEconomy(s: GameState): Economy {
   const { residents, workers, eaten } = peopleEating(s);
@@ -71,6 +73,8 @@ export function computeEconomy(s: GameState): Economy {
   const moods: Record<Mood, number> = { happy: 0, neutral: 0, sad: 0 };
   let jobs = 0;
   let yearJobs = 0;
+  let filled = 0;
+  const crews = crewCounts(s);
   let foodProd = 0;
   let harvest = 0;
   const made: Record<Material, number> = { wood: 0, stone: 0 };
@@ -85,13 +89,15 @@ export function computeEconomy(s: GameState): Economy {
     yearJobs += n;
     if (!isWorking(b, s.week)) continue;
     jobs += n;
-    const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus);
+    const staff = staffOf(b, crews);
+    filled += Math.min(n, crews.get(b.id) ?? 0);
+    const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * staff;
     harvest += h;
     const product = productOf(b.kind);
-    if (product && product !== 'food') made[product] += gatherYield(s, b);
-    else foodProd += (product ? gatherYield(s, b) : 0) + h;
+    if (product && product !== 'food') made[product] += gatherYield(s, b) * staff;
+    else foodProd += (product ? gatherYield(s, b) * staff : 0) + h;
   }
-  const idle = idleShare(s, { workers, yearJobs });
+  const idle = idleShare(s);
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level === 0) continue;
     const h = houseHappiness(s, b, idle).value;
@@ -100,10 +106,10 @@ export function computeEconomy(s: GameState): Economy {
     families++;
     moods[moodOf(h)]++;
   }
-  const efficiency = jobs === 0 ? 1 : Math.min(1, workers / jobs);
+  const efficiency = jobs === 0 ? 1 : filled / jobs;
   // The store keeps at most materialStorage of each material: production stops at it (never cut).
   const fits = (m: Material) => {
-    const n = made[m] * efficiency;
+    const n = made[m];
     return n > 0 ? Math.min(1, Math.max(0, RULES.materialStorage - s[m]) / n) : 1;
   };
   const stored: Record<Material, number> = { wood: fits('wood'), stone: fits('stone') };
@@ -114,12 +120,12 @@ export function computeEconomy(s: GameState): Economy {
     jobs,
     yearJobs,
     efficiency,
-    foodDelta: round2(foodProd * efficiency - eaten),
-    harvest: round2(harvest * efficiency),
-    foodMade: round2(foodProd * efficiency),
+    foodDelta: round2(foodProd - eaten),
+    harvest: round2(harvest),
+    foodMade: round2(foodProd),
     foodEaten: round2(eaten),
-    wood: round2(made.wood * efficiency * stored.wood),
-    stone: round2(made.stone * efficiency * stored.stone),
+    wood: round2(made.wood * stored.wood),
+    stone: round2(made.stone * stored.stone),
     stored,
     silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),
@@ -136,24 +142,4 @@ export function costliestUpkeep(eco: Economy): { kind: BuildingKind; amount: num
     if (!best || amount > best.amount) best = { kind, amount };
   }
   return best;
-}
-
-/**
- * Share (0..1) of the workers without a job, as used by house happiness. It counts the jobs of
- * the whole year: in winter the farmer rests, he is not out of work.
- */
-export function idleShare(s: GameState, e: Pick<Economy, 'workers' | 'yearJobs'> = computeEconomy(s)): number {
-  return e.workers > 0 ? Math.max(0, e.workers - e.yearJobs) / e.workers : 0;
-}
-
-/** Workers left without a job of the year (0 when there are enough; frozen fields count). */
-export function unemployed(s: GameState, e: Economy = computeEconomy(s)): number {
-  return Math.max(0, e.workers - e.yearJobs);
-}
-
-/** People without work to warn about, or 0 while the workshop is locked or below the alert threshold. */
-export function unemploymentAlert(s: GameState, e: Economy = computeEconomy(s)): number {
-  if (!s.unlocked.includes('workshop')) return 0;
-  const n = unemployed(s, e);
-  return n >= RULES.unemploymentAlert ? n : 0;
 }

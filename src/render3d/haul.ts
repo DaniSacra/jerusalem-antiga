@@ -1,4 +1,4 @@
-import { BUILDINGS, cellOf, cellsInRadius, doorsOf, fieldHarvest, findPath, isGatherSource, type Building, type Cell, type GameState, type Rng } from '../core';
+import { BUILDINGS, cellOf, cellsInRadius, crewCounts, doorsOf, fieldHarvest, findPath, isGatherSource, type Building, type Cell, type GameState, type Rng } from '../core';
 import VISUAL from '../data/visual.json';
 
 /**
@@ -20,11 +20,13 @@ const centre = (c: Cell): Pt => ({ x: c.x + 0.5, y: c.y + 0.5 });
 /** Who should be out now: a carrier per harvesting field (up to `harvestMax`), each fisher and gatherer with a source. */
 export function haulJobs(s: GameState): { job: HaulJob; home: number }[] {
   const out: { job: HaulJob; home: number }[] = [];
-  const harvesting = s.buildings.filter((b) => b.kind === 'field' && fieldHarvest(s, b, s.week) > 0 && doorsOf(s, b).length);
+  // Only where someone works (plan B2): an empty fisher or field shows nobody.
+  const crews = crewCounts(s);
+  const harvesting = s.buildings.filter((b) => b.kind === 'field' && crews.get(b.id) && fieldHarvest(s, b, s.week) > 0 && doorsOf(s, b).length);
   for (const b of harvesting.slice(0, HAUL.harvestMax)) out.push({ job: 'harvest', home: b.id });
   for (const b of s.buildings) {
     const g = BUILDINGS[b.kind].gather;
-    if (!g || !b.connected || (g.source !== 'river' && g.source !== 'tree') || !workSpot(s, b)) continue;
+    if (!g || !b.connected || !crews.get(b.id) || (g.source !== 'river' && g.source !== 'tree') || !workSpot(s, b)) continue;
     out.push({ job: g.source === 'river' ? 'fish' : 'gather', home: b.id });
   }
   return out;

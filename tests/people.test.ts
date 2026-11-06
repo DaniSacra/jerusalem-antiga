@@ -14,7 +14,6 @@ import {
   foodOf,
   household,
   isBirthday,
-  jobsOf,
   RULES,
   stepPeople,
   stepWeek,
@@ -499,21 +498,5 @@ describe('the people in the economy', () => {
     put(s, 'house', ROADSIDE, 27, 2, false, 1);
     put(s, 'house', ROADSIDE, 33, 2, false, 4);
     expect(computeEconomy(s).taxes).toBe(2 * 1.75);
-  });
-});
-
-describe('jobs', () => {
-  it('adults by id fill the jobs of the connected workplaces by id; the rest have none; children and elders are not listed', () => {
-    const s = emptyGame();
-    const h = put(s, 'house', ROADSIDE, 27, 3, false, 0);
-    const fisher = put(s, 'fisher', EAST, 30);
-    const field = put(s, 'field', EAST, 33);
-    put(s, 'fisher', 10, 10); // no road
-    const adults = [30, 31, 32, 33].map((age) => person(s, { houseId: h.id, age }));
-    const child = person(s, { houseId: h.id, age: 5 });
-    const jobs = jobsOf(s);
-    expect(adults.map((p) => jobs.get(p.id)?.buildingId ?? null)).toEqual([fisher.id, field.id, field.id, null]);
-    expect(jobs.has(child.id)).toBe(false);
-    expect(jobsOf(s)).toEqual(jobs);
   });
 });

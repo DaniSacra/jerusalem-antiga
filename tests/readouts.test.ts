@@ -154,40 +154,37 @@ describe('food after building', () => {
     return s;
   };
 
-  const workers = 2; // a couple in a tent: both work
-
-  it('a workplace that takes the workers lowers the food: every food building brings less', () => {
-    const s = town();
+  it('a new workplace takes only the adults without a job: the others keep making their food', () => {
+    const s = town(); // 2 adults: 1 at the fisher, 1 free
     const now = computeEconomy(s);
     expect(now.efficiency).toBe(1);
     const after = foodAfter(s, 'market');
-    const jobs = BUILDINGS.fisher.jobs + BUILDINGS.market.jobs;
-    expect(workers).toBeLessThan(jobs);
-    expect(after.efficiency).toBeCloseTo(workers / jobs);
-    expect(after.delta).toBeLessThan(now.foodDelta);
+    expect(after.staff).toBeCloseTo(1 / BUILDINGS.market.jobs);
+    expect(after.delta).toBeCloseTo(now.foodDelta); // the fisher keeps its worker
     expect(after.yields).toBe(0);
   });
 
-  it('a field brings its harvest times the efficiency with its own jobs', () => {
+  it('a field brings its harvest times the share of its jobs the free adults fill', () => {
     const s = town();
     const at = { x: westOf('field'), y: 30, rotated: false };
     const after = foodAfter(s, 'field', at);
-    const eff = workers / (BUILDINGS.fisher.jobs + BUILDINGS.field.jobs);
-    expect(eff).toBeLessThan(1);
-    expect(after.efficiency).toBeCloseTo(eff);
-    expect(after.yields).toBeCloseTo((BUILDINGS.field.harvest! / 39) * eff, 1);
-    // The fisher brings less too: the city gains less than the field's full harvest.
-    expect(after.delta - computeEconomy(s).foodDelta).toBeLessThan(BUILDINGS.field.harvest! / 39);
+    const staff = 1 / BUILDINGS.field.jobs; // one free adult for its 2 jobs
+    expect(after.staff).toBeCloseTo(staff);
+    expect(after.yields).toBeCloseTo((BUILDINGS.field.harvest! / 39) * staff, 1);
+    expect(after.delta - computeEconomy(s).foodDelta).toBeCloseTo(after.yields, 1);
+    // With nobody free it would make nothing.
+    put(s, 'field', EAST, 33);
+    expect(foodAfter(s, 'field', at).yields).toBe(0);
   });
 
-  it('a workshop raises the food of the fields (in delta, not in its own yield)', () => {
+  it('a workshop raises the food of the fields (in delta, not in its own yield), with free adults to work there', () => {
     const s = emptyGame({ week: 0 });
     put(s, 'house', ROADSIDE, 31, 4); // workers for everything below
     put(s, 'house', ROADSIDE, 33, 4);
     put(s, 'field', westOf('field'), 28);
     const now = computeEconomy(s);
     const after = foodAfter(s, 'workshop');
-    expect(after.efficiency).toBe(1);
+    expect(after.staff).toBe(1);
     expect(after.yields).toBe(0);
     expect(after.delta).toBeCloseTo(now.foodDelta + now.harvest * BUILDINGS.workshop.fieldBonus!);
     // Off the roads it adds nothing.
@@ -195,7 +192,6 @@ describe('food after building', () => {
     // Once the bonus is at its cap, one more workshop adds nothing to the food.
     for (const y of [27, 30, 33]) put(s, 'workshop', EAST, y);
     expect(fieldBonus(s)).toBeCloseTo(BUILDINGS.workshop.fieldBonusMax!);
-    expect(foodAfter(s, 'workshop').efficiency).toBe(1);
     expect(foodAfter(s, 'workshop').delta).toBeCloseTo(computeEconomy(s).foodDelta);
   });
 

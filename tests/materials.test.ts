@@ -141,18 +141,16 @@ describe('lumber and quarry yield', () => {
     expect(s.wood).toBeCloseTo(3 * lumber.perCell);
   });
 
-  it('lumber: capped at max, and scaled by the worker efficiency', () => {
+  it('lumber: capped at max, and scaled by its own crew; a market elsewhere takes nobody from it', () => {
     const s = emptyGame();
-    put(s, 'house', ROADSIDE, 27, 1, false, 2); // a tent with 2 workers
+    put(s, 'house', ROADSIDE, 27, 1, false, 1); // a tent with 1 worker
     s.wood = 0; // below the store cap
     const b = lumberAt(s);
-    put(s, 'field', 1, 1); // disconnected: no jobs
     for (let y = 27; y <= 34; y++) plant(s, 'olive', [[27, y], [28, y]]);
     expect(gatherYield(s, b)).toBe(lumber.max);
-    put(s, 'market', westOf('market'), 31); // 3 more jobs: 2 workers for 5 jobs
-    const e = computeEconomy(s);
-    expect(e.efficiency).toBeCloseTo(2 / 5);
-    expect(e.wood).toBeCloseTo(lumber.max * (2 / 5));
+    expect(computeEconomy(s).wood).toBeCloseTo(lumber.max / 2); // 1 of its 2 jobs
+    put(s, 'market', westOf('market'), 31); // 3 more jobs, nobody free to take them
+    expect(computeEconomy(s).wood).toBeCloseTo(lumber.max / 2);
   });
 
   it('lumber: stumps do not count', () => {

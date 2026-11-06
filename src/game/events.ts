@@ -77,6 +77,9 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
       case 'famineStart':
         toast(T.famine, 'bad');
         break;
+      case 'serviceEmpty':
+        toast(T.serviceEmpty(e.kind), 'bad');
+        break;
       case 'coldStart':
         toast(T.coldStart, 'bad');
         break;

@@ -1,4 +1,4 @@
-import { balloonNeed, needLocked, type BalloonKind, type Economy, type GameState } from '../core';
+import { balloonNeed, needLocked, type BalloonKind, type GameState } from '../core';
 import { insideFree, labelScale, type Anchors, type Free } from './anchors';
 import { h } from './dom';
 
@@ -47,10 +47,10 @@ export class ProblemLabels {
     return whole ? `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) scale(${k.toFixed(2)}) translate(-50%, -100%)` : null;
   };
 
-  update(s: GameState, eco: Economy) {
+  update(s: GameState) {
     const seen = new Set<number>();
     for (const b of s.buildings) {
-      const need = balloonNeed(s, b, eco);
+      const need = balloonNeed(s, b);
       if (!need) continue;
       seen.add(b.id);
       const locked = needLocked(s, need);

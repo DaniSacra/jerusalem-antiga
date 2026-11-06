@@ -28,6 +28,8 @@ import {
   templeSpotsNear,
   templeWaitsForGoal,
   upgradeBuilding,
+  madeByCrew,
+  setJob,
   type ActionResult,
   type BuildableKind,
   type Building,
@@ -76,6 +78,8 @@ export interface DragMemo {
   toastedSilver: boolean;
   /** A touch drag of Demolir skipped something that would lose food (said once). */
   toastedFood: boolean;
+  /** A workplace built with nobody free to take it (said once). */
+  toastedCrew?: boolean;
   /** Road cells placed during this drag, checked for connection when it ends. */
   roads: Cell[];
 }
@@ -334,6 +338,20 @@ export class Session {
     return !!rects?.length;
   }
 
+  /**
+   * Moves a person to a free job, or leaves them without work (`buildingId` null): "Mudar" on the
+   * person's sheet. A market left with nobody says it covers nothing now.
+   */
+  setJob(personId: number, buildingId: number | null): boolean {
+    const s = this.state;
+    const was = s.people.find((p) => p.id === personId)?.jobId ?? null;
+    if (!setJob(s, personId, buildingId)) return false;
+    const left = s.buildings.find((b) => b.id === was);
+    if (left && RULES.staffedServices.includes(left.kind) && !s.people.some((p) => p.jobId === left.id)) this.say(T.serviceEmpty(left.kind), 'bad');
+    this.refresh();
+    return true;
+  }
+
   /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */
   upgradeAt(cell: Cell) {
     const events: GameEvent[] = [];
@@ -461,6 +479,12 @@ export class Session {
       if (this.tool !== 'clear') {
         const b = s.grid[indexOf(s, o.x, o.y)];
         this.emit({ do: 'placed', ...(b ? { x: b.x, y: b.y, w: b.w, h: b.h } : { x: o.x, y: o.y, w: 1, h: 1 }), temple: this.tool === 'temple' });
+      }
+      // A workplace nobody is free to take: say how to staff it (the player moves someone).
+      const built = this.tool !== 'clear' ? s.grid[indexOf(s, o.x, o.y)] : null;
+      if (built && built.connected && madeByCrew(built.kind) && !drag?.toastedCrew && !s.people.some((p) => p.jobId === built.id)) {
+        if (drag) drag.toastedCrew = true;
+        this.say(T.noCrewBuilt(built.kind), 'bad');
       }
       // A temple built before goal 9: the victory waits for it (and says what it is).
       if (this.tool === 'temple' && templeWaitsForGoal(s)) this.say(T.templeEarly, 'good');

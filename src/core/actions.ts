@@ -9,6 +9,7 @@ import { createRng } from './rng';
 import { lackingMaterial, materialsOf, missingMaterial, payMaterials } from './materials';
 import { clearStump } from './trees';
 import type { ActionResult, BuildableKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
+import { canWork, jobOptions } from './work';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -236,4 +237,26 @@ export function upgradeBuilding(s: GameState, x: number, y: number, events: Game
   refreshCity(s);
   events.push({ type: 'buildingUp', x: b.x, y: b.y, level: b.level });
   return r;
+}
+
+/**
+ * The player moves an adult to a workplace with a free job (connected, not full), or leaves them
+ * without work (`buildingId` null: nobody hands them a job back this week, see `assignJobs`).
+ * Free and at once; the job left behind goes to someone free. False (nothing changes) for a
+ * child, an elder, someone on the way, or a workplace full, off the road or without jobs.
+ */
+export function setJob(s: GameState, personId: number, buildingId: number | null): boolean {
+  const p = s.people.find((o) => o.id === personId);
+  if (!p || !canWork(s, p)) return false;
+  if (buildingId === null) {
+    p.jobId = null;
+    p.quitWeek = s.week;
+  } else {
+    if (p.jobId === buildingId) return true;
+    if (!jobOptions(s, personId).some((o) => o.buildingId === buildingId)) return false;
+    p.jobId = buildingId;
+    p.quitWeek = undefined;
+  }
+  refreshCity(s);
+  return true;
 }

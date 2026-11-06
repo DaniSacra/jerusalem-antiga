@@ -12,6 +12,7 @@ import {
   place,
   refreshCity,
   ROAD_X,
+  seatsOf,
   type BuildableKind,
   type Building,
   type GameState,
@@ -54,7 +55,7 @@ export function emptyGame(overrides: Partial<GameState> = {}): GameState {
 /**
  * Places a building (top-left at x, y) without charging silver or materials, optionally at a given
  * house level: a house with people is filled to its capacity with adults (`fill`) unless `people`
- * says how many.
+ * says how many. Like any change in the game, it hands the free jobs out (`refreshCity`).
  */
 export function put(s: GameState, kind: BuildableKind, x: number, y: number, level = 0, rotated = false, people?: number) {
   const { silver, wood, stone, unlocked } = s;
@@ -67,6 +68,7 @@ export function put(s: GameState, kind: BuildableKind, x: number, y: number, lev
   if (kind === 'house' && level > 0) {
     b.level = level;
     fill(s, b, people ?? HOUSE_LEVELS[level].capacity);
+    refreshCity(s); // the new adults take the free jobs, as after any change in the game
   }
   return b;
 }
@@ -79,6 +81,20 @@ export function put(s: GameState, kind: BuildableKind, x: number, y: number, lev
 export function fill(s: GameState, b: Building, n: number, age = 41): Person[] {
   const out = Array.from({ length: n }, (_, k) => person(s, { houseId: b.id, sex: k % 2 ? 'f' : 'm', age }));
   for (let k = 0; k + 1 < out.length; k += 2) wed(out[k], out[k + 1]);
+  return out;
+}
+
+/** House id of the workers `hire` adds: no building, so they neither eat nor need a house. */
+export const HIRED = -1;
+
+/**
+ * Gives a workplace `n` workers from outside the test's houses (adults with no house building, so
+ * they neither eat nor pay): for tests where a market must cover or a lumber must work without
+ * taking the adults of the houses.
+ */
+export function hire(s: GameState, b: Building, n = seatsOf(b)): Person[] {
+  const out = Array.from({ length: n }, () => Object.assign(person(s, { houseId: HIRED, age: 41 }), { jobId: b.id }));
+  refreshCity(s);
   return out;
 }
 

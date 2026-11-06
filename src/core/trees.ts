@@ -3,6 +3,7 @@ import { round2, type Economy } from './economy';
 import { cellOf, cellsInRadius } from './grid';
 import { gatherYield, isTree } from './harvest';
 import type { Building, GameEvent, GameState, Stump, TreeFeature } from './types';
+import { crewCounts, staffOf } from './work';
 
 /**
  * Cutting and regrowth. Every `cutEvery` wood a lumber makes, it cuts the tree in its radius
@@ -32,10 +33,11 @@ export function nextTreeToCut(s: GameState, b: Building): number | null {
 
 /** Each connected lumber adds this week's wood to its count and cuts a tree for every `cutEvery`. */
 export function cutTrees(s: GameState, eco: Economy, events: GameEvent[]): void {
+  const crews = crewCounts(s);
   for (const b of s.buildings) {
     const every = BUILDINGS[b.kind].cutEvery;
     if (!every || !b.connected) continue;
-    b.cutProgress = round2((b.cutProgress ?? 0) + gatherYield(s, b) * eco.efficiency * eco.stored.wood); // only the wood that was stored
+    b.cutProgress = round2((b.cutProgress ?? 0) + gatherYield(s, b) * staffOf(b, crews) * eco.stored.wood); // only the wood its crew made and the store kept
     while (b.cutProgress >= every) {
       const i = nextTreeToCut(s, b);
       if (i === null) {

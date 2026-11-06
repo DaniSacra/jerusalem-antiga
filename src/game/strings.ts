@@ -6,6 +6,8 @@ const PRODUCT: Record<Product, string> = { food: 'comida', wood: 'madeira', ston
 
 /** The building that makes each material, with its article ("um lenhador", "uma pedreira"). */
 const MAKER: Record<Material, string> = { wood: 'um lenhador', stone: 'uma pedreira' };
+/** Buildings named with a feminine article ("a Coletora", "a Oficina"). */
+const FEMININE: ReadonlySet<BuildingKind> = new Set<BuildingKind>(['gatherer', 'quarry', 'workshop', 'plaza']);
 
 /** "10 de pedra e 5 de madeira": a materials cost in words (empty when none). */
 const materialsText = (m: Materials) => (['stone', 'wood'] as const).filter((k) => m[k]).map((k) => `${m[k]} de ${PRODUCT[k]}`).join(' e ');
@@ -101,6 +103,10 @@ export const T = {
   /** A dragged road reached a button or panel and stopped there. */
   roadUnderUi: 'A rua parou sob um botão: mova o mapa e continue',
   noWorkers: 'Sem trabalhadores: faltam moradores',
+  /** A market lost its last worker. */
+  serviceEmpty: (kind: BuildingKind) => `${BUILDINGS[kind].name} vazio: não atende as casas`,
+  /** A workplace built with nobody free to work there. */
+  noCrewBuilt: (kind: BuildingKind) => `Ninguém livre para ${FEMININE.has(kind) ? 'a' : 'o'} ${BUILDINGS[kind].name}: mude a profissão de alguém`,
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
   noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
@@ -160,7 +166,8 @@ export const T = {
         : 'Comida estragando: construa um celeiro';
     if (a.kind === 'winterComing') return 'O inverno está chegando: guarde comida e lenha. As tendas sofrem mais';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
-    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo ou uma oficina'}`;
+    if (a.kind === 'noCrew') return `${BUILDINGS[a.building].name} sem trabalhadores: toque numa pessoa e mude a profissão`;
+    return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: faltam vagas. Construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo, lenhador ou oficina'}`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
   debtEnd: 'A cidade saiu da dívida!',
@@ -396,7 +403,9 @@ export const T = {
       workers: 'Trabalhadores',
       jobs: 'Vagas',
       idle: 'Sem trabalho',
-      efficiency: 'Eficiência',
+      freeJobs: 'Vagas livres',
+      /** Tab Povo: who works of the adults, and how many have no job. */
+      workLine: (working: number, adults: number, idle: number) => `Trabalho: ${working} de ${adults} adultos${idle ? ` · ${idle} sem vaga` : ''}`,
       houses: 'Casas',
       happiness: 'Alegria',
       why: 'Altar, praça, mercado e parque alegram; fome e desemprego entristecem.',
@@ -443,6 +452,9 @@ export const T = {
         gatherer: ['Coletor', 'Coletora'],
         granary: ['Guarda do celeiro', 'Guarda do celeiro'],
         market: ['Mercador', 'Mercadora'],
+        lumber: ['Lenhador', 'Lenhadora'],
+        quarry: ['Canteiro', 'Canteira'],
+        workshop: ['Artesão', 'Artesã'],
         temple: ['Levita', 'Cantora do templo'],
       } as Partial<Record<BuildingKind, [string, string]>>,
       craft: {
@@ -454,6 +466,19 @@ export const T = {
         tannery: ['Curtidor', 'Curtidora'],
       } satisfies Record<Craft, [string, string]>,
       noJob: 'Sem trabalho',
+      /** An adult without a job while every job is taken. */
+      noJobFull: 'Sem trabalho: todas as vagas estão cheias',
+      /** A farmer in winter: the field is frozen, the farmer stays. */
+      winterRest: (job: string) => `${job} · descansa no inverno`,
+      /** An elder does not work. */
+      elderRest: (sex: Sex) => (sex === 'f' ? 'Descansa (idosa)' : 'Descansa (idoso)'),
+      /** The button that changes a person's job, and the short list it opens. */
+      change: 'Mudar',
+      changeTitle: 'Mudar de trabalho',
+      /** One free job in the list: the building and its crew. */
+      option: (name: string, crew: number, seats: number) => `${name} ${crew}/${seats}`,
+      noOption: 'Nenhuma vaga livre: construa um lenhador, campo ou oficina',
+      leaveJob: 'Sem trabalho',
       walking: 'A caminho',
       childOf: (name: string, sex: Sex, parent: string) => `${name}, ${sex === 'f' ? 'filha' : 'filho'} de ${parent}`,
       clan: (clan: string) => `da família de ${clan}`,
@@ -521,8 +546,9 @@ export const T = {
       upkeep: (n: number) => `${fmt2(n)} por semana`,
       connected: 'ligado à rua',
       disconnected: 'sem rua: não funciona, mas paga manutenção',
-      noWorkers: 'Sem trabalhadores: faltam moradores',
-      efficiency: (pct: number) => `eficiência ${pct}%`,
+      noWorkers: 'Ninguém trabalha aqui: toque numa pessoa e mude a profissão',
+      /** The crew of a workplace: who works there of its jobs. */
+      crew: (n: number, seats: number) => `Trabalhadores ${n}/${seats}`,
       fewWorkers: (pct: number) => `Faltam trabalhadores: rende ${pct}%`,
       altar: 'Centro da cidade, onde as ruas começam.',
       road: (linked: boolean, entrance: boolean) => `${entrance ? 'Rua · entrada da cidade' : 'Rua'} · ${linked ? 'ligada ao altar ✓' : 'não ligada ao altar ✗'}`,

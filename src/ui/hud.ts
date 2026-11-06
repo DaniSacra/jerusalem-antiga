@@ -150,7 +150,7 @@ export class Hud {
     const tip = this.tools.tip.classList.contains('hidden') ? null : this.tools.tip.getBoundingClientRect();
     this.toasts.el.style.right = tip ? `${Math.round(innerWidth - tip.left + 8)}px` : '';
     this.updateNotices();
-    this.labels.update(this.host.session.state, this.host.session.city.eco);
+    this.labels.update(this.host.session.state);
     this.famine.classList.toggle('on', this.host.session.state.famine);
     this.balloon.update();
     this.panels.update(this.notices);

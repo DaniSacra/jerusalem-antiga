@@ -12,6 +12,7 @@ import { fieldHarvest, foodCapacity, gatherYield, isGatherSource, productOf } fr
 import { levelMaterials } from './materials';
 import { seasonOf } from './seasons';
 import type { BuildableKind, Building, Cell, GameState, Materials, Product, Season } from './types';
+import { canWork, crewCounts, seatsOf, staffOf } from './work';
 
 /** Values derived from the state for the interface. Read only: nothing here changes the game. */
 
@@ -71,21 +72,21 @@ export function balanceAfter(s: GameState, kind: BuildableKind): number {
 }
 
 export interface FoodAfter {
-  /** Weekly food balance with the new building (after the worker efficiency). */
+  /** Weekly food balance with the new building (by the crew it would get). */
   delta: number;
-  /** What the new building itself brings a week of `product` (after the worker efficiency). */
+  /** What the new building itself brings a week of `product` (by the crew it would get). */
   yields: number;
   /** Food for fields, fishers and gatherers; wood or stone for a lumber or quarry. */
   product: Product;
-  /** Worker efficiency with the new building's jobs. */
-  efficiency: number;
+  /** Share of its jobs the adults without work would fill (1 with no jobs). */
+  staff: number;
 }
 
 /**
- * Weekly food if one more building of this kind stood at `at`: its own food and the jobs it adds,
- * with the efficiency that follows (a workplace with too few workers makes every food building
- * bring less). At a spot it works only when it touches the connected roads; with no spot it is
- * taken as connected, and a fisher or gatherer brings nothing (its food depends on the spot).
+ * Weekly food if one more building of this kind stood at `at`: its own food, made by the crew it
+ * would get (only adults without a job take it: nobody is moved). At a spot it works only when it
+ * touches the connected roads; with no spot it is taken as connected, and a fisher or gatherer
+ * brings nothing (its food depends on the spot).
  */
 export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAfter {
   const { w, h } = dimsOf(kind, at?.rotated);
@@ -93,9 +94,13 @@ export function foodAfter(s: GameState, kind: BuildableKind, at?: Spot): FoodAft
   const { x, y } = at ?? { x: -s.cols, y: -s.rows };
   const connected = !at || borderCells(s, { x, y, w, h }).some((c) => s.network[indexOf(s, c.x, c.y)]);
   const ghost = { ...newBuilding(-1, kind, { x, y, w, h }, s.week), connected };
-  const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost] });
-  const own = gatherYield(s, ghost) + fieldHarvest(s, ghost, s.week);
-  return { delta: eco.foodDelta, yields: round2(own * eco.efficiency), product: productOf(kind) ?? 'food', efficiency: eco.efficiency };
+  // The adults without a job take its jobs (the first by id: who exactly does not change the food).
+  let left = seatsOf(ghost);
+  const people = s.people.map((p) => (left > 0 && p.jobId == null && p.quitWeek !== s.week && canWork(s, p) && left-- ? { ...p, jobId: ghost.id } : p));
+  const eco = computeEconomy({ ...s, buildings: [...s.buildings, ghost], people });
+  const staff = staffOf(ghost, crewCounts({ ...s, people }));
+  const own = round2((gatherYield(s, ghost) + fieldHarvest(s, ghost, s.week)) * staff);
+  return { delta: eco.foodDelta, yields: own, product: productOf(kind) ?? 'food', staff };
 }
 
 /** Houses with a family inside the radius of a service building; null for kinds with no service. */

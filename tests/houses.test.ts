@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, refreshCity, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
-import { atHarvest, constRng, EAST, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
+import { atHarvest, constRng, EAST, hire, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = UP_WEEKS;
@@ -341,7 +341,7 @@ describe('house info and balloons', () => {
     b.level = 3;
     s.unlocked.push('market', 'park');
     expect(balloonNeed(s, b)).toBe('market');
-    put(s, 'market', westOf('market'), 36);
+    hire(s, put(s, 'market', westOf('market'), 36)); // a market covers only with someone working there
     expect(balloonNeed(s, b)).toBe('park'); // the altar is near, but only a park makes a big house
     put(s, 'park', EAST, 43);
     expect(balloonNeed(s, b)).toBeNull();

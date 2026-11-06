@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, doorsOf, indexOf, refreshCity } from '../../src/core';
 import { edgeToward, haulJobs, legOf, toward, waitAfter, workSpot, HAUL } from '../../src/render3d/haul';
-import { besideRiver, emptyGame, put, ROADSIDE } from '../helpers';
+import { besideRiver, emptyGame, hire, put, ROADSIDE } from '../helpers';
 
 describe('the people of the food buildings (3D, as data)', () => {
   it('a fisher goes to the nearest river bank and back to the hut; only a connected one goes out', () => {
     const s = emptyGame();
     const b = put(s, 'fisher', besideRiver(s, 30), 30);
     refreshCity(s);
+    expect(haulJobs(s)).toEqual([]); // nobody works there yet: nobody goes out
+    hire(s, b);
     b.connected = false;
     expect(haulJobs(s)).toEqual([]);
     b.connected = true;

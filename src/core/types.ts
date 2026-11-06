@@ -55,8 +55,8 @@ export type AgeBand = 'child' | 'adult' | 'elder';
 export type EndCause = 'age' | 'famine' | 'cold' | 'road' | 'demolished' | 'noHouse';
 
 /**
- * A person of the city. Children are not stored (see `childrenOf`), nor the job (see `jobsOf`);
- * a family is everyone with the same `houseId`.
+ * A person of the city. Children are not stored (see `childrenOf`); a family is everyone with the
+ * same `houseId`. An adult keeps a job (`jobId`, see work.ts) until the game or the player moves it.
  */
 export interface Person {
   /** From the same counter as buildings (`nextId`). */
@@ -80,6 +80,10 @@ export interface Person {
   caravan: number | null;
   /** Only in `departed`: when and why the person left. */
   end?: { week: number; cause: EndCause };
+  /** The workplace (building id) the adult works at; missing or null: no job. */
+  jobId?: number | null;
+  /** Week the player left the person without work: nobody hands a job back that same week. */
+  quitWeek?: number;
 }
 
 /** A later caravan, rolled when the game is created (see `rollCaravans`). */
@@ -287,8 +291,12 @@ export interface Rules {
     /** Weeks of the newcomers' eating a later caravan brings. */
     foodWeeks: [number, number];
   };
-  /** Workers without a job from which the unemployment alert shows (once the workshop is unlocked). */
+  /** Adults without a job from which the unemployment alert shows. */
   unemploymentAlert: number;
+  /** Order in which free adults fill the free jobs each week (food first); kinds left out come last. */
+  jobPriority: BuildingKind[];
+  /** Services that cover nothing while nobody works there. */
+  staffedServices: BuildingKind[];
   familyCellsPerWeek: number;
   /** Weeks in a row with the next level's needs met before a house climbs one level: drawn per house in [min, max]. */
   weeksToUpgrade: [number, number];
@@ -510,6 +518,8 @@ export interface GameState {
 }
 
 export type GameEvent =
+  /** A `staffedServices` building (the market) lost its last worker: it covers nothing now. */
+  | { type: 'serviceEmpty'; kind: BuildingKind; x: number; y: number }
   | { type: 'houseUp'; x: number; y: number; level: number; delta: number }
   | { type: 'houseDown'; x: number; y: number; level: number; delta: number; famine: boolean }
   | { type: 'famineStart' }

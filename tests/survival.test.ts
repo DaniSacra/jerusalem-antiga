@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   alerts,
+  crewCounts,
+  crewOf,
+  staffOf,
+  unemployed,
   campPlazaSpot,
   checkPlace,
   indexOf,
@@ -742,7 +746,7 @@ describe('alerts (order)', () => {
 
   it('at the end of autumn: spoiling before the winter warning; no warning without houses with people', () => {
     const s = emptyGame({ week: W - 1, spoiled: 2, food: 40 });
-    const tent = put(s, 'house', ROADSIDE, 27, 1);
+    const tent = put(s, 'house', ROADSIDE, 27, 1, false, 2); // 2 adults: below the unemployment alert
     expect(alerts(s).map((a) => a.kind)).toEqual(['spoiling', 'winterComing']);
     tent.level = 2;
     expect(alerts(s).map((a) => a.kind)).toEqual(['spoiling', 'winterComing']);
@@ -757,52 +761,52 @@ describe('alerts (order)', () => {
   });
 });
 
-describe('fields take no workers in winter', () => {
-  /** Two tents, three fields built in the first autumn and a fisher by the river. */
+describe('fields keep their farmers in winter (plan B2)', () => {
+  /** Two tents, three fields built in the first autumn and a fisher by the river (built first: it gets its worker). */
   const opening = () => {
     const s = emptyGame({ food: 20, week: WINTER });
+    const fisher = put(s, 'fisher', besideRiver(s, 30), 30);
+    for (const y of [31, 34, 37]) put(s, 'field', westOf('field'), y);
     put(s, 'house', ROADSIDE, 27, 1);
     put(s, 'house', ROADSIDE, 29, 1);
-    for (const y of [31, 34, 37]) put(s, 'field', westOf('field'), y);
-    const fisher = put(s, 'fisher', besideRiver(s, 30), 30);
     return { s, fisher };
   };
 
-  it('in winter a field has no jobs and makes no food, but still pays upkeep', () => {
+  it('in winter a field makes no food and has no jobs at work, but keeps its farmers and pays upkeep', () => {
     const { s, fisher } = opening();
     const e = computeEconomy(s);
-    expect(e.jobs).toBe(BUILDINGS.fisher.jobs); // only the fisher
+    expect(e.jobs).toBe(BUILDINGS.fisher.jobs); // only the fisher is at work
     expect(e.efficiency).toBe(1);
     expect(e.harvest).toBe(0);
     expect(e.yearJobs).toBe(3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs); // still jobs of the year
-    expect(e.foodMade).toBeGreaterThan(0);
     expect(e.foodMade).toBeCloseTo(gatherFood(s, fisher)); // the fisher at full strength
     expect(computeEconomy(s).upkeep.field).toBe(3 * BUILDINGS.field.upkeep!);
-    expect(fisher.connected).toBe(true);
+    // 6 adults: 1 fisher, 5 farmers resting on the fields; nobody out of work.
+    const fields = s.buildings.filter((b) => b.kind === 'field');
+    expect(fields.map((f) => crewOf(s, f).length)).toEqual([2, 2, 1]);
+    expect(unemployed(s)).toBe(0);
   });
 
-  it('out of winter the field takes its workers, and the fisher shares them', () => {
-    const { s } = opening();
+  it('out of winter each field harvests by its own crew; the fisher keeps its worker', () => {
+    const { s, fisher } = opening();
     s.week = SPRING;
     const e = computeEconomy(s);
-    expect(e.jobs).toBe(3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs);
-    expect(e.efficiency).toBeCloseTo(e.workers / e.jobs);
-    expect(e.harvest).toBeGreaterThan(0);
+    const crews = crewCounts(s);
+    const fields = s.buildings.filter((b) => b.kind === 'field');
+    const harvest = fields.reduce((a, f) => a + fieldHarvest(s, f, s.week) * staffOf(f, crews), 0);
+    expect(e.harvest).toBeCloseTo(harvest);
+    expect(e.foodMade).toBeCloseTo(harvest + gatherFood(s, fisher));
   });
 
-
-  it('the forecast counts the fields taking their workers in the spring', () => {
+  it('the forecast counts the fields by the crews they have now', () => {
     const { s } = opening();
     s.week = SPRING - 1; // the last week of winter: the next one is the harvest
     s.food = 3; // enough for this winter week only
-    const e = computeEconomy(s); // the fisher alone, at full strength
-    expect(e.efficiency).toBe(1);
-    // In the spring the fields take the workers too: the fisher drops to workers / 7 jobs.
+    expect(foodForecast(s)).toBeNull(); // the harvest comes in time and feeds the city
+    for (const p of s.people) if (s.buildings.find((b) => b.id === p.jobId)?.kind === 'field') p.jobId = null;
+    s.people.forEach((p) => (p.quitWeek = s.week)); // nobody goes back this week
     const spring = structuredClone(s);
     spring.week = SPRING;
-    const jobs = 3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs;
-    expect(e.workers).toBeLessThan(jobs);
-    expect(computeEconomy(spring).efficiency).toBeCloseTo(e.workers / jobs);
-    expect(foodForecast(s, e)).toBeNull(); // the harvest comes in time and feeds the city
+    expect(computeEconomy(spring).harvest).toBe(0); // empty fields harvest nothing
   });
 });

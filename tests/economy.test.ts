@@ -300,28 +300,19 @@ describe('unemployment', () => {
     expect(unemployed(s)).toBe(0);
   });
 
-  it('alerts only once the workshop is unlocked and from the threshold up', () => {
-    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'plaza', 'market'] });
-    const alone = HOUSE_LEVELS[3].capacity - 2; // 4 adults (and a child)
-    const withTent = alone + T.capacity;
-    // The data this test relies on: a stone house alone is below the alert, with a tent it is not,
-    // and a field's jobs bring it back below.
-    expect(alone).toBeLessThan(RULES.unemploymentAlert);
-    expect(withTent).toBeGreaterThanOrEqual(RULES.unemploymentAlert);
-    expect(withTent - BUILDINGS.field.jobs).toBeLessThan(RULES.unemploymentAlert);
-    const stone = put(s, 'house', ROADSIDE, 27, 3, false, alone); // no jobs
-    person(s, { houseId: stone.id, age: 5 }); // a child does not work
-    s.unlocked.push('workshop');
+  it('alerts from the threshold up, from the start (no workshop needed); a frozen field keeps its farmers', () => {
+    const s = emptyGame({ unlocked: ['road', 'house', 'field', 'fisher'] });
+    expect(RULES.unemploymentAlert).toBe(3);
+    const tent = put(s, 'house', ROADSIDE, 27, 1, false, 2); // 2 adults, no jobs
+    person(s, { houseId: tent.id, age: 5 }); // a child does not work
     expect(unemploymentAlert(s)).toBe(0); // below the threshold
     put(s, 'house', ROADSIDE, 29, 1);
-    expect(unemploymentAlert(s)).toBe(withTent);
-    s.unlocked = s.unlocked.filter((k) => k !== 'workshop');
-    expect(unemploymentAlert(s)).toBe(0); // workshop still locked
-    s.unlocked.push('workshop');
-    s.week = W; // winter: the frozen field still counts as a job of the year
+    expect(unemploymentAlert(s)).toBe(2 + T.capacity);
+    s.week = W; // winter: a frozen field still takes its farmers, who rest there
     put(s, 'field', EAST, 27);
     expect(computeEconomy(s).jobs).toBe(0);
-    expect(unemploymentAlert(s)).toBe(0);
+    expect(unemployed(s)).toBe(2 + T.capacity - BUILDINGS.field.jobs);
+    expect(unemploymentAlert(s)).toBe(2 + T.capacity - BUILDINGS.field.jobs);
   });
 
   it('is the same in autumn and in winter with fields: the farmer rests, he is not out of work', () => {
