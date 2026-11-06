@@ -53,12 +53,18 @@ export const COLORS = {
   hedge: 0x4f7234,
   grass: 0x84a14e,
   road: 0xab8f6a,
+  roadWorn: 0xc2a984,
+  roadStone: 0xcdbfa2,
+  roadJoint: 0x9c8c70,
   paving: 0xd9cbad,
   sand: 0xd9bf8c,
   dryBush: 0x8f8456,
   fire: 0xff8a2a,
   flame: 0xffd36a,
 } as const;
+
+/** Colours of the road surfaces (no snow settles on them). */
+const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadWorn, COLORS.roadStone, COLORS.roadJoint];
 
 /** Crop colours of the four field variants (wheat, barley, lentil, flax). */
 export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
@@ -80,7 +86,7 @@ function mat(color: number, emissive = false): THREE.Material {
       ? new THREE.MeshBasicMaterial({ color })
       : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
           // Trodden roads stay clear of snow, so the town still reads in winter.
-          snow: color !== COLORS.road,
+          snow: !ROAD_COLORS.includes(color),
           windows: color === COLORS.dark,
           grow: (CROPS as readonly number[]).includes(color),
         });
@@ -429,6 +435,39 @@ function granary(): Piece[] {
 const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6)];
 const shrub = (): Piece[] => [blob(0.16, 0, 0.1, 0, COLORS.leafDark, 0.7)];
 const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
+/** A worn road: trodden lighter, with a darker rut down the middle. */
+const roadWorn = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.roadWorn), box(0.16, 0.012, 0.9, 0.12, 0.04, 0, COLORS.road), box(0.12, 0.012, 0.7, -0.2, 0.04, 0.05, COLORS.road)];
+/** A paved road: four limestone slabs a little apart, the joints showing between them. */
+const roadPaved = (): Piece[] => [
+  box(1, 0.04, 1, 0, 0, 0, COLORS.roadJoint),
+  ...[[-0.25, -0.25, 0.46], [0.25, -0.25, 0.46], [-0.25, 0.25, 0.46], [0.25, 0.25, 0.46]].map(([x, z, w], k) => box(w + (k % 2) * 0.02, 0.025, w - (k % 2) * 0.02, x, 0.04, z, COLORS.roadStone)),
+];
+
+/** Sacks of grain (blobs), each at (x, y, z) in the granary yard. */
+const sacks = (at: number[][]): Piece[] => at.map(([x, y, z], k) => blob(0.11 + (k % 3) * 0.015, x, y + 0.08, z, k % 4 === 3 ? COLORS.ochre : COLORS.cloth, 0.75));
+/**
+ * The granary yard as the food store fills, between the silos and the front wall, beside the gate
+ * gap: a couple of sacks, then a row of sacks and jars, then sacks stacked two high and a heap of grain.
+ */
+function stock(level: 1 | 2 | 3): Piece[] {
+  const row = [[0.15, 0, 1.0], [0.38, 0, 1.06], [0.6, 0, 0.98], [-0.3, 0, 1.04]];
+  if (level === 1) return sacks(row.slice(0, 2));
+  const out = [...sacks(row), ...jars(3, -0.75, 0.05, 0.95, [COLORS.mudDark, COLORS.red])];
+  if (level === 3) out.push(...sacks([[0.27, 0.17, 1.03], [0.5, 0.17, 1.02]]), blob(0.2, -0.02, 0.05, 1.12, COLORS.wheat, 0.45), ...jars(2, -0.75, 0.05, 1.15, [COLORS.ochre]));
+  return out;
+}
+
+/** Yard of a lived-in house (variant 1): three jars by the wall and a potted plant. */
+const yardJars = (): Piece[] => [...jars(3, -0.17, 0, -0.05, [COLORS.mudDark, COLORS.red, COLORS.ochre]), cyl(0.09, 0.07, 0.13, 7, 0.05, 0, 0.17, COLORS.mud), blob(0.11, 0.05, 0.2, 0.17, COLORS.leaf, 0.9)];
+/** Yard of a lived-in house (variant 2): a washing line between two posts with cloths drying. */
+const yardLine = (): Piece[] => [
+  box(0.04, 0.5, 0.04, 0, 0, -0.25, COLORS.wood),
+  box(0.04, 0.5, 0.04, 0, 0, 0.25, COLORS.wood),
+  box(0.012, 0.012, 0.5, 0, 0.48, 0, COLORS.dark),
+  box(0.02, 0.2, 0.14, 0, 0.28, -0.12, COLORS.red),
+  box(0.02, 0.16, 0.12, 0, 0.32, 0.08, COLORS.cloth),
+  box(0.02, 0.18, 0.08, 0, 0.3, 0.2, COLORS.blue),
+];
 
 
 function lumber(): Piece[] {
@@ -636,6 +675,13 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
   stump,
   sapling,
   road,
+  'road-1': roadWorn,
+  'road-2': roadPaved,
+  'stock-1': () => stock(1),
+  'stock-2': () => stock(2),
+  'stock-3': () => stock(3),
+  'yard-1': yardJars,
+  'yard-2': yardLine,
   closed,
 };
 

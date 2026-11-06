@@ -546,6 +546,18 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   `src/game`; `install` para `src/app`. `main.ts` abre o 3D ou, sem WebGL 2, um aviso curto.
   `palette.ts` e `strings.ts` perderam o que só o 2D usava; a câmera perdeu o caminho "só olhar".
 
+### Depois da Fase 5 — paridade de arte (2026-11-06)
+- **Feito:** as três recomendações da seção 10, item 5. O celeiro enche em 4 estados
+  (`stockLevel`, `stock-1..3`), as ruas evoluem pela riqueza das construções ao lado (`roadWear`,
+  `road-1` gasta e `road-2` calçada; é determinístico e não conta passos como o 2D) e as casas
+  ganham quintal por variante (`yardOf`, `yard-1` jarros e `yard-2` varal). Tudo puro em `plan.ts`
+  com Vitest. A camada `buildings` do `diff` agora também leva o estado do celeiro e o
+  espelhamento. Há um cenário novo, `town3d-pc`. A perda de contexto WebGL já estava coberta pelo
+  `context3d-pc`, porque o Three.js recupera o contexto sozinho.
+- **Ficam como decisão (sem pedido do usuário):** 6 ofícios da oficina, os 12 tipos de morador com
+  o que carregam, animais, pombas, barquinhos, lavadeiras, a gente reunida no marco e o ar tremendo
+  no verão. Efeito maquete: fora (recomendado na seção 10).
+
 ---
 
 ## 7. Estimativa total
@@ -579,8 +591,8 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | Melhorar (custo + pedra, pulo e brilho, toast) | refazer | `ui/balloon.ts`, `fx.ts` | 2 |
 | Prévia com custo/material faltando, toast "Falta madeira/pedra" uma vez por arrasto | refazer | `game/session.ts`, `overlay.ts` | 1 |
 | **Ruas:** arrastar ortogonal, rua solta avisa, junções | já (junções) / 1 | `gestures.ts`, `plan.ts` | 1 |
-| Ruas que evoluem (largura, calçamento) | refazer | `RoadWear` + `plan.ts` | 3 / decisão |
-| **Casas:** níveis, 6 variantes por nível, espelhadas, tom e deslocamento | 1 modelo por nível | `models.ts` | decisão |
+| Ruas que evoluem (gasta, calçada) | ✓ 2026-11-06, pela riqueza ao lado (`roadWear`) | `plan.ts`, `models.ts` | – |
+| **Casas:** níveis, 6 variantes por nível, espelhadas, tom e deslocamento | ✓ 2026-11-06: 1 modelo por nível + quintal por variante (jarros, varal) no lado do espelhamento | `plan.ts` (`yardOf`), `models.ts` | – |
 | Casa esperando material, portão trancado da vazia | já (portão) / 2 | `plan.ts`, `ui/balloon.ts` | 2 |
 | **Felicidade:** carinha triste no mapa | refazer | `labels.ts` | 2 |
 | **Pessoas:** moradores no balão, ficha, parentes, aba Povo, famílias | refazer | `game/model/*`, `ui/*` | 2 |
@@ -588,7 +600,7 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | **Caravanas:** anúncio, chegada, toasts | refazer | `events.ts` | 1 |
 | **Tempo:** semanas, 1x/3x/pausa, Espaço | refazer | `session.ts`, `ui/topbar.ts` | 1 |
 | **Colheita / previsão / estoque:** pílula da comida, "38/50", "cheio", "FOME" | refazer | `model/topbar.ts` | 1 |
-| Celeiro enchendo (4 estados de estoque) | refazer | `plan.ts` + `models.ts` | 3 / decisão |
+| Celeiro enchendo (4 estados de estoque) | ✓ 2026-11-06 (`stockLevel`) | `plan.ts` + `models.ts` | – |
 | Campos pela estação (arado, broto, verde, dourado, palha), seca longe do rio | já | `time/season.ts`, `shaders.ts` | – |
 | **Madeira e pedra:** pílula Materiais, ⚠ vermelho, brilho da pedra liberada | refazer | `ui/topbar.ts` | 1 |
 | Lenhador corta árvore: árvore cai, toco, broto | toco/broto já; queda 3 | `fx.ts` | 3 |

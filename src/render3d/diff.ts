@@ -1,6 +1,6 @@
 import type { GameState } from '../core';
 import { haulJobs } from './haul';
-import { residentsOf } from './plan';
+import { residentsOf, stockLevel } from './plan';
 
 /**
  * What changed in the drawn city since the last look, as cheap keys (pure, no Three.js). The live
@@ -8,7 +8,7 @@ import { residentsOf } from './plan';
  * stumps) or the people walking. Ground and river never change.
  */
 export interface CityKeys {
-  /** Every building's id, kind, level, kept level, variant, size and connection. */
+  /** Every building's id, kind, level, kept level, variant, size and connection, and how full the granaries look. */
   buildings: string;
   /** Roads, trees, rocks and stumps (with the saplings growing on them, by regrowth step). */
   props: string;
@@ -17,7 +17,7 @@ export interface CityKeys {
 }
 
 export function cityKeys(s: GameState): CityKeys {
-  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|');
+  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}`;
   let props = '';
   // 'R' a road, else the feature's name or '-' (a set of words where none starts another: no separator needed).
   for (let i = 0; i < s.roads.length; i++) props += s.roads[i] ? 'R' : (s.feature[i] ?? '-');

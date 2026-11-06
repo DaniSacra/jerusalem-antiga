@@ -5,7 +5,7 @@ import { Instancer } from './instancer';
 import { Families } from './figures';
 import { FieldHands, Fire, Haulers, NightFires, Smoke, Walkers } from './life';
 import type { ModelKey, Prototype } from './models';
-import { cityPlan, CLOSED_AT, hash, KILN, residentsOf, walkerCount } from './plan';
+import { cityPlan, CLOSED_AT, hash, KILN, residentsOf, walkerCount, YARD_AT } from './plan';
 import { SKIRT, Terrain, Water } from './terrain';
 
 /** Most people working one field at the harvest (see fieldHands). */
@@ -125,7 +125,7 @@ export class World {
     const puddles: THREE.Vector3[] = [];
 
     const plan = cityPlan(s);
-    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (p.key === 'road' ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
+    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (p.key.startsWith('road') ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)
       if (hash(x, y, 20) < VISUAL.seasons.weather.puddleShare) {
         const px = x + 0.5 + (hash(x, y, 21) - 0.5) * 0.4;
@@ -134,10 +134,11 @@ export class World {
       }
 
     let altarFire: Fire | null = null;
-    for (const { b, look, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
+    for (const { b, look, stock, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
       const y = ground.height(cx, cz);
       const copies: [ModelKey, number][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
       if (look.extra) copies.push([look.extra, inst.add(look.extra, cx, y, cz, rot, scale, 1, sy)]);
+      if (stock) copies.push([stock, inst.add(stock, cx, y, cz, rot, scale)]);
       this.copies.set(b.id, copies);
       // A point of the model (local x, z, front +z) in the world.
       const at = (lx: number, ly: number, lz: number) => new THREE.Vector3(cx + lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, cz - lx * Math.sin(rot) + lz * Math.cos(rot));
@@ -145,6 +146,10 @@ export class World {
         const [gx, gz] = CLOSED_AT[look.houseLevel as 2 | 3 | 4];
         const g = at(gx, 0, gz);
         inst.add('closed', g.x, g.y, g.z, rot);
+      }
+      if (look.yard) {
+        const g = at(YARD_AT[0] * look.yard.side, 0, YARD_AT[1]);
+        copies.push([look.yard.key, inst.add(look.yard.key, g.x, g.y, g.z, rot)]);
       }
       const lv = look.vacant ? 0 : look.houseLevel;
       if (lv >= 2) {

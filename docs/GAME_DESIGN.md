@@ -537,45 +537,49 @@ número cai abaixo de 6.
 
 ## Aparência e moradores
 
-> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
-> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
+Só aparência: nenhuma regra de economia depende disso. O desenho é o do 3D (`src/render3d`, veja o
+README de lá); o último desenho 2D está na tag `ultimo-2d`.
 
-Só aparência: nenhuma regra de economia depende disso.
-
-- **Variantes:** casas têm 6 desenhos por nível (tenda, barro, pedra, casa grande) e 2 de terreno
-  vazio; campos têm 4 plantações (trigo, cevada, lentilha, linho); oficinas têm 6 ofícios
-  (Olaria, Ferraria, Carpintaria, Tecelagem, Tinturaria, Curtume, em `buildings.json`). A
-  variante e o espelhamento são sorteados no core (`rollLook`, com o rng do jogo) ao construir e,
-  nas casas, a cada mudança de nível. Construções vizinhas (lado com lado) do mesmo tipo e nível
-  não repetem a variante quando há alternativa. O ofício da oficina fica guardado na variante.
-- Casas ganham ainda um pequeno deslocamento e um tom de barro/pedra diferente (só no desenho).
-- **Celeiro, Mercado e Oficina por nível:** um desenho por nível (`Building.level`). Celeiro: 2,
-  3 e 4 silos (no nível 3 os silos ficam mais altos e o armazém ganha um andar). Mercado: 2, 3 e 4
-  barracas de cada lado (no nível 1 a ponta fica com mercadorias em esteiras; no 3 o corredor é de
-  calcário e há mais fregueses). Oficina: o pátio fica mais sólido (muro baixo de barro; muro de
-  pedra bruta com entrada calçada; muro de calcário com portão coberto e pátio calçado). Subir de
-  nível mostra o andaime rápido, como nas casas. Os níveis 2 e 3 são desenhados na primeira vez
-  que aparecem.
-- **Moradores andando** (`walkers.json`): aguadeira (mulher com jarro) → praça e mercado, agricultor → campo, cesteira →
-  mercado, carregador campo → mercado e volta, artesão → oficina, idoso (lento) → altar,
-  criança (rápida) → qualquer lugar, homem com jumento → ruas principais, pastor com ovelha →
-  borda da cidade, sacerdote de branco → altar ou templo, lenhador com tora no ombro Lenhador →
-  casa e mercado e volta, canteiro com pedra no carrinho Pedreira → casa e templo e volta. Cada tipo tem velocidade própria e
-  chance de parar 1–2 s ao chegar. Um tipo só aparece quando a construção dele existe e está
-  ligada; sem destino do tipo, vai a uma construção qualquer. O artesão carrega um objeto do
-  ofício da oficina para onde vai (jarro, martelo, tábua, rolo de tecido, pano tingido ou couro).
-  A parte de crianças e de idosos entre os moradores andando segue as faixas de idade de quem
-  mora na cidade (`bandCounts`); os demais são adultos dos tipos disponíveis.
-- **Gente indo para casa** (`families`): noivos ou casados andam de mãos dadas (ele com um saco
-  nas costas); uma família de caravana (alguém ainda sem casa) vem com o pai puxando um jumento
-  carregado de trouxas, a mãe com uma trouxa na cabeça e uma criança; os outros (um idoso
-  mudando para a casa de um filho) aparecem como a família simples.
-- **Gente da comida** (só desenho, `src/render3d/life.ts`, números em `visual.json` > `haulers`):
-  na colheita, de cada campo que colhe (até 8) sai um carregador com saco nas costas pelas ruas
-  até o celeiro ligado mais perto (ao altar quando não há celeiro) e volta de mãos vazias; o ano
-  todo, o pescador sai da cabana com a rede no ombro e o cesto até a margem do rio mais perto e
-  fica ali alguns segundos, e a coletora, com um cesto de frutos na cabeça, vai até a árvore mais
-  perto no raio e colhe. Pescador e coletora sem rio ou árvore no raio não saem.
+- **Variantes (core):** casas têm 6 variantes por nível e 2 de terreno vazio; campos têm 4
+  plantações (trigo, cevada, lentilha, linho); oficinas têm 6 ofícios (Olaria, Ferraria,
+  Carpintaria, Tecelagem, Tinturaria, Curtume, em `buildings.json`). A variante e o espelhamento
+  são sorteados no core (`rollLook`, com o rng do jogo) ao construir e, nas casas, a cada mudança de
+  nível. Construções vizinhas (lado com lado) do mesmo tipo e nível não repetem a variante quando
+  há alternativa. O ofício da oficina fica guardado na variante.
+- **Casas no 3D:** um modelo por nível (pacote Meshy, `house-1..4`), virado para a rua, com um tom
+  um pouco diferente por casa. A variante escolhe o quintal da casa com gente (`yardOf` em
+  `plan.ts`): nada, três jarros com um vaso de planta, ou um varal com panos vermelho, claro e azul
+  (variante % 3), no canto da frente que o espelhamento escolhe. Isso dá 5 aparências por nível. A
+  tenda tem a fogueira na frente à esquerda e por isso põe o quintal sempre à direita. Casa vazia
+  que guardou o nível: o desenho desse nível desbotado, sem luz nem fumaça, com o portão trancado
+  na porta e sem quintal.
+- **Campos** pela plantação (cor do grão) e pela estação (arado, broto, verde, dourado, palha). A
+  oficina tem um modelo só para os 6 ofícios.
+- **Celeiro, Mercado e Oficina por nível:** o modelo do nível 1 e, nos níveis 2 e 3, acréscimos por
+  código por cima, mais altos e de pedra mais clara. Celeiro: andar de calcário no armazém, portal
+  e, no 3, toldo no terraço. Mercado: toldo azul e, no 3, colunata de pedra. Oficina: quarto de
+  pedra no telhado, prateleira de jarros e, no 3, chaminé alta.
+- **Celeiro enchendo:** o pátio de cada celeiro ligado mostra o estoque da cidade pela fração
+  `comida / capacidade` (`stockLevel`, limites em `look3d.json` > `stock`: 25%, 50%, 80%). Abaixo
+  de 25% o pátio fica vazio; depois aparecem dois sacos; depois uma fileira de sacos com três
+  jarros; e cheio, sacos em duas camadas, um monte de grão e mais jarros.
+- **Moradores andando** (`walkers.json`, destinos do core): aguadeira → praça e mercado, agricultor
+  → campo, cesteira → mercado, carregador campo → mercado, artesão → oficina, idoso → altar, criança
+  → qualquer lugar, homem → ruas principais, pastor → borda da cidade, sacerdote → altar ou templo,
+  lenhador → casa e mercado, canteiro → casa e templo. Um tipo só aparece quando a construção dele
+  existe e está ligada. No 3D a roupa vem da idade e do sexo (`crowd.ts`): homens de túnica e
+  turbante, mulheres de vestido e manto, crianças menores, idosos de roupa clara, curvados e
+  lentos, e o sacerdote de branco com pano azul na cabeça. Os objetos de cada ofício (jarro, tora,
+  carrinho) ainda não estão no 3D.
+- **Gente indo para casa** (`families`): a família anda em grupo, os adultos na frente, as crianças
+  no meio e os idosos atrás. Uma família de caravana (alguém ainda sem casa) traz um jumento com
+  duas cargas.
+- **Gente da comida** (só desenho, `src/render3d/haul.ts` e `life.ts`): na colheita, de cada campo
+  que colhe (até 8) sai um carregador com saco nas costas pelas ruas até o celeiro ligado mais perto
+  (ao altar quando não há celeiro) e volta de mãos vazias; o ano todo, o pescador sai da cabana com
+  o cesto até a margem do rio mais perto e fica ali alguns segundos, e a coletora, com um cesto na
+  cabeça, vai até a árvore mais perto no raio. Pescador e coletora sem rio ou árvore no raio não
+  saem.
 
 Ferramentas bloqueadas aparecem com cadeado.
 
@@ -1095,175 +1099,64 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
 
 ## Vida na cidade
 
-> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
-> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
+Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data/visual.json`.
 
-- Moradores andando **só pelas ruas**, com rota por busca em largura até uma construção conectada
-  aleatória. Quantidade = moradores / 5, no máximo 60. Roupas variadas, balanço ao andar. Param
-  quando o jogo está pausado e andam mais rápido em 3x.
-- Famílias (grupo de três com uma trouxa) andando da entrada até a casa.
-- Agricultores trabalhando dentro de cada campo: round(vagas do campo × eficiência), de 0 a 2;
-  nenhum no campo sem rua. Param quando o jogo está pausado. Semeiam no outono, capinam no
-  inverno, colhem com a foice na primavera.
-- **Marcos:** brilho no lugar do marco e até 6 moradores próximos andam até ele e ficam reunidos
-  por 3 s; o jogo não pausa.
-- **Dia e noite** (só visual, números em `src/data/visual.json`): ciclo de 4 min reais em 1x,
-  seguindo o tempo do jogo (para na pausa): amanhecer, manhã, tarde dourada, pôr do sol e noite.
-  Um tom de cor é multiplicado sobre o mapa (balões, prévias e interface não mudam) e o céu atrás
-  do mapa acompanha a hora; à noite tudo continua legível. À noite: janelas acesas nas casas de
-  pedra e casas grandes, lamparinas em algumas ruas perto do altar e do mercado, fogo do altar e das
-  oficinas mais forte, fogueiras das tendas acesas (com faíscas em até 6), estrelas no céu. Metade
-  dos moradores anda à noite e 25% a mais no fim da tarde; os que sobram entram em casa ao chegar
-  ao destino. Desligado nas opções: sempre de dia.
-- **Andaime:** toda construção nova aparece primeiro com andaime de madeira, pedras e poeira por
-  1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s antes do novo desenho. Ao abrir o jogo
-  ou girar o mapa, o que já existe aparece pronto.
-- **Ruas que evoluem** (só visual): cada passo de morador conta na célula; com 60 passos a rua fica
-  mais larga e clara, com 240 ganha calçamento de pedra. Ruas a até 2 células do altar ou do templo
-  já são calçadas.
-- **Vida e ambiente** (só visual, `src/render/Ambient.ts`, números em `ambient` de `visual.json`):
-  cabras e galinhas ao lado das tendas; um jumento amarrado ao lado de cada mercado; até 3 rebanhos
-  de 4 ovelhas pastando na grama aberta a até 16 células do altar; 6 pombas no altar que voam
-  quando alguém passa; 2 barquinhos de pescador e 3 lavadeiras nas margens do rio mais próximas da
-  cidade; varais com roupas coloridas balançando em 1 de cada 3 casas de barro ou melhores; 4
-  sombras de nuvens passando devagar. No máximo 40 animais. Chão com flores silvestres, arbustos e
-  pedrinhas em ~15% das células; trilhas de terra apagadas entre casas a 1–3 células uma da outra;
-  palmeiras e oliveiras balançando com vento leve (palmeira mais).
-- Plantações balançando, fumaça na chaminé da oficina, fogo tremulando no altar, água correndo no rio.
-- Ao subir de nível: pulinho, "+N" e anel de brilho; ao nascer um bebê, o mesmo efeito com "+1"
-  na casa. Morte: nada no mapa. Ao cair de nível ou por fome: texto vermelho.
-- Ao construir: anel de brilho. Ao limpar: nuvem de poeira. Templo: anéis dourados, faíscas e
-  clarão.
-- Marco (sem pausar, `Effects.milestone`): a construção ligada ao marco brilha dourada algumas
-  vezes, halo e anéis dourados, faíscas douradas subindo e até 6 moradores vêm de perto, pulam de
-  alegria por uns segundos e voltam (`visual.json` > `moments`). Onde: a casa do marco (primeiro
-  casamento, barro, pedra), o primeiro campo que colhe, ou o altar (primeiro inverno, ano sem fome
-  e os marcos de pessoas e caravana).
-- Comida estragando (`spoilStart`): moscas e uma fumacinha verde curta no celeiro ligado (ou no
-  altar sem celeiro). Começo da colheita: anel dourado em cada campo que colhe.
+- **Moradores** andando **só pelas ruas**, com rota por busca em largura até uma construção
+  conectada (core). Quantidade = 8 + metade dos moradores, no máximo 140 (`walkerCount`). Balançam
+  de leve ao andar, param na pausa e andam mais rápido em 3x. Menos gente na rua à noite e na chuva
+  (`crowd` em `look3d.json`).
+- **Famílias e caravanas** andam em grupo da entrada até a casa (veja "Aparência e moradores").
+- **Agricultores** curvados sobre as plantações, alguns por campo e mais no arado e na colheita
+  (`crowd.fieldHands`); nenhum em campo sem rua.
+- **Dia e noite** (só visual): 240 s a 1x, seguindo o tempo do jogo (para na pausa), com a luz do
+  sol, o céu, a neblina e as sombras. Em velocidades altas a luz balança perto do meio-dia em vez de
+  piscar. À noite acendem as janelas das casas de pedra e das grandes, as fogueiras das tendas, os
+  braseiros em algumas esquinas das ruas principais, o fogo do altar e o forno da oficina (chama,
+  halo e uma poça de luz no chão), e aparecem estrelas e a lua. Desligado na engrenagem: sempre
+  meio-dia.
+- **Fumaça** nas casas de barro ou melhores, nas tendas (fogueira), na oficina e no altar; casa
+  vazia não solta fumaça.
+- **Ruas que evoluem** (só visual, `roadWear` em `plan.ts`): a rua acompanha a riqueza das
+  construções ao lado. É **calçada** em lajes de calcário a até 2 células do altar ou do templo
+  (`look3d.json` > `roads.pavedNear`), ao lado de casa de pedra ou casa grande, ou de celeiro,
+  mercado ou oficina no nível 3. É **gasta**, mais clara e com sulcos, ao lado de casa de barro,
+  praça, mercado ou serviço no nível 2. Nos outros lugares é **terra batida**. Na neve as ruas
+  ficam limpas.
+- **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
+  por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
+- **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e
+  clarão. Ao demolir sobem poeira e pedrinhas. Ao subir de nível há anel dourado, pulinho e "+N", e
+  um bebê dá o mesmo com "+1". Ao cair de nível, perder comida ou cortar árvore sobe um texto
+  vermelho. Num marco, a construção dele brilha com halo e faíscas douradas. Com comida
+  estragando aparecem moscas e uma fumacinha verde no celeiro ligado (ou no altar). No começo da
+  colheita, um anel dourado em cada campo que colhe. Árvore cortada tomba e vira toco.
+- **Ambiente:** água correndo no rio, sombras de nuvens, plantações e árvores pela estação, chuva,
+  neve, folhas, pétalas e poeira (veja "Estações e clima"). Ainda não estão no 3D: animais,
+  pombas, barquinhos, lavadeiras, a gente reunida num marco e o ar tremendo no verão.
 
 ## Arte
 
-> Esta seção ainda descreve partes do desenho 2D antigo (tag `ultimo-2d`). O que vale no 3D está em
-> "Jogo em 3D" (Interface) e em `src/render3d/README.md`; as regras e os números continuam valendo.
-- **Acabamento de imagem** (só no mapa, WebGL, `FinishPipeline.ts`): vinheta suave e efeito
-  maquete (desfoque leve que cresce para as bordas de cima e de baixo; a faixa do meio fica nítida),
-  numa passada só. Se a média ficar abaixo de 40 quadros por segundo por 4 s, o efeito maquete
-  desliga e as faíscas das fogueiras somem até reiniciar.
-
-- Tudo desenhado por código, sem pacotes de assets (`src/render/textures.ts`).
-- Isométrico 2:1, paleta quente: areia, ocre, tijolo de barro, pedra calcária clara, com verde de
-  palmeiras e azul do rio como contraste.
-- Construções como pequenas maquetes: paredes em dois tons (face sul iluminada, face leste na
-  sombra), telhados planos usados como área de convivência, muros grossos, jarros, toldos e plantas.
-- Cada construção é desenhada no tamanho real da sua área (casa 2 x 2 com quintal, muros e
-  detalhes; nada de desenho de 1 célula ampliado).
-- Cada nível de casa se distingue mesmo no zoom mínimo pela identidade do nível (terreno marcado,
-  tenda de pano escuro, cubo de barro ocre, casa de pedra com base alta de calcário claro (cerca de
-  dois terços da parede) e só uma faixa de barro em cima, casa grande de calcário claro), e cada nível tem desenhos de forma realmente diferente (não só de cor):
-  - terreno (2): estacas, cordas e valetas marcando os cômodos; fiada de fundação com pedras
-    empilhadas;
-  - tenda (6): comprida de pano escuro listrado; de empena com pano claro remendado; tenda dupla;
-    com toldo listrado na frente; com fogueira, tripé e panela; com duas cabras amarradas e cocho;
-  - casa de barro (6): cubo simples; com anexo de telhado de junco; com escada de barro até o
-    telhado; com forno de barro (tabun) fumegando na frente; com cerca de galhos e galinhas; com o
-    telhado cheio de jarros;
-  - casa de pedra (6): janelinhas emolduradas na faixa de barro e escadinha externa; varais no telhado; parreira
-    subindo a parede até uma latada; porta em arco de calcário; dois volumes (casa alta e cômodo
-    baixo de pedra com terraço); quintal de muro de pedra com oliveira;
-  - casa grande (6): "quatro cômodos" com pátio central (tear, forno, cisterna); figueira grande no
-    pátio; toldo listrado cobrindo o telhado; bloco de dois andares com escadaria externa; em L com
-    quintal aberto; com horta murada na frente.
-- Casas, campos e oficinas também têm versão espelhada, desenhada à parte (e não a imagem
-  virada), para a luz e as sombras continuarem do mesmo lado. Casas vizinhas variam um pouco de tom e posição.
-- Campo 2 x 2 em terraço com muro de pedras e fileiras que balançam, em 4 plantações: trigo
-  dourado; cevada verde-amarelada e mais densa; lentilha em moitas verdes baixas sobre terra escura;
-  linho com flores azuis e um rego de água na borda. Praça 2 x 2: chão de lajes claras de
-  calcário em fileiras desencontradas, uma oliveira num canteiro de pedra no canto do fundo, um
-  toldo de linho ocre em quatro varas com esteira e jarro embaixo, um banco comprido de pedra e dois
-  vizinhos conversando; **sem poço nem fonte** (a água não volta). Mercado: duas fileiras de barracas com toldos
-  listrados ao longo de um corredor de pedra, com mercadores, fregueses e um jumento; o mercado
-  girado (4 x 2) tem desenho próprio, para a luz continuar vindo do mesmo lado.
-- Agricultores no campo (`src/render/Fieldhands.ts`, desenho em `residents.ts`): túnica curta de
-  linho branco, índigo ou vermelho-garança (mais fortes que o lavrador da rua, para se lerem sobre
-  trigo e terra no zoom mínimo), pano na cabeça. Cada um trabalha parado no seu sulco entre as
-  fileiras: enxada sobe e desce, ou abaixa com a foice e junta um punhado; de tempos em tempos dá
-  um passo curto ao longo do sulco, indo e voltando. Ritmo e fase sorteados, para não ficarem
-  sincronizados; dois no mesmo campo nunca têm a mesma roupa. Os tufos da fileira logo à frente
-  dele somem (trecho já trabalhado), para o corpo aparecer. Ficam no desenho do campo, ordenados
-  entre os tufos por profundidade, e acompanham o giro do mapa e o campo espelhado.
-- Oficina 3 x 3 em 6 ofícios (um desenho cada, também espelhados), todos com pátio murado e uma
-  sala de trabalho, cada um com forma e cor dominantes próprias para se distinguir no zoom mínimo:
-  - olaria: forno de cúpula com chaminé (fumaça e brilho no buraco do fogo), roda sob toldo de
-    junco, fileiras de jarros e potes secando;
-  - ferraria: sala de pedra bruta com telhado de fuligem, forja de pedra com brasas vermelhas e
-    chaminé alta (fumaça escura), foles de couro, bigorna grande com barra em brasa, cavalete de
-    ferramentas penduradas, monte de carvão e cocho de água;
-  - carpintaria: pilha alta de tábuas claras e outra de cedro avermelhado, pirâmide de toras,
-    tábuas encostadas na parede, bancada com serrote, cavalete e lascas no chão;
-  - tecelagem: tear vertical de pesos sob toldo listrado azul e creme (pano listrado pela metade),
-    tear de chão estacado no pátio, banco de rolos de pano coloridos, lã secando no telhado;
-  - tinturaria: duas fileiras de tinas redondas de azul, vermelho e amarelo com respingos, panos
-    compridos secando em varais altos, pilha de panos dobrados;
-  - curtume: couros esticados e amarrados em molduras de madeira, tinas de madeira com aros,
-    poço de cal branco com couro de molho, cavalete de raspar e pilha de couro pronto.
-  Só olaria e ferraria soltam fumaça e têm fogo que tremula.
-- Parque 2 x 2: gramado verde numa mureta baixa de pedra, caminhos em cruz até um canteiro de
-  flores redondo no meio (anel de pedra), outro canteiro na frente, duas oliveiras, uma palmeira e
-  dois bancos de madeira, com sombras das árvores no gramado; **sem espelho d'água**.
-- Pescador 2 x 2: cabana de barro com telhado grosso de junco, rede secando entre duas varas (com
-  boias de cortiça), um barquinho puxado para a terra com os remos, peixes secando num cordão e um
-  cesto de peixe. Coletora 2 x 2: casinha de barro com figos secando numa esteira no telhado e
-  escada encostada, esteira de figos no chão, três cestos grandes cheios (azeitonas, figos,
-  tâmaras) e uma vara de bater oliveira. Celeiro 3 x 3: armazém de calcário claro no fundo, dois
-  silos redondos de barro com cúpula e escada, pátio murado com toldo de junco e estrados; o
-  estoque aparece em 4 desenhos pela fração `comida / capacidade` (limites em `visual.json` >
-  `moments.granaryStock`): vazio (estrados nus), um terço (uma fileira de sacos e 2 jarros), dois
-  terços (mais sacos e 4 jarros, grão na boca de um silo), cheio (sacos em duas camadas, 6 jarros,
-  um monte de grão com pá, sacos no telhado e grão nos dois silos). Miniaturas: o celeiro cheio,
-  a rede com o barco, os cestos de frutos.
-- Lenhador 2 x 2: cabana de toras com as pontas cruzadas nos cantos e telhado de tábuas, pilha
-  grande de toras com as pontas cortadas claras para a frente, um tronco caído esperando ser
-  partido, feixes de lenha na parede, cepo com o machado cravado, lascas no chão. Pedreira 2 x 2:
-  rocha cinza natural (camadas, fendas e pedras no alto) cortada em degraus de calcário claro em
-  fiadas, um bloco meio cortado no degrau do meio, guindaste pequeno de madeira (mastro com
-  escoras, braço e corda) erguendo um bloco, blocos cortados empilhados, o canteiro com a picareta
-  e lascas no chão de pó de pedra; um pouco de poeira sobe onde ele corta (um emissor lento por
-  Pedreira, `visual.json` > `moments.quarryDustMs`). Os dois têm neve como os outros. Miniaturas:
-  a cabana com a pilha de toras e o cepo; a rocha em degraus com o guindaste e os blocos.
-- Toco (`TEX.stump`): de oliveira (baixo e grosso, com raízes) ou de palmeira (fino e fibroso), com
-  o corte claro e os anéis. Na segunda metade das `treeRegrowWeeks` (lendo `stumps[].week`) mostra
-  o broto: rebentos de folhas verde-prata em volta do toco da oliveira, uma palmeirinha nova ao pé
-  da palmeira. O mapa troca o desenho só no refresh semanal (sem custo por quadro). No corte
-  (evento `treeCut`) a árvore tomba para um lado, some e levanta um pouco de poeira (menos de 1 s,
-  `moments.treeFallMs`), só se estiver na câmera.
-- Ícones de material (`TEX.icon('wood')` e `TEX.icon('stone')`, cores em `palette.ts`): duas toras
-  com as pontas claras; um bloco de calcário cortado.
-- Altar 4 x 4: pátio de pedras com mureta rústica e o altar de pedras brutas não lavradas, com
-  rampa (sem degraus), chifres nos cantos e fogo no alto.
-- Templo 6 x 6, a construção mais bonita: plataforma de calcário com escadaria, muro com portão e
-  torres, pórticos de colunas, pátio com pia de bronze e um pequeno altar, e o santuário alto com
-  pórtico, grande porta e duas colunas, cornijas douradas sem ornamentos babilônicos ou egípcios.
-- Chão com variação suave (manchas, ondulações na areia, seixos, tufos de capim), sem padrão de
-  xadrez. Ruas de terra batida largas, com borda escura nítida (meio-fio de terra) para se lerem
-  sobre a areia no zoom mínimo, sulcos de carroça e pedras gastas nas bordas; o anel em volta do
-  altar usa o mesmo desenho e se lê como rua, não como borda do pátio.
-- Luz de fim de tarde vinda do oeste; sombras suaves sempre para o leste.
-- Moradores de 12 tipos com roupas da época (bege, marrom, azul, vermelho, branco) e 3 tons de
-  pele, desenhados de lado com 2 quadros de passo, cada um com algo exagerado para ser lido no zoom
-  mínimo: mulher com jarro na cabeça, lavrador com foice e feixe, mulher com cesto de frutas,
-  carregador com saco nas costas, artesão de avental que leva o produto do ofício da oficina para
-  onde vai (jarro grande, martelo erguido, tábua no ombro, rolo de pano, panos tingidos, couro nas
-  costas; um potinho quando vai a outro lugar), ancião curvado de manto marrom escuro, barba branca
-  e cajado, criança
-  correndo, homem puxando um jumento com cestos, pastor com cajado e ovelha, sacerdote todo de
-  branco com faixa azul larga e turbante branco alto, um pouco mais alto que os outros, lenhador
-  com uma tora comprida no ombro (ponta cortada clara na frente), canteiro empurrando um carrinho de
-  duas rodas com um bloco de calcário (a roda gira com o passo)
-  (`src/render/residents.ts`). Ancião e sacerdote contrastam (escuro x branco) mesmo no zoom mínimo.
-- Desenho ordenado por profundidade (x + y do centro da área), incluindo moradores e as construções grandes.
-- A camada de desenho é isolada: texturas com nome e pontos de ancoragem (`ORIGIN`, `HEIGHT`),
-  para trocar por sprites no futuro.
+- **3D low-poly** em Three.js (`src/render3d`): modelos feitos por código (`models.ts`) e um pacote
+  de modelos .glb gerados no Meshy (`public/models/meshy`, créditos em `CREDITS.md`), trocados por
+  chave. O jogo abre com os modelos de código e troca pelos .glb quando chegam. A cidade inteira
+  cabe em poucas dezenas de chamadas de desenho, porque cada parte de modelo é instanciada.
+- **Paleta quente:** areia, ocre, tijolo de barro, pedra calcária clara, com o verde das palmeiras e
+  oliveiras e o azul do rio de contraste (`COLORS` em `models.ts`; cores da interface em
+  `src/game/palette.ts`).
+- **Luz:** sol e lua com sombras, céu em degradê, neblina pela distância da câmera; a qualidade
+  baixa sozinha em aparelho lento (resolução, sombras e partículas). Não há efeito maquete nem
+  vinheta.
+- **Construções** no tamanho real da área (1 célula = 1 unidade), viradas para a rua ao lado. A
+  casa tem um modelo por nível, cada um com identidade própria: terreno marcado, tenda de pano
+  escuro, cubo de barro, casa de pedra e casa grande de calcário (veja "Aparência e moradores"
+  para os quintais por variante). Altar 4 x 4 de pedras brutas com chifres, rampa e fogo; Templo
+  6 x 6, a construção mais bonita, de calcário com detalhes dourados. Praça de lajes claras com
+  poço, bancos e uma figueira; parque murado com oliveiras.
+- **Ruas:** terra batida, gasta e calçada (veja "Vida na cidade"); poças na chuva.
+- **Árvores:** oliveiras, palmeiras, amendoeiras e figueiras pela estação; toco com muda quando
+  volta a crescer (`regrowth`).
+- **Gente** low-poly instanciada (túnica, cabeça, turbante ou manto) em 3 tons de pele, com cores da
+  época (`crowd.ts`); jumento de carga nas caravanas.
 
 ## Fora do escopo por enquanto
 

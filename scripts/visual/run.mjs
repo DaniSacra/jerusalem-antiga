@@ -962,6 +962,46 @@ async function hud3dScenario(page, name) {
   assert(c.bad.length === 0, `settings: ${c.bad.join('; ')}`);
 }
 
+/**
+ * A rich street in 3D (PC): houses of every level in their six looks (yard jars or a washing line, on
+ * the side of the mirroring), the road paved near the altar and beside stone houses, worn beside mud
+ * houses and the market, packed earth by the tents; a full granary yard and a level-3 market.
+ */
+async function town3dScenario(page) {
+  await open3dGame(page);
+  const out = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    s.unlocked.push('granary', 'market', 'workshop');
+    const put = (kind, x, y) => {
+      if (!core.place(s, kind, x, y).ok) throw new Error(`no ${kind} at ${x},${y}`);
+      return s.grid[y * s.cols + x];
+    };
+    // East side: levels 1..4 down the road; west side: level 2 and 3 in the other looks.
+    [[28, 1, 1], [30, 2, 1], [32, 3, 2], [34, 4, 4]].forEach(([y, level, variant], k) => Object.assign(put('house', 25, y), { level, variant, mirrored: k % 2 === 1 }));
+    [[28, 2, 2], [30, 2, 4], [32, 3, 1], [34, 3, 5]].forEach(([y, level, variant], k) => Object.assign(put('house', 22, y), { level, variant, mirrored: k % 2 === 0 }));
+    const g = put('granary', 25, 38);
+    const m = put('market', 22, 38);
+    m.level = 3;
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s);
+    window.session.refresh();
+    window.view3d.rig.set({ x: 24.5, z: 34, dist: 15 });
+    return { granary: g.connected, market: m.connected };
+  });
+  assert(out.granary && out.market, `the granary and the market are on the road (${JSON.stringify(out)})`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${OUT}/town3d-pc.png` });
+  await page.evaluate(() => window.view3d.rig.set({ x: 24.5, z: 38.5, dist: 9 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-granary.png` });
+  await page.evaluate(() => window.view3d.rig.set({ x: 24, z: 31, dist: 8 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-houses.png` });
+}
+
 const scenarios = {
   /** The HTML title: start and, once the tutorial was seen, the tutorial again; the install button when the browser offers it. */
   async title(page) {
@@ -998,6 +1038,7 @@ const scenarios = {
   'input3d-pc': { context: PC, run: input3dScenario },
   touch3d: { context: PHONE, run: touch3dScenario },
   'context3d-pc': { context: PC, run: context3dScenario },
+  'town3d-pc': { context: PC, run: town3dScenario },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
   'temple3d-phone': { context: PHONE, run: (page) => temple3dScenario(page, 'phone') },

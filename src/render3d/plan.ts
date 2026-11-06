@@ -1,4 +1,5 @@
-import { BUILDINGS, borderCells, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
+import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
+import LOOK from './look3d.json';
 
 /**
  * What the 3D view draws for a GameState, as plain data (no Three.js): the model key, place, turn,
@@ -23,6 +24,12 @@ export type ModelKey =
   | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling' | 'road'
   /** The barred gate, sand drift and dry bush in front of an empty house. */
   | 'closed'
+  /** Worn and paved roads (`roadWear`). */
+  | 'road-1' | 'road-2'
+  /** Sacks and jars in the granary yard as the food store fills (`stockLevel`). */
+  | 'stock-1' | 'stock-2' | 'stock-3'
+  /** Things in a lived-in house's yard, by its variant: jars and a potted plant, a washing line. */
+  | 'yard-1' | 'yard-2'
   | ExtraKey;
 
 /** Kinds with a level 2 and 3 (from buildings.json `levels`). */
@@ -55,6 +62,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
+  'road-1', 'road-2', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   ...EXTRA_KEYS,
 ];
 
@@ -90,6 +98,8 @@ export interface BuildingLook {
   vacant: boolean;
   /** An empty house that kept its level: faded, with a barred gate before the door. */
   closed: boolean;
+  /** A lived-in house's yard things (by variant) and on which front corner (+1 right, -1 left). */
+  yard: { key: 'yard-1' | 'yard-2'; side: 1 | -1 } | null;
 }
 
 /**
@@ -97,19 +107,71 @@ export interface BuildingLook {
  * faded behind a barred gate; an empty plot otherwise), fields by crop, service buildings bigger and
  * richer at levels 2–3 (taller, with the additions of their kind).
  */
-export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'variant' | 'w' | 'h'>): BuildingLook {
+export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'variant' | 'w' | 'h'> & { mirrored?: boolean }): BuildingLook {
   if (b.kind === 'house') {
     const kept = b.level === 0 && b.emptyLevel >= 2 ? b.emptyLevel : 0;
     const level = Math.max(0, Math.min(4, b.level || kept)) as 0 | 1 | 2 | 3 | 4;
-    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0 };
+    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0, yard: yardOf(b) };
   }
-  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false };
+  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false, yard: null };
   if (b.kind === 'field') return { ...none, key: `field-${(b.variant % 4) as 0 | 1 | 2 | 3}` };
   if (!LEVELLED.includes(b.kind)) return { ...none, key: b.kind as KindKey };
   const level = Math.max(1, Math.min(3, b.level));
   const extra = level >= 2 ? (`up-${b.kind}-${level as 2 | 3}` as ExtraKey) : null;
   return { ...none, key: b.kind as KindKey, extra, sy: SERVICE[level].sy, tint: SERVICE[level].tint };
 }
+
+/**
+ * Six looks per house level, as in the core's variants: nothing, jars with a potted plant, or a
+ * washing line (variant % 3), on the front corner the mirroring picks. A tent keeps its fire on the
+ * front left, so its things stand on the right.
+ */
+export function yardOf(b: Pick<Building, 'kind' | 'level' | 'variant'> & { mirrored?: boolean }): BuildingLook['yard'] {
+  if (b.kind !== 'house' || b.level < 1) return null;
+  const k = b.variant % 3;
+  if (k === 0) return null;
+  return { key: k === 1 ? 'yard-1' : 'yard-2', side: b.level === 1 || !b.mirrored ? 1 : -1 };
+}
+
+/** Where a house's yard things stand (model x for side +1, z; front +z). */
+export const YARD_AT: [number, number] = [0.68, 0.74];
+
+/**
+ * How full the city's food store looks in a granary yard: 0 (under a quarter), 1, 2, or 3 (from 80%).
+ * Only looks; the store itself is `s.food` against `foodCapacity`.
+ */
+export function stockLevel(s: GameState): 0 | 1 | 2 | 3 {
+  const cap = foodCapacity(s);
+  const share = cap > 0 ? s.food / cap : 0;
+  const steps = LOOK.stock;
+  return share >= steps[2] ? 3 : share >= steps[1] ? 2 : share >= steps[0] ? 1 : 0;
+}
+
+/**
+ * How a road looks (only looks, never read by the rules): 2 paved with stone near the altar or the
+ * temple, or beside a stone house, a big house or a level-3 service; 1 worn and lighter beside a mud
+ * house, a market, a plaza or a level-2 service; 0 packed earth otherwise. The streets get richer
+ * with the town around them.
+ */
+export function roadWear(s: GameState, x: number, y: number, sacred = sacredOf(s)): 0 | 1 | 2 {
+  const near = LOOK.roads.pavedNear;
+  if (sacred.some((b) => Math.max(b.x - x, x - (b.x + b.w - 1), b.y - y, y - (b.y + b.h - 1), 0) <= near)) return 2;
+  let wear: 0 | 1 | 2 = 0;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) continue;
+    const b = s.grid[indexOf(s, nx, ny)];
+    if (!b) continue;
+    const w = b.kind === 'house' ? (b.level >= 3 ? 2 : b.level === 2 ? 1 : 0) : LEVELLED.includes(b.kind) && b.level >= 2 ? b.level - 1 : b.kind === 'market' || b.kind === 'plaza' ? 1 : 0;
+    if (w === 2) return 2;
+    if (w) wear = 1;
+  }
+  return wear;
+}
+
+/** The altar and the temple (their streets are paved). */
+const sacredOf = (s: GameState) => s.buildings.filter((b) => b.kind === 'altar' || b.kind === 'temple');
 
 /** Turn (radians about y) so the front (+z) faces a road next to the building; fixed for the big and long ones. */
 export function facing(s: GameState, b: Building): number {
@@ -159,6 +221,8 @@ export interface Placement {
 export interface BuildingPlacement extends Placement {
   b: Building;
   look: BuildingLook;
+  /** A granary's yard as the food store fills (null: nearly empty or not a connected granary). */
+  stock: 'stock-1' | 'stock-2' | 'stock-3' | null;
 }
 
 export interface CityPlan {
@@ -184,6 +248,8 @@ export function cityPlan(s: GameState): CityPlan {
   const buildings: BuildingPlacement[] = [];
   const props: Placement[] = [];
   const roads: { x: number; y: number }[] = [];
+  const sacred = sacredOf(s);
+  const stock = stockLevel(s);
   for (let y = 0; y < s.rows; y++)
     for (let x = 0; x < s.cols; x++) {
       const i = indexOf(s, x, y);
@@ -191,7 +257,8 @@ export function cityPlan(s: GameState): CityPlan {
       const cx = x + 0.5;
       const cz = y + 0.5;
       if (s.roads[i]) {
-        props.push({ key: 'road', x: cx, z: cz, rot: 0, scale: 1, sy: 1, tint: 0.92 + hash(x, y) * 0.12 });
+        const wear = roadWear(s, x, y, sacred);
+        props.push({ key: wear ? `road-${wear}` : 'road', x: cx, z: cz, rot: 0, scale: 1, sy: 1, tint: 0.92 + hash(x, y) * 0.12 });
         roads.push({ x, y });
         continue;
       }
@@ -215,7 +282,8 @@ export function cityPlan(s: GameState): CityPlan {
     if (s.grid[indexOf(s, b.x, b.y)] !== b) continue;
     const look = lookOf(b);
     const tint = look.tint * (0.95 + hash(b.x, b.y, 11) * 0.08);
-    buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint });
+    const full = b.kind === 'granary' && b.connected && stock ? (`stock-${stock}` as const) : null;
+    buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint, stock: full });
   }
   return { buildings, props, roads };
 }

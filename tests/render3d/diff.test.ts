@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { harvestsIn, indexOf, refreshCity } from '../../src/core';
+import { foodCapacity, harvestsIn, indexOf, refreshCity } from '../../src/core';
 import { changedLayers, cityKeys } from '../../src/render3d/diff';
 import { emptyGame, put, road, ROADSIDE } from '../helpers';
 
@@ -22,6 +22,17 @@ describe('what changed in the drawn city', () => {
     const c = cityKeys(s);
     h.connected = !h.connected;
     expect(changedLayers(c, cityKeys(s))).toEqual(['buildings']);
+  });
+
+  it('the granary yard filling up changes the buildings layer, a few sacks more of food do not', () => {
+    const s = emptyGame();
+    put(s, 'granary', 25, 30);
+    s.food = 0;
+    const a = cityKeys(s);
+    s.food = 1;
+    expect(changedLayers(a, cityKeys(s))).toEqual([]);
+    s.food = foodCapacity(s);
+    expect(changedLayers(a, cityKeys(s))).toEqual(['buildings']);
   });
 
   it('a road changes the props and who walks; a tree cut into a stump only the props', () => {

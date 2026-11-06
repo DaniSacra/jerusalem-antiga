@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, VACANT_TINT, walkerCount } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, roadWear, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { foodCapacity } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 
 const house = (level: number, emptyLevel = 0) => ({ kind: 'house' as const, level, emptyLevel, variant: 0, w: 2, h: 2 });
@@ -109,7 +110,7 @@ describe('what the 3D view draws', () => {
     expect(near(6)).toEqual(['rock']);
     expect(near(7)).toEqual(['stump']);
     expect(near(8).sort()).toEqual(['sapling', 'stump']);
-    const roads = props.filter((p) => p.key === 'road').length;
+    const roads = props.filter((p) => p.key.startsWith('road')).length;
     expect(roads).toBe(s.roads.filter((r, i) => r && !s.grid[i]).length);
     expect(cityPlan(s).roads).toHaveLength(roads);
   });
@@ -130,5 +131,63 @@ describe('what the 3D view draws', () => {
     for (const [k, x, y] of spots) put(s, k, x, y);
     const keys = cityPlan(s).buildings.map((p) => p.key);
     for (const [k] of spots) expect(keys).toContain(k);
+  });
+
+  it('paves the streets near the altar and wears the others with the houses and services beside them', () => {
+    const s = emptyGame();
+    // The altar fills 22..25: its ring and the first cells of the road down x = 24 are paved.
+    expect(roadWear(s, 21, 21)).toBe(2);
+    expect(roadWear(s, 24, 27)).toBe(2);
+    expect(roadWear(s, 24, 28)).toBe(0);
+    const h = put(s, 'house', 25, 30, 1);
+    expect(roadWear(s, 24, 30)).toBe(0);
+    h.level = 2;
+    expect([roadWear(s, 24, 30), roadWear(s, 24, 31), roadWear(s, 24, 32)]).toEqual([1, 1, 0]);
+    h.level = 3;
+    expect(roadWear(s, 24, 31)).toBe(2);
+    const m = put(s, 'market', 22, 34);
+    expect(roadWear(s, 24, 35)).toBe(1);
+    m.level = 3;
+    expect(roadWear(s, 24, 35)).toBe(2);
+    // The plan draws each road by its wear, and every wear key is a model.
+    const keys = cityPlan(s).props.filter((p) => Math.floor(p.x) === 24).map((p) => [Math.floor(p.z), p.key]);
+    expect(keys).toContainEqual([28, 'road']);
+    expect(keys).toContainEqual([30, 'road-2']);
+    expect(keys).toContainEqual([27, 'road-2']);
+    for (const k of ['road-1', 'road-2'] as const) expect(MODEL_KEYS).toContain(k);
+  });
+
+  it('fills the granary yard with the food store, only on a connected granary', () => {
+    const s = emptyGame();
+    const g = put(s, 'granary', 25, 30);
+    const cap = foodCapacity(s);
+    const at = (share: number) => {
+      s.food = cap * share;
+      return [stockLevel(s), cityPlan(s).buildings.find((p) => p.b === g)!.stock];
+    };
+    expect(g.connected).toBe(true);
+    expect(at(0.1)).toEqual([0, null]);
+    expect(at(0.3)).toEqual([1, 'stock-1']);
+    expect(at(0.6)).toEqual([2, 'stock-2']);
+    expect(at(1)).toEqual([3, 'stock-3']);
+    g.connected = false;
+    expect(at(1)).toEqual([3, null]);
+    for (const k of ['stock-1', 'stock-2', 'stock-3'] as const) expect(MODEL_KEYS).toContain(k);
+  });
+
+  it('gives lived-in houses six looks per level: yard things by variant, on the side of the mirroring', () => {
+    const looks = new Set<string>();
+    for (const level of [2, 3, 4])
+      for (let variant = 0; variant < 6; variant++)
+        for (const mirrored of [false, true]) looks.add(JSON.stringify(yardOf({ kind: 'house', level, variant, mirrored })));
+    expect(looks.size).toBe(5); // none, two things, each on two sides
+    expect(yardOf({ kind: 'house', level: 2, variant: 1, mirrored: true })).toEqual({ key: 'yard-1', side: -1 });
+    expect(yardOf({ kind: 'house', level: 3, variant: 5, mirrored: false })).toEqual({ key: 'yard-2', side: 1 });
+    // A tent's fire is on the front left: its things stand on the right. Empty plots and other kinds have none.
+    expect(yardOf({ kind: 'house', level: 1, variant: 2, mirrored: true })).toEqual({ key: 'yard-2', side: 1 });
+    expect(yardOf({ kind: 'house', level: 0, variant: 1, mirrored: false })).toBeNull();
+    expect(lookOf({ ...house(0, 3), variant: 1 }).yard).toBeNull();
+    expect(yardOf({ kind: 'market', level: 1, variant: 1 })).toBeNull();
+    for (const k of ['yard-1', 'yard-2'] as const) expect(MODEL_KEYS).toContain(k);
   });
 });
