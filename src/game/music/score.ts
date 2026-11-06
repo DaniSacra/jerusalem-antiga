@@ -3,11 +3,16 @@ import { createRng, type Rng, type Season } from '../../core';
 /**
  * The background music's score (pure: no Web Audio). Not random notes: a hand-written bank of major
  * progressions, an AABA form of 4-bar phrases, a 2-bar motif repeated and varied, and a melody on the
- * major pentatonic with chord tones on the strong beats. `src/app/music.ts` plays it.
+ * major pentatonic with chord tones on the strong beats, over a plucked eighth-note ostinato, a
+ * walking bass and a soft hand drum: calm, but with a step that makes you want to play (the user
+ * found the first, slower version sleepy). `src/app/music.ts` plays it.
  * See docs/arquitetura-3d.md section 12.
  */
 
-export type Voice = 'harp' | 'flute' | 'pad' | 'bass';
+export type Voice = 'harp' | 'flute' | 'pad' | 'bass' | 'pluck' | 'drum';
+
+/** The drum's two sounds (its `midi`): a soft low hand drum and a light shaker. */
+export const DRUM = { low: 36, shaker: 42 };
 
 /** One note: `beat` from the start of the piece, `dur` in beats, `vel` 0..1. */
 export interface Note {
@@ -46,16 +51,16 @@ export interface MoodInput {
 }
 
 const BY_SEASON: Record<Season, Mood> = {
-  spring: { bpm: 72, lead: 'harp', register: 0, density: 0.8, gain: 1 },
-  summer: { bpm: 76, lead: 'harp', register: 2, density: 0.7, gain: 1 },
-  autumn: { bpm: 66, lead: 'flute', register: -2, density: 0.5, gain: 0.9 },
-  winter: { bpm: 60, lead: 'flute', register: -3, density: 0.3, gain: 0.85 },
+  spring: { bpm: 96, lead: 'harp', register: 0, density: 0.9, gain: 1 },
+  summer: { bpm: 100, lead: 'harp', register: 2, density: 1, gain: 1 },
+  autumn: { bpm: 92, lead: 'flute', register: 0, density: 0.8, gain: 0.95 },
+  winter: { bpm: 86, lead: 'flute', register: -2, density: 0.65, gain: 0.9 },
 };
 
-/** The mood of a season, softer, slower and sparser at night (flute) and a little in the rain. */
+/** The mood of a season, softer, a little slower and sparser at night (flute) and a little in the rain. */
 export function mood({ season, night, rain }: MoodInput): Mood {
   const m = { ...BY_SEASON[season] };
-  if (night) Object.assign(m, { bpm: m.bpm - 6, lead: 'flute', density: m.density * 0.5, gain: m.gain * 0.7 });
+  if (night) Object.assign(m, { bpm: m.bpm - 8, lead: 'flute', density: m.density * 0.6, gain: m.gain * 0.75 });
   if (rain) Object.assign(m, { density: m.density * 0.8, gain: m.gain * 0.9 });
   return m;
 }
@@ -66,8 +71,8 @@ const PENTA = [0, 2, 4, 7, 9];
 /** The keys: D, G, F and C major. */
 export const TONICS = [62, 55, 65, 60];
 /** Melody, accompaniment and bass ranges (MIDI). */
-export const RANGE: Record<Voice, [number, number]> = { harp: [60, 84], flute: [62, 86], pad: [50, 67], bass: [36, 52] };
-export const MAX_VOICES = 6;
+export const RANGE: Record<Voice, [number, number]> = { harp: [62, 86], flute: [64, 88], pad: [52, 67], bass: [36, 52], pluck: [55, 74], drum: [36, 42] };
+export const MAX_VOICES = 8;
 
 /** Progressions of 4 chords as scale degrees (0 = I, 3 = IV, 4 = V, 5 = vi): one chord per bar. */
 const A_PROGS = [
@@ -86,10 +91,10 @@ const END = [3, 4, 0, 0];
 
 /** Two-bar rhythms (beat offset, length) for the motif. */
 const RHYTHMS: [number, number][][] = [
-  [[0, 1.5], [1.5, 0.5], [2, 2], [4, 1], [5, 1], [6, 2]],
-  [[0, 1], [1, 1], [2, 1.5], [3.5, 0.5], [4, 3], [7, 1]],
-  [[0, 2], [2, 1], [3, 1], [4, 2], [6, 2]],
-  [[0, 1], [1, 0.5], [1.5, 0.5], [2, 2], [4, 1.5], [5.5, 0.5], [6, 2]],
+  [[0, 1.5], [1.5, 0.5], [2, 1], [3, 0.5], [3.5, 0.5], [4, 1.5], [5.5, 0.5], [6, 2]],
+  [[0, 0.5], [0.5, 0.5], [1, 1], [2, 1.5], [3.5, 0.5], [4, 1], [5, 1], [6, 1.5], [7.5, 0.5]],
+  [[0, 1], [1, 0.5], [1.5, 1], [2.5, 0.5], [3, 1], [4, 2], [6, 1], [7, 1]],
+  [[0, 0.5], [0.5, 0.5], [1, 0.5], [1.5, 0.5], [2, 2], [4, 0.5], [4.5, 0.5], [5, 1], [6, 2]],
 ];
 
 const pick = <T>(rng: Rng, list: readonly T[]): T => list[Math.floor(rng() * list.length)];
@@ -163,12 +168,29 @@ export function piece(seed: number, m: Mood): Piece {
       const chord = chordOf(degree);
       // Pad: the triad held through the bar, close to the middle of its range.
       const pad = RANGE.pad;
-      for (const c of chord) notes.push({ voice: 'pad', beat: at, midi: nearest(notesIn([c], tonic, pad), (pad[0] + pad[1]) / 2), dur: 4, vel: 0.28 });
+      for (const c of chord) notes.push({ voice: 'pad', beat: at, midi: nearest(notesIn([c], tonic, pad), (pad[0] + pad[1]) / 2), dur: 4, vel: 0.18 });
+      // Pluck: the chord broken in eighths (1-5-3-5 up and down), the town's step; sparser when the mood is.
+      const tones = notesIn(chord, tonic, RANGE.pluck);
+      const lowRoot = tones.find((t) => pc(t, tonic) === chord[0]) ?? tones[0];
+      const up = tones.filter((t) => t >= lowRoot).slice(0, 4);
+      const pattern = [up[0], up[2] ?? up[1], up[1], up[2] ?? up[1], up[3] ?? up[0], up[2] ?? up[1], up[1], up[2] ?? up[1]];
+      const last = p === 3 && bar === 3;
+      pattern.forEach((midi, k) => {
+        if (last && k > 0) return;
+        if (k % 2 === 1 && rng() > m.density) return;
+        notes.push({ voice: 'pluck', beat: at + k * 0.5, midi, dur: last ? 4 : 0.5, vel: k % 2 ? 0.3 : 0.4 });
+      });
+      // Hand drum on 1 and the "and" of 2, a shaker on the off-beats: soft, never on the last bar.
+      if (!last && p > 0) {
+        notes.push({ voice: 'drum', beat: at, midi: DRUM.low, dur: 0.5, vel: 0.5 });
+        if (rng() < m.density) notes.push({ voice: 'drum', beat: at + 2.5, midi: DRUM.low, dur: 0.5, vel: 0.3 });
+        for (const off of [1.5, 3.5]) if (rng() < m.density) notes.push({ voice: 'drum', beat: at + off, midi: DRUM.shaker, dur: 0.25, vel: 0.25 });
+      }
       // Bass: the root on beat 1 (and the fifth on beat 3 when it moves).
       const root = nearest(notesIn([chord[0]], tonic, RANGE.bass), 43);
-      const last = p === 3 && bar === 3;
-      notes.push({ voice: 'bass', beat: at, midi: root, dur: last ? 4 : 2, vel: 0.45 });
-      if (!last && rng() < m.density) notes.push({ voice: 'bass', beat: at + 2, midi: nearest(notesIn([chord[2]], tonic, RANGE.bass), root + 7), dur: 2, vel: 0.35 });
+      notes.push({ voice: 'bass', beat: at, midi: root, dur: last ? 4 : 1.5, vel: 0.5 });
+      if (!last) notes.push({ voice: 'bass', beat: at + 2, midi: nearest(notesIn([chord[2]], tonic, RANGE.bass), root + 7), dur: 1, vel: 0.38 });
+      if (!last && rng() < m.density) notes.push({ voice: 'bass', beat: at + 3.5, midi: nearest(notesIn([chord[1]], tonic, RANGE.bass), root + 4), dur: 0.5, vel: 0.3 });
     });
   });
   return { tonic, bpm: m.bpm, beats: 64, notes: notes.sort((x, y) => x.beat - y.beat || x.midi - y.midi) };
@@ -183,5 +205,5 @@ export function polyphony(notes: readonly Note[]): number {
   return most;
 }
 
-/** Seconds of quiet after a piece (15–40 s): what keeps hours of play restful. */
-export const silenceAfter = (rng: Rng) => 15 + rng() * 25;
+/** Seconds of quiet after a piece (6–12 s): a breath between pieces for hours of play, short enough to keep the step. */
+export const silenceAfter = (rng: Rng) => 6 + rng() * 6;

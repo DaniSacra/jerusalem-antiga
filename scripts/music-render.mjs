@@ -1,5 +1,5 @@
 // Renders samples of the background music to WAV files for listening (the real test of the music):
-// one per season by day and one at night, `SECONDS` each, in screenshots/music/.
+// one per season by day and one at night, `SECONDS` each, in music-samples/ (kept between visual runs).
 // Usage: node scripts/music-render.mjs [seconds]   (default 90)
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 
 const SECONDS = Number(process.argv[2] ?? 90);
 const PORT = Number(process.env.MUSIC_PORT ?? 5198);
-const OUT = 'screenshots/music';
+const OUT = 'music-samples';
 const SAMPLES = [
   ['primavera', { season: 'spring', night: false, rain: false }],
   ['verao', { season: 'summer', night: false, rain: false }],
@@ -27,7 +27,7 @@ try {
     const b64 = await page.evaluate(
       async ([input, seconds]) => {
         const { renderOffline } = await import('/src/app/music.ts');
-        const buf = await renderOffline(input, seconds, 11);
+        const buf = await renderOffline(input, seconds, 11, 8);
         // 16-bit stereo WAV.
         const [l, r] = [buf.getChannelData(0), buf.getChannelData(1)];
         const n = l.length;

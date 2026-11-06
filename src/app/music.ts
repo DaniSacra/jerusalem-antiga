@@ -1,6 +1,6 @@
 import { createRng } from '../core';
 import { FADE, targetGain } from '../game/music/mix';
-import { mood, piece, silenceAfter, type Mood, type MoodInput, type Note, type Voice } from '../game/music/score';
+import { DRUM, mood, piece, silenceAfter, type Mood, type MoodInput, type Note, type Voice } from '../game/music/score';
 import { settings } from '../game/settings';
 
 /**
@@ -118,10 +118,60 @@ export class Music {
 }
 
 /** Each voice's loudness under the master (the pad and bass stay under the melody). */
-const LEVEL: Record<Voice, number> = { harp: 0.55, flute: 0.4, pad: 0.12, bass: 0.3 };
+const LEVEL: Record<Voice, number> = { harp: 0.5, flute: 0.36, pad: 0.08, bass: 0.34, pluck: 0.22, drum: 0.32 };
+
+/** Half a second of white noise per context, made once (the shaker). */
+const NOISE = new WeakMap<BaseAudioContext, AudioBuffer>();
+function noiseOf(ctx: BaseAudioContext): AudioBuffer {
+  let b = NOISE.get(ctx);
+  if (!b) {
+    b = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
+    const d = b.getChannelData(0);
+    const r = createRng(3);
+    for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1;
+    NOISE.set(ctx, b);
+  }
+  return b;
+}
+
+/** The hand drum (a sine falling 140 → 55 Hz) or the shaker (high-passed noise), short and soft. */
+function drum(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at: number, n: Note) {
+  const env = ctx.createGain();
+  const peak = n.vel * LEVEL.drum;
+  env.gain.setValueAtTime(0, at);
+  let src: AudioScheduledSourceNode;
+  let end: number;
+  if (n.midi === DRUM.low) {
+    const o = ctx.createOscillator();
+    o.frequency.setValueAtTime(140, at);
+    o.frequency.exponentialRampToValueAtTime(55, at + 0.18);
+    o.connect(env);
+    end = at + 0.32;
+    env.gain.linearRampToValueAtTime(peak, at + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.0001, end);
+    src = o;
+  } else {
+    const s = ctx.createBufferSource();
+    s.buffer = noiseOf(ctx);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 6500;
+    s.connect(hp).connect(env);
+    end = at + 0.07;
+    env.gain.linearRampToValueAtTime(peak * 0.6, at + 0.004);
+    env.gain.exponentialRampToValueAtTime(0.0001, end);
+    src = s;
+  }
+  env.connect(dry);
+  if (n.midi === DRUM.low) env.connect(wet);
+  src.start(at);
+  src.stop(end + 0.02);
+  src.onended = () => env.disconnect();
+}
 
 /** One note: harp (plucked triangle), flute (sine with vibrato), pad (two detuned sines) or bass. */
 export function voice(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at: number, n: Note, spb: number) {
+  if (n.voice === 'drum') return drum(ctx, dry, wet, at, n);
   const dur = n.dur * spb;
   const env = ctx.createGain();
   const peak = n.vel * LEVEL[n.voice];
@@ -167,8 +217,24 @@ export function voice(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at:
     g.linearRampToValueAtTime(peak, at + Math.min(1.2, dur * 0.5));
     g.setValueAtTime(peak, at + dur);
     g.linearRampToValueAtTime(0, end);
+  } else if (n.voice === 'pluck') {
+    // A short pluck: triangle and a quiet square, closing filter, quick decay.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2600, at);
+    filter.frequency.exponentialRampToValueAtTime(700, at + 0.3);
+    osc('triangle').connect(filter);
+    const sq = osc('square', 3);
+    const quiet = ctx.createGain();
+    quiet.gain.value = 0.18;
+    sq.connect(quiet).connect(filter);
+    filter.connect(env);
+    end = at + Math.max(0.35, dur) + 0.25;
+    g.linearRampToValueAtTime(peak, at + 0.004);
+    g.exponentialRampToValueAtTime(0.0001, end);
   } else {
     osc('sine').connect(env);
+    osc('triangle').connect(env); // a little body so the walking bass reads on phone speakers
     end = at + dur + 0.3;
     g.linearRampToValueAtTime(peak, at + 0.02);
     g.exponentialRampToValueAtTime(0.0001, end);

@@ -7,3 +7,4 @@ screenshots
 .env.local
 .env.*.local
 logs/
+music-samples/

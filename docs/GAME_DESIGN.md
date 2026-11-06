@@ -802,11 +802,14 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     fica salvo), "Música: ligado/desligado" e "Volume − 50% +" (passos de 10%; salvos). Esc fecha.
   - **Música** (`src/game/music/score.ts` e `mix.ts`, puros; `src/app/music.ts`, Web Audio): fundo
     calmo gerado no navegador, original por construção. Peças de 16 compassos (forma AABA) em Ré,
-    Sol, Fá ou Dó maior, 60–76 batidas por minuto, com progressões escritas à mão, um motivo de 2
-    compassos repetido e variado, melodia na pentatônica (notas do acorde nos tempos fortes) e
-    final no I; harpa, flauta, fundo de acordes e baixo (no máximo 6 vozes), com eco; 15–40 s de
-    silêncio entre as peças. O clima segue o jogo a cada peça: primavera e verão na harpa, outono e
-    inverno na flauta, mais lentos e graves; à noite mais baixa (−30%), lenta e esparsa; na chuva um
+    Sol, Fá ou Dó maior, 86–100 batidas por minuto (calma, mas com passo: a primeira versão, de
+    60–76, dava sono), com progressões escritas à mão, um motivo de 2 compassos repetido e variado,
+    melodia na pentatônica (notas do acorde nos tempos fortes) e final no I; harpa ou flauta na
+    melodia, um dedilhado em colcheias (1-5-3-5), baixo andando (fundamental, quinta e nota de
+    passagem), tambor de mão suave e chocalho (entram na segunda frase, param no último compasso) e
+    fundo de acordes baixinho (no máximo 8 vozes), com eco; 6–12 s de silêncio entre as peças. O
+    clima segue o jogo a cada peça: primavera e verão na harpa, outono e inverno na flauta, um pouco
+    mais lentos e graves; à noite mais baixa (−25%), 8 batidas mais lenta e mais esparsa; na chuva um
     pouco mais baixa. Ligada por padrão a 50% (curva volume²); começa no primeiro toque, clique ou
     tecla (regra dos navegadores), toca no título e com o jogo pausado; aba escondida: some em 0,3 s
     e o áudio é suspenso, volta em 4 s. Tecla **M** liga e desliga no PC. A chave de silêncio do

@@ -832,11 +832,13 @@ por amostras CC0 pequenas sem mexer no gerador. (b) fica fora: pesa no PWA, repe
 progressões em tom maior (I–vi–IV–V, I–IV–I–V, IV–V–iii–vi, I–iii–IV–V…), forma AABA de 8 compassos,
 um motivo de 2 compassos repetido e variado (transposto para o acorde, ritmo trocado), melodia na
 pentatônica maior com notas do acorde nos tempos fortes e graus conjuntos entre elas. Tons: Ré, Sol,
-Fá, Dó maior. Andamento 60–76 bpm. Vozes (≤ 6 ao mesmo tempo): harpa (triângulo filtrado, ataque
+Fá, Dó maior. Andamento 86–100 bpm (a primeira versão, 60–76, dava sono). Vozes (≤ 8 ao mesmo tempo): harpa (triângulo filtrado, ataque
 curto, cauda longa), flauta (seno + vibrato leve), fundo de acordes (dois senos desafinados, ataque
-lento), baixo suave. Eco: um `ConvolverNode` com resposta gerada uma vez (ruído decaindo ~1,8 s); se
-pesar no celular, um atraso com realimentação e passa-baixa. **Silêncio entre peças** (15–40 s): é o
-que deixa horas de jogo descansadas.
+lento), dedilhado (triângulo + quadrado baixinho num passa-baixa que fecha) em colcheias 1-5-3-5,
+baixo andando (seno + triângulo), tambor de mão (seno caindo 140→55 Hz) e chocalho (ruído em
+passa-alta), suaves. Eco: um `ConvolverNode` com resposta gerada uma vez (ruído decaindo ~1,8 s); se
+pesar no celular, um atraso com realimentação e passa-baixa. **Silêncio entre peças** (6–12 s): um respiro
+sem perder o passo.
 
 **Clima (barato, só na fronteira de frase):** `mood({ season, night, rain })` muda andamento,
 instrumento da melodia, registro, densidade de notas e volume alvo. Primavera/verão: harpa, mais

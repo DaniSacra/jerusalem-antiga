@@ -154,7 +154,7 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   ligada; toasts cobrindo o mapa no celular (máx. 2); barra de cima em duas linhas no PC; "· 3" na coluna
 - (b) Ganhos rápidos, ~13–14 h: vento em árvores e campos (shader), fumaça macia, fogo do altar e
   faíscas, vinheta CSS, grão do chão, margem do rio, toasts e FOME calmos, relevo dos botões
-- (c) Pacotes, em ordem: C1 Música (architect; **feito 2026-11-06**: gerada no navegador, falta o usuário ouvir `screenshots/music/*.wav` e aprovar o timbre) → C2 Vida na rua → C3 Casas variadas → C4 Chão e ruas →
+- (c) Pacotes, em ordem: C1 Música (architect; **feito 2026-11-06**: gerada no navegador, falta o usuário ouvir `music-samples/*.wav` e aprovar o timbre) → C2 Vida na rua → C3 Casas variadas → C4 Chão e ruas →
   C5 Interface bonita 1 (miniaturas, setas, ícones) → C6 Campo e árvores → C7 Interface bonita 2 +
   título com a cidade → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas)
 
@@ -172,6 +172,9 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
 **Música** (pedido em 2026-11-04): música de fundo bem relaxante, tons maiores, clima de trilha calma
 de aventura (Zelda só como clima; composição original), com desligar e volume. **Com escopo desde
 2026-11-06**: pacote C1 do plano "Beleza e calma", forma em `docs/arquitetura-3d.md` seção 12.
+No mesmo dia o usuário achou a primeira versão (60–76 bpm, 15–40 s de pausa) com sono: refeita
+calma mas com vontade de jogar (86–100 bpm, dedilhado, baixo andando, tambor de mão e chocalho
+suaves, 6–12 s de pausa).
 
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje

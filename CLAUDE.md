@@ -21,7 +21,7 @@ matching doc in the same change.
 - `npm run test:visual` — the Playwright scenarios, screenshots in `screenshots/` (`-- <name>` to filter)
 - `npm run build` — typecheck + static build in `dist/`
 - `npm run test:pwa` — after a build: the app is installable and opens offline (PWA)
-- `node scripts/music-render.mjs [seconds]` — renders music samples to `screenshots/music/*.wav` for listening
+- `node scripts/music-render.mjs [seconds]` — renders music samples to `music-samples/*.wav` for listening
 
 ## Git
 - Only the main agent commits or pushes, and only when the user explicitly asks.
