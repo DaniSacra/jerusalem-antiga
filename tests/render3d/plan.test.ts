@@ -166,7 +166,7 @@ describe('what the 3D view draws', () => {
       return [stockLevel(s), cityPlan(s).buildings.find((p) => p.b === g)!.stock];
     };
     expect(g.connected).toBe(true);
-    expect(at(0.1)).toEqual([0, null]);
+    expect(at(0.05)).toEqual([0, null]);
     expect(at(0.3)).toEqual([1, 'stock-1']);
     expect(at(0.6)).toEqual([2, 'stock-2']);
     expect(at(1)).toEqual([3, 'stock-3']);
@@ -189,5 +189,16 @@ describe('what the 3D view draws', () => {
     expect(lookOf({ ...house(0, 3), variant: 1 }).yard).toBeNull();
     expect(yardOf({ kind: 'market', level: 1, variant: 1 })).toBeNull();
     for (const k of ['yard-1', 'yard-2'] as const) expect(MODEL_KEYS).toContain(k);
+  });
+
+  it("shows a workshop's craft in its yard, the pottery in the model itself", () => {
+    const at = (variant: number) => lookOf({ kind: 'workshop', level: 1, emptyLevel: 0, variant, w: 3, h: 3 }).craft;
+    expect(at(0)).toBeNull();
+    expect([1, 2, 3, 4, 5].map(at)).toEqual(['craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5']);
+    for (let v = 1; v <= 5; v++) {
+      expect(MODEL_KEYS).toContain(at(v));
+      expect(footprintOf(at(v)!)).toEqual([3, 3]);
+    }
+    expect(lookOf({ kind: 'market', level: 1, emptyLevel: 0, variant: 2, w: 2, h: 4 }).craft).toBeNull();
   });
 });

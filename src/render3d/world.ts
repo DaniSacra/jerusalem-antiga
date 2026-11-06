@@ -1,3 +1,4 @@
+import { Pasture } from './pasture';
 import * as THREE from 'three';
 import { mainRoadCells, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
@@ -6,7 +7,7 @@ import { Families } from './figures';
 import { FieldHands, Fire, Haulers, NightFires, Smoke, Walkers } from './life';
 import type { ModelKey, Prototype } from './models';
 import { cityPlan, CLOSED_AT, hash, KILN, residentsOf, walkerCount, YARD_AT } from './plan';
-import { SKIRT, Terrain, Water } from './terrain';
+import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
@@ -34,6 +35,7 @@ export class World {
   smoke!: Smoke;
   fires!: NightFires;
   hands!: FieldHands;
+  pasture!: Pasture;
   puddles!: THREE.InstancedMesh;
   altarFire: Fire | null = null;
   houses = 0;
@@ -139,6 +141,7 @@ export class World {
       const copies: [ModelKey, number][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
       if (look.extra) copies.push([look.extra, inst.add(look.extra, cx, y, cz, rot, scale, 1, sy)]);
       if (stock) copies.push([stock, inst.add(stock, cx, y, cz, rot, scale)]);
+      if (look.craft) copies.push([look.craft, inst.add(look.craft, cx, y, cz, rot, scale)]);
       this.copies.set(b.id, copies);
       // A point of the model (local x, z, front +z) in the world.
       const at = (lx: number, ly: number, lz: number) => new THREE.Vector3(cx + lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, cz - lx * Math.sin(rot) + lz * Math.cos(rot));
@@ -187,8 +190,9 @@ export class World {
     this.smoke = new Smoke(smoke);
     this.fires = new NightFires(fires);
     this.hands = new FieldHands(fields, MAX_HANDS, this.shadows);
+    this.pasture = new Pasture(s, ground, () => WATER_Y + this.water.mesh.position.y, this.shadows);
     this.puddles = puddleMesh(puddles, old);
-    this.city.add(this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, this.puddles);
+    this.city.add(this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
   }
 
   private buildPeople() {
@@ -221,7 +225,8 @@ function free(group: THREE.Group, shared: WeakSet<object>) {
   group.traverse((o) => {
     if (o instanceof THREE.InstancedMesh) once(o);
     const m = o as THREE.Mesh;
-    if (m.geometry) once(m.geometry);
+    // Geometries kept across builds (animals, loads) are marked `userData.shared`.
+    if (m.geometry && !o.userData.shared) once(m.geometry);
     for (const mat of m.material ? (Array.isArray(m.material) ? m.material : [m.material]) : [])
       for (const v of Object.values(mat)) if (v instanceof THREE.Texture) once(v);
   });

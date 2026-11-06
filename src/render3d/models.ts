@@ -457,6 +457,72 @@ function stock(level: 1 | 2 | 3): Piece[] {
   return out;
 }
 
+/**
+ * The craft of a workshop, in the front right corner of its yard (around CRAFT_AT): the smithy's
+ * anvil and glowing forge, the carpenter's planks and logs, the weaver's loom with a striped cloth,
+ * the dyer's vats of colour and cloths drying, the tanner's hides stretched on frames.
+ */
+const CRAFT_AT: [number, number] = [0.72, 0.78];
+/** Height of the workshop's yard floor (the Meshy model stands on a raised platform). */
+const CRAFT_FLOOR = 0.24;
+function craft(k: 1 | 2 | 3 | 4 | 5): Piece[] {
+  return craftPieces(k).map((p) => ({ ...p, geo: p.geo.translate(0, CRAFT_FLOOR, 0) }));
+}
+function craftPieces(k: 1 | 2 | 3 | 4 | 5): Piece[] {
+  const [x, z] = CRAFT_AT;
+  switch (k) {
+    case 1:
+      return [
+        box(0.3, 0.22, 0.3, x - 0.15, 0, z - 0.1, COLORS.rock),
+        box(0.22, 0.03, 0.22, x - 0.15, 0.22, z - 0.1, COLORS.fire, 0),
+        { ...box(0.16, 0.025, 0.16, x - 0.15, 0.245, z - 0.1, COLORS.flame), emissive: true },
+        box(0.08, 0.12, 0.08, x + 0.2, 0, z + 0.1, COLORS.dark),
+        box(0.18, 0.05, 0.08, x + 0.2, 0.12, z + 0.1, 0x4a4a4e),
+        blob(0.1, x + 0.2, 0.05, z - 0.25, 0x2e2a28, 0.5),
+      ];
+    case 2:
+      return [
+        ...[0, 1, 2, 3].map((n) => box(0.5, 0.035, 0.11, x, 0.035 * n, z - 0.15 + (n % 2) * 0.02, COLORS.wheat)),
+        // Logs lying across, two below and one on top.
+        ...[[-0.06, 0.05], [0.06, 0.05], [0, 0.14]].map(([dz, y]) => ({ geo: new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6).rotateZ(Math.PI / 2).translate(x, y, z + 0.2 + dz), color: COLORS.trunk })),
+        box(0.3, 0.2, 0.1, x + 0.05, 0, z + 0.42, COLORS.wood),
+      ];
+    case 3:
+      return [
+        box(0.04, 0.6, 0.04, x - 0.25, 0, z, COLORS.wood),
+        box(0.04, 0.6, 0.04, x + 0.25, 0, z, COLORS.wood),
+        box(0.56, 0.04, 0.05, x, 0.58, z, COLORS.wood),
+        box(0.44, 0.24, 0.015, x, 0.3, z, COLORS.blue),
+        box(0.44, 0.06, 0.016, x, 0.4, z, COLORS.cloth),
+        box(0.44, 0.04, 0.016, x, 0.32, z, COLORS.red),
+        ...[0, 1, 2].map((n) => cyl(0.025, 0.025, 0.1, 5, x - 0.12 + n * 0.12, 0.08, z, COLORS.mudDark)),
+        cyl(0.05, 0.05, 0.22, 7, x + 0.05, 0, z + 0.32, COLORS.ochre),
+      ];
+    case 4:
+      return [
+        ...[COLORS.blue, COLORS.red, COLORS.ochre].flatMap((c, n) => [cyl(0.11, 0.1, 0.16, 8, x - 0.25 + n * 0.25, 0, z - 0.05, COLORS.mudDark), cyl(0.09, 0.09, 0.01, 8, x - 0.25 + n * 0.25, 0.155, z - 0.05, c)]),
+        box(0.04, 0.55, 0.04, x - 0.35, 0, z + 0.3, COLORS.wood),
+        box(0.04, 0.55, 0.04, x + 0.35, 0, z + 0.3, COLORS.wood),
+        box(0.7, 0.015, 0.015, x, 0.53, z + 0.3, COLORS.dark),
+        box(0.16, 0.3, 0.015, x - 0.2, 0.23, z + 0.3, COLORS.blue),
+        box(0.16, 0.26, 0.015, x, 0.27, z + 0.3, COLORS.red),
+        box(0.16, 0.28, 0.015, x + 0.2, 0.25, z + 0.3, COLORS.ochre),
+      ];
+    case 5:
+      return [
+        ...[-0.2, 0.2].flatMap((dx) => [
+          box(0.03, 0.45, 0.03, x + dx - 0.15, 0, z, COLORS.wood),
+          box(0.03, 0.45, 0.03, x + dx + 0.15, 0, z, COLORS.wood),
+          box(0.34, 0.03, 0.03, x + dx, 0.43, z, COLORS.wood),
+          box(0.26, 0.3, 0.015, x + dx, 0.1, z, 0x9a6a3a),
+        ]),
+        cyl(0.13, 0.12, 0.14, 8, x, 0, z + 0.32, COLORS.wood),
+        cyl(0.11, 0.11, 0.01, 8, x, 0.135, z + 0.32, COLORS.limestone),
+        box(0.3, 0.06, 0.2, x + 0.3, 0, z + 0.35, 0x7a5236),
+      ];
+  }
+}
+
 /** Yard of a lived-in house (variant 1): three jars by the wall and a potted plant. */
 const yardJars = (): Piece[] => [...jars(3, -0.17, 0, -0.05, [COLORS.mudDark, COLORS.red, COLORS.ochre]), cyl(0.09, 0.07, 0.13, 7, 0.05, 0, 0.17, COLORS.mud), blob(0.11, 0.05, 0.2, 0.17, COLORS.leaf, 0.9)];
 /** Yard of a lived-in house (variant 2): a washing line between two posts with cloths drying. */
@@ -681,6 +747,11 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
   'stock-2': () => stock(2),
   'stock-3': () => stock(3),
   'yard-1': yardJars,
+  'craft-1': () => craft(1),
+  'craft-2': () => craft(2),
+  'craft-3': () => craft(3),
+  'craft-4': () => craft(4),
+  'craft-5': () => craft(5),
   'yard-2': yardLine,
   closed,
 };

@@ -974,9 +974,10 @@ async function town3dScenario(page) {
     s.silver = s.wood = s.stone = 1e6;
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
-    s.unlocked.push('granary', 'market', 'workshop');
+    s.unlocked.push('granary', 'market', 'workshop', 'quarry', 'park');
     const put = (kind, x, y) => {
-      if (!core.place(s, kind, x, y).ok) throw new Error(`no ${kind} at ${x},${y}`);
+      const r = core.place(s, kind, x, y);
+      if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);
       return s.grid[y * s.cols + x];
     };
     // East side: levels 1..4 down the road; west side: level 2 and 3 in the other looks.
@@ -985,6 +986,15 @@ async function town3dScenario(page) {
     const g = put('granary', 25, 38);
     const m = put('market', 22, 38);
     m.level = 3;
+    // Every walker type has its building: field, workshop, plaza, woodcutter and quarry along the road.
+    put('field', 25, 42);
+    put('workshop', 21, 42).variant = 1; // the smithy: anvil and forge in the yard
+    put('plaza', 25, 44);
+    put('lumber', 22, 45);
+    put('quarry', 25, 46);
+    // People in the houses: more walkers on the streets.
+    for (const h of s.buildings.filter((b) => b.kind === 'house'))
+      for (let k = 0; k < 4; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 20 + k * 9, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
     core.refreshCity(s);
     s.food = core.foodCapacity(s);
     window.session.refresh();
@@ -1000,6 +1010,48 @@ async function town3dScenario(page) {
   await page.evaluate(() => window.view3d.rig.set({ x: 24, z: 31, dist: 8 }));
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/town3d-pc-houses.png` });
+  // The streets with people carrying their things (jar, basket, sickle, log, cart, staff, goods) and their animals.
+  const walkers = await page.evaluate(() => window.view3d.info().walkers);
+  assert(walkers >= 12, `a lived-in street has walkers (${walkers})`);
+  await page.evaluate(() => {
+    window.session.setSpeed(1);
+    window.view3d.rig.set({ x: 24.5, z: 36, dist: 7 });
+  });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${OUT}/town3d-pc-people.png` });
+  await page.evaluate(() => window.session.setSpeed(0));
+  // Around the town: pigeons on the altar court, a goat and chickens by the tent, the donkey at the market.
+  const ambient = await page.evaluate(() => window.view3d.info().ambient);
+  assert(ambient >= 6 + 2 + 3, `animals, boats and washerwomen around the town (${ambient})`);
+  await page.evaluate(() => window.view3d.rig.set({ x: 24, z: 26, dist: 9 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-altar.png` });
+  // The river nearest the altar: fishing boats and washerwomen on the bank.
+  await page.evaluate(() => {
+    const s = window.state;
+    let best = null;
+    for (let i = 0; i < s.ground.length; i++)
+      if (s.ground[i] === 'river') {
+        const x = i % s.cols, y = Math.floor(i / s.cols), d = Math.hypot(x - 24, y - 24);
+        if (!best || d < best.d) best = { x, y, d };
+      }
+    window.view3d.rig.set({ x: best.x + 0.5, z: best.y + 0.5, dist: 10 });
+  });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-river.png` });
+  // The workshop's yard shows its craft.
+  await page.evaluate(() => window.view3d.rig.set({ x: 22.5, z: 43.5, dist: 7 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-workshop.png` });
+  if (process.env.CRAFTS)
+    for (let v = 2; v <= 5; v++) {
+      await page.evaluate((v) => {
+        window.state.grid[42 * window.state.cols + 21].variant = v;
+        window.session.refresh();
+      }, v);
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${OUT}/town3d-pc-workshop-${v}.png` });
+    }
 }
 
 const scenarios = {

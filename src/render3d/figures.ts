@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ageBand, type Cell, type GameState } from '../core';
-import { familyLead, figureLook, groupLength, groupSlots, memberAt, type FigureLook, type Slot } from './crowd';
+import { BAKED, bake, Herd } from './animals';
+import { familyLead, figureLook, groupLength, groupSlots, LOADS, memberAt, type FigureLook, type Load, type Slot } from './crowd';
 import { hash } from './plan';
 import type { Terrain } from './terrain';
 
@@ -22,8 +23,11 @@ export class Figures {
   private v = new THREE.Vector3();
   private sc = new THREE.Vector3();
   private static zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  /** One mesh per load kind (only when the figures carry things), and the load of each slot. */
+  private loadMeshes: Partial<Record<Load, THREE.InstancedMesh>> = {};
+  private loads: (Load | null)[] = [];
 
-  constructor(capacity: number, shadows: boolean) {
+  constructor(capacity: number, shadows: boolean, carry: readonly Load[] = []) {
     const n = Math.max(1, capacity);
     const mat = () => new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true });
     this.body = new THREE.InstancedMesh(bodyGeometry(), mat(), n);
@@ -31,6 +35,13 @@ export class Figures {
     this.cap = new THREE.InstancedMesh(capGeometry(), mat(), n);
     this.mantle = new THREE.InstancedMesh(mantleGeometry(), new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true, side: THREE.DoubleSide }), n);
     this.objects = [this.body, this.head, this.cap, this.mantle];
+    for (const l of carry) {
+      const mesh = new THREE.InstancedMesh(loadGeometry(l), BAKED, n);
+      mesh.userData.shared = true;
+      for (let i = 0; i < n; i++) mesh.setMatrixAt(i, Figures.zero);
+      this.loadMeshes[l] = mesh;
+      this.objects.push(mesh);
+    }
     for (const o of this.objects) {
       o.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       o.castShadow = shadows;
@@ -50,13 +61,24 @@ export class Figures {
     for (const o of this.objects) if (o.instanceColor) o.instanceColor.needsUpdate = true;
   }
 
+  /** What slot `i` carries (it rides the figure: the step, the lean and the size). */
+  carry(i: number, load: Load | null) {
+    const old = this.loads[i];
+    if (old && old !== load) this.loadMeshes[old]?.setMatrixAt(i, Figures.zero);
+    this.loads[i] = load && this.loadMeshes[load] ? load : null;
+  }
+
   look(i: number): FigureLook {
     return this.looks[i];
   }
 
   /** Number of slots drawn (the first `n`). */
   set count(n: number) {
-    for (const o of this.objects) o.count = n;
+    // None at all: no draw calls.
+    for (const o of this.objects) {
+      o.count = n;
+      o.visible = n > 0;
+    }
   }
 
   /**
@@ -71,6 +93,8 @@ export class Figures {
     this.head.setMatrixAt(i, this.m);
     this.cap.setMatrixAt(i, l.mantle ? Figures.zero : this.m);
     this.mantle.setMatrixAt(i, l.mantle ? this.m : Figures.zero);
+    const load = this.loads[i];
+    if (load) this.loadMeshes[load]!.setMatrixAt(i, this.m);
   }
 
   /** Hides slot `i` (it keeps its place in the list). */
@@ -83,6 +107,70 @@ export class Figures {
     for (const o of this.objects) o.instanceMatrix.needsUpdate = true;
   }
 }
+
+type LoadPiece = { g: THREE.BufferGeometry; c: number };
+const lbox = (sx: number, sy: number, sz: number, x: number, y: number, z: number, c: number, rx = 0, rz = 0): LoadPiece => {
+  const g = new THREE.BoxGeometry(sx, sy, sz);
+  g.rotateX(rx);
+  g.rotateZ(rz);
+  g.translate(x, y, z);
+  return { g, c };
+};
+/** Cylinder of radius r and length h; `axis` 'y' upright, 'z' lying front to back, 'x' across. */
+const lcyl = (r0: number, r1: number, h: number, x: number, y: number, z: number, c: number, axis: 'x' | 'y' | 'z' = 'y', seg = 7): LoadPiece => {
+  const g = new THREE.CylinderGeometry(r0, r1, h, seg);
+  if (axis === 'z') g.rotateX(Math.PI / 2);
+  if (axis === 'x') g.rotateZ(Math.PI / 2);
+  g.translate(x, y, z);
+  return { g, c };
+};
+const WOOD = 0x6e4a2c;
+const LIGHT_WOOD = 0xd8b07a;
+
+/**
+ * Things carried, in the figure's space (feet on y = 0, facing +z, an adult 0.45 tall; the head at
+ * 0.4, the shoulders at 0.31, the right hand at x 0.09). Each is one baked mesh.
+ */
+const LOAD_PIECES: Record<Load, () => LoadPiece[]> = {
+  jar: () => [lcyl(0.026, 0.036, 0.075, 0, 0.49, 0, 0xb5653a), lcyl(0.016, 0.022, 0.03, 0, 0.54, 0, 0xa0552f), lcyl(0.045, 0.045, 0.012, 0, 0.452, 0, 0xe6dcc4)],
+  basket: () => [lcyl(0.06, 0.045, 0.055, 0.1, 0.17, 0.03, 0x9a6a3a), lbox(0.03, 0.025, 0.03, 0.09, 0.205, 0.03, 0xc89848), lbox(0.025, 0.025, 0.025, 0.115, 0.205, 0.02, 0xa8473a)],
+  sack: () => {
+    const g = new THREE.IcosahedronGeometry(0.075, 0);
+    g.scale(1, 1.25, 0.8);
+    g.translate(0, 0.3, -0.09);
+    return [{ g, c: 0xb08a58 }];
+  },
+  sickle: () => {
+    const blade = new THREE.TorusGeometry(0.04, 0.007, 3, 8, Math.PI * 1.1);
+    blade.translate(0.1, 0.26, 0.04);
+    return [lbox(0.014, 0.08, 0.014, 0.1, 0.2, 0.04, WOOD), { g: blade, c: 0xa8a8a8 }];
+  },
+  log: () => [lcyl(0.028, 0.028, 0.4, 0.06, 0.34, 0.02, 0x7a5a3a, 'z'), lcyl(0.026, 0.026, 0.006, 0.06, 0.34, 0.222, LIGHT_WOOD, 'z')],
+  staff: () => [lcyl(0.008, 0.009, 0.52, 0.1, 0.26, 0.05, WOOD)],
+  cart: () => [
+    lbox(0.18, 0.03, 0.22, 0, 0.11, 0.26, WOOD),
+    lcyl(0.06, 0.06, 0.02, -0.105, 0.06, 0.26, 0x5c3f2c, 'x', 8),
+    lcyl(0.06, 0.06, 0.02, 0.105, 0.06, 0.26, 0x5c3f2c, 'x', 8),
+    lbox(0.12, 0.09, 0.12, 0, 0.17, 0.27, 0xeadfc8),
+    lbox(0.012, 0.012, 0.16, -0.07, 0.15, 0.1, WOOD, 0.35),
+    lbox(0.012, 0.012, 0.16, 0.07, 0.15, 0.1, WOOD, 0.35),
+  ],
+  pot: () => [lcyl(0.03, 0.04, 0.07, 0, 0.21, 0.07, 0xb5462f), lcyl(0.02, 0.026, 0.02, 0, 0.255, 0.07, 0xa03a28)],
+  hammer: () => [lbox(0.012, 0.12, 0.012, 0.1, 0.26, 0.04, WOOD, 0, 0.3), lbox(0.05, 0.025, 0.025, 0.12, 0.32, 0.04, 0x4a4a4e, 0, 0.3)],
+  plank: () => [lbox(0.05, 0.016, 0.44, 0.06, 0.345, 0.02, LIGHT_WOOD)],
+  bolt: () => [lcyl(0.032, 0.032, 0.15, 0.09, 0.22, 0.03, 0x3f6e9e, 'x'), lcyl(0.033, 0.033, 0.02, 0.09, 0.22, 0.03, 0xe6dcc4, 'x')],
+  dyed: () => [lbox(0.11, 0.018, 0.09, 0, 0.455, 0, 0xa8473a), lbox(0.1, 0.018, 0.085, 0, 0.473, 0, 0xd8b040), lbox(0.095, 0.018, 0.08, 0, 0.491, 0, 0x3f6e9e)],
+  hide: () => [lbox(0.15, 0.13, 0.014, 0, 0.27, -0.085, 0x9a6a3a, 0.08)],
+};
+
+const loadGeometries = new Map<Load, THREE.BufferGeometry>();
+function loadGeometry(l: Load): THREE.BufferGeometry {
+  let g = loadGeometries.get(l);
+  if (!g) loadGeometries.set(l, (g = bake(LOAD_PIECES[l]())));
+  return g;
+}
+/** Every load kind (the walkers carry any of them). */
+export const ALL_LOADS = LOADS;
 
 /** Robe (wider at the hem) with shoulders. */
 function bodyGeometry(): THREE.BufferGeometry {
@@ -133,64 +221,6 @@ function merge(gs: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return out;
 }
 
-/** A small grey donkey with two packs (the caravans'). Feet on y = 0, facing +z. */
-export class Donkeys {
-  readonly objects: THREE.InstancedMesh[];
-  private tmp = new THREE.Object3D();
-
-  constructor(capacity: number, shadows: boolean) {
-    const n = Math.max(1, capacity);
-    const parts: THREE.BufferGeometry[] = [];
-    const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, rx = 0) => {
-      const g = new THREE.BoxGeometry(sx, sy, sz);
-      g.rotateX(rx);
-      g.translate(x, y, z);
-      parts.push(g);
-    };
-    box(0.14, 0.13, 0.32, 0, 0.22, 0);
-    for (const [x, z] of [[-0.05, 0.12], [0.05, 0.12], [-0.05, -0.12], [0.05, -0.12]]) box(0.04, 0.16, 0.04, x, 0.08, z);
-    box(0.08, 0.16, 0.08, 0, 0.32, 0.17, -0.5);
-    box(0.07, 0.07, 0.13, 0, 0.38, 0.24);
-    box(0.02, 0.08, 0.02, -0.025, 0.44, 0.19);
-    box(0.02, 0.08, 0.02, 0.025, 0.44, 0.19);
-    const packs = [new THREE.BoxGeometry(0.06, 0.12, 0.16), new THREE.BoxGeometry(0.06, 0.12, 0.16), new THREE.BoxGeometry(0.16, 0.06, 0.18)];
-    packs[0].translate(-0.1, 0.24, -0.02);
-    packs[1].translate(0.1, 0.24, -0.02);
-    packs[2].translate(0, 0.31, -0.02);
-    const donkey = new THREE.InstancedMesh(merge(parts), new THREE.MeshStandardMaterial({ color: 0x8a7e72, roughness: 0.95, flatShading: true }), n);
-    const load = new THREE.InstancedMesh(merge(packs), new THREE.MeshStandardMaterial({ color: 0xb5462f, roughness: 0.95, flatShading: true }), n);
-    this.objects = [donkey, load];
-    for (const o of this.objects) {
-      o.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      o.castShadow = shadows;
-      o.frustumCulled = false;
-      o.count = 0;
-    }
-  }
-
-  set count(n: number) {
-    for (const o of this.objects) o.count = n;
-  }
-
-  place(i: number, x: number, y: number, z: number, yaw: number, roll: number) {
-    this.tmp.position.set(x, y, z);
-    this.tmp.rotation.set(0, yaw, roll);
-    this.tmp.scale.setScalar(1);
-    this.tmp.updateMatrix();
-    for (const o of this.objects) o.setMatrixAt(i, this.tmp.matrix);
-  }
-
-  hide(i: number) {
-    this.tmp.scale.setScalar(0);
-    this.tmp.updateMatrix();
-    for (const o of this.objects) o.setMatrixAt(i, this.tmp.matrix);
-  }
-
-  commit() {
-    for (const o of this.objects) o.instanceMatrix.needsUpdate = true;
-  }
-}
-
 /** Point and heading at a fractional step along a cell path (cell centres). */
 export function along(path: Cell[], step: number): { x: number; z: number; dx: number; dz: number } {
   const last = path.length - 1;
@@ -229,7 +259,7 @@ interface Walking {
  */
 export class Families {
   readonly figures: Figures;
-  readonly donkeys: Donkeys;
+  readonly donkeys: Herd;
   private list: Walking[] = [];
 
   constructor(s: GameState, private ground: Terrain, shadows: boolean) {
@@ -251,7 +281,7 @@ export class Families {
       slot += members.length;
     }
     this.figures.count = slot;
-    this.donkeys = new Donkeys(caravans, shadows);
+    this.donkeys = new Herd('donkey', caravans, shadows);
     this.donkeys.count = caravans;
   }
 

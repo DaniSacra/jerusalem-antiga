@@ -224,6 +224,7 @@ export class Scene3D {
         break;
       case 'milestone':
         fx.milestone(o.building);
+        this.stage.world.walkers.gather(o.building);
         break;
       case 'fell': {
         const s = this.s;

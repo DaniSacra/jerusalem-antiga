@@ -1,10 +1,16 @@
+import VISUAL from '../data/visual.json';
 import * as THREE from 'three';
-import { createRng, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type GameState, type Rng, type WalkerType } from '../core';
+import { borderCells, craftOf, createRng, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
 import { COLORS } from './models';
 import type { Terrain } from './terrain';
-import { figureLook, walkerLook } from './crowd';
+import { COMPANION_AT, companionOf, figureLook, LOADS, loadOf, walkerLook, type Load } from './crowd';
+import { Herd } from './animals';
 import { HAUL, haulJobs, legOf, waitAfter, type HaulJob, type Pt } from './haul';
 import { Figures } from './figures';
+
+/** How far (cells) walkers come from to a milestone; the crowd size and cheering time are in visual.json > moments. */
+const GATHER_RADIUS = 14;
+const MOMENTS = VISUAL.moments;
 
 interface Walker {
   type: WalkerType;
@@ -14,6 +20,10 @@ interface Walker {
   speed: number;
   lane: number;
   phase: number;
+  /** Slot of the animal walking beside (donkey or sheep herd), or -1. */
+  beast: number;
+  /** Walking to a milestone to cheer there (seconds of cheering once it arrives), or 0. */
+  cheer?: number;
 }
 
 /**
@@ -24,22 +34,40 @@ interface Walker {
 export class Walkers {
   private list: Walker[] = [];
   private figures: Figures;
+  private donkeys: Herd;
+  private sheep: Herd;
   private rng: Rng;
   /** Walkers on the streets now (a share of the list: fewer at night and in the rain). */
   private shown = 0;
 
   constructor(private s: GameState, private ground: Terrain, count: number, shadows: boolean) {
     this.rng = createRng(s.week * 31 + 7);
-    this.figures = new Figures(count, shadows);
+    // The crafts of the city's workshops: an artisan carries the goods of one of them.
+    const crafts = s.buildings.filter((b) => b.connected).map(craftOf).filter((c): c is Craft => c !== null);
+    let donkeys = 0;
+    let sheep = 0;
+    const loads: (Load | null)[] = [];
     for (let i = 0; i < count; i++) {
       const w = this.trip(null);
       if (w) {
         w.seg = Math.floor(this.rng() * (w.path.length - 1));
-        this.figures.dress(this.list.length, walkerLook(w.type, this.rng()));
-        w.speed *= this.figures.look(this.list.length).pace;
+        loads.push(loadOf(w.type, crafts.length ? crafts[Math.floor(this.rng() * crafts.length)] : null));
+        const beast = companionOf(w.type);
+        w.beast = beast === 'donkey' ? donkeys++ : beast === 'sheep' ? sheep++ : -1;
         this.list.push(w);
       }
     }
+    // One mesh only for each thing someone carries (fewer draw calls).
+    this.figures = new Figures(count, shadows, LOADS.filter((l) => loads.includes(l)));
+    this.list.forEach((w, k) => {
+      this.figures.dress(k, walkerLook(w.type, this.rng()));
+      this.figures.carry(k, loads[k]);
+      w.speed *= this.figures.look(k).pace;
+    });
+    this.donkeys = new Herd('donkey', donkeys, shadows);
+    this.sheep = new Herd('sheep', sheep, shadows);
+    this.donkeys.count = donkeys;
+    this.sheep.count = sheep;
     this.figures.count = this.shown = this.list.length;
   }
 
@@ -49,8 +77,8 @@ export class Walkers {
     this.figures.count = this.shown;
   }
 
-  get objects() {
-    return this.figures.objects;
+  get objects(): THREE.Object3D[] {
+    return [...this.figures.objects, ...this.donkeys.objects, ...this.sheep.objects];
   }
 
   /** Walkers on the streets now. */
@@ -67,22 +95,63 @@ export class Walkers {
       const start = prev ? prev.path[prev.path.length - 1] : walkerStart(s, type, this.rng);
       const goal = start && walkerGoal(s, type, this.rng, !!prev && this.rng() < 0.5);
       const path = goal && findPath(s, start!, goal.cells);
-      if (path && path.length > 2) return { type, path, seg: 0, t: 0, speed: prev?.speed ?? 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6 };
+      if (path && path.length > 2) return { type, path, seg: 0, t: 0, speed: prev?.speed ?? 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6, beast: prev?.beast ?? -1 };
     }
     return null;
+  }
+
+  /**
+   * A milestone at a building: up to `milestoneCrowd` walkers on the streets near it walk there by the
+   * roads, cheer for `milestoneSeconds` (hopping) and go on their way.
+   */
+  gather(b: { x: number; y: number; w: number; h: number }) {
+    const s = this.s;
+    const goals = borderCells(s, b).filter((c) => s.network[c.y * s.cols + c.x]);
+    if (!goals.length) return;
+    const cx = b.x + b.w / 2;
+    const cz = b.y + b.h / 2;
+    const near = this.list
+      .slice(0, this.shown)
+      .map((w, i) => ({ i, d: Math.hypot(w.path[w.seg].x - cx, w.path[w.seg].y - cz) }))
+      .filter((o) => o.d < GATHER_RADIUS && !this.list[o.i].cheer)
+      .sort((a, c) => a.d - c.d)
+      .slice(0, MOMENTS.milestoneCrowd);
+    for (const { i } of near) {
+      const w = this.list[i];
+      const path = findPath(s, w.path[w.seg], goals);
+      if (!path || path.length < 2) continue;
+      this.list[i] = { ...w, path, seg: 0, t: 0, cheer: MOMENTS.milestoneSeconds, speed: w.speed * 1.3 };
+    }
   }
 
   update(dt: number, time: number) {
     for (let i = 0; i < this.shown; i++) {
       let w = this.list[i];
+      if (w.cheer && w.seg >= w.path.length - 1) {
+        // At the milestone: hopping for joy, then on its way again.
+        w.cheer = Math.max(0, w.cheer - dt);
+        const c = w.path[w.path.length - 1];
+        const x = c.x + 0.5 + Math.sin(w.phase) * 0.3;
+        const z = c.y + 0.5 + Math.cos(w.phase) * 0.3;
+        this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(time * 8 + w.phase)) * 0.08, z, w.phase, 0, 0);
+        if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
+        if (!w.cheer) this.list[i] = { ...(this.trip({ ...w, speed: w.speed / 1.3 }) ?? { ...w, path: [...w.path].reverse() }), seg: 0, t: 0, cheer: 0 };
+        continue;
+      }
       w.t += dt * w.speed;
       while (w.t >= 1) {
         w.t -= 1;
         w.seg++;
         if (w.seg >= w.path.length - 1) {
+          if (w.cheer) {
+            w.seg = w.path.length - 1;
+            w.t = 0;
+            break;
+          }
           w = this.list[i] = this.trip(w) ?? { ...w, seg: 0, path: [...w.path].reverse() };
         }
       }
+      if (w.cheer && w.seg >= w.path.length - 1) continue;
       const a = w.path[w.seg];
       const b = w.path[Math.min(w.seg + 1, w.path.length - 1)];
       const dx = b.x - a.x;
@@ -92,9 +161,24 @@ export class Walkers {
       const z = a.y + 0.5 + dz * w.t + dx * w.lane;
       // Two steps per second at the usual pace: a light bob and sway.
       const ph = time * 9 * w.speed + w.phase;
-      this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, Math.atan2(dx, dz), 0.04, Math.sin(ph) * 0.06);
+      const yaw = Math.atan2(dx, dz);
+      this.figures.place(i, x, this.ground.height(x, z) + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, yaw, 0.04, Math.sin(ph) * 0.06);
+      if (w.beast >= 0) {
+        // The animal walks at the walker's right, a little behind.
+        const bx = x - dz * COMPANION_AT.side - dx * COMPANION_AT.back;
+        const bz = z + dx * COMPANION_AT.side - dz * COMPANION_AT.back;
+        const herd = w.type === 'donkeyMan' ? this.donkeys : this.sheep;
+        herd.place(w.beast, bx, this.ground.height(bx, bz) + 0.03 + Math.abs(Math.sin(ph + 1)) * 0.012, bz, yaw, Math.sin(ph + 1) * 0.04);
+      }
+    }
+    // Walkers indoors (night, rain) take their animals in too.
+    for (let i = this.shown; i < this.list.length; i++) {
+      const w = this.list[i];
+      if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
     }
     this.figures.commit();
+    this.donkeys.commit();
+    this.sheep.commit();
   }
 }
 

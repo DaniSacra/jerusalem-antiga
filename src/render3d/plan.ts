@@ -1,5 +1,6 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
 import LOOK from './look3d.json';
+import VISUAL from '../data/visual.json';
 
 /**
  * What the 3D view draws for a GameState, as plain data (no Three.js): the model key, place, turn,
@@ -30,6 +31,8 @@ export type ModelKey =
   | 'stock-1' | 'stock-2' | 'stock-3'
   /** Things in a lived-in house's yard, by its variant: jars and a potted plant, a washing line. */
   | 'yard-1' | 'yard-2'
+  /** A workshop's craft in its front yard (1 smithy .. 5 tannery; the pottery is the model itself). */
+  | `craft-${1 | 2 | 3 | 4 | 5}`
   | ExtraKey;
 
 /** Kinds with a level 2 and 3 (from buildings.json `levels`). */
@@ -51,6 +54,7 @@ export function extraOf(key: ModelKey): { kind: KindKey; level: 2 | 3 } | null {
 export function footprintOf(key: ModelKey): [number, number] {
   const extra = extraOf(key);
   if (extra) return kindFootprint(extra.kind);
+  if (key.startsWith('craft-')) return kindFootprint('workshop');
   if (key.startsWith('house-') || key.startsWith('field-')) return kindFootprint(key.startsWith('house') ? 'house' : 'field');
   if (key in BUILDINGS) return kindFootprint(key as BuildingKind);
   return [1, 1];
@@ -63,6 +67,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
   'road-1', 'road-2', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...EXTRA_KEYS,
 ];
 
@@ -100,6 +105,8 @@ export interface BuildingLook {
   closed: boolean;
   /** A lived-in house's yard things (by variant) and on which front corner (+1 right, -1 left). */
   yard: { key: 'yard-1' | 'yard-2'; side: 1 | -1 } | null;
+  /** A workshop's craft in its yard (the pottery has none: the model is a pottery). */
+  craft: `craft-${1 | 2 | 3 | 4 | 5}` | null;
 }
 
 /**
@@ -111,9 +118,10 @@ export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'vari
   if (b.kind === 'house') {
     const kept = b.level === 0 && b.emptyLevel >= 2 ? b.emptyLevel : 0;
     const level = Math.max(0, Math.min(4, b.level || kept)) as 0 | 1 | 2 | 3 | 4;
-    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0, yard: yardOf(b) };
+    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0, yard: yardOf(b), craft: null };
   }
-  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false, yard: null };
+  const craft = b.kind === 'workshop' && b.variant >= 1 && b.variant <= 5 ? (`craft-${b.variant as 1 | 2 | 3 | 4 | 5}` as const) : null;
+  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false, yard: null, craft };
   if (b.kind === 'field') return { ...none, key: `field-${(b.variant % 4) as 0 | 1 | 2 | 3}` };
   if (!LEVELLED.includes(b.kind)) return { ...none, key: b.kind as KindKey };
   const level = Math.max(1, Math.min(3, b.level));
@@ -137,13 +145,13 @@ export function yardOf(b: Pick<Building, 'kind' | 'level' | 'variant'> & { mirro
 export const YARD_AT: [number, number] = [0.68, 0.74];
 
 /**
- * How full the city's food store looks in a granary yard: 0 (under a quarter), 1, 2, or 3 (from 80%).
- * Only looks; the store itself is `s.food` against `foodCapacity`.
+ * How full the city's food store looks in a granary yard: 0 (nearly empty), 1, 2, or 3 (from 80%).
+ * Only looks (limits in visual.json > moments.granaryStock); the store is `s.food` against `foodCapacity`.
  */
 export function stockLevel(s: GameState): 0 | 1 | 2 | 3 {
   const cap = foodCapacity(s);
   const share = cap > 0 ? s.food / cap : 0;
-  const steps = LOOK.stock;
+  const steps = VISUAL.moments.granaryStock;
   return share >= steps[2] ? 3 : share >= steps[1] ? 2 : share >= steps[0] ? 1 : 0;
 }
 

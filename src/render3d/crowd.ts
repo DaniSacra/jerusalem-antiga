@@ -1,4 +1,4 @@
-import type { AgeBand, Sex, WalkerType } from '../core';
+import type { AgeBand, Craft, Sex, WalkerType } from '../core';
 
 /**
  * How the people of the 3D view look and walk, as plain data (no Three.js): robe and head cover by
@@ -67,6 +67,54 @@ export function walkerLook(type: WalkerType, k: number): FigureLook {
   const look = figureLook(p.sex, p.band, k);
   return type === 'priest' ? { ...look, ...PRIEST, mantle: false } : look;
 }
+
+/**
+ * Things the walkers carry, each drawn as one instanced mesh that rides the figure (figures.ts):
+ * a jar on the head, a basket on the hip, a sack on the back, a sickle, a log on the shoulder, a
+ * staff, a two-wheeled cart with a stone block, and the goods of each workshop craft.
+ */
+export const LOADS = ['jar', 'basket', 'sack', 'sickle', 'log', 'staff', 'cart', 'pot', 'hammer', 'plank', 'bolt', 'dyed', 'hide'] as const;
+export type Load = (typeof LOADS)[number];
+
+/** What an artisan carries to and from the workshop, by its craft. */
+export const CRAFT_LOAD: Record<Craft, Load> = { pottery: 'pot', smithy: 'hammer', carpentry: 'plank', weaving: 'bolt', dyeing: 'dyed', tannery: 'hide' };
+
+/**
+ * What a resident walker of `type` carries, as in the 2D game: the water carrier a jar on her head,
+ * the basket woman a basket, the farmer a sickle, the porter a sack, the woodcutter a log, the mason
+ * his cart of stone, the old, the shepherd and the priest a staff, the artisan the goods of a
+ * workshop of the city (`craft`, or a pot with none). Children and the donkey man carry nothing.
+ */
+export function loadOf(type: WalkerType, craft: Craft | null = null): Load | null {
+  switch (type) {
+    case 'waterCarrier':
+      return 'jar';
+    case 'basketWoman':
+      return 'basket';
+    case 'farmer':
+      return 'sickle';
+    case 'porter':
+      return 'sack';
+    case 'woodcutter':
+      return 'log';
+    case 'mason':
+      return 'cart';
+    case 'elder':
+    case 'shepherd':
+    case 'priest':
+      return 'staff';
+    case 'artisan':
+      return craft ? CRAFT_LOAD[craft] : 'pot';
+    default:
+      return null;
+  }
+}
+
+/** An animal walking beside a walker: the donkey man leads a donkey with baskets, the shepherd a sheep. */
+export const companionOf = (type: WalkerType): 'donkey' | 'sheep' | null => (type === 'donkeyMan' ? 'donkey' : type === 'shepherd' ? 'sheep' : null);
+
+/** Where a companion walks: cells to the walker's right and behind (along its heading). */
+export const COMPANION_AT = { side: 0.2, back: 0.28 } as const;
 
 /** A place in a walking group: cells behind the leader along the path, and to the side. */
 export interface Slot {

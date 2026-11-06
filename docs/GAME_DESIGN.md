@@ -553,15 +553,19 @@ README de lá); o último desenho 2D está na tag `ultimo-2d`.
   tenda tem a fogueira na frente à esquerda e por isso põe o quintal sempre à direita. Casa vazia
   que guardou o nível: o desenho desse nível desbotado, sem luz nem fumaça, com o portão trancado
   na porta e sem quintal.
-- **Campos** pela plantação (cor do grão) e pela estação (arado, broto, verde, dourado, palha). A
-  oficina tem um modelo só para os 6 ofícios.
+- **Campos** pela plantação (cor do grão) e pela estação (arado, broto, verde, dourado, palha).
+- **Oficina pelos 6 ofícios:** o modelo (pacote Meshy) já é uma olaria, com forno e potes. Os outros
+  ofícios põem o seu canto no pátio da frente (`craft-1..5`, por código): a ferraria tem forja de
+  pedra com brasas e bigorna; a carpintaria, pilha de tábuas, toras e cavalete; a tecelagem, tear
+  com pano listrado e novelos; a tinturaria, três tinas (azul, vermelho, amarelo) e panos secando
+  num varal; o curtume, couros esticados em molduras e a tina de cal.
 - **Celeiro, Mercado e Oficina por nível:** o modelo do nível 1 e, nos níveis 2 e 3, acréscimos por
   código por cima, mais altos e de pedra mais clara. Celeiro: andar de calcário no armazém, portal
   e, no 3, toldo no terraço. Mercado: toldo azul e, no 3, colunata de pedra. Oficina: quarto de
   pedra no telhado, prateleira de jarros e, no 3, chaminé alta.
 - **Celeiro enchendo:** o pátio de cada celeiro ligado mostra o estoque da cidade pela fração
-  `comida / capacidade` (`stockLevel`, limites em `look3d.json` > `stock`: 25%, 50%, 80%). Abaixo
-  de 25% o pátio fica vazio; depois aparecem dois sacos; depois uma fileira de sacos com três
+  `comida / capacidade` (`stockLevel`, limites em `visual.json` > `moments.granaryStock`: 8%, 45%, 80%).
+  Abaixo de 8% o pátio fica vazio; depois aparecem dois sacos; depois uma fileira de sacos com três
   jarros; e cheio, sacos em duas camadas, um monte de grão e mais jarros.
 - **Moradores andando** (`walkers.json`, destinos do core): aguadeira → praça e mercado, agricultor
   → campo, cesteira → mercado, carregador campo → mercado, artesão → oficina, idoso → altar, criança
@@ -569,8 +573,14 @@ README de lá); o último desenho 2D está na tag `ultimo-2d`.
   lenhador → casa e mercado, canteiro → casa e templo. Um tipo só aparece quando a construção dele
   existe e está ligada. No 3D a roupa vem da idade e do sexo (`crowd.ts`): homens de túnica e
   turbante, mulheres de vestido e manto, crianças menores, idosos de roupa clara, curvados e
-  lentos, e o sacerdote de branco com pano azul na cabeça. Os objetos de cada ofício (jarro, tora,
-  carrinho) ainda não estão no 3D.
+  lentos, e o sacerdote de branco com pano azul na cabeça. **Cada um leva o que é dele**
+  (`loadOf` em `crowd.ts`): a aguadeira um jarro na cabeça, a cesteira um cesto com frutas, o
+  agricultor a foice, o carregador um saco nas costas, o lenhador uma tora no ombro, o canteiro
+  empurra um carrinho de duas rodas com um bloco de calcário, o idoso, o pastor e o sacerdote um
+  cajado. O artesão leva o produto de uma oficina da cidade: pote (olaria), martelo (ferraria),
+  tábua (carpintaria), rolo de pano (tecelagem), panos tingidos na cabeça (tinturaria) ou couro
+  nas costas (curtume). O homem do jumento puxa um jumento com cestos e o pastor anda com uma
+  ovelha, os dois ao lado dele (`companionOf`). Criança não leva nada.
 - **Gente indo para casa** (`families`): a família anda em grupo, os adultos na frente, as crianças
   no meio e os idosos atrás. Uma família de caravana (alguém ainda sem casa) traz um jumento com
   duas cargas.
@@ -1130,9 +1140,20 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   vermelho. Num marco, a construção dele brilha com halo e faíscas douradas. Com comida
   estragando aparecem moscas e uma fumacinha verde no celeiro ligado (ou no altar). No começo da
   colheita, um anel dourado em cada campo que colhe. Árvore cortada tomba e vira toco.
+- **Gente reunida no marco:** até 6 moradores que andam a até 14 células do lugar
+  (`visual.json` > `moments.milestoneCrowd`) vão pelas ruas até ele. Ali pulam de alegria por
+  `milestoneSeconds` (4 s) e seguem o caminho deles. O jogo não pausa.
+- **Animais e rio** (só desenho, `src/render3d/ambient.ts`, números em `look3d.json` > `ambient`):
+  - 6 pombas no pátio do altar, bicando o chão; a cada 14 s cada uma levanta voo em arco e pousa.
+  - Metade das tendas com gente tem uma cabra e duas galinhas no chão livre ao lado.
+  - Um jumento com cestos fica amarrado ao lado de cada mercado ligado.
+  - Até 3 rebanhos de 4 ovelhas pastam devagar na grama aberta, a até 16 células do altar.
+  - Há 2 barquinhos de pescador na água do rio mais perto da cidade, balançando, e 3 lavadeiras
+    ajoelhadas na margem, de frente para a água, esfregando a roupa, com o cesto ao lado.
+  - Os bichos pastam e bicam com a cabeça baixa de vez em quando. São no máximo 40 animais.
 - **Ambiente:** água correndo no rio, sombras de nuvens, plantações e árvores pela estação, chuva,
-  neve, folhas, pétalas e poeira (veja "Estações e clima"). Ainda não estão no 3D: animais,
-  pombas, barquinhos, lavadeiras, a gente reunida num marco e o ar tremendo no verão.
+  neve, folhas, pétalas e poeira (veja "Estações e clima"). No verão, a linha do horizonte do céu
+  treme com o calor.
 
 ## Arte
 

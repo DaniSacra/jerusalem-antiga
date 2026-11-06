@@ -12,13 +12,16 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `marks.ts`, `overlay.ts` | **puro e testado** / desenho: prévia no chão, fantasma, áreas e destaques |
 | `picking.ts`, `diff.ts` | **puros e testados**: raio até o chão e caixas das construções; o que mudou na cidade (camadas) |
 | `plan.ts` | **puro e testado**: o que se desenha do `GameState` (modelo por tipo e nível, casa vazia desbotada com portão trancado, quintal da casa por variante, acréscimos dos níveis 2–3 por tipo, celeiro enchendo, ruas gastas e calçadas, frente para a rua, árvores, tocos e mudas, número de moradores) |
-| `crowd.ts` | **puro e testado**: roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), ordem da família ao andar e o seu caminho até a casa |
-| `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), jumento de carga e as famílias e caravanas andando em grupo (`s.families`) |
+| `crowd.ts` | **puro e testado**: roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), o que cada tipo de morador carrega (`loadOf`) e o bicho que anda ao lado (`companionOf`), ordem da família ao andar e o seu caminho até a casa |
+| `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), o que cada um carrega (jarro, cesto, saco, foice, tora, cajado, carrinho, produtos dos ofícios: uma malha por objeto, presa ao corpo) e as famílias e caravanas andando em grupo (`s.families`) |
+| `animals.ts` | bichos e barcos low-poly instanciados, com a cor nos vértices (jumento, ovelha, cabra, galinha, pomba, barco com pescador): uma chamada por tipo |
+| `ambient.ts` | **puro e testado**: onde ficam os bichos, os barcos e as lavadeiras (`ambientPlan`) e como se mexem (`ambientPose`) |
+| `pasture.ts` | desenha e mexe a vida em volta da cidade a cada quadro (feita com a cidade) |
 | `world.ts` | a cidade a partir do `plan`: chão, rio, construções e árvores instanciadas, fumaça, fogueiras, gente nos campos, moradores e famílias chegando |
 | `models.ts` | modelos low-poly feitos por código, por chave; carregador do pacote .glb |
 | `instancer.ts` | um `InstancedMesh` por parte de modelo: a cidade inteira em poucas dezenas de chamadas |
 | `terrain.ts` | relevo (plano na cidade), areia e grama com transição, leito do rio, água animada |
-| `life.ts` | moradores andando pela rede (caminhos do core), gente nos campos, fumaça, fogo do altar, luzes da noite |
+| `life.ts` | moradores andando pela rede (caminhos do core) com o que carregam e os bichos ao lado, a gente que se reúne num marco (`gather`), gente nos campos, fumaça, fogo do altar, luzes da noite |
 | `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas, campos crescendo, cores do chão por estação |
 | `atmosphere.ts` | sol e lua com sombras, céu, neblina |
 | `particles.ts` | chuva, respingos, neve, folhas, pétalas e poeira na GPU |
@@ -48,6 +51,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `lumber` lenhador, `quarry` pedreira | 2x2 | `road` rua | 1x1 |
 | `olive`, `palm`, `rock`, `shrub`, `stump` toco, `sapling` muda, `closed` portão trancado | 1x1 | `up-<tipo>-2`/`-3` acréscimos | área do prédio |
 | `road-1` rua gasta, `road-2` rua calçada, `yard-1`/`yard-2` quintal (jarros, varal) | 1x1 | `stock-1..3` estoque no pátio | 3x3 (celeiro) |
+| | | `craft-1..5` ofício no pátio (ferraria, carpintaria, tecelagem, tinturaria, curtume) | 3x3 (oficina) |
 
 ```json
 { "temple": { "file": "templo.glb", "rotationDeg": 180 }, "palm": { "file": "palmeira.glb", "scale": 0.012 } }
@@ -75,9 +79,10 @@ forno (`KILN` em `plan.ts`, de onde saem também a fumaça e o fogo da noite).
 Também são sempre por código: as ruas gastas e calçadas (`roadWear`: calçada perto do altar e do
 templo e ao lado de casa de pedra, casa grande ou serviço nível 3; gasta ao lado de casa de barro,
 praça, mercado ou serviço nível 2), o estoque no pátio do celeiro ligado (`stockLevel`, pela fração
-comida/capacidade, limites em `look3d.json` > `stock`) e o quintal das casas com gente (`yardOf`:
+comida/capacidade, limites em `visual.json` > `moments.granaryStock`) e o quintal das casas com gente (`yardOf`:
 variante % 3 dá nada, jarros com vaso ou varal, no canto da frente do lado do espelhamento; a
-tenda sempre à direita, longe da fogueira; posição em `YARD_AT`).
+tenda sempre à direita, longe da fogueira; posição em `YARD_AT`) e o ofício da oficina (`craft-1..5`
+pela variante, no canto da frente do pátio, sobre o piso elevado do modelo Meshy: `CRAFT_FLOOR`).
 Casa vazia que guardou o nível: tom `VACANT_TINT` (< 0,8), que os shaders desbotam (cinza empoeirado)
 e apagam as janelas, sem fumaça, e o portão `closed` diante da porta (`CLOSED_AT`).
 

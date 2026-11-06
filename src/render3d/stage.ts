@@ -250,6 +250,7 @@ export class Stage {
     world.walkers.setShare(streetShare(L.night, w.rain));
     world.walkers.update(dt, time);
     world.families.update(time);
+    world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
     world.smoke.update(time, Math.max(look.smoke, L.night * 0.35), w.wind, 0.26 * (1 - 0.5 * w.rain));
@@ -300,7 +301,7 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
+    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

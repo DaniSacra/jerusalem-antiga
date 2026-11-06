@@ -554,9 +554,17 @@ o 2D jogável e o 3D atrás da chave. Horas = sessão do agente, incluindo teste
   com Vitest. A camada `buildings` do `diff` agora também leva o estado do celeiro e o
   espelhamento. Há um cenário novo, `town3d-pc`. A perda de contexto WebGL já estava coberta pelo
   `context3d-pc`, porque o Three.js recupera o contexto sozinho.
-- **Ficam como decisão (sem pedido do usuário):** 6 ofícios da oficina, os 12 tipos de morador com
-  o que carregam, animais, pombas, barquinhos, lavadeiras, a gente reunida no marco e o ar tremendo
-  no verão. Efeito maquete: fora (recomendado na seção 10).
+- **Cidade viva (2026-11-06, pedido do usuário: "a cidade ainda não está viva"):** os moradores
+  carregam o que é deles (`loadOf`, uma malha instanciada por objeto presa ao corpo no `Figures`).
+  O homem do jumento e o pastor andam com o bicho ao lado (`companionOf`). A gente se reúne no
+  marco (`Walkers.gather`). Há bichos, barcos e lavadeiras (`ambient.ts` puro, `pasture.ts`,
+  `animals.ts` com um `Herd` por tipo e a cor nos vértices; o `Donkeys` das famílias virou
+  `Herd('donkey')`). Os 6 ofícios da oficina estão no pátio (`craft-1..5`). Medida `view3d-perf`
+  (celular simulado, CPU 4x, 45 construções): 60 qps de dia, de noite e na chuva, 82–88 chamadas
+  (antes 53–61; só se criam as malhas dos objetos em uso, e grupos vazios não desenham), arrasto
+  sem quadro acima de 50 ms. O ar tremendo fica só no horizonte do céu,
+  porque no chão ele pediria uma passada de pós-processo, cara no celular. Efeito maquete: fora
+  (recomendado na seção 10).
 
 ---
 
@@ -605,7 +613,7 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | **Madeira e pedra:** pílula Materiais, ⚠ vermelho, brilho da pedra liberada | refazer | `ui/topbar.ts` | 1 |
 | Lenhador corta árvore: árvore cai, toco, broto | toco/broto já; queda 3 | `fx.ts` | 3 |
 | **Lenha e inverno:** frio, casas sem fumaça no frio, toasts de frio | fumaça já (ligar ao frio) / 1 | `life.ts`, `events.ts` | 1 |
-| **Marcos:** brilho, gente reunida, toast, lista com semana | refazer | `fx.ts`, `life.ts`, `ui/panels.ts` | 3 |
+| **Marcos:** brilho, gente reunida, toast, lista com semana | ✓ (gente reunida 2026-11-06, `Walkers.gather`) | `fx.ts`, `life.ts`, `ui/panels.ts` | 3 |
 | **Histórico:** gráficos de 52 semanas | refazer | `ui/charts.ts` (SVG) | 2 |
 | **Dívida e derrota:** toasts, 3x→1x, tela com Mesmo mapa / Tentar de novo | refazer | `session.ts`, `ui/modal.ts` | 2 |
 | **Avisos** (`alerts()`), selo, pulso, toast por episódio | refazer | `model/notices`, `ui/side.ts` | 2 |
@@ -633,14 +641,14 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | **Câmera:** zoom, girar 90°, começa no altar | já (reorganizar entrada) | `camera.ts`, `input.ts` | 1 |
 | Celular: arrastar move / constrói, pinça, 150 ms, mira 90 px; PC: botão direito, roda, atalhos | refazer | `gestures.ts`, `keys.ts` | 1 |
 | **Vida:** moradores pelas ruas, quantidade por moradores, param na pausa, 3x mais rápido | já (ligar ao relógio) | `life.ts` | 1 |
-| 12 tipos de morador com o que carregam (jarro, foice, tora, carrinho…) | gente por idade e sexo | `figures.ts` | decisão |
+| 12 tipos de morador com o que carregam (jarro, foice, tora, carrinho…) | ✓ 2026-11-06 (`loadOf`, `companionOf`) | `crowd.ts`, `figures.ts`, `life.ts` | – |
 | Agricultores nos campos | já | `life.ts` | – |
 | Carregadores na colheita, pescador e coletora saindo | refazer | `life.ts` | 3 |
-| Animais, pombas, barquinhos, lavadeiras, varais, flores, trilhas | parcial | `life.ts`, `world.ts` | decisão |
+| Animais, pombas, barquinhos, lavadeiras, varais, flores, trilhas | ✓ 2026-11-06 animais, pombas, barcos, lavadeiras, varais (quintal); trilhas não | `ambient.ts`, `pasture.ts`, `animals.ts` | – |
 | Dia e noite: janelas, lamparinas, fogo do altar, fogueiras, estrelas | já | `atmosphere.ts`, `shaders.ts` | – |
 | Andaime ao construir, pulinho e "+N", "+1" do bebê, texto vermelho ao cair | refazer | `fx.ts`, `ui/anchors.ts` | 3 |
 | Anel ao construir, poeira ao demolir, celebração do Templo, moscas, anel da colheita | refazer | `fx.ts` | 3 |
-| **Arte:** 6 ofícios da oficina | 1 modelo | `models.ts` | decisão |
+| **Arte:** 6 ofícios da oficina | ✓ 2026-11-06: olaria no modelo + `craft-1..5` no pátio | `models.ts`, `plan.ts` | – |
 | Vinheta e efeito maquete; queda do efeito em aparelho lento | qualidade automática já | `scene3d.ts` | decisão |
 | Visão 3D só para olhar (botão 3D, convite pulsando) | sai | – | 4 |
 

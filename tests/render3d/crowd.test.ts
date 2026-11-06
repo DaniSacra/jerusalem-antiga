@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { familyLead, figureLook, groupLength, groupSlots, memberAt, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
+import { companionOf, CRAFT_LOAD, familyLead, figureLook, groupLength, groupSlots, LOADS, loadOf, memberAt, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
+import { BUILDINGS, type WalkerType } from '../../src/core';
+import WALKERS from '../../src/data/walkers.json';
+
+const WALKER_TYPES_FOR_TESTS = WALKERS.map((w) => w.type as WalkerType);
 
 const ks = Array.from({ length: 20 }, (_, i) => (i + 0.5) / 20);
 
@@ -78,5 +82,32 @@ describe('families walking home in 3D', () => {
 
   it('shows nobody for a family already at the door', () => {
     expect(memberAt(familyLead(5, 5, 1, 1, 4, 0), 0, 5, 5)).toBeNull();
+  });
+
+  it('gives every walker type of the 2D game what it carries, the artisan the goods of a city craft', () => {
+    expect(loadOf('waterCarrier')).toBe('jar');
+    expect(loadOf('basketWoman')).toBe('basket');
+    expect(loadOf('farmer')).toBe('sickle');
+    expect(loadOf('porter')).toBe('sack');
+    expect(loadOf('woodcutter')).toBe('log');
+    expect(loadOf('mason')).toBe('cart');
+    for (const t of ['elder', 'shepherd', 'priest'] as const) expect(loadOf(t)).toBe('staff');
+    for (const t of ['child', 'donkeyMan'] as const) expect(loadOf(t)).toBeNull();
+    expect(loadOf('artisan')).toBe('pot');
+    // Six crafts, six different goods, all drawable.
+    const crafts = BUILDINGS.workshop.crafts!;
+    expect(crafts).toHaveLength(6);
+    expect(new Set(crafts.map((c) => loadOf('artisan', c))).size).toBe(6);
+    for (const c of crafts) expect(LOADS).toContain(CRAFT_LOAD[c]);
+    for (const t of WALKER_TYPES_FOR_TESTS) {
+      const l = loadOf(t);
+      if (l) expect(LOADS).toContain(l);
+    }
+  });
+
+  it('leads a donkey beside the donkey man and a sheep beside the shepherd, no one else', () => {
+    expect(companionOf('donkeyMan')).toBe('donkey');
+    expect(companionOf('shepherd')).toBe('sheep');
+    for (const t of WALKER_TYPES_FOR_TESTS.filter((t) => t !== 'donkeyMan' && t !== 'shepherd')) expect(companionOf(t)).toBeNull();
   });
 });
