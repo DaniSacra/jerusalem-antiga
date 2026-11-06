@@ -17,6 +17,8 @@ export interface ToastOptions {
 export const TOAST_MS = 2600;
 /** Toasts on screen at once; more wait in line (bad news first) instead of pushing the first out. */
 export const TOAST_MAX = 3;
+/** On a phone lying down only two: three big toasts cover the middle of the map. */
+export const TOAST_MAX_PHONE = 2;
 /** The warning that comes back when a panel or balloon closes stays at least this long. */
 export const TOAST_BACK_MS = 1500;
 
@@ -46,6 +48,16 @@ export class ToastQueue {
   /** A panel is open: new toasts wait in line until it closes (they would cover it). */
   private held = false;
   private nextId = 1;
+  /** Toasts allowed on screen at once (`TOAST_MAX`, or `TOAST_MAX_PHONE` on a phone). */
+  private max = TOAST_MAX;
+
+  /** Phone or PC: the newest stay on screen when the room shrinks; the rest wait at the head of the line. */
+  setPhone(phone: boolean) {
+    this.max = phone ? TOAST_MAX_PHONE : TOAST_MAX;
+    const over = this.list.splice(this.room());
+    this.queue.unshift(...over.reverse().map((t) => ({ msg: t.msg, tone: t.tone, opt: { ...t.opt, ms: t.left } })));
+    this.flush();
+  }
 
   show(msg: string, tone: Tone = 'info', opt: ToastOptions = {}) {
     const existing = this.list.find((t) => t.msg === msg);
@@ -66,16 +78,17 @@ export class ToastQueue {
     this.add(msg, tone, opt);
   }
 
-  /** Time passes: toasts whose time is up leave, and the line moves up. */
-  tick(ms: number) {
+  /** Time passes: toasts whose time is up leave, and the line moves up. True when the screen changed. */
+  tick(ms: number): boolean {
     let gone = false;
     for (const t of this.list) {
       t.left -= ms;
       if (t.left <= 0) gone = true;
     }
-    if (!gone) return;
+    if (!gone) return false;
     this.list = this.list.filter((t) => t.left > 0);
     this.flush();
+    return true;
   }
 
   /**
@@ -105,7 +118,7 @@ export class ToastQueue {
 
   /** Toasts allowed on screen now: none while a panel is open, one beside the opening sentence (big). */
   private room() {
-    return this.held ? 0 : this.list.some((t) => t.opt.big) ? 1 : TOAST_MAX;
+    return this.held ? 0 : this.list.some((t) => t.opt.big) ? 1 : this.max;
   }
 
   /** The warning that still holds and comes first in `alerts()`, alone (or nothing). */

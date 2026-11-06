@@ -710,18 +710,19 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     mostra também "até a primavera" quando a previsão chega à próxima primavera, ou "acaba no <estação>"
     (a estação em que a comida acaba, pela previsão) em vermelho; no celular só aparece quando não
     chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Na fome,
-    **"FOME"** em vermelho piscando no lugar disso. Com o estoque a 75% do limite ou mais, o número
+    **"FOME"** em vermelho no lugar disso; a pílula ganha um aro vermelho e só o texto pisca, devagar
+    (1,6 s), enquanto a fome durar (sem piscar com `prefers-reduced-motion`: o aro e o vermelho ficam). Com o estoque a 75% do limite ou mais, o número
     vira "38/50" (laranja enquanto estraga), e **"cheio"** em laranja só nas semanas em que
     a comida está estragando. Cores de alerta: prata laranja com saldo negativo e
-    vermelha piscando em dívida. Tocar numa pílula (ou na estação) abre as
+    vermelha piscando em dívida (do mesmo jeito: aro vermelho, só o texto pisca). Tocar numa pílula (ou na estação) abre as
     Estatísticas; nada se constrói sob a barra do topo;
   - pílula **Materiais** entre Comida e Moradores (P3): no celular uma pílula só com o ícone da tora
     e o número da madeira e, depois de liberar a Pedreira, o ícone da pedra e o número (sem
     "+N/sem"); no PC uma pílula por material, "Madeira 20 +1,5/sem" (a Pedra só depois de liberar a
     Pedreira). O número fica **vermelho com "⚠"** enquanto alguma casa espera aquele material. A
     pedra entra com um brilho dourado (3 piscadas) ao ser liberada. Tocar abre as Estatísticas.
-    Se a fileira não couber à esquerda da velocidade, as pílulas encurtam por etapas (`MAX_FIT` em
-    `TopBar.ts`): primeiro somem os rótulos dos materiais, depois todos os rótulos, depois o "+N/sem"
+    Se a fileira não couber à esquerda da estação, as pílulas encurtam por etapas (`fitPills` em
+    `src/game/model/topbar.ts`, que mede a largura sem desenhar; `src/ui/topbar.ts` mede o espaço): primeiro somem os rótulos dos materiais, depois todos os rótulos, depois o "+N/sem"
     dos materiais, depois o "/sem" da prata e da comida, e por fim a previsão da comida vira a curta
     do celular (some "até a colheita"; vermelho "⚠ N sem"). Assim prata de 4 dígitos com madeira e
     pedra de 3 cabem em 1280 e 1366 sem encostar na velocidade. Prata, Comida, Materiais e Moradores
@@ -789,6 +790,14 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     "Rende N…", "Corta 1 árvore a cada N sem", "Divide o bosque…", "Comida depois", "Sem rua ao
     lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
     ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.
+  - **Acabamento da interface HTML** (pacote beleza, 2026-11-06): uma vinheta suave escurece as bordas
+    da tela (camada CSS sobre o mapa e sob a interface, sem passe na GPU); os botões de pergaminho e o
+    dourado têm sombra deslocada (2 px) e afundam 2 px ao toque; o escolhido (ferramenta, construção,
+    botão lateral, aba) tem aro dourado de 3 px com halo dourado claro; a construção bloqueada fica
+    cinza, sem sombra e com **borda tracejada**. No PC cada construção liberada mostra "tecla N" numa
+    pequena tecla ao lado do nome (o preço fica sozinho na linha de baixo); Demolir tem o martelo. A
+    coluna de construção tem a altura dos botões (rola quando não cabem). Na barra do topo do PC as
+    pílulas ficam numa linha só (encurtam por etapas; o objetivo vai para a linha de baixo).
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
     fica salvo), "Música: ligado/desligado" e "Volume − 50% +" (passos de 10%; salvos). Esc fecha.
   - **Música** (`src/game/music/score.ts` e `mix.ts`, puros; `src/app/music.ts`, Web Audio): fundo
@@ -949,7 +958,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - os balões (construção escolhida e tocada) nunca cobrem controles: ficam abaixo da estação, da
     velocidade e da engrenagem, abaixo das pílulas do topo e acima de Mover, Rua e Demolir; os
     painéis terminam acima das ferramentas de baixo;
-  - toasts: no máximo 3 na tela; os outros esperam em fila (os vermelhos na frente) e nenhum se
+  - toasts: no máximo 3 na tela (**2 no celular**, `TOAST_MAX_PHONE`, menores e só da metade da
+    tela para baixo, para não cobrir o centro da cidade); os outros esperam em fila (os vermelhos na frente) e nenhum se
     perde; ficam acima dos balões. Com um **painel aberto** ou o **balão da construção tocada**
     nenhum toast aparece (os que estavam na tela saem, em vez de ficar meio cobertos atrás do balão).
     Ao fechar, volta **no máximo 1 toast**: o aviso mais importante que ainda vale, na ordem de
@@ -1031,7 +1041,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   até a primeira área. Sem área verde, toast "Sem lugar pronto: puxe uma rua ligada ao altar até
   uma área amarela"; sem nenhuma, "Sem espaço para o Templo: abra uma rua ao lado de um terreno
   livre 6 x 6".
-- **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima):
+- **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima; o
+  que sai esmaece em 250 ms e os outros deslizam para o lugar em 150 ms, sem movimento com
+  `prefers-reduced-motion`):
   prata insuficiente, cidade em dívida (ao tentar construir), entrou/saiu da dívida, local
   inválido, templo sem rua, rua não ligada ao altar, altar/templo protegidos, objetivo cumprido,
   "Oficina liberada: …", "Falta comida: construa pescador ou coletora" (uma vez por episódio de

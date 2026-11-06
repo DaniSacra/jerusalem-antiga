@@ -12,8 +12,10 @@ export interface BuildButton {
   short: boolean;
   /** Picked as the tool in hand. */
   on: boolean;
-  /** "40 prata · 10 madeira · 3" (the key on PC), or "objetivo 7". */
+  /** "40 prata · 10 madeira", or "objetivo 7". */
   line: string;
+  /** "tecla 3" on PC (beside the name), null on the phone and while locked. */
+  key: string | null;
 }
 
 /** The building column, in its order: name, price or the goal that unlocks it, and whether it is affordable. */
@@ -26,7 +28,7 @@ export function buildColumn(s: GameState, tool: Tool, phone: boolean): BuildButt
     const goal = unlockingGoal(kind) ?? 0;
     const line = locked
       ? T.nova.lockedGoal(goal, GOALS[goal - 1]?.fromYear)
-      : [T.nova.silverCost(cost), ...MATERIALS.filter((x) => m[x]).map((x) => T.nova.materialCost(m[x]!, x))].join(' · ') + (phone ? '' : ` · ${keyOf(kind)}`);
-    return { kind, name: BUILDINGS[kind].name, locked, short, on: tool === kind, line };
+      : [T.nova.silverCost(cost), ...MATERIALS.filter((x) => m[x]).map((x) => T.nova.materialCost(m[x]!, x))].join(' · ');
+    return { kind, name: BUILDINGS[kind].name, locked, short, on: tool === kind, line, key: phone || locked ? null : T.nova.keyHint(keyOf(kind)) };
   });
 }

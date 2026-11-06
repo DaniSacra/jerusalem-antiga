@@ -66,13 +66,15 @@ export class Hud {
   private tag = h('div.anchor.tag.panel.hidden');
   /** A reddish tone over the map while the city starves (the interface stays clear). */
   private famine = h('div.famine');
+  /** The screen's edges a little darker, as a painting (CSS only, no GPU pass). */
+  private vignette = h('div.vignette');
   /** The map's free area, measured on update and resize (the balloon stays in it). */
   private below = '';
   private free: Free = { left: 8, top: 8, right: innerWidth - 8, bottom: innerHeight - 8 };
 
   constructor(parent: HTMLElement, private host: HudHost) {
     const root = (this.root = h('div', { id: 'hud', 'data-form': formOf() }));
-    for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad, parchment: NOVA_CSS.parchment }))
+    for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad, parchment: NOVA_CSS.parchment, 'gold-light': NOVA_CSS.goldLight, shadow: NOVA_CSS.shadow, vignette: NOVA_CSS.vignette }))
       root.style.setProperty(`--c-${k}`, v);
     root.style.setProperty('--font', NOVA_FONT);
     const s = host.session;
@@ -96,13 +98,15 @@ export class Hud {
     }
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.modal = new Modal(root);
-    root.append(this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.settings.el);
+    root.append(this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.settings.el);
     parent.append(root);
+    this.toasts.setPhone(this.phone);
     addEventListener('resize', this.onResize);
   }
 
   private onResize = () => {
     this.root.setAttribute('data-form', formOf());
+    this.toasts.setPhone(this.phone);
     this.tutorial.remeasure();
     this.measureFree();
   };

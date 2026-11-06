@@ -477,6 +477,21 @@ async function ui3dScenario(page, name) {
   await page.waitForTimeout(200);
   const tip = await page.evaluate(() => ({ shown: !document.querySelector('.toolballoon').classList.contains('hidden'), text: document.querySelector('.toolballoon').textContent }));
   assert(tip.shown && tip.text.startsWith('Praça') && tip.text.includes('prata'), `the chosen building's balloon (${tip.text})`);
+  // Three toasts at once: the phone shows two, below the middle; none covers the tool balloon.
+  await page.evaluate(() => {
+    for (const m of ['Primeira mensagem de teste para os avisos', 'Segunda mensagem de teste, um pouco maior que a primeira', 'Terceira mensagem']) window.session.say(m, 'info');
+  });
+  await page.waitForTimeout(400);
+  const toasts = await page.evaluate(() => {
+    const t = document.querySelector('.toolballoon').getBoundingClientRect();
+    return [...document.querySelectorAll('.toast:not(.out)')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { top: r.top, over: r.left < t.right && t.left < r.right && r.top < t.bottom && t.top < r.bottom };
+    });
+  });
+  assert(toasts.length === (name === 'phone' ? 2 : 3), `toasts at once on ${name} (${toasts.length})`);
+  assert(toasts.every((t) => !t.over), 'no toast covers the tool balloon');
+  if (name === 'phone') assert(toasts.every((t) => t.top >= 390 / 2 - 1), `phone toasts stay below the middle (${toasts.map((t) => Math.round(t.top))})`);
   await page.screenshot({ path: `${OUT}/ui3d-${name}-tool.png` });
   lap('panels to tool');
   // The preview pill: what a gatherer would bring there (or that it brings nothing off the road),
@@ -763,6 +778,14 @@ async function tutorial3dScenario(page, name) {
 
   // 6. The wedding: the clock runs; the step ends with the first wedding or after its weeks.
   const wedStart = await page.evaluate(() => window.state.week);
+  // Every toast shown from here on (on the phone one may wait in line, then come and go).
+  await page.evaluate(() => {
+    window.toastsSeen = [];
+    const box = document.querySelector('.toasts');
+    new MutationObserver(() => {
+      for (const t of box.querySelectorAll('.toast')) if (!window.toastsSeen.includes(t.textContent)) window.toastsSeen.push(t.textContent);
+    }).observe(box, { childList: true });
+  });
   await page.evaluate(() => window.session.setSpeed(3));
   await page.waitForTimeout(800);
   await shotStep('6-wedding');
@@ -771,8 +794,9 @@ async function tutorial3dScenario(page, name) {
   assert(wed.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step ends within weddingStepMaxWeeks (${JSON.stringify(wed)})`);
   await page.evaluate(() => window.session.setSpeed(0));
   assert(await page.evaluate(() => !!window.session.guide && !window.session.guide.running), 'the main steps end after the wedding step');
-  await page.waitForTimeout(300);
-  const end = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '));
+  // On the phone (two toasts at once) it may wait in line behind the goal and the wedding.
+  await page.waitForFunction(() => window.toastsSeen.some((t) => t.includes('Casais novos precisam de casa')), null, { timeout: 8000 }).catch(() => {});
+  const end = await page.evaluate(() => window.toastsSeen.join(' | '));
   assert(end.includes('Casais novos precisam de casa'), `the last tutorial toast says couples need houses (${end})`);
   assert(await page.evaluate(() => document.querySelector('.tutorial').classList.contains('hidden')), 'the bubble closes between the main steps and the market');
 

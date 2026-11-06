@@ -27,7 +27,7 @@ export class Tools {
       this.tools.append(b);
     }
     for (const k of COLUMN_ORDER) {
-      const b = h('button.build', { 'data-spot': `build-${k}` }, h('b', {}, BUILDINGS[k].name), h('small'));
+      const b = h('button.build', { 'data-spot': `build-${k}` }, h('span.name', {}, h('b', {}, BUILDINGS[k].name), h('kbd.hidden')), h('small'));
       onTap(b, () => s.selectTool(k));
       this.builds.set(k, b);
       this.column.append(b);
@@ -44,6 +44,9 @@ export class Tools {
       el.classList.toggle('locked', btn.locked);
       el.classList.toggle('short', btn.short);
       setText(el.querySelector('small')!, btn.line);
+      const kbd = el.querySelector('kbd')!;
+      kbd.classList.toggle('hidden', !btn.key);
+      setText(kbd, btn.key ?? '');
     }
     this.updateTip(phone, bottom);
   }

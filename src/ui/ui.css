@@ -37,10 +37,13 @@
 .level b, .level small { position: relative; }
 .level b { font-size: calc(var(--level) * 0.42); line-height: 1; font-weight: 800; }
 .level small { font-size: var(--small); color: var(--c-gold); font-weight: 700; letter-spacing: 0.04em; }
+/* topbar.ts > measures() mirrors the padding, border, icon and gaps of a pill (to fit the PC bar on one row). */
 .pill { height: var(--pill); border-radius: calc(var(--pill) / 2); padding: 0 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: var(--text); font-weight: 700; }
 .pill svg { width: calc(var(--pill) * 0.6); height: calc(var(--pill) * 0.6); flex: none; }
-.pill.alarm { animation: hud-blink 1s ease-in-out infinite; }
-@keyframes hud-blink { 50% { background: rgba(142, 42, 31, 0.92); } }
+.pill.alarm { border-color: var(--c-bad); }
+/* Debt and famine: the pill stays put with a red rim, only its text blinks, slowly (as the 2D). */
+.pill.alarm .parts { animation: hud-blink 1.6s ease-in-out infinite; }
+@keyframes hud-blink { 50% { opacity: 0.35; } }
 .goal { max-width: 100%; min-width: 0; }
 /* Only the goal's text is cut short: its label and progress ("0/1") always show. */
 .goal > * { flex: none; }
@@ -52,11 +55,13 @@
 .bar i { display: block; height: 100%; background: var(--c-gold); }
 .top .right { display: flex; gap: var(--gap); align-items: flex-start; flex: none; }
 .round { width: var(--btn); height: var(--btn); border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; font-weight: 800; font-size: var(--num); }
-.round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); }
-.round:active, .tool:active, .build:active { transform: scale(0.94); }
+.round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); box-shadow: 0 2px 0 var(--c-shadow); }
+/* Relief (as the 2D's buttons): parchment and gold buttons sit on an offset shadow and sink 2 px when pressed. */
+.tool .disc, .build, .act, .chip.family, .tutorial button { box-shadow: 0 2px 0 var(--c-shadow); }
+.round:active, .tool:active .disc, .build:active:not(.locked), .act:active, .chip.family:active, .tutorial button:active { transform: translateY(2px); box-shadow: none; }
 @media (hover: hover) {
   .round:hover, .top .pill:hover { filter: brightness(1.15); }
-  .tool:hover .disc, .build:hover:not(.locked) { filter: brightness(1.06); box-shadow: 0 0 0 2px var(--c-gold); }
+  .tool:hover .disc, .build:hover:not(.locked) { filter: brightness(1.06); box-shadow: 0 0 0 2px var(--c-gold), 0 2px 0 var(--c-shadow); }
 }
 
 /* ---------- side, tools and column ---------- */
@@ -65,16 +70,21 @@
 .tool { width: var(--tool); display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 0; }
 .tool .disc { box-sizing: border-box; flex: none; width: var(--tool); height: var(--tool); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
 .tool .disc svg { width: 55%; height: 55%; }
-.tool.on .disc { box-shadow: 0 0 0 4px var(--c-gold), 0 0 14px var(--c-gold); }
+.tool.on .disc, .tool.on:hover .disc { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 8px var(--c-gold-light); }
 .tool .label { font-size: var(--small); font-weight: 700; background: rgba(36, 25, 14, 0.78); padding: 1px 8px; border-radius: 9px; }
-.column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); bottom: var(--margin); width: var(--col); display: flex; flex-direction: column; gap: 6px;
+/* As tall as its buttons (scrolls when they do not fit). */
+.column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); max-height: calc(100% - var(--margin) * 2 - var(--btn) - var(--gap) - 12px); width: var(--col); display: flex; flex-direction: column; gap: 6px;
   overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; pointer-events: auto; }
 .column::-webkit-scrollbar { display: none; }
 .build { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 6px 10px; border-radius: 12px; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
+.build .name { display: flex; align-self: stretch; align-items: baseline; justify-content: space-between; gap: 6px; }
 .build b { font-size: var(--text); }
+/* "tecla 3" (PC): a small key cap beside the name, so it does not read as a quantity. */
+.build kbd { font: inherit; font-size: var(--small); font-weight: 700; color: #6b5a44; padding: 0 5px; border: 1px solid rgba(59, 42, 26, 0.45); border-bottom-width: 2px; border-radius: 5px; white-space: nowrap; }
 .build small { font-size: var(--small); font-weight: 700; }
-.build.on { box-shadow: 0 0 0 3px var(--c-gold); background: #fff3d0; }
-.build.locked { background: #cfc4ad; opacity: 0.8; }
+.build.on, .build.on:hover { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 6px var(--c-gold-light); background: #fff3d0; }
+/* Locked: flat, greyed and with a dashed rim (the state does not hang on the colour alone). */
+.build.locked { background: #cfc4ad; opacity: 0.8; border-style: dashed; box-shadow: none; }
 .build.short small { color: var(--c-ink-bad); }
 
 /* ---------- anchored to the world ---------- */
@@ -110,6 +120,8 @@
 .panelbox .x { float: right; margin: 0 0 6px 10px; position: sticky; top: 0; z-index: 1; }
 .sheet .head .act { margin-left: auto; flex: none; }
 .fig svg, .fig { display: block; }
+/* The screen's edges a little darker, as a painting (over the map, under the interface; no GPU pass). */
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, var(--c-vignette) 100%); }
 /* The famine tone over the map (under the interface). */
 .famine { position: absolute; inset: 0; background: #c0392b; opacity: 0; transition: opacity 0.6s; pointer-events: none; mix-blend-mode: multiply; }
 .famine.on { opacity: 0.22; }
@@ -127,7 +139,7 @@
 .badge { position: absolute; right: -10px; top: -10px; min-width: 20px; height: 22px; padding: 0 5px; border-radius: 11px; background: #b0302a; border: 1.5px solid var(--c-text); color: var(--c-text); font-size: 12px; font-weight: 800; line-height: 19px; }
 .side button.pulse { animation: hud-pulse 0.52s ease-in-out 4; }
 @keyframes hud-pulse { 50% { transform: scale(1.18); } }
-.side button.on { background: var(--c-gold); color: var(--c-ink); }
+.side button.on { background: var(--c-gold); color: var(--c-ink); box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 7px var(--c-gold-light); }
 /* A panel (Objetivos, Avisos, Estatísticas) or the person sheet: right of the side buttons, above the tools. */
 .panelbox { box-sizing: border-box; position: absolute; left: calc(var(--margin) + var(--btn) + var(--gap) * 2); top: calc(var(--margin) + var(--level) + var(--gap) * 2); right: calc(var(--margin) * 2 + var(--col)); max-height: calc(100% - var(--margin) - var(--level) - var(--gap) * 2 - var(--free-bottom, 90px)); overflow: auto; padding: 12px 14px; border-radius: 16px; pointer-events: auto; background: rgba(36, 25, 14, 0.96); font-size: var(--text); z-index: 1; width: fit-content; max-width: calc(100% - var(--btn) - var(--col) - var(--margin) * 4 - var(--gap) * 2); }
 .sections { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: flex-start; }
@@ -140,7 +152,7 @@
 .chart svg { width: 200px; height: 60px; display: block; }
 .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
 .tab { min-height: 44px; padding: 0 16px; border-radius: 22px; font-weight: 800; background: rgba(0, 0, 0, 0.3); border: 1.5px solid rgba(255, 244, 220, 0.3); }
-.tab.on { background: var(--c-gold); color: var(--c-ink); }
+.tab.on { background: var(--c-gold); color: var(--c-ink); box-shadow: 0 2px 0 var(--c-shadow), 0 0 0 4px var(--c-gold-light); }
 .sheet { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
 .sheet .head { display: flex; gap: 10px; align-items: center; }
 .sheet .fig.big { width: 56px; height: 56px; flex: none; }
@@ -157,6 +169,13 @@
    build column on the right, centred in what is left. */
 .toasts { position: absolute; left: calc(var(--margin) * 2 + (var(--tool) + 14px) * 3); right: calc(var(--margin) * 2 + var(--col)); bottom: calc(var(--margin) + var(--tool) + 30px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; pointer-events: none; }
 .toast { max-width: min(560px, 100%); padding: 7px 14px; border-radius: 16px; font-size: var(--num); font-weight: 700; text-align: center; animation: hud-in 0.15s ease; }
+/* Leaving: fades where it was (toasts.ts takes it out of the flow); the others slide into place. */
+.toast.out { opacity: 0; transition: opacity 0.25s ease; }
+.toast.slide { transition: transform 0.15s ease; }
+/* Phone: two at most (toastQueue), smaller and kept below the middle of the map. */
+#hud[data-form='phone'] .toasts { top: 50%; overflow: hidden; justify-content: flex-start; gap: 4px; }
+#hud[data-form='phone'] .toast { font-size: var(--text); padding: 5px 12px; border-radius: 13px; max-width: min(460px, 100%); }
+#hud[data-form='phone'] .toast.big { font-size: var(--num); }
 .toast.bad { background: rgba(142, 42, 31, 0.94); } .toast.good { background: rgba(46, 94, 34, 0.94); }
 .toast.quiet { color: var(--c-muted); font-weight: 400; } .toast.big { font-size: calc(var(--num) * 1.2); border: 2px solid var(--c-gold); }
 @keyframes hud-in { from { opacity: 0; } }
@@ -196,3 +215,10 @@
 /* The person sheet's work line: the job and "Mudar" beside it. */
 .sheet .work { display: flex; gap: 10px; align-items: center; }
 .sheet .work .act.small { flex: none; padding: 0 16px; }
+
+/* ---------- calm motion ---------- */
+/* Less motion asked for: nothing blinks, bobs or slides; every signal stays (colour, rim, text). */
+@media (prefers-reduced-motion: reduce) {
+  .pill.alarm .parts, .side button.pulse, .arrow svg, .toast { animation: none; }
+  .toast.out, .toast.slide, .famine { transition: none; }
+}

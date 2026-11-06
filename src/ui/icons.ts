@@ -18,7 +18,8 @@ export const ICONS: Record<string, string> = {
   drought: svg('<circle cx="12" cy="9" r="5" fill="#ff9a3a"/><path d="M4 20l3-4 3 3 3-5 3 4 4-3" stroke="#a0683a" stroke-width="2" fill="none"/>'),
   view: svg('<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V13M17 12v-1.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3.4L3.6 14a1.5 1.5 0 0 1 2.6-1.5L8 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
   road: svg('<path d="M9 3L5 21M15 3l4 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M12 4v3M12 10v3M12 16v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
-  clear: svg('<path d="M14 4l6 6-3 3-6-6zM11 7L3 15l3 3 8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 21h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
+  /** Demolir: a hammer (the 2D's icon), head to the upper left. */
+  clear: svg('<path d="M10 10l10 10" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><path d="M12.6 5.6L9.4 2.4 2.4 9.4l3.2 3.2z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
   turnLeft: svg('<path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'),
   turnRight: svg('<g transform="matrix(-1 0 0 1 24 0)"><path d="M5 12a7 7 0 1 0 2.1-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g>'),
   pause: svg('<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/>'),

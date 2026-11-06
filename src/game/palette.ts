@@ -52,6 +52,12 @@ export const NOVA_CSS = {
   /** Price on a parchment button without enough silver. */
   inkBad: '#b02a1c',
   parchment: hex(NOVA.parchment),
+  /** The soft halo around a selected button (with a gold ring), as the 2D's. */
+  goldLight: 'rgba(255, 215, 122, 0.4)',
+  /** The offset shadow under parchment buttons (they look raised; pressed, they sink 2 px). */
+  shadow: 'rgba(0, 0, 0, 0.28)',
+  /** The vignette darkening the screen's edges (over the map, under the interface). */
+  vignette: 'rgba(28, 18, 8, 0.32)',
   /** Behind the map while it loads (the earth brown). */
   bg: hex(C.bg),
 };

@@ -141,3 +141,43 @@ export function goalParts(s: GameState, phone: boolean): Part[] {
     ...(save ? [{ text: '· ' + N.templeSavingsPill(save.silver, save.cost), tone: (save.silver >= save.cost ? 'good' : 'gold') as Tone }] : []),
   ];
 }
+
+/** The tightest step of `topBar`'s `fit`. */
+export const FIT_MAX = 5;
+
+/** Widths of a pill in px, as in ui.css (read from the page): padding and border, icon, gaps. */
+export interface PillMetrics {
+  /** Padding plus border of a pill, both sides. */
+  pad: number;
+  icon: number;
+  /** Between the icon and the text. */
+  iconGap: number;
+  /** Between two parts of the text. */
+  partGap: number;
+  /** Between two pills. */
+  gap: number;
+  /** A progress bar. */
+  bar: number;
+}
+
+/** Width of a text part in px (the page measures it with the font of its size). */
+export type MeasureText = (text: string, size: Size | undefined) => number;
+
+/** Width of a row of pills, without drawing them. */
+export function pillsWidth(pills: Pill[], measure: MeasureText, m: PillMetrics): number {
+  let w = 0;
+  for (const p of pills) {
+    w += m.pad + m.icon + m.iconGap + m.partGap * Math.max(0, p.parts.length - 1);
+    for (const part of p.parts) w += 'text' in part ? measure(part.text, part.size) : 'bar' in part ? m.bar : m.icon;
+  }
+  return w + m.gap * Math.max(0, pills.length - 1);
+}
+
+/**
+ * The smallest `fit` (0..FIT_MAX) whose pills fit in `room` px on one row, as the 2D bar shortened
+ * (names of the materials first, then every name, then the "+N/sem"...); FIT_MAX when none fits.
+ */
+export function fitPills(pillsAt: (fit: number) => Pill[], room: number, measure: MeasureText, m: PillMetrics): number {
+  for (let fit = 0; fit < FIT_MAX; fit++) if (pillsWidth(pillsAt(fit), measure, m) <= room) return fit;
+  return FIT_MAX;
+}

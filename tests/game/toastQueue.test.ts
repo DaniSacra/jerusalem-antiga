@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TOAST_BACK_MS, TOAST_MAX, TOAST_MS, ToastQueue } from '../../src/game/toastQueue';
+import { TOAST_BACK_MS, TOAST_MAX, TOAST_MAX_PHONE, TOAST_MS, ToastQueue } from '../../src/game/toastQueue';
 
 const msgs = (q: ToastQueue) => q.list.map((t) => t.msg);
 
@@ -11,6 +11,21 @@ describe('toast line', () => {
     expect(msgs(q)).toEqual(['c', 'b', 'a']);
     q.tick(TOAST_MS);
     expect(msgs(q)).toEqual(['d']);
+  });
+
+  it('on a phone at most 2; turning to PC lets the waiting one in, back to phone sends the oldest to wait', () => {
+    const q = new ToastQueue();
+    q.setPhone(true);
+    for (const m of ['a', 'b', 'c']) q.show(m);
+    expect(TOAST_MAX_PHONE).toBe(2);
+    expect(msgs(q)).toEqual(['b', 'a']);
+    q.setPhone(false);
+    expect(msgs(q)).toEqual(['c', 'b', 'a']);
+    q.setPhone(true);
+    expect(msgs(q)).toEqual(['c', 'b']);
+    expect(q.tick(TOAST_MS)).toBe(true);
+    expect(msgs(q)).toEqual(['a']);
+    expect(q.tick(10)).toBe(false);
   });
 
   it('puts bad news before the rest of the line', () => {

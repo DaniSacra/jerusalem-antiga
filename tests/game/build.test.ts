@@ -6,15 +6,16 @@ import { COLUMN_ORDER } from '../../src/game/tools';
 import { emptyGame } from '../helpers';
 
 describe('building column as data', () => {
-  it('every building in column order, with its price; the key only on PC', () => {
+  it('every building in column order, with its price; "tecla N" only on PC', () => {
     const s = emptyGame();
     s.unlocked = [...COLUMN_ORDER];
     const pc = buildColumn(s, 'view', false);
     expect(pc.map((b) => b.kind)).toEqual(COLUMN_ORDER);
     const house = pc.find((b) => b.kind === 'house')!;
     expect(house.line.startsWith(T.nova.silverCost(costOf('house')))).toBe(true);
-    expect(house.line).toMatch(/ · \S+$/);
-    expect(buildColumn(s, 'view', true).find((b) => b.kind === 'house')!.line).not.toBe(house.line);
+    expect(house.key).toBe(T.nova.keyHint('3'));
+    expect(house.line).not.toMatch(/tecla/);
+    expect(buildColumn(s, 'view', true).find((b) => b.kind === 'house')!.key).toBeNull();
   });
 
   it('locked buildings say which goal unlocks them and are never "short"', () => {
@@ -25,6 +26,7 @@ describe('building column as data', () => {
     expect(t.locked).toBe(true);
     expect(t.short).toBe(false);
     expect(t.line).toMatch(/objetivo/i);
+    expect(t.key).toBeNull();
   });
 
   it('short when silver or a material is missing; on for the tool in hand', () => {

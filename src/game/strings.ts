@@ -294,6 +294,8 @@ export const T = {
     fieldTurn: (turn: { season: 'winter' | 'spring'; weeks: number }) => `${turn.season === 'winter' ? 'inverno' : 'primavera'} em ${turn.weeks} sem`,
     /** The phone drops the season's name too: its icon shows it. */
     calendarPhone: (year: number, turn: { season: 'winter' | 'spring'; weeks: number }) => `Ano ${year} · ${T.nova.fieldTurn(turn)}`,
+    /** The keyboard key of a tool or building, on PC buttons ("tecla 3"). */
+    keyHint: (k: string) => `tecla ${k}`,
     lockedGoal: (n: number, year?: number) => `objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     unlocksAt: (n: number, year?: number) => `Libera no objetivo ${n}${year ? ` · Ano ${year}` : ''}`,
     category: { home: 'Moradia', supply: 'Comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,

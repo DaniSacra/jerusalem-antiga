@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readCity } from '../../src/core';
-import { topBar, type Part } from '../../src/game/model/topbar';
+import { FIT_MAX, fitPills, pillsWidth, topBar, type Part } from '../../src/game/model/topbar';
 import { T } from '../../src/game/strings';
 import { emptyGame } from '../helpers';
 
@@ -42,5 +42,31 @@ describe('top bar as data', () => {
     const goal = topBar(s, readCity(s), false).goal;
     expect(goal.some((p) => 'bar' in p)).toBe(true);
     expect(topBar(s, readCity(s), true).goal.some((p) => 'bar' in p)).toBe(false);
+  });
+});
+
+describe('top bar fit (PC)', () => {
+  const m = { pad: 27, icon: 22, iconGap: 6, partGap: 4, gap: 8, bar: 80 };
+  /** About 8 px a letter, 10 for numbers. */
+  const measure = (t: string, size?: string) => t.length * (size === 'num' ? 10 : 8);
+
+  it('measures padding, icon, gaps and every part', () => {
+    const pill = { key: 'people' as const, icon: 'people', alarm: false, parts: [{ text: 'ab' }, { text: '12', size: 'num' as const }, { bar: 0.5 }] };
+    expect(pillsWidth([pill], measure, m)).toBe(27 + 22 + 6 + 2 * 4 + 16 + 20 + 80);
+    expect(pillsWidth([pill, pill], measure, m)).toBe(2 * pillsWidth([pill], measure, m) + 8);
+  });
+
+  it('keeps every name when there is room, shortens step by step when there is not', () => {
+    const s = emptyGame();
+    s.unlocked.push('quarry');
+    const city = readCity(s);
+    const at = (fit: number) => topBar(s, city, false, fit).pills;
+    const widths = [0, 1, 2, 3, 4, 5].map((f) => pillsWidth(at(f), measure, m));
+    for (let f = 1; f < widths.length; f++) expect(widths[f]).toBeLessThanOrEqual(widths[f - 1]);
+    expect(fitPills(at, 10000, measure, m)).toBe(0);
+    expect(fitPills(at, widths[2], measure, m)).toBeLessThanOrEqual(2);
+    expect(fitPills(at, widths[2], measure, m)).toBeGreaterThanOrEqual(1);
+    expect(texts(at(fitPills(at, widths[2], measure, m)).find((p) => p.key === 'wood')!.parts)).not.toContain(T.nova.material.wood);
+    expect(fitPills(at, 10, measure, m)).toBe(FIT_MAX);
   });
 });
