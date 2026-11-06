@@ -35,7 +35,8 @@ export type Alert =
   /** The stores are full and food is spoiling; `locked`: the granary is not unlocked yet. */
   | { kind: 'spoiling'; amount: number; capacity: number; locked: boolean }
   /** End of autumn with houses with people: keep firewood (tents suffer most). */
-  | { kind: 'winterComing' }
+  /** `tents`: people live in tents (the cold can kill children and elders there). */
+  | { kind: 'winterComing'; tents: boolean }
   /** The coming (or current) spring is dry. */
   | { kind: 'drought' }
   | { kind: 'deficit'; balance: number; costliest: BuildingKind; upkeep: number }
@@ -67,7 +68,8 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   const left = first && first.since + RULES.people.coupleWaitWeeks - s.week;
   if (first && left <= RULES.people.coupleWarnWeeks) out.push({ kind: 'coupleLeaving', man: first.man.name, woman: first.woman.name, weeks: Math.max(0, left) });
   if (s.spoiled > 0) out.push({ kind: 'spoiling', amount: s.spoiled, capacity: foodCapacity(s), locked: !s.unlocked.includes('granary') });
-  if (lateAutumn(s.week) && s.buildings.some((b) => b.kind === 'house' && b.level > 0)) out.push({ kind: 'winterComing' });
+  if (lateAutumn(s.week) && s.buildings.some((b) => b.kind === 'house' && b.level > 0))
+    out.push({ kind: 'winterComing', tents: s.buildings.some((b) => b.kind === 'house' && b.level === 1) });
   if (s.drought && (season === 'winter' || season === 'spring')) out.push({ kind: 'drought' });
   const block = birthBlock(s, eco);
   const couple = s.people.some((p) => p.sex === 'f' && p.engaged === null && p.houseId !== null && s.people.some((o) => o.id === p.spouseId && o.houseId === p.houseId));

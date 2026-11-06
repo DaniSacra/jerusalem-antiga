@@ -107,10 +107,11 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
     expect(runs.filter((r) => !(r.goalWeeks[1] < RULES.weeksPerSeason))).toEqual([]);
   });
 
-  it('goal 3 (the first winter passed) is done the week the spring comes, within the first year', () => {
-    expect(GOALS[2]).toMatchObject({ type: 'milestone', milestone: 'firstSpring' });
-    expect(runs.filter((r) => r.goalWeeks[2] !== 2 * RULES.weeksPerSeason)).toEqual([]);
-    expect(runs.filter((r) => r.goalsYear1 < 3)).toEqual([]);
+  it('goal 3 (the first birth) and goal 4 (the first winter passed) are done by the first spring', () => {
+    expect(GOALS[2]).toMatchObject({ type: 'milestone', milestone: 'firstBirth' });
+    expect(GOALS[3]).toMatchObject({ type: 'milestone', milestone: 'firstSpring' });
+    expect(runs.filter((r) => !(r.goalWeeks[3] <= 2 * RULES.weeksPerSeason))).toEqual([]);
+    expect(runs.filter((r) => r.goalsYear1 < 4)).toEqual([]);
   });
 
   it('the silver never goes negative', () => {

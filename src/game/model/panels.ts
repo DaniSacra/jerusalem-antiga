@@ -203,6 +203,9 @@ function statsPeople(s: GameState, phone: boolean): PanelSection[] {
   const y = s.yearStats;
   // Label and number pairs on one line each, so the numbers, the caravan and the families fit a phone.
   const pairs = (list: [string, number][]): PanelLine => ({ parts: list.flatMap(([label, n]) => [{ text: label, tone: 'muted' as const, plain: true }, { text: fmtInt(n) }]) });
+  const yearRows: [string, number][] = [[st.births, y.births], [st.deaths, y.deaths]];
+  if (y.coldDeaths) yearRows.push([st.coldDeaths, y.coldDeaths]);
+  yearRows.push([st.weddings, y.weddings]);
   const couples = waitingCouples(s);
   const caravan = announcedCaravan(s);
   const at = caravan && calendar(caravan.week);
@@ -212,11 +215,7 @@ function statsPeople(s: GameState, phone: boolean): PanelSection[] {
       pairs((['child', 'adult', 'elder'] as const).map((b) => [st.bands[b], bands[b]])),
       { parts: [{ text: st.workLine(bands.adult - unemployed(s), bands.adult, unemployed(s)), tone: unemployed(s) ? 'warn' : 'text', plain: true }] },
       title(st.thisYear),
-      pairs([
-        [st.births, y.births],
-        [st.deaths, y.deaths],
-        [st.weddings, y.weddings],
-      ]),
+      pairs(yearRows),
       row(st.couples, fmtInt(couples.length), couples.length ? 'warn' : 'text'),
       // Phone: the names are in Avisos (no room here).
       ...(couples.length && !phone ? [note(couples.map((c) => `${c.man.name} e ${c.woman.name}`).join(' · '))] : []),

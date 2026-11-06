@@ -258,6 +258,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     const season = seasonOf(s.week);
     if (s.cold) level.push({ text: T.nova.cold, tone: 'bad' });
     else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), tone: 'muted', plain: true });
+    if (h.level === 1 && (season === 'autumn' || season === 'winter')) level.push({ text: T.nova.tentCold, tone: s.cold ? 'bad' : 'warn' });
     if (s.famine) level.push({ text: N.famine, tone: 'bad' });
     else if (h.firewoodHold) level.push({ text: N.firewoodHold(h.next.name), tone: 'bad', gap: 4 });
     else if (wait) level.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), tone: 'bad', gap: 4 });

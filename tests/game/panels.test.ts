@@ -53,4 +53,14 @@ describe('panels as data (2D and 3D)', () => {
     s.history = [];
     expect(texts(statsPanel('history', data(s), false).flat())).toContain(T.nova.stats.noHistory);
   });
+
+  it('"Povo": the cold deaths of the year show only when there are some (plan B3)', () => {
+    const s = emptyGame();
+    put(s, 'house', ROADSIDE, 30, 1);
+    refreshCity(s);
+    const people = () => texts(statsPanel('people', data(s), false).flat());
+    expect(people()).not.toContain(T.nova.stats.coldDeaths);
+    s.yearStats = { births: 0, deaths: 2, coldDeaths: 2, weddings: 0 };
+    expect(people()).toContain(T.nova.stats.coldDeaths);
+  });
 });

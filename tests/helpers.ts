@@ -180,3 +180,11 @@ export function weeksOfFood(food: number, week: number, eat: (w: number) => numb
     if (food <= floor) return k;
   }
 }
+
+/** Turns the cold deaths (B3) off for tests about something else in winter; call the returned function to restore them. */
+export function noColdDeaths(): () => void {
+  const C = RULES.coldDeath;
+  const saved = { tent: C.tent, tentCold: C.tentCold, houseCold: C.houseCold };
+  Object.assign(C, { tent: [0, 0], tentCold: [0, 0], houseCold: [0, 0] });
+  return () => Object.assign(C, saved);
+}

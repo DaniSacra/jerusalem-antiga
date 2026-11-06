@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   alerts,
   burnFirewood,
@@ -14,7 +14,7 @@ import {
   type GameEvent,
   type Rng,
 } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS } from './helpers';
+import { constRng, EAST, emptyGame, noColdDeaths, put, ROADSIDE, UP_WEEKS } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const AUTUMN = 0;
@@ -93,6 +93,10 @@ describe('burning', () => {
 });
 
 describe('cold hurts houses as a famine does', () => {
+  let restore = () => {};
+  beforeEach(() => (restore = noColdDeaths()));
+  afterEach(() => restore());
+
   it('without famine: a tent leaves (cause cold), a higher house drops, the climb pauses, winterLoss is marked', () => {
     const s = emptyGame({ week: WINTER, food: 1000 });
     s.wood = 0;

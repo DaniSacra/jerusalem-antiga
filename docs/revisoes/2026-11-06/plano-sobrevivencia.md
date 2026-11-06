@@ -210,13 +210,15 @@ Conta esperada:
   barro").
 
 ### Na tela (copywriter)
-- Toast "Morreu Ana, 3 anos: frio na tenda" (discreto, como a morte por idade; 1 por semana, o resto
-  soma: "Mais 2 morreram de frio").
-- Aviso no outono, com tendas: "Tendas são frias: crianças e idosos podem morrer no inverno. Suba
-  para barro (5 de madeira)".
-- Balão da tenda no inverno: "Frio: risco para crianças e idosos" (vermelho sem lenha).
+- Toast "O frio levou Ana, 3 anos" (tom suavizado e aprovado pelo usuário em 2026-11-06; 1 por semana, o resto
+  soma: "O frio levou Ana, 3 anos e mais 2 pessoas").
+- Aviso no outono, com tendas: "O inverno está chegando: na tenda, crianças pequenas e idosos podem
+  morrer de frio. Suba para barro (5 de madeira)".
+- Ficha da tenda no outono e no inverno: "Tenda fria: risco para crianças e idosos" (amarelo;
+  vermelho sem lenha).
 - Fim do inverno: "O inverno levou N pessoas" (só se N > 0).
-- Derrota e Estatísticas: mortes de frio no ano.
+- Estatísticas (aba Povo): "De frio" no ano. A tela de derrota fica sem a linha (simples; rever no
+  playtest).
 
 ### Testes do core
 - Tenda com lenha: só vulneráveis morrem (chance 0,01, rng fixo); adulto nunca.

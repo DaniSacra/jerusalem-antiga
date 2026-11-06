@@ -144,6 +144,17 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
       case 'death':
         toast(T.death(nameOf(s, e.id), e.age), 'quiet');
         break;
+      case 'coldDeath': {
+        // "Frio" rises from each house; one toast a week: the first by name, the others summed.
+        out.push({ do: 'floatBad', x: e.x, y: e.y, text: T.coldMark });
+        if (events.find((o) => o.type === 'coldDeath') !== e) break;
+        const more = events.filter((o) => o.type === 'coldDeath').length - 1;
+        toast(T.coldDeath(nameOf(s, e.id), e.age, more), 'bad');
+        break;
+      }
+      case 'winterToll':
+        toast(T.winterToll(e.n), 'bad');
+        break;
       case 'coupleLeft':
         toast(T.coupleLeft(nameOf(s, e.a), nameOf(s, e.b)), 'bad');
         break;

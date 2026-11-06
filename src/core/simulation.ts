@@ -12,6 +12,7 @@ import { rollLook } from './looks';
 import { refreshCity } from './refresh';
 import { lackingMaterial, levelMaterials, payMaterials } from './materials';
 import { cutTrees, regrowTrees } from './trees';
+import { coldDeaths, coldDeathsSince } from './cold';
 import { burnFirewood, keepsFirewood } from './firewood';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameEvent, GameState, LeaveReason, Rng } from './types';
@@ -153,7 +154,11 @@ function newSeason(s: GameState, rng: Rng, events: GameEvent[]) {
     s.drought = false;
     if (!s.famineThisYear) reach(s, 'yearWithoutFamine', events);
     s.famineThisYear = false;
-    s.yearStats = { births: 0, deaths: 0, weddings: 0 };
+    s.yearStats = { births: 0, deaths: 0, coldDeaths: 0, weddings: 0 };
+  }
+  if (season === 'spring') {
+    const n = coldDeathsSince(s, s.week - RULES.weeksPerSeason);
+    if (n > 0) events.push({ type: 'winterToll', n });
   }
   if (season === 'spring' && computeEconomy(s).residents > 0) {
     reach(s, 'firstSpring', events);
@@ -200,6 +205,7 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   s.stone = round2(s.stone + eco.stone);
   burnFirewood(s, events);
   if (s.cold) s.winterLoss = true;
+  coldDeaths(s, rng, events);
   // Cut first: the cut count follows the trees the week's wood came from, and a tree that grows
   // back this week is not felled before it is seen.
   cutTrees(s, eco, events);

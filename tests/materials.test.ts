@@ -116,9 +116,9 @@ describe('materials data', () => {
     expect(checkPlace(s, 'quarry', 0, 0).ok).toBe(false);
   });
 
-  it('goal 4 (first birth) unlocks the quarry', () => {
+  it('goal 4 (the first winter passed) unlocks the quarry', () => {
     const s = emptyGame({ goalIndex: 3, unlocked: ['road', 'house'] });
-    s.milestones.push('firstBirth');
+    s.milestones.push('firstSpring');
     checkGoal(s, []);
     expect(s.goalIndex).toBe(4);
     expect(s.unlocked).toContain('quarry');

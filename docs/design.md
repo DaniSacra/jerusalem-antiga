@@ -103,6 +103,8 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozi
 - **B3 "O frio pesa"** (mecânica nova, revisado 2026-11-06): lenha da tenda igual (0,3); morte de frio
   por semana de inverno, por pessoa (vulnerável = até 4 anos ou idoso): tenda com lenha 1%/0, tenda sem
   lenha 4%/1%, barro ou melhor sem lenha 1%/0, com lenha 0; com fome dobra. Junto, o ajuste P3.
+  **Feito 2026-11-06** (código e testes; `src/core/cold.ts`; P3 nos objetivos; toast "O frio levou
+  Ana, 2 anos", tom aprovado pelo usuário); falta o sim-tester medir F1–F2 e D1–D3.
   Critérios: F1 frio em algum inverno 40–70%; F2 2–4 tendas com gente no 1º inverno; D1 20–40% das
   partidas com morte de frio no Ano 1 (p90 ≤ 2); D2 mediana ≤ 3 na partida; D3 Distraído perde no
   Ano 1 ≤ 10%. ~3–3,5 h + 1–1,5 h de sim.
@@ -124,6 +126,13 @@ passa a pedir gado)
 1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (feito, P4) · 4. Obras com tempo ·
 5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
 10. Doenças · 11. Eventos da época · 12. Incêndio
+
+**Pedido do usuário em espera: música** (pedido em 2026-11-04, registrado em 2026-11-06). Uma
+música de fundo bem relaxante para a cidade, em tons maiores e no espírito das trilhas calmas de
+aventura (o usuário citou Zelda como referência de clima; composição original, nada copiado). Precisa
+de uma opção para desligar nas configurações. Ainda não tem escopo nem data: o game-director decide
+quando entra (pilar da contemplação), e a forma (arquivos de áudio ou música gerada no navegador)
+fica com o architect.
 
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje

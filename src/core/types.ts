@@ -51,8 +51,11 @@ export type MilestoneId =
 
 export type Sex = 'm' | 'f';
 export type AgeBand = 'child' | 'adult' | 'elder';
-/** Why a person left the city: died of age, left with the family (famine, no road, demolished house) or found no house. */
-export type EndCause = 'age' | 'famine' | 'cold' | 'road' | 'demolished' | 'noHouse';
+/**
+ * Why a person left the city: died of age or of cold (`coldDeath`, B3), left with the family
+ * (famine, `cold`: no firewood, no road, demolished house) or found no house.
+ */
+export type EndCause = 'age' | 'coldDeath' | 'famine' | 'cold' | 'road' | 'demolished' | 'noHouse';
 
 /**
  * A person of the city. Children are not stored (see `childrenOf`); a family is everyone with the
@@ -308,6 +311,12 @@ export interface Rules {
   templeSpotRoadGap: number;
   /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */
   famineLeaveChance: number;
+  /**
+   * Cold deaths in winter (Package B3), per resident and week; pairs are [vulnerable, others]
+   * (vulnerable: up to `childAge` years old, or an elder). `tent`: a tent with firewood;
+   * `tentCold`, `houseCold`: a tent or a better house without firewood. Famine multiplies by `famineFactor`.
+   */
+  coldDeath: { childAge: number; tent: [number, number]; tentCold: [number, number]; houseCold: [number, number]; famineFactor: number };
   /** Consecutive weeks with negative silver that lose the game. */
   debtWeeksToLose: number;
   /** No defeat by debt while a later caravan (planned or announced) is due within these weeks. */
@@ -512,8 +521,8 @@ export interface GameState {
   departed: Person[];
   /** Later caravans, rolled at the start. */
   caravans: CaravanPlan[];
-  /** Births, deaths and weddings since the last autumn began. */
-  yearStats: { births: number; deaths: number; weddings: number };
+  /** Births, deaths (of age and of cold; `coldDeaths` of cold only) and weddings since the last autumn began. */
+  yearStats: { births: number; deaths: number; coldDeaths: number; weddings: number };
   nextId: number;
 }
 
@@ -534,6 +543,10 @@ export type GameEvent =
   | { type: 'wedding'; a: number; b: number; x: number; y: number }
   | { type: 'birth'; id: number; x: number; y: number }
   | { type: 'death'; id: number; age: number; x: number; y: number }
+  /** Someone died of cold this winter week. */
+  | { type: 'coldDeath'; id: number; age: number; x: number; y: number }
+  /** The first week of spring: the cold killed `n` people this winter (only when n > 0). */
+  | { type: 'winterToll'; n: number }
   /** An engaged couple gave up waiting for a house and left the city. */
   | { type: 'coupleLeft'; a: number; b: number }
   /** A later caravan will arrive at `week`. */

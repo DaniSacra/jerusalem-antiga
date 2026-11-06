@@ -51,7 +51,7 @@ export function createGame(rng: Rng): GameState {
     people: [],
     departed: [],
     caravans: [],
-    yearStats: { births: 0, deaths: 0, weddings: 0 },
+    yearStats: { births: 0, deaths: 0, coldDeaths: 0, weddings: 0 },
     nextId: 1,
   };
   for (const c of startRoad()) s.roads[indexOf(s, c.x, c.y)] = true;

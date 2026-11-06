@@ -49,9 +49,9 @@ describe('goals', () => {
     expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? g.milestone ?? null, g.reward, g.unlock ?? null])).toEqual([
       ['foodUntilSpring', 1, null, 30, 'granary'],
       ['milestone', 1, 'firstWedding', 20, null],
-      ['milestone', 1, 'firstSpring', 40, null],
-      ['milestone', 1, 'firstBirth', 30, 'quarry'],
-      ['houses', 3, 2, 40, 'plaza'],
+      ['milestone', 1, 'firstBirth', 40, null],
+      ['milestone', 1, 'firstSpring', 30, 'quarry'],
+      ['houses', 5, 2, 40, 'plaza'],
       ['milestone', 1, 'firstCaravan', 50, 'workshop'],
       ['build', 1, 'workshop', 40, 'market'],
       ['residents', 30, null, 50, null],
@@ -91,13 +91,13 @@ describe('goals', () => {
     });
   });
 
-  it('the plaza waits for goal 5 (3 mud-brick houses); goal 9 (6 stone houses) unlocks the park', () => {
+  it('the plaza waits for goal 5 (5 mud-brick houses); goal 9 (6 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).not.toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).not.toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
-    expect(GOALS[4]).toMatchObject({ type: 'houses', target: 3, level: 2, unlock: 'plaza' });
+    expect(GOALS[4]).toMatchObject({ type: 'houses', target: 5, level: 2, unlock: 'plaza' });
     const goal = GOALS[8];
     expect(goal).toMatchObject({ type: 'houses', target: 6, level: 3, unlock: 'park' });
     const s = emptyGame({ goalIndex: 8, silver: 0, unlocked: [...RULES.startUnlocked] });

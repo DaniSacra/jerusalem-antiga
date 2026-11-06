@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, indexOf, readCity, refreshCity } from '../../src/core';
+import { BUILDINGS, indexOf, readCity, refreshCity, RULES } from '../../src/core';
 import { cardOf, levelStatOf } from '../../src/game/model/card';
 import { T } from '../../src/game/strings';
 import { EAST, emptyGame, put, ROADSIDE } from '../helpers';
@@ -91,6 +91,23 @@ describe('the card of a tapped cell (2D and 3D balloons)', () => {
     const all = [...texts, ...cardOf(s, b, readCity(s), true)!.aside.map((l) => l.text)];
     expect(all).toContain(N.firewoodHold('Casa de barro'));
     expect(all.some((t) => t?.startsWith('Pronta para virar Casa de barro: falta'))).toBe(false);
+  });
+
+  it('a tent in autumn and winter warns of the cold for children and elders; red without firewood; not in spring (B3)', () => {
+    const lines = (week: number, cold: boolean, level = 1) => {
+      const s = emptyGame({ week });
+      const b = put(s, 'house', ROADSIDE, 30, level);
+      refreshCity(s);
+      s.cold = cold;
+      const c = cardOf(s, b, readCity(s), false)!;
+      return [...c.lines, ...c.aside].filter((l) => l.text === T.nova.tentCold).map((l) => l.tone);
+    };
+    const W = RULES.weeksPerSeason;
+    expect(lines(W, false)).toEqual(['warn']);
+    expect(lines(W, true)).toEqual(['bad']);
+    expect(lines(0, false)).toEqual(['warn']); // autumn
+    expect(lines(2 * W, false)).toEqual([]); // spring
+    expect(lines(W, false, 2)).toEqual([]); // mud-brick
   });
 
   it('an empty plot off the road waits for one and asks for Rua', () => {

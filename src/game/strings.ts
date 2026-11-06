@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, HOUSE_LEVELS, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
@@ -48,6 +48,12 @@ export const T = {
   wedding: (a: string, b: string) => `${a} e ${b} se casaram!`,
   birth: (name: string, female: boolean, father: string, mother: string) => `Nasceu ${name}, ${female ? 'filha' : 'filho'} de ${father} e ${mother}`,
   death: (name: string, age: number) => `Morreu ${name}, aos ${age} anos`,
+  /** Cold deaths of a week: the first by name, the rest summed. */
+  coldDeath: (name: string, age: number, more: number) =>
+    `O frio levou ${name}, ${age === 0 ? 'bebê' : `${age} ${age === 1 ? 'ano' : 'anos'}`}` + (more ? ` e mais ${more} ${more === 1 ? 'pessoa' : 'pessoas'}` : ''),
+  /** Floating over the house where someone died of cold. */
+  coldMark: 'Frio',
+  winterToll: (n: number) => `O inverno levou ${n} ${n === 1 ? 'pessoa' : 'pessoas'}`,
   coupleLeft: (a: string, b: string) => `${a} e ${b} foram embora: não havia casa`,
   caravanAnnounced: (families: number, season: Season) => `Uma caravana de ${families} ${families === 1 ? 'família' : 'famílias'} chega no ${T.season[season]}`,
   caravanArrived: (housed: number, left: number) =>
@@ -164,7 +170,10 @@ export const T = {
       return a.locked
         ? `Estoque cheio (${a.capacity}): o excesso estraga. O celeiro libera no objetivo ${unlockingGoal('granary')}`
         : 'Comida estragando: construa um celeiro';
-    if (a.kind === 'winterComing') return 'O inverno está chegando: guarde comida e lenha. As tendas sofrem mais';
+    if (a.kind === 'winterComing')
+      return a.tents
+        ? `O inverno está chegando: na tenda, crianças pequenas e idosos podem morrer de frio. Suba para barro (${HOUSE_LEVELS[2].materials?.wood ?? 0} de madeira)`
+        : 'O inverno está chegando: guarde comida e lenha';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
     if (a.kind === 'noCrew') return `${BUILDINGS[a.building].name} sem trabalhadores: toque numa pessoa e mude a profissão`;
     return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: faltam vagas. Construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo, lenhador ou oficina'}`;
@@ -333,6 +342,8 @@ export const T = {
     /** A house with people in autumn and winter: the firewood it burns; with cold, in red. */
     firewood: (n: number) => `Lenha no inverno: ${fmt(n)}/sem`,
     cold: 'Frio: falta lenha',
+    /** A tent in autumn and winter (B3): the cold can kill there. */
+    tentCold: 'Tenda fria: risco para crianças e idosos',
     /** Lumber or gatherer preview when its radius takes trees the other one uses. */
     sharesGrove: (kind: 'lumber' | 'gatherer') => (kind === 'lumber' ? 'Divide o bosque com a Coletora' : 'Divide o bosque com o Lenhador'),
     /** "Onde pôr um lenhador" found no spot with trees (or rocks) next to a road. */
@@ -415,6 +426,7 @@ export const T = {
       thisYear: 'Este ano (desde o outono)',
       births: 'Nascimentos',
       deaths: 'Mortes',
+      coldDeaths: 'De frio',
       weddings: 'Casamentos',
       couples: 'Casais esperando casa',
       caravan: 'Próxima caravana',

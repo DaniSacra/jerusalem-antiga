@@ -1,4 +1,4 @@
-import { calendar, canWork, childrenOf, clanName, HOUSE_LEVELS, jobOptions, jobsOf, personById, type AgeBand, type GameState, type Person } from '../../core';
+import { calendar, canWork, childrenOf, clanName, died, HOUSE_LEVELS, jobOptions, jobsOf, personById, type AgeBand, type GameState, type Person } from '../../core';
 import { T } from '../strings';
 import { ageNow, bandOf, jobChoices, jobText } from './people';
 
@@ -35,7 +35,7 @@ const yearAt = (week: number) => calendar(week).year;
 function kinOf(s: GameState, p: Person): Kin {
   const N = T.nova.people;
   const end = p.end;
-  const label = !end ? p.name : end.cause === 'age' ? `${p.name} · ${N.dead(ageNow(s, p))}` : `${p.name} · ${N.gone(yearAt(end.week))}`;
+  const label = !end ? p.name : died(p) ? `${p.name} · ${N.dead(ageNow(s, p))}` : `${p.name} · ${N.gone(yearAt(end.week))}`;
   return { id: p.id, label, dim: !!end };
 }
 
@@ -47,7 +47,7 @@ export function sheetOf(s: GameState, p: Person): SheetView {
   const parent = father ?? mother;
   const band = bandOf(s, p);
   const end = p.end;
-  const age = !end ? N.age(ageNow(s, p), N.band(band, p.sex)) : end.cause === 'age' ? N.dead(ageNow(s, p)) : N.gone(yearAt(end.week));
+  const age = !end ? N.age(ageNow(s, p), N.band(band, p.sex)) : died(p) ? N.dead(ageNow(s, p)) : N.gone(yearAt(end.week));
   const home = !end && p.houseId !== null ? s.buildings.find((b) => b.id === p.houseId) : undefined;
   const origin = p.caravan === null ? N.born(yearAt(p.birthWeek)) : p.caravan === 0 ? N.founder : N.caravan(yearAt(s.caravans[p.caravan - 1]?.week ?? 0));
   const rows: SheetView['rows'] = [];
@@ -55,7 +55,7 @@ export function sheetOf(s: GameState, p: Person): SheetView {
   if (parents.length) rows.push({ label: N.parents, kin: parents.map((o) => kinOf(s, o)) });
   const spouse = personById(s, p.spouseId);
   if (spouse) {
-    const state = p.engaged !== null ? 'engaged' : spouse.end?.cause === 'age' && !end ? 'widow' : 'married';
+    const state = p.engaged !== null ? 'engaged' : died(spouse) && !end ? 'widow' : 'married';
     rows.push({ label: N.spouse(state, p.sex), kin: [kinOf(s, spouse)] });
   }
   const kids = childrenOf(s, p.id).sort((a, b) => a.birthWeek - b.birthWeek);

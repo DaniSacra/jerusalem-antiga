@@ -92,6 +92,9 @@ export function wed(a: Person, b: Person) {
   b.engaged = null;
 }
 
+/** The causes that are a death (not a leaving). */
+const DEATHS: readonly EndCause[] = ['age', 'coldDeath'];
+
 /**
  * A person leaves the living: into `departed` with the week and cause. An engagement ends (the
  * other one may get engaged again); a spouse stays a widow(er). Leaves any walking group.
@@ -106,8 +109,12 @@ export function depart(s: GameState, p: Person, cause: EndCause) {
   }
   for (const f of s.families) f.members = f.members.filter((id) => id !== p.id);
   s.families = s.families.filter((f) => f.members.length > 0);
-  if (cause === 'age') s.yearStats.deaths++;
+  if (DEATHS.includes(cause)) s.yearStats.deaths++;
+  if (cause === 'coldDeath') s.yearStats.coldDeaths++;
 }
+
+/** The person died (of age or of cold), rather than leaving the city. */
+export const died = (p: Person): boolean => !!p.end && DEATHS.includes(p.end.cause);
 
 /** Everyone in a house leaves the city (famine, no road, demolished). Returns the family name's clan of the eldest, or null when empty. */
 export function leaveHouse(s: GameState, houseId: number, cause: EndCause): number | null {

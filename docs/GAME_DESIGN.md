@@ -79,11 +79,11 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
 | Campo | 20 | 0,5/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
-| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (3 casas de barro); casas de barro no raio viram casas de pedra |
+| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (5 casas de barro); casas de barro no raio viram casas de pedra |
 | Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
 | Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
 | Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
-| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (primeiro nascimento); as rochas não acabam |
+| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (passe o primeiro inverno); as rochas não acabam |
 | Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
 | Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
@@ -183,13 +183,40 @@ Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
 - **Avisos:** `firewood` logo depois da comida ("A lenha não dura o inverno: faltam N de madeira.
   Construa um lenhador"; com frio "Frio! Sem lenha, as casas esvaziam. Construa um lenhador");
   `storageFull` por último ("Estoque de pedra cheio (400): a pedreira parou"); `winterComing` vale com
-  qualquer casa com gente ("O inverno está chegando: guarde comida e lenha. As tendas sofrem mais").
+  qualquer casa com gente ("O inverno está chegando: guarde comida e lenha"; com gente em tenda, "O
+  inverno está chegando: na tenda, crianças pequenas e idosos podem morrer de frio. Suba para barro
+  (5 de madeira)").
 - **Tela:** a madeira do topo fica vermelha com ⚠ quando a lenha não dura ou com frio; toasts "Frio!
   Acabou a lenha: construa um lenhador" e "A lenha voltou: as casas se aquecem"; balão da casa no
   outono e no inverno "Lenha no inverno: N/sem" (com frio, vermelho "Frio: falta lenha"); balão do
   Lenhador/Pedreira cheio "Parado: estoque cheio (400)" no lugar da linha "Rende N" (e "Sem rochas/árvores por
   perto" só quando não há fonte, nunca por falta de trabalhadores); no frio as chaminés param de soltar fumaça;
   casa que cai no frio mostra "Frio -N".
+
+### Morte de frio (Pacote B3 "O frio pesa")
+Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` seção 4. Código: `src/core/cold.ts`.
+- Em cada semana de **inverno**, depois da queima da lenha e antes das casas, cada morador sorteia a
+  sua chance de morrer de frio (`rules.json > coldDeath`; pares = vulnerável, outros). **Vulnerável**
+  = criança até **4** anos (`childAge`) ou idoso (50+).
+
+| Onde | Vulnerável | Outros |
+|---|---|---|
+| Tenda, com lenha (`tent`) | 1% | 0 |
+| Tenda, sem lenha (`tentCold`) | 4% | 1% |
+| Barro ou melhor, sem lenha (`houseCold`) | 1% | 0 |
+| Barro ou melhor, com lenha | 0 | 0 |
+
+- **Fome junto** multiplica a chance por **2** (`famineFactor`). Chance 0 não sorteia. Quem está a
+  caminho não sorteia. O sorteio da casa (cair ou sair) continua um só.
+- A morte é como a de idade: `departed` com a causa `coldDeath`, o cônjuge fica viúvo, a vaga de
+  trabalho fica livre, a casa do último morador fica vazia. Evento `coldDeath`, marca
+  `winterLoss` (o marco do primeiro inverno não sai). `yearStats.deaths` e `yearStats.coldDeaths` contam.
+- No 1º dia da primavera, evento `winterToll` com quantos o frio levou no inverno (só se > 0).
+- **Tela:** um toast por semana, "O frio levou Ana, 2 anos" (bebê: "O frio levou Ana, bebê"), os
+  outros somados ("O frio levou Ana, 2 anos e mais 2 pessoas"), e "Frio" subindo de cada casa; na
+  primavera "O inverno levou N pessoas". Ficha da tenda no outono e no inverno: "Tenda fria: risco
+  para crianças e idosos" (amarelo; vermelho no frio). Estatísticas, aba Povo: "De frio" no ano (só
+  quando há). A ficha da pessoa mostra "† aos N".
 
 ## Ruas e conexão
 
@@ -523,9 +550,9 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 |---|---|---|---|---|
 | 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
 | 2 | Primeiro casamento | marco | +20 | – |
-| 3 | Passe o primeiro inverno | marco `firstSpring` | +40 | – |
-| 4 | Primeiro nascimento | marco | +30 | Pedreira |
-| 5 | Tenha 3 casas de barro | 3 | +40 | Praça |
+| 3 | Primeiro nascimento | marco | +40 | – |
+| 4 | Passe o primeiro inverno | marco `firstSpring` | +30 | Pedreira |
+| 5 | Tenha 5 casas de barro | 5 | +40 | Praça |
 | 6 | Receba a primeira caravana | marco | +50 | Oficina |
 | 7 | Construa uma oficina | 1 | +40 | Mercado |
 | 8 | Chegue a 30 moradores | 30 | +50 | – |

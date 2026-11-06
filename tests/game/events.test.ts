@@ -66,3 +66,21 @@ describe('week events → what the views do', () => {
     expect(out.map((o) => o.do)).toEqual(['leave', 'toast', 'fell']);
   });
 });
+
+describe('cold deaths on screen (plan B3)', () => {
+  it('one toast a week: the first by name with the place, the others summed; the winter toll at the spring', () => {
+    const s = emptyGame();
+    const h = put(s, 'house', 22, 30, 1, false, 0);
+    const [a, b, c] = [2, 0, 61].map((age) => person(s, { houseId: h.id, age }));
+    for (const p of [a, b, c]) s.departed.push({ ...p, end: { week: s.week, cause: 'coldDeath' } });
+    s.people = [];
+    const ev = (id: number, age: number): GameEvent => ({ type: 'coldDeath', id, age, x: 22, y: 30 });
+    const out = readEvents(s, [ev(a.id, 2), ev(b.id, 0), ev(c.id, 61)], { births: 0, weddings: 0 });
+    expect(toasts(out)).toEqual([`bad:${T.coldDeath(a.name, 2, 2)}`]);
+    expect(out.filter((o) => o.do === 'floatBad')).toHaveLength(3);
+    expect(T.coldDeath('Ana', 2, 0)).toBe('O frio levou Ana, 2 anos');
+    expect(T.coldDeath('Ana', 0, 1)).toBe('O frio levou Ana, bebê e mais 1 pessoa');
+    expect(toasts(read([{ type: 'winterToll', n: 3 }]))).toEqual([`bad:${T.winterToll(3)}`]);
+    expect(T.winterToll(1)).toBe('O inverno levou 1 pessoa');
+  });
+});

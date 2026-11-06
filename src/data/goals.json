@@ -1,9 +1,9 @@
 [
   { "type": "foodUntilSpring", "target": 1, "reward": 30, "unlock": "granary", "text": "Comida até a primavera" },
   { "type": "milestone", "milestone": "firstWedding", "target": 1, "reward": 20, "text": "Primeiro casamento" },
-  { "type": "milestone", "milestone": "firstSpring", "target": 1, "reward": 40, "text": "Passe o primeiro inverno" },
-  { "type": "milestone", "milestone": "firstBirth", "target": 1, "reward": 30, "unlock": "quarry", "text": "Primeiro nascimento" },
-  { "type": "houses",    "target": 3,   "level": 2, "reward": 40,  "unlock": "plaza", "text": "Tenha 3 casas de barro" },
+  { "type": "milestone", "milestone": "firstBirth", "target": 1, "reward": 40, "text": "Primeiro nascimento" },
+  { "type": "milestone", "milestone": "firstSpring", "target": 1, "reward": 30, "unlock": "quarry", "text": "Passe o primeiro inverno" },
+  { "type": "houses",    "target": 5,   "level": 2, "reward": 40,  "unlock": "plaza", "text": "Tenha 5 casas de barro" },
   { "type": "milestone", "milestone": "firstCaravan", "target": 1, "reward": 50, "unlock": "workshop", "text": "Receba a primeira caravana" },
   { "type": "build",     "target": 1,   "kind": "workshop", "reward": 40, "unlock": "market", "text": "Construa uma oficina" },
   { "type": "residents", "target": 30,  "reward": 50,  "text": "Chegue a 30 moradores" },
