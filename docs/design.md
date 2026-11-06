@@ -103,6 +103,16 @@ Mantidos:
   da tenda na semana 11; todas as mortes do Ano 1 são de vulneráveis em tenda). J1: campo vazio com comida
   garantida é escolha do jogador, não conta; sem mudança de tela. Templo × lenha (22% travam no Templo,
   ~26 mortes de frio): ajuste "Fim sem frio" antes do Pacote C. Derrota da cidade vazia: depois
+- 2026-11-06 (diretor, depois do `sim-tester-fim-sem-frio.md`): Templo `materials.wood` 300 → 200
+  (a0f7753). **A2 do Comum passa a 50–90% de vitória em 1000 sem** (derrotas ≤ 5% e Distraído ≤ 20%
+  iguais). Motivo: o Comum não perde; quem não vence está travado, e "≤ 10% sem vitória" não cabe com
+  teto de 80%. Medido: 89% (100 seeds), 91% (200 seeds). Se passar de 92%, madeira 200 → 250. Lenha
+  antes do Templo como regra: fora (0 ponto no sim)
+- 2026-11-06 (usuário, escopo do diretor): plano "Beleza e calma"
+  (`docs/revisoes/2026-11-06/plano-beleza.md`) entra antes do Pacote C: bugs, ganhos rápidos, depois
+  Música e os pacotes de arte e interface. Música: Web Audio gerado (arquitetura 12), ligada por padrão
+  a 50%, toca pausado e no título (depois do primeiro toque), a chave de silêncio do iPhone cala.
+  Motivo: o jogo é contemplativo e o 3D perdeu o detalhe do 2D; nenhum item é mecânica nova
 
 ## Feito: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06, fechado no mesmo dia)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
@@ -136,23 +146,32 @@ Casas sem fumaça no frio. "Parado: estoque cheio". Critérios novos F1–F4 (fr
 partidas do Comum, ≤ 15% no Ano 1) e W4b ≤ 15/100. Alavancas na seção 8 do plano. Fora: roupas,
 plantio, depósito, manutenção em pedra, frio na alegria e nos nascimentos.
 
+## Agora: plano "Beleza e calma" (2026-11-06)
+Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.
+Sem mecânica nova e sem mudar números de economia. Medir `view3d-perf.mjs` em cada pacote (≥ 30 qps no
+celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
+- (a) Bugs, ~10–13 h: fumaça ignora `s.cold`; janelas das casas Meshy não acendem; rua desligada igual à
+  ligada; toasts cobrindo o mapa no celular (máx. 2); barra de cima em duas linhas no PC; "· 3" na coluna
+- (b) Ganhos rápidos, ~13–14 h: vento em árvores e campos (shader), fumaça macia, fogo do altar e
+  faíscas, vinheta CSS, grão do chão, margem do rio, toasts e FOME calmos, relevo dos botões
+- (c) Pacotes, em ordem: C1 Música (architect) → C2 Vida na rua → C3 Casas variadas → C4 Chão e ruas →
+  C5 Interface bonita 1 (miniaturas, setas, ícones) → C6 Campo e árvores → C7 Interface bonita 2 +
+  título com a cidade → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas)
+
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
-0. Pacote B "Primeiro ano de sobrevivência" (feito 2026-11-06) → playtest do usuário (decide o B4
-   "Alegria desde o começo" e o "Chamar trabalhador" no balão) → ajuste "Fim sem frio" (sem mecânica
-   nova, sim-tester mede: Templo `materials.wood` 300 → 200; depois a lenha antes da reserva do Templo;
-   alvo: Comum sem vitória em 1000 sem ≤ 10%, A1 em 25–35 min) → Pacote C "Gado" (o Mercado passa a
-   pedir gado). Em espera: derrota da cidade vazia (pacote "Recuperação e vitória", se a cidade morta
-   levar > 26 sem para perder) e prata/pedra paradas (W4, precisam de destino: "Governo" ou "Evoluções")
+0. Pacote B "Primeiro ano de sobrevivência" (feito 2026-11-06) → ajuste "Fim sem frio" (feito
+   2026-11-06: madeira do Templo 200, A2 do Comum 50–90%) → plano "Beleza e calma" (acima) até o C3 →
+   Pacote C "Gado" (o Mercado passa a pedir gado); depois do C3, alterna um pacote de beleza e um de
+   jogo. Playtest do usuário decide o B4 "Alegria desde o começo" e o "Chamar trabalhador" no balão.
+   Em espera: derrota da cidade vazia (entra no pacote "Recuperação e vitória": a cidade morta leva 52
+   sem de mediana para perder) e prata/pedra paradas (W4, precisam de destino: "Governo" ou "Evoluções")
 1. Povo (feito) · 2. Madeira e pedra (feito) · 3. Lenha e inverno (feito, P4) · 4. Obras com tempo ·
 5. Recuperação e vitória · 6. Alojamento · 7. Governo · 8. Evoluções · 9. Pasto e roupas ·
 10. Doenças · 11. Eventos da época · 12. Incêndio
 
-**Pedido do usuário em espera: música** (pedido em 2026-11-04, registrado em 2026-11-06). Uma
-música de fundo bem relaxante para a cidade, em tons maiores e no espírito das trilhas calmas de
-aventura (o usuário citou Zelda como referência de clima; composição original, nada copiado). Precisa
-de uma opção para desligar nas configurações. Ainda não tem escopo nem data: o game-director decide
-quando entra (pilar da contemplação), e a forma (arquivos de áudio ou música gerada no navegador)
-fica com o architect.
+**Música** (pedido em 2026-11-04): música de fundo bem relaxante, tons maiores, clima de trilha calma
+de aventura (Zelda só como clima; composição original), com desligar e volume. **Com escopo desde
+2026-11-06**: pacote C1 do plano "Beleza e calma", forma em `docs/arquitetura-3d.md` seção 12.
 
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje
@@ -174,7 +193,7 @@ por cima das seções abaixo:
   vence 98%; tutorial perde 0 de 16. Mas a partida dura ~2,5 min, as metas 1–4 caem em 9 semanas,
   o campo dá 89% da comida e 19–42% estraga
 
-## Agora: Pacote "Povo" (pedido do usuário em 2026-11-04, especificado no mesmo dia)
+## Feito: Pacote "Povo" (pedido do usuário em 2026-11-04, especificado no mesmo dia)
 Pedido: `docs/revisoes/2026-11-05/pedido-povo.md`. Especificação completa (números, dados, telas,
 bots, testes, ordem e estimativa): `docs/revisoes/2026-11-05/plano.md`. Vem **antes** do P3, porque
 muda a capacidade das casas, o crescimento e a meta do templo.
