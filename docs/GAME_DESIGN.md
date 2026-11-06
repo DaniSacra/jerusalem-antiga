@@ -1233,11 +1233,14 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   (`crowd.fieldHands`); nenhum em campo sem rua.
 - **Dia e noite** (só visual): 240 s a 1x, seguindo o tempo do jogo (para na pausa), com a luz do
   sol, o céu, a neblina e as sombras. Em velocidades altas a luz balança perto do meio-dia em vez de
-  piscar. À noite acendem as janelas das casas de pedra e das grandes (nas casas .glb, um vidro
-  quente com halo na janela e na porta, `WINDOWS_AT` em `plan.ts`; casa vazia fica apagada), as
-  fogueiras das tendas (com faíscas subindo), os braseiros em algumas esquinas das ruas principais,
-  o fogo do altar e o forno da oficina (chama, halo e uma poça de luz no chão), e aparecem estrelas
-  e a lua. Desligado na engrenagem: sempre meio-dia.
+  piscar. **Toda casa com gente acende à noite:** a casa de barro a porta, as casas de pedra e as
+  grandes as janelas (nas casas .glb, um vidro quente com halo, `WINDOWS_AT` em `plan.ts`), e cada
+  uma tem uma poça de luz quente no chão diante da porta (maior nas casas maiores; o mercado e a
+  oficina ligados também, `DoorLights`); a tenda tem a fogueira com faíscas e uma poça forte. Casa
+  vazia fica apagada. Acendem também os braseiros em algumas esquinas das ruas principais, o fogo do
+  altar e o forno da oficina, e aparecem estrelas e a lua. A lua e o céu da noite iluminam o
+  bastante para ver ruas, casas e gente no celular, ainda com cara de noite (`look3d.json` > `day.keys`
+  e `night`). Desligado na engrenagem: sempre meio-dia.
 - **Fogo do altar** em camadas: línguas de chama que tremulam (miolo amarelo, laranja, pontas
   vermelhas), brasas pulsando no leito e faíscas subindo; tudo no shader, uma chamada só.
 - **Fumaça** macia (bolas de fumaça com luz por cima, sobem, incham e se inclinam com o vento) nas
@@ -1246,8 +1249,27 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   fuma e as fogueiras das tendas apagam** (`smokeShare` em `plan.ts`); o altar e o forno da oficina
   continuam.
 - **Vento** (só no shader de vértice, sem custo na CPU): palmeiras balançam mais, oliveiras pouco,
-  rochas nada; o trigo e a cevada ondulam em ondas que correm pelo campo. A força segue o vento do
-  clima e quase para na calmaria (`look3d.json` > `wind`).
+  rochas nada; o trigo e a cevada ondulam em ondas que correm pelo campo; a roupa nos varais (e o
+  pano do espantalho) balança mais na barra, e os toldos (casa de pedra, praça, mercado, oficina,
+  celeiro) ondulam no meio. A força segue o vento do clima e tudo fica parado na calmaria
+  (`look3d.json` > `wind.calm` = 0).
+- **Vida parada na rua** (só desenho, `src/render3d/street.ts`, números em `look3d.json` > `street`),
+  gente de verdade da casa, cada um uma vez:
+  - Diante da porta, mais gente quanto maior a casa: na tenda, às vezes uma mulher ajoelhada na
+    fogueira; na casa de barro 1 (mulher moendo na soleira ou criança brincando); na de pedra 2 (dois
+    vizinhos conversando, ou um idoso com cajado e uma criança); na casa grande 3. Sem alguém da
+    idade certa, quem estiver em casa faz o que combina com ele.
+  - Mercado ligado com equipe: 2 a 4 compradores (conforme o nível) olhando as bancas, as mulheres
+    com cesto, primeiro do lado da rua.
+  - No outono, sob até 4 oliveiras a até 5 células das casas, dois colhedores: um batendo os galhos
+    com vara, outra ajoelhada catando no cesto.
+  - No máximo 40 figuras; menos à noite e na chuva (como os andarilhos), metade na qualidade baixa,
+    nenhuma na mínima nem de longe (zoom mínimo); sombras só na qualidade alta.
+- **Noivos de mãos dadas:** um casal noivo a caminho da casa onde vai casar (o core casa os dois
+  ao chegar) anda lado a lado, de mãos dadas (`betrothed` em `crowd.ts`).
+- **Família indo embora:** quando uma família deixa a cidade (evento `familyLeft`), quem saiu da
+  casa nessa semana anda a pé, com trouxas nas costas (o idoso com cajado), pela rua até a entrada
+  e some (`leavePath`; sem rua, atravessa o campo). Até 2 grupos de 6 ao mesmo tempo.
 - **Ruas que evoluem** (só visual, `src/render3d/roads.ts`): a rua mostra quanta gente passa por
   ela. Cada construção manda o seu povo até o altar pelo caminho de rua mais curto: a casa manda os
   seus moradores, o local de trabalho as suas vagas e os outros serviços 2. Com menos de 6 pessoas

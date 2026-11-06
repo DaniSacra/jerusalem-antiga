@@ -4,10 +4,13 @@ import { mainRoadCells, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
 import { Instancer } from './instancer';
 import { Families } from './figures';
-import { FieldHands, Flames, Haulers, NightFires, Smoke, Walkers } from './life';
+import { DoorLights, FieldHands, Flames, Haulers, NightFires, Smoke, Walkers } from './life';
+import LOOK from './look3d.json';
 import type { ModelKey, Prototype } from './models';
 import { cityPlan, CLOSED_AT, hash, houseSmokeKey, KILN, panesOf, residentsOf, walkerCount, YARD_AT } from './plan';
 import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
+import type { Placed } from './street';
+import { Idlers, Leavers } from './townsfolk';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
@@ -41,11 +44,23 @@ export class World {
   pasture!: Pasture;
   puddles!: THREE.InstancedMesh;
   flames!: Flames;
+  /** Warm light before the doors of the lived-in houses at night. */
+  doors!: DoorLights;
+  /** The still life of the streets (neighbours, buyers, pickers), drawn again with the city and the people. */
+  idlers!: Idlers;
+  /** Families walking out of town after leaving (kept across rebuilds). */
+  readonly leavers: Leavers;
+  /** The idle figures cast shadows (the highest quality only; set before a rebuild). */
+  idleShadows = true;
   houses = 0;
   fields = 0;
   private land = new THREE.Group();
   private city = new THREE.Group();
   private people = new THREE.Group();
+  private idle = new THREE.Group();
+  private leaving = new THREE.Group();
+  /** Where the last city build drew each building (the still life stands by them). */
+  private placed: Placed[] = [];
   /** The city's instances, and each building's copies in them (its hop, see `lift`). */
   private inst: Instancer | null = null;
   private copies = new Map<number, [ModelKey, number][]>();
@@ -74,9 +89,16 @@ export class World {
       skirt.add(kind, x, this.ground.height(x, z), z, hash(k, 4) * 6.28, 0.8 + hash(k, 5) * 0.5);
     }
     this.land.add(skirt.build(shadows));
-    this.group.add(this.land, this.city, this.people);
+    this.leavers = new Leavers(s, this.ground, shadows);
+    this.leaving.add(...this.leavers.objects);
+    this.group.add(this.land, this.city, this.people, this.idle, this.leaving);
     this.buildCity();
     this.buildPeople();
+  }
+
+  /** The family of the house on cell (x, y) left the city: they walk out of town. */
+  leave(x: number, y: number) {
+    this.leavers.leave(x, y);
   }
 
   /** Other models for the city (the .glb pack arrived): its buildings and props are drawn again. */
@@ -131,8 +153,10 @@ export class World {
     const tents: THREE.Vector3[] = [];
     const fields: THREE.Vector3[] = [];
     const puddles: THREE.Vector3[] = [];
+    const doors: THREE.Vector4[] = [];
 
     const plan = cityPlan(s);
+    this.placed = plan.buildings;
     for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (FLAT_PROPS.has(p.key) ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)
       if (hash(x, y, 20) < VISUAL.seasons.weather.puddleShare) {
@@ -161,6 +185,16 @@ export class World {
         copies.push([look.yard.key, inst.add(look.yard.key, g.x, g.y, g.z, rot)]);
       }
       const lv = look.vacant ? 0 : look.houseLevel;
+      // Light on the ground before the door of a lived-in house (a tent has its fire's), and in the
+      // yards of the market and the workshop on the road.
+      if (lv >= 2) {
+        const d = at(CLOSED_AT[lv as 2 | 3 | 4][0], 0, 1.0);
+        doors.push(new THREE.Vector4(d.x, d.y, d.z, LOOK.night.doorRadius[lv]));
+      }
+      if ((b.kind === 'market' || b.kind === 'workshop') && b.connected) {
+        const d = at(0, 0, b.kind === 'market' ? 0 : 0.6);
+        doors.push(new THREE.Vector4(d.x, d.y, d.z, LOOK.night.workRadius));
+      }
       if (lv >= 2) {
         // The code houses' chimney; a .glb house smokes from its roof top (the chimney would be inside it).
         const p = at(lv >= 3 ? -0.5 : -0.4, Math.max(lv >= 4 ? 1.6 : lv === 3 ? 1.3 : 1.05, (this.models[look.key].top ?? 0) + 0.02), lv >= 3 ? -0.55 : -0.4);
@@ -207,7 +241,16 @@ export class World {
     this.hands = new FieldHands(fields, MAX_HANDS, this.shadows);
     this.pasture = new Pasture(s, ground, () => WATER_Y + this.water.mesh.position.y, this.shadows);
     this.puddles = puddleMesh(puddles, old);
-    this.city.add(this.smoke.mesh, this.flames.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
+    this.doors = new DoorLights(doors);
+    this.city.add(this.doors.mesh, this.smoke.mesh, this.flames.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
+    this.buildIdle();
+  }
+
+  /** The still life stands by the buildings and is cast from the residents: drawn again with either. */
+  private buildIdle() {
+    free(this.idle, this.shared);
+    this.idlers = new Idlers(this.s, this.placed, this.ground, this.idleShadows);
+    this.idle.add(...this.idlers.objects);
   }
 
   private buildPeople() {
@@ -217,10 +260,11 @@ export class World {
     this.families = new Families(s, this.ground, this.shadows);
     this.haulers = new Haulers(s, this.ground, this.shadows);
     this.people.add(...this.walkers.objects, ...this.families.objects, ...this.haulers.objects);
+    this.buildIdle();
   }
 
   dispose() {
-    for (const g of [this.land, this.city, this.people]) free(g, this.shared);
+    for (const g of [this.land, this.city, this.people, this.idle, this.leaving]) free(g, this.shared);
     this.group.removeFromParent();
   }
 }

@@ -1,4 +1,4 @@
-import { ageBand, jobsOf, type AgeBand, type BuildingKind, type Craft, type GameState, type Sex, type WalkerType } from '../core';
+import { ageBand, jobsOf, type AgeBand, type BuildingKind, type Craft, type GameState, type Person, type Sex, type WalkerType } from '../core';
 
 /**
  * How the people of the 3D view look and walk, as plain data (no Three.js): robe and head cover by
@@ -76,9 +76,10 @@ export function residentLook(type: WalkerType, sex: Sex, band: AgeBand, k: numbe
 /**
  * Things the walkers carry, each drawn as one instanced mesh that rides the figure (figures.ts):
  * a jar on the head, a basket on the hip, a sack on the back, a sickle, a log on the shoulder, a
- * staff, a two-wheeled cart with a stone block, and the goods of each workshop craft.
+ * staff, a two-wheeled cart with a stone block, and the goods of each workshop craft; the olive
+ * picker's long pole, and the arm a betrothed reaches to the right or left to hold the other's hand.
  */
-export const LOADS = ['jar', 'basket', 'sack', 'sickle', 'log', 'staff', 'cart', 'pot', 'hammer', 'plank', 'bolt', 'dyed', 'hide'] as const;
+export const LOADS = ['jar', 'basket', 'sack', 'sickle', 'log', 'staff', 'cart', 'pot', 'hammer', 'plank', 'bolt', 'dyed', 'hide', 'pole', 'hold-r', 'hold-l'] as const;
 export type Load = (typeof LOADS)[number];
 
 /** What an artisan carries to and from the workshop, by its craft. */
@@ -172,6 +173,27 @@ export function groupSlots(bands: AgeBand[], pack = false): Slot[] {
   if (pack) out.push({ back: Math.ceil(order.length / 2) * ROW_GAP + 0.1, side: 0 });
   return out;
 }
+
+/** Cells to each side of the path of a betrothed couple walking hand in hand (their hands meet in the middle). */
+export const HOLD_SIDE = 0.085;
+
+/**
+ * A betrothed couple on the way to the house where they marry (`moveFamilies` weds them there): two
+ * adults, each the other's betrothed, still engaged. They walk side by side, holding hands.
+ */
+export function betrothed(s: GameState, members: readonly Pick<Person, 'id' | 'spouseId' | 'engaged' | 'birthWeek'>[]): boolean {
+  if (members.length !== 2) return false;
+  const [a, b] = members;
+  return a.spouseId === b.id && b.spouseId === a.id && (a.engaged !== null || b.engaged !== null) && ageBand(a, s.week) === 'adult' && ageBand(b, s.week) === 'adult';
+}
+
+/**
+ * The slots of a betrothed couple, side by side in one row, and the arm each reaches: the one with
+ * side > 0 walks on the -x side of the pair (in its own frame, see `Families.update`), so it reaches
+ * its right hand (+x, as in figures.ts) to the other.
+ */
+export const HOLD_SLOTS: readonly Slot[] = [{ back: 0, side: -HOLD_SIDE }, { back: 0, side: HOLD_SIDE }];
+export const holdLoad = (slot: Slot): Load => (slot.side > 0 ? 'hold-r' : 'hold-l');
 
 /** How far behind the leader the last of a group walks (cells). */
 export const groupLength = (slots: Slot[]) => slots.reduce((m, s) => Math.max(m, s.back), 0);

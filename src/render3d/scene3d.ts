@@ -251,6 +251,9 @@ export class Scene3D {
         fx.milestone(o.building);
         this.stage.world.walkers.gather(o.building);
         break;
+      case 'leave':
+        this.stage.world.leave(o.x, o.y);
+        break;
       case 'fell': {
         const s = this.s;
         fx.fell(o.x, o.y, s.stumps.find((t) => t.i === o.y * s.cols + o.x)?.kind === 'palm');

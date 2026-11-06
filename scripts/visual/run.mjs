@@ -1235,7 +1235,7 @@ async function night3dScenario(page, form) {
   const above = { yaw: Math.PI / 4, pitch: 0.85 };
   // Night, close: windows lit on the lived-in stone and big houses (2 panes each), none on the empty ones.
   const night = await look({ day: 0.72, weather: clear }, { x: 31, z: 32, dist: 12, ...above }, 'houses');
-  assert(night.panes === 4 * 2, `the 4 lived-in .glb stone and big houses have their window panes, the 2 empty ones none (${night.panes})`);
+  assert(night.panes === 4 * 2 + 1, `the 4 lived-in .glb stone and big houses have their window panes, the mud house its door, the 2 empty ones none (${night.panes})`);
   assert(night.calls <= 120, `at most 120 draw calls at night (${night.calls})`);
   await look({ day: 0.72, weather: clear }, { x: 31, z: 33, dist: 40 }, 'far');
   // The altar fire at night: tongues, embers and sparks.
@@ -1252,6 +1252,130 @@ async function night3dScenario(page, form) {
   assert(cold.share > 0 && cold.share <= 0.05, `with s.cold no house smokes, the altar does (share ${cold.share})`);
   await look({ day: 0.72, pos: 20.5, weather: clear }, { x: 28, z: 31, dist: 12, ...above }, 'cold-night');
   await page.evaluate(() => (window.state.cold = false));
+}
+
+/**
+ * The still life of the streets (plano-beleza C2): neighbours at the doors that grow with the house
+ * level (a woman at the tent fire, a child playing, an elder with a staff, two neighbours talking),
+ * buyers at a staffed level-3 market, olive pickers under a tree in autumn, a betrothed couple walking
+ * hand in hand to the house where they marry, a family walking out of town after leaving its tent,
+ * washing and awnings in the wind. Fewer at night, none from the farthest zoom; at most 120 calls.
+ */
+async function street3dScenario(page, form) {
+  await open3dGame(page);
+  const n = (name) => `street3d-${form}-${name}`;
+  const setup = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    s.unlocked.push('market');
+    const put = (kind, x, y) => {
+      const r = core.place(s, kind, x, y);
+      if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);
+      return s.grid[y * s.cols + x];
+    };
+    const add = (h, sex, age) => core.addPerson(s, { sex, age, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+    // East of the starting road: a tent, a mud house, stone houses and big houses (washing lines: variant 2 and 5).
+    const east = [[28, 1, 2], [30, 2, 5], [32, 3, 2], [34, 4, 5], [36, 3, 1], [38, 4, 2]].map(([y, level, variant]) => Object.assign(put('house', 25, y), { level, variant }));
+    const west = [[28, 2, 1], [30, 3, 5], [32, 4, 0]].map(([y, level, variant]) => Object.assign(put('house', 22, y), { level, variant }));
+    for (const h of [...east, ...west]) {
+      add(h, 'm', 34);
+      add(h, 'f', 31);
+      if (h.level >= 2) add(h, 'm', 8);
+      if (h.level >= 3) add(h, 'f', 68);
+    }
+    const m = put('market', 22, 38);
+    m.level = 3;
+    // An olive tree behind the east houses.
+    s.feature[31 * s.cols + 28] = 'olive';
+    // A tent that will be left, further down the road.
+    const tent = Object.assign(put('house', 25, 42), { level: 1, variant: 0 });
+    for (const [sex, age] of [['m', 36], ['f', 33], ['m', 9], ['f', 5]]) add(tent, sex, age);
+    // A betrothed couple walking from down the road to an empty plot to marry there.
+    const plot = put('house', 22, 44);
+    const home = west[0];
+    const a = add(home, 'm', 21);
+    const b = add(home, 'f', 19);
+    a.spouseId = b.id;
+    b.spouseId = a.id;
+    a.engaged = b.engaged = s.week;
+    const path = core.findPath(s, { x: 24, y: 36 }, core.doorsOf(s, plot));
+    s.families.push({ id: s.nextId++, houseId: plot.id, members: [a.id, b.id], path: [...path, { x: plot.x, y: plot.y }], step: 0 });
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s);
+    window.session.refresh();
+    return { market: m.connected && s.people.some((p) => p.jobId === m.id), tent: { id: tent.id, x: tent.x, y: tent.y }, path: path.length };
+  });
+  assert(setup.market, `the market is on the road and staffed (${JSON.stringify(setup)})`);
+  await page.waitForTimeout(1500);
+  const info = () => page.evaluate(() => window.view3d.info());
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
+  const autumn = await page.evaluate(() => {
+    let w = 0;
+    while (window.core.calendar(w).season !== 'autumn') w++;
+    return w + 4.5;
+  });
+  const summer = await page.evaluate(() => {
+    let w = 0;
+    while (window.core.calendar(w).season !== 'summer') w++;
+    return w + 4.5;
+  });
+  const look = async (view, cam, name, wait = 900) => {
+    await page.evaluate(([view, cam]) => {
+      window.view3d.view(view);
+      window.view3d.rig.set(cam);
+    }, [view, cam]);
+    await page.waitForTimeout(wait);
+    await shot(page, n(name));
+    return info();
+  };
+  const above = { yaw: Math.PI / 4, pitch: 0.75 };
+  // By day, close: the neighbours at the doors of the east houses.
+  const day = await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 12, ...above }, 'doors');
+  assert(day.idlePlanned >= 12, `the street plans its still life (${day.idlePlanned})`);
+  assert(day.idle >= 10, `by day most of it is out (${day.idle} of ${day.idlePlanned})`);
+  assert(day.calls <= 120, `at most 120 draw calls (${day.calls})`);
+  await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 10, yaw: -Math.PI / 4, pitch: 0.75 }, 'doors-other-side');
+  await look({ day: 0.3, pos: summer, weather: clear }, { x: 23.5, z: 40, dist: 10, ...above }, 'market');
+  // Autumn: two pickers under the olive tree, one beating the branches with a pole.
+  await look({ day: 0.3, pos: autumn, weather: clear }, { x: 28, z: 31.5, dist: 9, ...above }, 'olives');
+  // Strong wind: the washing lines and the market's awnings move (two frames apart).
+  await look({ day: 0.3, pos: summer, weather: { ...clear, wind: 1 } }, { x: 24.5, z: 36, dist: 10, ...above }, 'wind-a');
+  await page.waitForTimeout(350);
+  await shot(page, n('wind-b'));
+  // The couple walking hand in hand up the road (their walk loops while the game is paused).
+  // Wait until they are on the way (not resting at the end of their loop).
+  await page.waitForFunction(() => window.view3d.game.scene.stage.world.families.figures.objects[0].instanceMatrix.array[0] !== 0, null, { timeout: 20000 }).catch(() => {});
+  const at = await page.evaluate(() => {
+    const m = window.view3d.game.scene.stage.world.families.figures.objects[0].instanceMatrix.array;
+    return { x: m[12], z: m[14], gap: Math.hypot(m[12] - m[28], m[14] - m[30]) };
+  });
+  assert(at.gap > 0.05 && at.gap < 0.3, `the betrothed walk side by side, hand in hand (${at.gap.toFixed(2)} apart)`);
+  await look({ day: 0.3, pos: summer, weather: clear }, { x: at.x, z: at.z, dist: 7, ...above }, 'couple', 150);
+  assert((await info()).families === 1, 'the betrothed couple walks');
+  // The tent's family leaves: they walk out of town with their bundles.
+  await page.evaluate((t) => {
+    const { state: s, core } = window;
+    core.leaveHouse(s, t.id, 'famine');
+    core.vacate(s, t.id);
+    window.session.refresh();
+    window.view3d.game.scene.effect({ do: 'leave', x: t.x, y: t.y });
+  }, setup.tent);
+  const leaving = await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 44, dist: 9, ...above }, 'leave', 2500);
+  const dbg = await page.evaluate((t) => {
+    const s = window.state;
+    const l = window.view3d.game.scene.stage.world.leavers;
+    return { departed: s.departed.map((p) => [p.houseId, p.end.week, p.end.cause]), week: s.week, tent: t, grid: s.grid[t.y * s.cols + t.x]?.id, groups: l.groups.map((g) => g && g.path.length) };
+  }, setup.tent);
+  assert(leaving.leaving === 1, `the family walks out of town (${leaving.leaving}) ${JSON.stringify(dbg)}`);
+  // Night: fewer people out, the street still reads.
+  const night = await look({ day: 0.72, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 12, ...above }, 'night');
+  assert(night.idle < day.idle, `fewer at night (${night.idle} < ${day.idle})`);
+  assert(night.calls <= 120, `at most 120 draw calls at night (${night.calls})`);
+  // From far away the still life is gone (specks), the walkers stay.
+  const far = await look({ day: 0.3, pos: summer, weather: clear }, { x: 25, z: 33, dist: 60 }, 'far');
+  assert(far.idle === 0, `no still life from the farthest zoom (${far.idle})`);
 }
 
 const scenarios = {
@@ -1293,6 +1417,8 @@ const scenarios = {
   'town3d-pc': { context: PC, run: town3dScenario },
   'night3d-pc': { context: PC, run: (page) => night3dScenario(page, 'pc') },
   'night3d-phone': { context: PHONE, run: (page) => night3dScenario(page, 'phone') },
+  'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
+  'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
   'temple3d-phone': { context: PHONE, run: (page) => temple3dScenario(page, 'phone') },

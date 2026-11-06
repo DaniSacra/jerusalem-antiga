@@ -14,7 +14,9 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `picking.ts`, `diff.ts` | **puros e testados**: raio até o chão e caixas das construções; o que mudou na cidade (camadas) |
 | `plan.ts` | **puro e testado**: o que se desenha do `GameState` (quantas chaminés fumam, `smokeShare`, nenhuma casa no frio; vidros acesos das casas .glb, `panesOf`; modelo por tipo e nível, casa vazia desbotada com portão trancado, quintal da casa por variante, acréscimos dos níveis 2–3 por tipo, celeiro enchendo, ruas gastas e calçadas, frente para a rua, árvores, tocos e mudas, número de moradores) |
 | `crowd.ts` | **puro e testado**: quem é cada morador andando (`castWalkers`: um morador real, o ofício por quem trabalha ali), roupa por idade e sexo (homens de turbante, mulheres de manto, crianças menores, idosos curvados e lentos), o que cada tipo de morador carrega (`loadOf`) e o bicho que anda ao lado (`companionOf`), ordem da família ao andar e o seu caminho até a casa |
-| `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), o que cada um carrega (jarro, cesto, saco, foice, tora, cajado, carrinho, produtos dos ofícios: uma malha por objeto, presa ao corpo) e as famílias e caravanas andando em grupo (`s.families`) |
+| `figures.ts` | gente low-poly instanciada (túnica, cabeça, turbante ou manto), o que cada um carrega (jarro, cesto, saco, foice, tora, cajado, carrinho, produtos dos ofícios: uma malha por objeto, presa ao corpo) e as famílias e caravanas andando em grupo (`s.families`; os noivos a caminho do casamento lado a lado, de mãos dadas: `betrothed`, `HOLD_SLOTS` em `crowd.ts`) |
+| `street.ts` | **puro e testado** (`tests/render3d/street.test.ts`): a vida parada da rua (`streetPlan`: vizinhos na porta que crescem com o nível da casa, compradores no mercado com equipe, colhedores de oliva no outono; no máximo `look3d.json` > `street.max`, em ordem de quem sai primeiro, `idleShown`), os gestos de cada um (`idlePose`) e a família que vai embora (`leavers`, `leavePath`, `leaveLead`) |
+| `townsfolk.ts` | desenha a vida parada (`Idlers`, feita com a cidade e com as pessoas; menos à noite e na chuva, metade na qualidade baixa, nenhuma na mínima nem de longe) e as famílias saindo a pé até a entrada (`Leavers`, pela saída `leave` de `familyLeft`, guardadas entre as reconstruções) |
 | `animals.ts` | bichos e barcos low-poly instanciados, com a cor nos vértices (jumento, ovelha, cabra, galinha, pomba, barco com pescador): uma chamada por tipo |
 | `ambient.ts` | **puro e testado**: onde ficam os bichos, os barcos e as lavadeiras (`ambientPlan`) e como se mexem (`ambientPose`) |
 | `pasture.ts` | desenha e mexe a vida em volta da cidade a cada quadro (feita com a cidade) |
@@ -22,8 +24,8 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `models.ts` | modelos low-poly feitos por código, por chave; carregador do pacote .glb |
 | `instancer.ts` | um `InstancedMesh` por parte de modelo: a cidade inteira em poucas dezenas de chamadas |
 | `terrain.ts` | relevo (plano na cidade), areia e grama com transição, leito do rio, água animada |
-| `life.ts` | moradores andando pela rede (caminhos do core) com o que carregam e os bichos ao lado, a gente que se reúne num marco (`gather`), gente nos campos, fumaça macia (`Smoke`: bolas de fumaça na GPU, uma chamada), fogo do altar em camadas e faíscas das tendas (`Flames`: uma chamada), luzes da noite (tendas apagadas no frio) |
-| `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas (e o vidro aceso das casas .glb, `paneMaterial`), campos crescendo, vento nas plantas (vértice), cores do chão por estação com manchas e grão (desligados na qualidade mínima) e a margem de areia úmida do rio |
+| `life.ts` | moradores andando pela rede (caminhos do core) com o que carregam e os bichos ao lado, a gente que se reúne num marco (`gather`), gente nos campos, fumaça macia (`Smoke`: bolas de fumaça na GPU, uma chamada), fogo do altar em camadas e faíscas das tendas (`Flames`: uma chamada), luzes da noite (tendas apagadas no frio) e a poça de luz diante da porta de cada casa com gente, do mercado e da oficina (`DoorLights`, uma chamada) |
+| `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas (e o vidro aceso das casas .glb, `paneMaterial`), campos crescendo, vento nas plantas (vértice) e nos panos (`cloth`: roupa no varal pela barra, toldos pelo meio, peso `aFlap` assado em `models.ts`), cores do chão por estação com manchas e grão (desligados na qualidade mínima) e a margem de areia úmida do rio |
 | `atmosphere.ts` | sol e lua com sombras, céu, neblina |
 | `particles.ts` | chuva, respingos, neve, folhas, pétalas e poeira na GPU |
 | `fx.ts` | momentos do mundo : anel de luz no chão, poeira e pedrinhas ao demolir, festa do templo, brilho e faíscas do marco, mofo com moscas, árvore cortada tombando, pulinho da construção (`World.lift`); tudo em pool, 3 chamadas de desenho |
@@ -86,8 +88,8 @@ pela variante, no canto da frente do pátio, sobre o piso elevado do modelo Mesh
 Casa vazia que guardou o nível: tom `VACANT_TINT` (< 0,8), que os shaders desbotam (cinza empoeirado)
 e apagam as janelas, sem fumaça, e o portão `closed` diante da porta (`CLOSED_AT`).
 Janelas das casas .glb: os modelos Meshy não têm peça escura de janela para o shader acender, então
-a casa de pedra e a casa grande com gente ganham `pane` (vidro quente com halo, somado à luz, preto
-de dia) na janela e na porta (`WINDOWS_AT` em `plan.ts`, posições medidas nos modelos; `panesOf`).
+a casa de barro (na porta), a casa de pedra e a casa grande com gente ganham `pane` (vidro quente com
+halo, somado à luz, preto de dia) na janela e na porta (`WINDOWS_AT` em `plan.ts`, posições medidas nos modelos; `panesOf`).
 Só entram quando o modelo veio do pacote (`Prototype.glb`); a fumaça dessas casas sai do alto do
 modelo (`Prototype.top`), não de dentro dele. Se o pacote for trocado, meça de novo as posições.
 

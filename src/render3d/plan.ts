@@ -101,11 +101,13 @@ export const VACANT_TINT = 0.7;
 /** Where the barred gate of an empty house stands (model x, z; front +z), by the level kept: before its door. */
 export const CLOSED_AT: Record<2 | 3 | 4, [number, number]> = { 2: [0.3, 0.86], 3: [0.05, 0.86], 4: [0, 0.9] };
 /**
- * Where the lit window panes of the .glb houses stand (model x, y, z and a turn about y from the
+ * Where the lit window panes of the .glb houses stand (the mud house's door too) (model x, y, z and a turn about y from the
  * front; front +z): over the windows the Meshy stone house and big house have, a hair before the wall.
  * The code houses light the dark of their own windows instead (see `shaders.ts`).
  */
 export const WINDOWS_AT: Partial<Record<number, [number, number, number, number][]>> = {
+  // The mud house: its door, lit from inside.
+  2: [[0.3, 0.3, 0.88, 0]],
   3: [[0, 0.98, 0.58, 0], [0, 0.42, 0.6, 0]],
   4: [[0.38, 1.82, 0.27, 0], [-0.4, 0.64, 0.3, 0]],
 };

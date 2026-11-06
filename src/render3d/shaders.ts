@@ -26,7 +26,7 @@ export const U = {
   uCrack: { value: new THREE.Color(0x6a4e32) },
   uFlowers: { value: 0 },
   uDrought: { value: 0 },
-  /** Wind on the plants: strength 0..1 (a breath in the calm) and the way it blows (x, z). */
+  /** Wind on the plants and cloth: strength 0..1 (0 in the calm: all still) and the way it blows (x, z). */
   uWind: { value: 0 },
   uWindDir: { value: new THREE.Vector2(1, 0.3).normalize() },
   /** Fine grain and patches on the ground (0 at the minimum quality: skipped). */
@@ -62,6 +62,8 @@ export interface PatchOptions {
   wind?: number;
   /** The crop waves of the fields (with `wind`): the rows bend in travelling waves. */
   waves?: boolean;
+  /** Cloth in the wind by its `aFlap` weights (models.ts): washing swings, awnings billow. */
+  cloth?: boolean;
 }
 
 const patched = new WeakSet<THREE.Material>();
@@ -73,7 +75,7 @@ const patched = new WeakSet<THREE.Material>();
 export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THREE.Material {
   if (patched.has(m)) return m;
   patched.add(m);
-  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}${o.wind ? `i${o.wind}${o.waves ? 'v' : ''}` : ''}`;
+  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}${o.wind ? `i${o.wind}${o.waves ? 'v' : ''}` : ''}${o.cloth ? 'c' : ''}`;
   m.customProgramCacheKey = () => key;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -83,14 +85,16 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         `#include <common>
         varying vec3 vWorld; varying float vUp; varying float vInst;
         uniform float uGrow; uniform float uHeat; uniform float uTime;
-        ${o.wind ? 'uniform float uWind; uniform vec2 uWindDir;' : ''}
+        ${o.wind || o.cloth ? 'uniform float uWind; uniform vec2 uWindDir;' : ''}
+        ${o.cloth ? 'attribute vec2 aFlap;' : ''}
         ${o.terrain ? 'attribute vec3 aGround; varying vec3 vGround;' : ''}`,
       )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         ${o.grow ? 'transformed.y = 0.05 + (transformed.y - 0.05) * uGrow;' : ''}
-        ${o.wind ? windChunk(o.wind, !!o.waves) : ''}`,
+        ${o.wind ? windChunk(o.wind, !!o.waves) : ''}
+        ${o.cloth ? CLOTH_CHUNK : ''}`,
       )
       .replace(
         '#include <project_vertex>',
@@ -188,6 +192,26 @@ function windChunk(k: number, waves: boolean): string {
     transformed.y -= ${(k * 0.25).toFixed(4)} * hy * hy * sway * sway * hy;
   }`;
 }
+
+/**
+ * Cloth in the wind, in the vertex shader (no CPU): a hanging cloth swings the way the wind blows,
+ * more at its hem (aFlap.x), with a ripple running along it; an awning billows up and down in its
+ * middle (aFlap.y). Still in the calm (as the plants); the gusts run across the town by the copy's
+ * place, as the plants'. The world direction is brought into the copy's space as in `windChunk`.
+ */
+const CLOTH_CHUNK = /* glsl */ `{
+  vec3 ip = vec3(0.0); mat3 im = mat3(1.0);
+  #ifdef USE_INSTANCING
+    ip = instanceMatrix[3].xyz; im = mat3(instanceMatrix);
+  #endif
+  float breath = uWind;
+  float gust = 0.6 + 0.4 * sin(uTime * 0.9 + dot(ip.xz, vec2(0.21, 0.13)));
+  float ripple = sin(uTime * 3.4 + dot(ip.xz, vec2(1.7, 1.3)) + (transformed.x + transformed.z) * 9.0);
+  vec3 push = vec3(uWindDir.x, 0.0, uWindDir.y) * aFlap.x * (0.1 * uWind * gust + 0.025 * breath * ripple);
+  float sc2 = max(dot(im[0], im[0]), 1e-4);
+  transformed += (transpose(im) * push) / sc2;
+  transformed.y += aFlap.x * 0.03 * uWind * gust * gust - aFlap.y * 0.035 * breath * (0.5 + 0.5 * gust) * sin(uTime * 2.6 + ip.x * 1.3 + ip.z * 0.9);
+}`;
 
 /**
  * The lit window pane of a .glb house (instanced, see WINDOWS_AT): black by day and in the houses

@@ -144,6 +144,9 @@ export class Stage {
     const share = l === 'high' ? 1 : l === 'low' ? 0.45 : 0.25;
     // The ground's grain and patches are skipped at the minimum quality.
     U.uGrain.value = l === 'min' ? 0 : 1;
+    // The idle figures cast shadows only at the highest quality.
+    this.world.idleShadows = l === 'high';
+    for (const o of this.world.idlers.objects) o.castShadow = l === 'high';
     for (const p of Object.values(this.fx)) p.limit(share);
     this.renderer.setSize(this.size.w, this.size.h);
   }
@@ -238,7 +241,7 @@ export class Stage {
     U.uCloudOffset.value.copy(this.cloudOffset);
     U.uCloud.value = L.clouds * (1 - L.night) * (1 - w.rain * 0.6);
     U.uWindows.value = L.windows;
-    U.uWindowColor.value.setHex(0xffa850).multiplyScalar(1.6);
+    U.uWindowColor.value.setHex(0xffa850).multiplyScalar(LOOK.night.window);
     U.uGrow.value = Math.max(0.02, crop.height);
     U.uHeat.value = s3.heat * (1 - w.rain) * (1 - L.night);
     setColor(U.uSand, s3.sand);
@@ -263,6 +266,11 @@ export class Stage {
     world.walkers.setShare(streetShare(L.night, w.rain));
     world.walkers.update(dt, time);
     world.families.update(time);
+    // The still life: like the walkers, fewer at night and in the rain; half at the low quality, none at
+    // the minimum or from far away (specks there); the olive pickers in autumn.
+    const idle = this.level === 'high' ? 1 : this.level === 'low' ? LOOK.street.lowShare : 0;
+    world.idlers.update(time, rig.distance > LOOK.street.farDist ? 0 : streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn');
+    world.leavers.update(time);
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
@@ -271,6 +279,7 @@ export class Stage {
     world.smoke.update(time, smokeShare(look.smoke, L.night, cold), w.wind, SMOKE_OPACITY * (1 - 0.5 * w.rain), 1 - 0.7 * L.night);
     world.fires.update(time, L.night, w.rain, renderer.getPixelRatio(), cold);
     world.flames.update(time, L.night, w.rain, cold);
+    world.doors.update(L.night, L.windows, w.rain);
     // Puddles on bare roads only (none on the snow).
     const puddles = w.puddles * (1 - s3.snow);
     world.puddles.visible = puddles > 0.01;
@@ -316,7 +325,7 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
+    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, idle: this.world?.idlers.shown ?? 0, idlePlanned: this.world?.idlers.planned ?? 0, leaving: this.world?.leavers.walking ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

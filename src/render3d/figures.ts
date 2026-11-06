@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ageBand, type Cell, type GameState } from '../core';
 import { BAKED, bake, Herd } from './animals';
-import { familyLead, figureLook, groupLength, groupSlots, LOADS, memberAt, type FigureLook, type Load, type Slot } from './crowd';
+import { betrothed, familyLead, figureLook, groupLength, groupSlots, HOLD_SLOTS, holdLoad, LOADS, memberAt, type FigureLook, type Load, type Slot } from './crowd';
 import { hash } from './plan';
 import type { Terrain } from './terrain';
 
@@ -161,6 +161,11 @@ const LOAD_PIECES: Record<Load, () => LoadPiece[]> = {
   bolt: () => [lcyl(0.032, 0.032, 0.15, 0.09, 0.22, 0.03, 0x3f6e9e, 'x'), lcyl(0.033, 0.033, 0.02, 0.09, 0.22, 0.03, 0xe6dcc4, 'x')],
   dyed: () => [lbox(0.11, 0.018, 0.09, 0, 0.455, 0, 0xa8473a), lbox(0.1, 0.018, 0.085, 0, 0.473, 0, 0xd8b040), lbox(0.095, 0.018, 0.08, 0, 0.491, 0, 0x3f6e9e)],
   hide: () => [lbox(0.15, 0.13, 0.014, 0, 0.27, -0.085, 0x9a6a3a, 0.08)],
+  // A long pole held up before the figure, tilted forward into the branches.
+  pole: () => [lcyl(0.009, 0.011, 0.8, 0.0, 0.0, 0.0, WOOD, 'y', 5)].map((p) => (p.g.rotateX(0.5), p.g.translate(0.07, 0.56, 0.19), p)),
+  // An arm reaching down to the side to hold the other's hand: a sleeve and the hand.
+  'hold-r': () => [lbox(0.026, 0.1, 0.026, 0.07, 0.245, 0.01, 0x8a6a4a, 0, 0.45), lbox(0.024, 0.026, 0.024, 0.088, 0.19, 0.012, 0xb98463)],
+  'hold-l': () => [lbox(0.026, 0.1, 0.026, -0.07, 0.245, 0.01, 0x8a6a4a, 0, -0.45), lbox(0.024, 0.026, 0.024, -0.088, 0.19, 0.012, 0xb98463)],
 };
 
 const loadGeometries = new Map<Load, THREE.BufferGeometry>();
@@ -254,8 +259,8 @@ interface Walking {
 /**
  * Families and caravans walking home along the roads (`s.families`, read when the view opens) as a
  * group: adults in front, children in the middle, the old behind, and a pack donkey for a caravan
- * family (someone not yet housed). The game is paused meanwhile, so each group walks the rest of its
- * way, goes in and walks it again.
+ * family (someone not yet housed); a betrothed couple on the way to marry walks side by side, hand in
+ * hand. The game is paused meanwhile, so each group walks the rest of its way, goes in and walks it again.
  */
 export class Families {
   readonly figures: Figures;
@@ -266,17 +271,24 @@ export class Families {
     const fams = s.families.filter((f) => f.path.length > 1 && f.step < f.path.length - 1);
     const people = new Map(s.people.map((p) => [p.id, p]));
     const total = fams.reduce((n, f) => n + f.members.length, 0);
-    this.figures = new Figures(total, shadows);
+    const groups = fams.map((f) => f.members.map((id) => people.get(id)).filter((p) => p !== undefined));
+    const couples = groups.map((m) => betrothed(s, m));
+    this.figures = new Figures(total, shadows, couples.includes(true) ? ['hold-r', 'hold-l'] : []);
     let caravans = 0;
     let slot = 0;
-    for (const f of fams) {
-      const members = f.members.map((id) => people.get(id)).filter((p) => p !== undefined);
+    for (const [n, f] of fams.entries()) {
+      const members = groups[n];
       const caravan = members.some((p) => p.houseId === null);
-      const slots = groupSlots(
-        members.map((p) => ageBand(p, s.week)),
-        caravan,
-      );
-      members.forEach((p, j) => this.figures.dress(slot + j, figureLook(p.sex, ageBand(p, s.week), hash(p.id, 3))));
+      const slots = couples[n]
+        ? [...HOLD_SLOTS]
+        : groupSlots(
+            members.map((p) => ageBand(p, s.week)),
+            caravan,
+          );
+      members.forEach((p, j) => {
+        this.figures.dress(slot + j, figureLook(p.sex, ageBand(p, s.week), hash(p.id, 3)));
+        if (couples[n]) this.figures.carry(slot + j, holdLoad(slots[j]));
+      });
       this.list.push({ path: f.path, from: f.step, last: f.path.length - 1, first: slot, slots, length: groupLength(slots), donkey: caravan ? caravans++ : -1, phase: hash(f.id, 5) * 6 });
       slot += members.length;
     }

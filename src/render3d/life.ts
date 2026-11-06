@@ -2,6 +2,7 @@ import VISUAL from '../data/visual.json';
 import * as THREE from 'three';
 import { ageBand, borderCells, craftOf, createRng, jobsOf, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
 import { COLORS } from './models';
+import LOOK from './look3d.json';
 import type { Terrain } from './terrain';
 import { castWalkers, COMPANION_AT, companionOf, figureLook, LOADS, loadOf, residentLook, walkerLook } from './crowd';
 import { hash } from './plan';
@@ -212,9 +213,9 @@ export class Walkers {
 
 const PUFFS = 6;
 const RISE_SECONDS = 5;
-const SMOKE_COLOR = 0xc4c0bc;
+const SMOKE_COLOR = 0xa29e9c;
 /** Peak opacity of a puff (soft sprites need more than the old solid ones to read as much). */
-export const SMOKE_OPACITY = 0.7;
+export const SMOKE_OPACITY = 0.82;
 
 /** A quad of side 1 centred on the origin, drawn once per instance (billboards in the shaders). */
 function quads(count: number): THREE.InstancedBufferGeometry {
@@ -579,7 +580,7 @@ export class NightFires {
     this.glowMat.uniforms.uTime.value = time;
     this.glowMat.uniforms.uScale.value = 450 * pixelRatio;
     this.glowMat.uniforms.uNight.value = k;
-    this.poolMat.opacity = 0.55 * k;
+    this.poolMat.opacity = LOOK.night.tentPool * k;
     const show = k > 0.05;
     for (const o of this.objects) o.visible = show;
     if (!show) return;
@@ -594,6 +595,39 @@ export class NightFires {
       this.flames.setMatrixAt(i, this.tmp.matrix);
     }
     this.flames.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/**
+ * Warm light on the ground before the door of every lived-in house, and in the yards of the market
+ * and the workshop, at night (no real lights: additive discs, one draw call). They go out with the
+ * windows late at night (`windows`, the share of lit houses).
+ */
+export class DoorLights {
+  readonly mesh: THREE.InstancedMesh;
+  private mat: THREE.MeshBasicMaterial;
+
+  /** `spots`: x, y, z of the ground and the radius (w). */
+  constructor(spots: THREE.Vector4[]) {
+    const disc = new THREE.CircleGeometry(1, 20);
+    disc.rotateX(-Math.PI / 2);
+    this.mat = new THREE.MeshBasicMaterial({ color: 0xffa04a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, alphaMap: poolTexture() });
+    this.mesh = new THREE.InstancedMesh(disc, this.mat, Math.max(1, spots.length));
+    const tmp = new THREE.Object3D();
+    spots.forEach((p, i) => {
+      tmp.position.set(p.x, p.y + 0.05, p.z);
+      tmp.scale.setScalar(p.w);
+      tmp.updateMatrix();
+      this.mesh.setMatrixAt(i, tmp.matrix);
+    });
+    this.mesh.count = spots.length;
+    this.mesh.visible = false;
+  }
+
+  update(night: number, windows: number, rain: number) {
+    const k = night * windows * (1 - 0.3 * rain);
+    this.mat.opacity = LOOK.night.door * k;
+    this.mesh.visible = this.mesh.count > 0 && k > 0.03;
   }
 }
 

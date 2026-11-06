@@ -66,7 +66,7 @@ export const COLORS = {
   roadStone: 0xcdbfa2,
   roadJoint: 0x9c8c70,
   /** A road off the network: pale and grey, dashed (see `loose`). */
-  roadLoose: 0xc4bba8,
+  roadLoose: 0x8a8070,
   paving: 0xd9cbad,
   sand: 0xd9bf8c,
   dryBush: 0x8f8456,
@@ -93,14 +93,17 @@ const materials = new Map<string, THREE.Material>();
  * snow on upward faces (not on roads), wetness and cloud shadows; the dark of windows and doors glows at night,
  * the crops grow with the season.
  */
-function mat(color: number, emissive = false): THREE.Material {
-  const key = `${color}-${emissive}`;
+function mat(color: number, emissive = false, cloth = false): THREE.Material {
+  const key = `${color}-${emissive}${cloth ? '-cloth' : ''}`;
   let m = materials.get(key);
   if (!m) {
     const crop = (CROPS as readonly number[]).includes(color);
     m = emissive
       ? new THREE.MeshBasicMaterial({ color })
-      : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
+      : cloth
+        ? // Cloth in the wind: washing on the lines, awnings and sails (see `Piece.cloth`).
+          patch(new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0, flatShading: true }), { snow: true, cloth: true })
+        : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
           // Trodden roads stay clear of snow, so the town still reads in winter.
           snow: !ROAD_COLORS.includes(color),
           windows: color === COLORS.dark,
@@ -117,7 +120,12 @@ function mat(color: number, emissive = false): THREE.Material {
 /** The shared material of a model colour (to recolour plants and crops with the season). */
 export const materialOf = (color: number) => mat(color) as THREE.MeshStandardMaterial;
 
-type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean };
+/**
+ * A piece of a model, by colour. `cloth` moves in the wind in the vertex shader (no CPU): 'hang', a
+ * cloth hanging from its top edge, swings along the wind more the lower it is; 'sail', an awning or
+ * sail tied at its edges, billows in the middle.
+ */
+type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean; cloth?: 'hang' | 'sail' };
 
 /** Geometry with only position and normal, non-indexed, so every piece can be merged. */
 function clean(g: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -162,17 +170,52 @@ const blob = (r: number, x: number, y: number, z: number, color: number, sy = 1,
 
 /** Merges the pieces by colour: one part (one draw call per instanced mesh) per material. */
 function build(pieces: Piece[]): Prototype {
-  const groups = new Map<string, { color: number; emissive: boolean; geos: THREE.BufferGeometry[] }>();
+  const groups = new Map<string, { color: number; emissive: boolean; cloth: boolean; geos: THREE.BufferGeometry[] }>();
   for (const p of pieces) {
-    const key = `${p.color}-${!!p.emissive}`;
-    const g = groups.get(key) ?? { color: p.color, emissive: !!p.emissive, geos: [] };
-    g.geos.push(clean(p.geo));
+    const key = `${p.color}-${!!p.emissive}-${!!p.cloth}`;
+    const g = groups.get(key) ?? { color: p.color, emissive: !!p.emissive, cloth: !!p.cloth, geos: [] };
+    g.geos.push(p.cloth ? flapped(clean(p.geo), p.cloth) : clean(p.geo));
     groups.set(key, g);
   }
   return {
-    parts: [...groups.values()].map((g) => ({ geometry: mergeGeometries(g.geos)!, material: mat(g.color, g.emissive) })),
+    parts: [...groups.values()].map((g) => ({ geometry: mergeGeometries(g.geos)!, material: mat(g.color, g.emissive, g.cloth) })),
   };
 }
+
+/**
+ * The wind weight of each vertex of a cloth (`aFlap`: x the hanging swing, y the sail's billow):
+ * a hanging cloth 0 at its top edge, 1 at the hem; a sail 0 on its edges, 1 in the middle.
+ */
+function flapped(g: THREE.BufferGeometry, how: 'hang' | 'sail'): THREE.BufferGeometry {
+  g.computeBoundingBox();
+  const { min, max } = g.boundingBox!;
+  const pos = g.attributes.position;
+  const w = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    if (how === 'hang') w[i * 2] = (max.y - pos.getY(i)) / Math.max(1e-4, max.y - min.y);
+    else {
+      const u = (pos.getX(i) - min.x) / Math.max(1e-4, max.x - min.x);
+      const v = (pos.getZ(i) - min.z) / Math.max(1e-4, max.z - min.z);
+      w[i * 2 + 1] = 16 * u * (1 - u) * v * (1 - v);
+    }
+  }
+  g.setAttribute('aFlap', new THREE.BufferAttribute(w, 2));
+  return g;
+}
+
+/** A cloth hanging from its top edge at y + sy (washing, a banner), split so it can bend. */
+const hanging = (sx: number, sy: number, sz: number, x: number, y: number, z: number, color: number): Piece => {
+  const g = new THREE.BoxGeometry(sx, sy, sz, 1, 3, 2);
+  g.translate(x, y + sy / 2, z);
+  return { geo: g, color, cloth: 'hang' };
+};
+/** An awning or sail (thin box standing on y), split so its middle can billow; `rotZ` tilts it. */
+const sail = (sx: number, sy: number, sz: number, x: number, y: number, z: number, color: number, rotZ = 0): Piece => {
+  const g = new THREE.BoxGeometry(sx, sy, sz, 4, 1, 4);
+  g.rotateZ(rotZ);
+  g.translate(x, y + sy / 2, z);
+  return { geo: g, color, cloth: 'sail' };
+};
 
 /** Low wall of `h` around a rectangle (w x d) with an optional gap on the front (+z). */
 function walls(w: number, d: number, h: number, t: number, color: number, y = 0, frontGap = 0): Piece[] {
@@ -224,7 +267,7 @@ function stoneHouse(): Piece[] {
     box(0.3, 0.3, 0.3, 0.6, 0.3, 0.4, COLORS.limestoneDark),
     box(0.3, 0.45, 0.3, 0.6, 0.6, 0.12, COLORS.limestoneDark),
     // Striped awning over the door.
-    box(0.6, 0.03, 0.35, -0.3, 0.72, 0.68, COLORS.red),
+    sail(0.6, 0.03, 0.35, -0.3, 0.72, 0.68, COLORS.red),
     cyl(0.12, 0.09, 0.26, 6, -0.5, 1.12, -0.55, COLORS.mudDark),
   ];
 }
@@ -255,7 +298,7 @@ function field(crop: number): Piece[] {
   // Soil with plowed ridges (they show when the crop is low) and five rows of crop.
   const rows: Piece[] = [box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.soil)];
   for (let k = 0; k < 5; k++) rows.push(box(0.2, 0.05, 1.7, -0.72 + k * 0.36, 0.03, 0, COLORS.soil), box(0.24, 0.22, 1.65, -0.72 + k * 0.36, 0.05, 0, crop));
-  rows.push(cyl(0.02, 0.02, 0.6, 4, 0.9, 0, 0.9, COLORS.wood), box(0.3, 0.2, 0.05, 0.9, 0.45, 0.9, COLORS.cloth));
+  rows.push(cyl(0.02, 0.02, 0.6, 4, 0.9, 0, 0.9, COLORS.wood), hanging(0.3, 0.2, 0.05, 0.9, 0.45, 0.9, COLORS.cloth));
   return rows;
 }
 
@@ -278,7 +321,7 @@ function plaza(): Piece[] {
   // (no well nor fountain: the design keeps water out of the square).
   out.push(cyl(0.42, 0.42, 0.03, 12, 0, 0.02, 0, COLORS.paving));
   for (const [x, z] of [[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]]) out.push(box(0.035, 0.62, 0.035, x, 0.04, z, COLORS.wood));
-  out.push(box(0.66, 0.025, 0.66, 0, 0.66, 0, COLORS.ochre), box(0.44, 0.012, 0.32, 0, 0.05, 0, COLORS.red), cyl(0.05, 0.04, 0.13, 6, 0.12, 0.05, 0.05, COLORS.mudDark));
+  out.push(sail(0.66, 0.025, 0.66, 0, 0.66, 0, COLORS.ochre), box(0.44, 0.012, 0.32, 0, 0.05, 0, COLORS.red), cyl(0.05, 0.04, 0.13, 6, 0.12, 0.05, 0.05, COLORS.mudDark));
   // Benches along the back and the left side; a long stone seat; jars by the awning.
   out.push(box(1.0, 0.1, 0.18, 0.15, 0.04, -0.78, COLORS.limestoneDark), box(0.18, 0.1, 0.8, -0.78, 0.04, 0.25, COLORS.limestoneDark));
   out.push(box(0.42, 0.1, 0.16, 0.55, 0.04, 0.45, COLORS.limestoneDark));
@@ -297,10 +340,7 @@ function market(): Piece[] {
     const z = -1.25 + k * 1.25;
     out.push(box(1.1, 0.4, 0.7, -0.2, 0.04, z, COLORS.wood));
     for (const [dx, dz] of [[-0.75, -0.45], [0.35, -0.45], [-0.75, 0.45], [0.35, 0.45]]) out.push(box(0.05, 0.95, 0.05, dx, 0.04, z + dz, COLORS.wood));
-    const top = new THREE.BoxGeometry(1.3, 0.03, 1.0);
-    top.rotateZ(-0.18);
-    top.translate(-0.2, 1.02, z);
-    out.push({ geo: top, color: canopy[k] });
+    out.push(sail(1.3, 0.03, 1.0, -0.2, 1.005, z, canopy[k], -0.18));
     out.push(blob(0.12, -0.45, 0.52, z, goods[k], 0.7), blob(0.1, -0.15, 0.5, z + 0.15, goods[(k + 1) % 3], 0.7), cyl(0.09, 0.07, 0.2, 6, 0.1, 0.44, z - 0.15, COLORS.mudDark));
     out.push(cyl(0.12, 0.1, 0.25, 6, 0.65, 0.04, z, COLORS.mud));
   }
@@ -317,7 +357,7 @@ function workshop(): Piece[] {
     box(1.6, 1.0, 0.25, 0.55, 0, -1.2, COLORS.mud),
     // Open shed with a work table.
     ...[[-1.3, 0.3], [0.3, 0.3], [-1.3, 1.2], [0.3, 1.2]].map(([x, z]) => box(0.07, 0.85, 0.07, x, 0, z, COLORS.wood)),
-    box(1.7, 0.05, 1.0, -0.5, 0.85, 0.75, COLORS.cloth),
+    sail(1.7, 0.05, 1.0, -0.5, 0.85, 0.75, COLORS.cloth),
     box(0.6, 0.35, 0.4, -0.5, 0, 0.75, COLORS.wood),
     // Kiln, pots and a wood pile.
     blob(0.32, KILN[0], 0.2, KILN[1], COLORS.mudDark, 0.9, 1),
@@ -556,9 +596,9 @@ const yardLine = (): Piece[] => [
   box(0.04, 0.5, 0.04, 0, 0, -0.25, COLORS.wood),
   box(0.04, 0.5, 0.04, 0, 0, 0.25, COLORS.wood),
   box(0.012, 0.012, 0.5, 0, 0.48, 0, COLORS.dark),
-  box(0.02, 0.2, 0.14, 0, 0.28, -0.12, COLORS.red),
-  box(0.02, 0.16, 0.12, 0, 0.32, 0.08, COLORS.cloth),
-  box(0.02, 0.18, 0.08, 0, 0.3, 0.2, COLORS.blue),
+  hanging(0.02, 0.2, 0.14, 0, 0.28, -0.12, COLORS.red),
+  hanging(0.02, 0.16, 0.12, 0, 0.32, 0.08, COLORS.cloth),
+  hanging(0.02, 0.18, 0.08, 0, 0.3, 0.2, COLORS.blue),
 ];
 
 
@@ -664,7 +704,7 @@ function granaryUp(level: 2 | 3): Piece[] {
     for (const x of [-0.75, 0, 0.75]) out.push(cyl(0.03, 0.05, 0.14, 6, x, 0.98, 0.45, COLORS.gold));
     // Shade on the roof: four posts and an awning.
     for (const [x, z] of [[-0.8, -1.2], [-0.1, -1.2], [-0.8, -0.56], [-0.1, -0.56]]) out.push(box(0.04, 0.42, 0.04, x, 1.29 + top, z, COLORS.wood));
-    out.push(box(0.8, 0.03, 0.74, -0.45, 1.71 + top, -0.88, COLORS.blue), ...jars(3, 0.25, 1.29 + top, -0.88, [COLORS.ochre, COLORS.mudDark]));
+    out.push(sail(0.8, 0.03, 0.74, -0.45, 1.71 + top, -0.88, COLORS.blue), ...jars(3, 0.25, 1.29 + top, -0.88, [COLORS.ochre, COLORS.mudDark]));
   }
   return out;
 }
@@ -694,7 +734,7 @@ function workshopUp(level: 2 | 3): Piece[] {
     out.push(box(1.04, 0.05, 0.94, -0.85, roof + top - 0.08, -0.85, COLORS.gold));
     // Tall chimney on the kiln (the smoke leaves from its top, see world.ts).
     out.push(cyl(0.1, 0.14, 1.0, 7, KILN[0], 0.75, KILN[1], COLORS.mudDark), cyl(0.13, 0.13, 0.06, 7, KILN[0], 1.75, KILN[1], COLORS.limestone));
-    out.push(box(1.1, 0.03, 0.5, -0.85, 0.95, 0.1, COLORS.red), box(0.04, 0.95, 0.04, -1.35, 0, 0.3, COLORS.wood), box(0.04, 0.95, 0.04, -0.35, 0, 0.3, COLORS.wood));
+    out.push(sail(1.1, 0.03, 0.5, -0.85, 0.95, 0.1, COLORS.red), box(0.04, 0.95, 0.04, -1.35, 0, 0.3, COLORS.wood), box(0.04, 0.95, 0.04, -0.35, 0, 0.3, COLORS.wood));
     out.push(...jars(3, -1.25, 0, 1.25, [COLORS.blue, COLORS.gold]));
   }
   return out;
@@ -709,7 +749,7 @@ function marketUp(level: 2 | 3): Piece[] {
   for (const z of [-1.45, 0.05, 1.45]) out.push(...jars(3, -0.95, 0.06, z, [COLORS.mudDark, COLORS.ochre, COLORS.red]));
   out.push(box(0.3, 0.12, 0.22, 0.8, 0.06, -0.6, COLORS.red), box(0.3, 0.1, 0.22, 0.8, 0.18, -0.6, COLORS.blue), box(0.3, 0.12, 0.22, 0.8, 0.06, 0.7, COLORS.ochre));
   for (const [x, z] of [[-0.78, -0.4], [0.78, -0.4], [-0.78, 0.4], [0.78, 0.4]]) out.push(box(0.04, 1.5, 0.04, x, 0, z, COLORS.wood));
-  out.push(box(1.7, 0.03, 0.9, 0, 1.5, 0, COLORS.blue));
+  out.push(sail(1.7, 0.03, 0.9, 0, 1.5, 0, COLORS.blue));
   if (level === 3) {
     for (const x of [-0.94, 0.94]) {
       for (const z of [-1.4, -0.47, 0.47, 1.4]) out.push(cyl(0.065, 0.075, 1.7, 8, x, 0.08, z, COLORS.limestone), cyl(0.1, 0.07, 0.08, 8, x, 1.74, z, COLORS.gold));
