@@ -75,7 +75,7 @@ export class TopBar {
       return ctx.measureText(text).width;
     };
     // .pill: 12 px padding and a 1.5 px border each side, the icon 0.6 of its height, gaps of 6 and 4.
-    const m: PillMetrics = { pad: 27, icon: pill * 0.6, iconGap: 6, partGap: 4, gap: px('--gap'), bar: 80 };
+    const m: PillMetrics = { pad: 27, icon: pill * 0.7, iconGap: 6, partGap: 4, gap: px('--gap'), bar: 80 };
     return (this.metrics = { key, m, measure });
   }
 }

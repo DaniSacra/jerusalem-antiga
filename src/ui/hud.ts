@@ -1,4 +1,4 @@
-import type { Rect } from '../core';
+import type { BuildableKind, Rect } from '../core';
 import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
 import { NOVA_CSS, NOVA_FONT } from '../game/palette';
@@ -146,6 +146,12 @@ export class Hud {
   }
 
   /** After each refresh of the session. */
+  /** The buildings' thumbnails (data URLs) for the column and the balloon's buttons. */
+  setThumbs(urls: Partial<Record<BuildableKind, string>>) {
+    this.tools.setThumbs(urls);
+    this.balloon.setThumbs(urls);
+  }
+
   update() {
     this.top.update(this.phone);
     this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);

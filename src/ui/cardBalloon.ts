@@ -2,10 +2,10 @@ import type { BuildableKind, Cell, Rect } from '../core';
 import { cardOf, type Card, type CardAction } from '../game/model/card';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
-import { besideX, type Anchors, type Free } from './anchors';
+import { arrowOf, besideX, setArrow, type Anchors, type Free } from './anchors';
 import { h, onTap } from './dom';
 import { cardLine } from './lines';
-
+import { ICONS } from './icons';
 
 /** How long Demolir waits for its second tap ("Certeza?"), ms. */
 const CONFIRM_MS = 2500;
@@ -19,7 +19,14 @@ export class CardBalloon {
   readonly el = h('div.anchor.balloon.panel.hidden', { 'data-spot': 'balloon' });
   /** The footprint it points at (null: closed). */
   rect: Rect | null = null;
+  private thumbs: Partial<Record<BuildableKind, string>> = {};
   private key = '';
+
+  /** The buildings' thumbnails (data URLs) for the main action's button (built again with them). */
+  setThumbs(urls: Partial<Record<BuildableKind, string>>) {
+    this.thumbs = urls;
+    this.key = '';
+  }
   private size = { w: 250, h: 120 };
   private confirm: ReturnType<typeof setTimeout> | null = null;
 
@@ -48,6 +55,8 @@ export class CardBalloon {
       this.nudge(nudge);
     }
     const y = Math.max(f.top, Math.min(f.bottom - ht, p.y - ht / 2));
+    // The arrow points at the building's side, from its height on the balloon.
+    setArrow(this.el, arrowOf(p, x, y, w, ht));
     return `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   };
 
@@ -101,18 +110,19 @@ export class CardBalloon {
     const acts = h('div.acts');
     if (card.action) acts.append(this.actionButton(card.action));
     if (card.demolish) {
-      const del = h('button.act.red', { 'data-spot': 'balloon-demolish' }, T.nova.inspect.demolish);
+      const label = h('span', {}, T.nova.inspect.demolish);
+      const del = h('button.act.red', { 'data-spot': 'balloon-demolish' }, icon('clear'), label);
       onTap(del, () => {
         if (this.confirm) {
           this.stopConfirm();
           s.demolishAt(cell);
           return;
         }
-        del.textContent = T.nova.inspect.confirm;
+        label.textContent = T.nova.inspect.confirm;
         del.classList.add('confirm');
         this.confirm = setTimeout(() => {
           this.confirm = null;
-          del.textContent = T.nova.inspect.demolish;
+          label.textContent = T.nova.inspect.demolish;
           del.classList.remove('confirm');
         }, CONFIRM_MS);
       });
@@ -126,12 +136,16 @@ export class CardBalloon {
       // (the screen is short).
       main.append(acts);
       const aside = h('div.aside', {}, ...card.aside.map((l) => cardLine(l, person)));
-      this.el.replaceChildren(h('div.cols', {}, main, aside));
-    } else this.el.replaceChildren(main, acts);
+      this.el.replaceChildren(h('div.body', {}, h('div.cols', {}, main, aside)));
+    } else this.el.replaceChildren(h('div.body', {}, main, acts));
   }
 
   private actionButton(a: CardAction) {
-    const b = h('button.act.gold', { class: a.dim ? 'dim' : null, 'data-spot': 'balloon-action' }, a.label);
+    // The building's thumbnail (Melhorar: the building itself), or the road's icon.
+    const kind = a.kind === 'upgrade' ? (a.target.kind as BuildableKind) : a.kind;
+    const url = kind === 'road' ? null : this.thumbs[kind];
+    const pic = url ? h('img.pic', { src: url, alt: '' }) : kind === 'road' ? icon('road') : null;
+    const b = h('button.act.gold', { class: a.dim ? 'dim' : null, 'data-spot': 'balloon-action' }, pic, h('span', {}, a.label));
     onTap(b, () => (a.kind === 'upgrade' ? this.s.upgradeAt(a.target) : this.s.showSpots(a.kind as BuildableKind | 'road', a.target)));
     return b;
   }
@@ -144,4 +158,11 @@ export class CardBalloon {
   dispose() {
     this.stopConfirm();
   }
+}
+
+/** A small icon in a balloon button. */
+function icon(name: string) {
+  const i = h('i.icon');
+  i.innerHTML = ICONS[name] ?? '';
+  return i;
 }

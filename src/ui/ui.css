@@ -20,7 +20,12 @@
 /* Lists that scroll (the column, panels, balloons, the sheet): a finger sliding on a button scrolls them. */
 #hud .column button, #hud .panelbox button, #hud .balloon button, #hud .sheet button { touch-action: pan-y; }
 
-.panel, .pill { background: rgba(36, 25, 14, 0.78); border: 1.5px solid rgba(255, 244, 220, 0.2); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); }
+.panel, .pill { background: rgba(36, 25, 14, 0.78); border: 1.5px solid var(--c-filet); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); }
+/* A thin gold filet inside the edge of the dark panels (not the pills: they are small). */
+.panel { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(226, 169, 59, 0.22); }
+/* A very light paper grain on the parchment (SVG noise, no image file). */
+#hud { --parchment-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.12 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"); --c-filet: rgba(255, 244, 220, 0.2); }
+.tool .disc, .act:not(.gold):not(.red), .chip.family, .modal .card { background-image: var(--parchment-grain); }
 .t-good { color: var(--c-good); } .t-bad { color: var(--c-bad); } .t-warn { color: var(--c-warn); }
 .t-muted { color: var(--c-muted); } .t-gold { color: var(--c-gold); }
 .s-num { font-size: var(--num); font-weight: 800; } .s-text { font-size: var(--text); } .s-small { font-size: var(--small); }
@@ -39,7 +44,7 @@
 .level small { font-size: var(--small); color: var(--c-gold); font-weight: 700; letter-spacing: 0.04em; }
 /* topbar.ts > measures() mirrors the padding, border, icon and gaps of a pill (to fit the PC bar on one row). */
 .pill { height: var(--pill); border-radius: calc(var(--pill) / 2); padding: 0 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: var(--text); font-weight: 700; }
-.pill svg { width: calc(var(--pill) * 0.6); height: calc(var(--pill) * 0.6); flex: none; }
+.pill svg { width: calc(var(--pill) * 0.7); height: calc(var(--pill) * 0.7); flex: none; }
 .pill.alarm { border-color: var(--c-bad); }
 /* Debt and famine: the pill stays put with a red rim, only its text blinks, slowly (as the 2D). */
 .pill.alarm .parts { animation: hud-blink 1.6s ease-in-out infinite; }
@@ -73,26 +78,54 @@
 .tool.on .disc, .tool.on:hover .disc { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 8px var(--c-gold-light); }
 .tool .label { font-size: var(--small); font-weight: 700; background: rgba(36, 25, 14, 0.78); padding: 1px 8px; border-radius: 9px; }
 /* As tall as its buttons (scrolls when they do not fit). */
-.column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); max-height: calc(100% - var(--margin) * 2 - var(--btn) - var(--gap) - 12px); width: var(--col); display: flex; flex-direction: column; gap: 6px;
+.column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); max-height: calc(100% - var(--margin) * 2 - var(--btn) - var(--gap) - 12px); width: var(--col); display: flex; flex-direction: column; gap: 5px;
   overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; pointer-events: auto; }
 .column::-webkit-scrollbar { display: none; }
-.build { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 6px 10px; border-radius: 12px; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
+/* A building: its round thumbnail (render3d/thumbs.ts) and, on PC, the name and price beside it. */
+.build { display: flex; align-items: center; gap: 8px; text-align: left; padding: 2px 10px 2px 3px; border-radius: 30px; background: var(--c-parchment); background-image: var(--parchment-grain); color: var(--c-ink); border: 2px solid var(--c-ink); }
+.build .text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .build .name { display: flex; align-self: stretch; align-items: baseline; justify-content: space-between; gap: 6px; }
 .build b { font-size: var(--text); }
 /* "tecla 3" (PC): a small key cap beside the name, so it does not read as a quantity. */
 .build kbd { font: inherit; font-size: var(--small); font-weight: 700; color: #6b5a44; padding: 0 5px; border: 1px solid rgba(59, 42, 26, 0.45); border-bottom-width: 2px; border-radius: 5px; white-space: nowrap; }
 .build small { font-size: var(--small); font-weight: 700; }
-.build.on, .build.on:hover { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 6px var(--c-gold-light); background: #fff3d0; }
-/* Locked: flat, greyed and with a dashed rim (the state does not hang on the colour alone). */
-.build.locked { background: #cfc4ad; opacity: 0.8; border-style: dashed; box-shadow: none; }
+.thumb { --disc: 40px; position: relative; flex: none; box-sizing: border-box; width: var(--disc); height: var(--disc); border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #fbf3df 0, #e6d6b3 62%, #cdb88f 100%); border: 1.5px solid rgba(59, 42, 26, 0.75); box-shadow: inset 0 -2px 3px rgba(59, 42, 26, 0.18); }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; }
+.thumb img:not([src]) { visibility: hidden; }
+/* Unlocked by a goal and not built yet: a gold dot. Locked: a padlock seal. */
+.thumb .fresh, .thumb .lock { display: none; position: absolute; }
+.build.fresh:not(.on) .fresh { display: block; right: -3px; top: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--c-gold); border: 2px solid var(--c-ink); }
+.build.locked .lock { display: flex; right: -5px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; align-items: center; justify-content: center; background: var(--c-parchment); border: 1.5px solid var(--c-ink); }
+.thumb .lock svg { width: 13px; height: 13px; }
+.build.on, .build.on:hover { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 6px var(--c-gold-light); background-color: #fff3d0; }
+/* Locked: flat, greyed thumbnail and a dashed rim (the state does not hang on the colour alone). */
+.build.locked { background-color: #cfc4ad; border-style: dashed; box-shadow: none; color: #5d4f3c; }
+.build.locked .thumb img { filter: grayscale(1) brightness(1.15); opacity: 0.5; }
 .build.short small { color: var(--c-ink-bad); }
+/* Phone: only the discs (7 fit; the name and price are in the tool balloon). */
+#hud[data-form='phone'] .column { width: auto; padding: 3px; gap: 0; }
+#hud[data-form='phone'] .build { padding: 2px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
+#hud[data-form='phone'] .build .text { display: none; }
+#hud[data-form='phone'] .thumb { --disc: 40px; border: 2px solid var(--c-ink); box-shadow: 0 2px 0 var(--c-shadow), inset 0 -2px 3px rgba(59, 42, 26, 0.18); }
+#hud[data-form='phone'] .build.on .thumb { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 6px var(--c-gold-light); }
+#hud[data-form='phone'] .build.locked .thumb { border-style: dashed; background: #cfc4ad; box-shadow: none; }
+#hud[data-form='phone'] .build.short .thumb { border-color: var(--c-ink-bad); }
+#hud[data-form='phone'] .build:active:not(.locked) { transform: none; }
+#hud[data-form='phone'] .build:active:not(.locked) .thumb { transform: translateY(2px); box-shadow: none; }
 
 /* ---------- anchored to the world ---------- */
 .anchor { position: absolute; left: 0; top: 0; will-change: transform; }
 .tag { padding: 4px 10px; border-radius: 10px; font-size: var(--text); font-weight: 700; text-align: center; white-space: pre-line; transform: translate(-50%, -100%); }
 .tag.bad { background: rgba(142, 42, 31, 0.92); }
 /* The tapped cell's balloon: the card's lines; on the phone a second column (the level) with the buttons under it. */
-.balloon { box-sizing: border-box; max-width: 300px; overflow-y: auto; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; pointer-events: auto; background: rgba(36, 25, 14, 0.94); }
+.balloon { box-sizing: border-box; max-width: 300px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; pointer-events: auto; background: rgba(36, 25, 14, 0.94); }
+/* Its lines scroll inside (the arrow stands outside the box). */
+.balloon .body { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+/* The arrow of a balloon, toward its building or button (anchors.ts arrowOf: side and --ay). */
+.balloon[data-arrow]::after, .toolballoon[data-arrow]::after { content: ''; position: absolute; top: calc(var(--ay, 50%) - 8px); width: 14px; height: 14px; background: inherit; transform: rotate(45deg); pointer-events: none; }
+[data-arrow='left']::after { left: -8.5px; border-left: 1.5px solid var(--c-filet); border-bottom: 1.5px solid var(--c-filet); }
+[data-arrow='right']::after { right: -8.5px; border-top: 1.5px solid var(--c-filet); border-right: 1.5px solid var(--c-filet); }
 #hud[data-form='phone'] .balloon { max-width: 580px; }
 #hud[data-form='phone'] .balloon .aside { width: 250px; }
 .balloon .main, .balloon .aside { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -160,6 +193,11 @@
 .act { flex: 1; min-height: 44px; border-radius: 22px; font-weight: 800; border: 2px solid var(--c-ink); background: var(--c-parchment); color: var(--c-ink); }
 .act.gold { background: var(--c-gold); }
 .act.red { background: #8e2a1f; color: var(--c-text); border-color: #4a120c; }
+/* The balloon's buttons: the building's thumbnail (or the road) on the main action, the hammer on Demolir. */
+.act:has(.pic, .icon) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 14px 0 4px; }
+.act .pic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: radial-gradient(circle at 50% 38%, #fbf3df 0, #e6d6b3 70%); border: 1.5px solid rgba(59, 42, 26, 0.6); }
+.act .icon { display: inline-flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; }
+.act .icon svg { width: 20px; height: 20px; }
 .arrow { width: 40px; height: 56px; transform-origin: 50% 100%; }
 .arrow svg { width: 100%; height: 100%; animation: hud-bob 0.84s ease-in-out infinite alternate; }
 @keyframes hud-bob { to { transform: translateY(-12px); } }

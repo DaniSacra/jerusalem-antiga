@@ -777,6 +777,18 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     prévia ("Atende N casas", "falta ligar à rua") e as telas de vitória e derrota. O balão fica ao
     lado da construção, mas sempre na área livre do mapa (nunca sobre a barra, a coluna ou as
     ferramentas; construção fora da tela: na borda dessa área); maior que ela, rola por dentro.
+  - Interface bonita (plano beleza C5, 2026-11-06): cada construção da coluna tem a sua
+    **miniatura 3D** num disco (o próprio modelo do mapa, desenhado uma vez ao abrir e de novo
+    quando chega o pacote Meshy, num dia claro de verão: `render3d/thumbs.ts`). No PC, disco com
+    nome, preço e tecla; no celular, só os discos (40 px, 44 px de toque; cabem 7). Bloqueada:
+    miniatura cinza, borda tracejada e selo de cadeado. Liberada por um objetivo e ainda nenhuma
+    construída: **ponto dourado "novo"** (`fresh` em `game/model/build.ts`). Os balões (da
+    construção tocada e da construção escolhida) têm **seta** para a construção ou o botão
+    (`arrowOf`; sem seta quando o balão cobre o ponto). A ação principal do balão mostra a
+    miniatura (ou o ícone da rua) e Demolir o martelo. Ícones das pílulas e dos balões de problema
+    **pintados com contorno de tinta** (estrada partida, trabalhador e peixe riscados, praça com
+    banco e toldo, mercado listrado, duas árvores); pergaminho com grão leve de papel e filete
+    dourado por dentro dos painéis escuros.
   - Interface HTML (Fase 2), com os mesmos textos e regras da Nova (`game/model/{card,panels,person}.ts`):
     o balão da casa tocada traz os moradores (botões com figura, nome, idade e trabalho; duas
     colunas no celular, uma no PC), filhos, nível, ✓/✗ das necessidades, "Melhorar"/"Onde pôr…",

@@ -16,6 +16,8 @@ export interface BuildButton {
   line: string;
   /** "tecla 3" on PC (beside the name), null on the phone and while locked. */
   key: string | null;
+  /** Unlocked by a goal and none built yet: a gold "novo" dot on its thumbnail. */
+  fresh: boolean;
 }
 
 /** The building column, in its order: name, price or the goal that unlocks it, and whether it is affordable. */
@@ -29,6 +31,7 @@ export function buildColumn(s: GameState, tool: Tool, phone: boolean): BuildButt
     const line = locked
       ? T.nova.lockedGoal(goal, GOALS[goal - 1]?.fromYear)
       : [T.nova.silverCost(cost), ...MATERIALS.filter((x) => m[x]).map((x) => T.nova.materialCost(m[x]!, x))].join(' · ');
-    return { kind, name: BUILDINGS[kind].name, locked, short, on: tool === kind, line, key: phone || locked ? null : T.nova.keyHint(keyOf(kind)) };
+    const fresh = !locked && goal > 0 && !s.buildings.some((b) => b.kind === kind);
+    return { kind, name: BUILDINGS[kind].name, locked, short, on: tool === kind, line, key: phone || locked ? null : T.nova.keyHint(keyOf(kind)), fresh };
   });
 }

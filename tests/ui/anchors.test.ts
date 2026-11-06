@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Anchors, besideX, insideFree, labelScale } from '../../src/ui/anchors';
+import { Anchors, arrowOf, besideX, insideFree, labelScale } from '../../src/ui/anchors';
 
 /** A stand-in for an element: only what Anchors touches. */
 const fake = () => {
@@ -98,5 +98,16 @@ describe('the balloon beside its building', () => {
     expect(r.x).toBe(60);
     expect(r.x + 271).toBeLessThanOrEqual(505);
     expect(r.nudge).toBeLessThan(0);
+  });
+});
+
+describe('balloon arrow', () => {
+  it('points from the side the building is on, at its height, kept off the corners', () => {
+    // Balloon at (100, 50), 200 x 120.
+    expect(arrowOf({ x: 70, y: 110 }, 100, 50, 200, 120)).toEqual({ side: 'left', y: 60 });
+    expect(arrowOf({ x: 330, y: 60 }, 100, 50, 200, 120)).toEqual({ side: 'right', y: 18 });
+    expect(arrowOf({ x: 330, y: 400 }, 100, 50, 200, 120)).toEqual({ side: 'right', y: 102 });
+    // Under the balloon (it was kept on screen over the building): no arrow.
+    expect(arrowOf({ x: 150, y: 100 }, 100, 50, 200, 120)).toBeNull();
   });
 });

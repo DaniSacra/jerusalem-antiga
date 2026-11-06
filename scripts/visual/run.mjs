@@ -605,7 +605,10 @@ async function tutorial3dScenario(page, name) {
   };
   const tapSpot = async (spot) => {
     const r = await page.evaluate((spot) => {
-      const b = document.querySelector(`[data-spot="${spot}"]`).getBoundingClientRect();
+      // As a player would: a button below the fold of the column is scrolled into view first.
+      const el = document.querySelector(`[data-spot="${spot}"]`);
+      el.scrollIntoView({ block: 'nearest' });
+      const b = el.getBoundingClientRect();
       return [b.x + b.width / 2, b.y + b.height / 2];
     }, spot);
     await tap(r[0], r[1]);

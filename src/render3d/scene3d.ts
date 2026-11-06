@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Building, Cell, GameState, Rect } from '../core';
+import type { BuildableKind, Building, Cell, GameState, Rect } from '../core';
 import VISUAL from '../data/visual.json';
 import type { GameOut } from '../game/events';
 import { C } from '../game/palette';
@@ -13,6 +13,7 @@ import { Overlay } from './overlay';
 import { cellOfPoint, pickBox, rayToGround, type PickBox } from './picking';
 import { yawOfRotation } from './plan';
 import { codeModels, loadModelPack, type ModelKey, type Prototype } from './models';
+import { renderThumbs } from './thumbs';
 import { canRun3D, PACK, Stage, type Level } from './stage';
 import { advanceDay, dayTime, nightness } from './time/day';
 
@@ -103,6 +104,11 @@ export class Scene3D {
     if (this.disposed) return;
     this.stage.setModels(m);
     this.overlay.models = m;
+  }
+
+  /** The buildings' thumbnails from the models in use (call between frames: it draws in a corner of the canvas). */
+  thumbs(kinds: readonly BuildableKind[]) {
+    return renderThumbs(this.stage.renderer, this.overlay.models, kinds);
   }
 
   get el() {

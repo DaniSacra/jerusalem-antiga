@@ -1,4 +1,4 @@
-import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
+import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type BuildableKind, type Building, type BuildingKind, type GameState } from '../core';
 import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, type RoadKey } from './roads';
 import VISUAL from '../data/visual.json';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
@@ -188,6 +188,9 @@ export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'vari
   const extra = level >= 2 ? (`up-${b.kind}-${level as 2 | 3}` as ExtraKey) : null;
   return { ...none, key: b.kind as KindKey, extra, sy: SERVICE[level].sy, tint: SERVICE[level].tint };
 }
+
+/** The model shown as a building's thumbnail in the interface (thumbs.ts): a lived-in mud house, a field of wheat. */
+export const thumbKey = (k: BuildableKind): ModelKey => (k === 'house' ? 'house-2' : k === 'field' ? 'field-0' : (k as KindKey));
 
 /**
  * The yard of the six looks per house level (with the kits, kits.ts): nothing, jars with a potted

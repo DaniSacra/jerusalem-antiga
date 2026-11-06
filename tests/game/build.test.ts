@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { costOf } from '../../src/core';
+import { costOf, unlockingGoal } from '../../src/core';
 import { buildColumn } from '../../src/game/model/build';
 import { T } from '../../src/game/strings';
 import { COLUMN_ORDER } from '../../src/game/tools';
-import { emptyGame } from '../helpers';
+import { emptyGame, put } from '../helpers';
 
 describe('building column as data', () => {
   it('every building in column order, with its price; "tecla N" only on PC', () => {
@@ -39,5 +39,16 @@ describe('building column as data', () => {
     s.silver = 99999;
     s.wood = 0;
     expect(buildColumn(s, 'view', false).find((b) => b.kind === 'house')!.short).toBe(true);
+  });
+
+  it('"novo" for a building a goal unlocked until the first one is built; never locked or from the start', () => {
+    const s = emptyGame();
+    s.unlocked = [...COLUMN_ORDER];
+    const col = buildColumn(s, 'view', false);
+    for (const b of col) expect(b.fresh).toBe(unlockingGoal(b.kind) !== null);
+    put(s, 'granary', 25, 30);
+    expect(buildColumn(s, 'view', false).find((b) => b.kind === 'granary')!.fresh).toBe(false);
+    s.unlocked = s.unlocked.filter((k) => k !== 'market');
+    expect(buildColumn(s, 'view', false).find((b) => b.kind === 'market')!.fresh).toBe(false);
   });
 });

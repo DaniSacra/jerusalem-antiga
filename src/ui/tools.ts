@@ -1,11 +1,13 @@
 import { BUILDINGS, type BuildableKind } from '../core';
 import { buildColumn } from '../game/model/build';
 import { toolCard } from '../game/model/card';
+import { arrowOf, setArrow } from './anchors';
 import { cardLine } from './lines';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
 import { COLUMN_ORDER, type Tool } from '../game/tools';
 import { h, onTap, setText } from './dom';
+import { LOCK } from './labels';
 import { iconButton, toolButton } from './parts';
 
 /** The map turns (left side), the tools (Mover, Rua, Demolir) and the build column. */
@@ -27,10 +29,21 @@ export class Tools {
       this.tools.append(b);
     }
     for (const k of COLUMN_ORDER) {
-      const b = h('button.build', { 'data-spot': `build-${k}` }, h('span.name', {}, h('b', {}, BUILDINGS[k].name), h('kbd.hidden')), h('small'));
+      // A round thumbnail of the building (its lock and "novo" dot on it), the name and the price beside it (PC).
+      const thumb = h('span.thumb', {}, h('img', { alt: '' }), h('i.fresh'));
+      thumb.insertAdjacentHTML('beforeend', `<span class="lock">${LOCK}</span>`);
+      const b = h('button.build', { 'data-spot': `build-${k}`, 'aria-label': BUILDINGS[k].name }, thumb, h('span.text', {}, h('span.name', {}, h('b', {}, BUILDINGS[k].name), h('kbd.hidden')), h('small')));
       onTap(b, () => s.selectTool(k));
       this.builds.set(k, b);
       this.column.append(b);
+    }
+  }
+
+  /** The buildings' thumbnails (data URLs, render3d/thumbs.ts), once the models are ready. */
+  setThumbs(urls: Partial<Record<BuildableKind, string>>) {
+    for (const [k, b] of this.builds) {
+      const url = urls[k];
+      if (url) b.querySelector('img')!.src = url;
     }
   }
 
@@ -43,6 +56,7 @@ export class Tools {
       el.classList.toggle('on', btn.on);
       el.classList.toggle('locked', btn.locked);
       el.classList.toggle('short', btn.short);
+      el.classList.toggle('fresh', btn.fresh);
       setText(el.querySelector('small')!, btn.line);
       const kbd = el.querySelector('kbd')!;
       kbd.classList.toggle('hidden', !btn.key);
@@ -72,7 +86,10 @@ export class Tools {
     const col = this.column.getBoundingClientRect();
     const h = this.tip.offsetHeight;
     const y = Math.max(8, Math.min(bottom - h, b.top + b.height / 2 - h / 2));
-    this.tip.style.transform = `translate(${Math.round(col.left - 10 - this.tip.offsetWidth)}px, ${Math.round(y)}px)`;
+    const x = col.left - 12 - this.tip.offsetWidth;
+    // The arrow points at its button.
+    setArrow(this.tip, arrowOf({ x: col.left, y: b.top + b.height / 2 }, x, y, this.tip.offsetWidth, h));
+    this.tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
 
   /** Where the tutorial arrow points for a tool or building button, scrolled into view (measured: call on update/resize only). */

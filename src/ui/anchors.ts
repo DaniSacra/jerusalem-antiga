@@ -50,6 +50,28 @@ export function besideX(px: number, w: number, left: number, right: number, gap 
 }
 
 /**
+ * The arrow of a balloon at (x, y), `w` x `h`, pointing at `p`: on the side the point is ('left' when
+ * it is left of the balloon), at the point's height inside the balloon (kept `inset` from the
+ * corners); null when the point is under the balloon (no side to point from).
+ */
+export function arrowOf(p: { x: number; y: number }, x: number, y: number, w: number, h: number, inset = 18): { side: 'left' | 'right'; y: number } | null {
+  const side = p.x <= x ? 'left' : p.x >= x + w ? 'right' : null;
+  if (!side) return null;
+  return { side, y: Math.round(Math.max(inset, Math.min(h - inset, p.y - y))) };
+}
+
+/** Writes a balloon's arrow (`data-arrow` and `--ay` in ui.css), only when it changed. */
+export function setArrow(el: HTMLElement, a: ReturnType<typeof arrowOf>) {
+  const side = a?.side ?? '';
+  if ((el.dataset.arrow ?? '') !== side) {
+    if (side) el.dataset.arrow = side;
+    else delete el.dataset.arrow;
+  }
+  const ay = a ? `${a.y}px` : '';
+  if (el.style.getPropertyValue('--ay') !== ay) el.style.setProperty('--ay', ay);
+}
+
+/**
  * Everything pinned to the world (balloon, preview pill, rising texts, the tutorial arrow on a
  * place): one pass per frame that writes `transform` and `visibility` only when they change (no
  * layout reads).

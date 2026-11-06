@@ -1,4 +1,5 @@
 import type { BuildingCategory, Cell, Rect } from '../core';
+import { COLUMN_ORDER } from '../game/tools';
 import type { GameOut } from '../game/events';
 import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/gestures';
 import { keyCommand, runKey } from '../game/keys';
@@ -276,9 +277,21 @@ export class Play3D implements SessionView, GestureView, HudHost {
     s.tick(dt);
     if (this.marksDirty) this.drawMarks();
     this.pointTutorial();
+    this.drawThumbs();
     this.hud.frame(dt * 1000);
     const speed = this.modalOpen ? 0 : s.speed;
     this.scene.frame(dt, (now - this.start) / 1000, s.state.week + s.weekFrac, speed, settings.dayNight, !!this.gestures.press);
+  }
+
+  /** Which models the thumbnails were drawn from: none yet, the code models, the final ones (the pack). */
+  private thumbsOf: 'none' | 'code' | 'final' = 'none';
+
+  /** The buildings' thumbnails: at once from the code models, again when the model pack is in. */
+  private drawThumbs() {
+    const want = this.scene.ready ? 'final' : 'code';
+    if (this.thumbsOf === want || this.thumbsOf === 'final') return;
+    this.thumbsOf = want;
+    this.hud.setThumbs(this.scene.thumbs(COLUMN_ORDER));
   }
 
   /** The game stands still, the camera too, and nothing happened since the last frame. */

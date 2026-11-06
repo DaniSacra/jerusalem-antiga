@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, thumbKey, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 
@@ -213,5 +213,10 @@ describe('what the 3D view draws', () => {
       expect(z).toBeGreaterThan(-1);
     }
     expect(MODEL_KEYS).toContain('pane');
+  });
+
+  it('every building of the column has a thumbnail model', () => {
+    for (const k of Object.keys(BUILDINGS).filter((k) => k !== 'altar') as BuildableKind[]) expect(MODEL_KEYS).toContain(thumbKey(k));
+    expect(thumbKey('house')).toBe('house-2');
   });
 });
