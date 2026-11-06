@@ -365,6 +365,8 @@ export class Play3D implements SessionView, GestureView, HudHost {
         cellAt: (sx: number, sy: number) => g.cellAt(sx, sy),
         /** Screen points of the residents walking now (tests tap one). */
         residents: () => g.scene.residentPoints(),
+        /** Who a mouse click on (sx, sy) picks (tests pick a walker no one else stands next to). */
+        personAt: (sx: number, sy: number) => g.scene.personAt(sx, sy, PERSON_REACH_MOUSE),
       },
     });
   }

@@ -237,7 +237,11 @@ async function music3dScenario(page, name) {
     await page.waitForTimeout(150);
   };
   await hitSpot('settings');
-  await page.waitForSelector('.settings:not(.hidden)', { timeout: 5000 });
+  // The first frames after the start can be slow on the phone (shaders compiling): a tap again if it was lost.
+  if (!(await page.waitForSelector('.settings:not(.hidden)', { timeout: 2500 }).catch(() => null))) {
+    await hitSpot('settings');
+    await page.waitForSelector('.settings:not(.hidden)', { timeout: 5000 });
+  }
   await hitSpot('set-volume-up');
   const louder = await st();
   assert(louder.target > on.target, `+ raises the volume (${on.target} → ${louder.target})`);
@@ -416,7 +420,11 @@ async function ui3dScenario(page, name) {
   assert(chips.every((c) => c.h >= 44), 'person rows of 44 px or more');
   const head = await page.evaluate(() => document.querySelector('.balloon .line.big').textContent);
   assert(head === 'Casa de barro · 4/4 pessoas', `the house head (${head})`);
+  // The balloon points at its house (once the camera moved it aside when it did not fit).
+  await page.waitForFunction(() => document.querySelector('.balloon').dataset.arrow, null, { timeout: 3000 }).catch(() => {});
+  const arrow = await page.evaluate(() => document.querySelector('.balloon').dataset.arrow ?? null);
   await page.screenshot({ path: `${OUT}/ui3d-${name}-house.png` });
+  assert(arrow, `the house balloon has an arrow (${arrow})`);
   const fits = await inFree();
   assert(fits.ok, `the balloon stays in the map's free area ${JSON.stringify(fits)}`);
   assert((await minText()) >= 12, 'no text under 12 px with the house balloon');
@@ -1114,9 +1122,11 @@ async function town3dScenario(page) {
   const adult = (id) => window.core.canWork(window.state, window.state.people.find((p) => p.id === id));
   const shown = await page.evaluate((src) => {
     const ok = new Function('return ' + src)();
-    return window.view3d.residents().map((r) => ({ ...r, adult: ok(r.id) }));
+    // Only a walker a click picks (not a neighbour standing beside them at a door).
+    return window.view3d.residents().map((r) => ({ ...r, adult: ok(r.id), alone: window.view3d.personAt(r.sx, r.sy) === r.id }));
   }, adult.toString());
-  const someone = shown.find((r) => free(r) && r.adult) ?? shown.find(free);
+  const pickable = shown.filter((r) => free(r) && r.alone);
+  const someone = pickable.find((r) => r.adult) ?? pickable[0];
   assert(someone, 'a resident walks in view');
   const name = await page.evaluate((id) => window.session.nameOf(id), someone.id);
   await page.mouse.click(someone.sx, someone.sy);
