@@ -1,6 +1,5 @@
 import {
   advanceClock,
-  campPlazaSpot,
   canRotate,
   checkClear,
   clearCell,
@@ -544,7 +543,7 @@ export class Session {
     return road.some((c) => !this.state.roads[indexOf(this.state, c.x, c.y)]);
   }
 
-  /** The place a tutorial step is about (the road, the food spot, the field, plaza or house spot), if any. */
+  /** The place a tutorial step is about (the road, the food spot, the field, lumber or house spot), if any. */
   stepSpot(id: string): Rect | null {
     if (id === 'road' && this.ghost.length) {
       const xs = this.ghost.map((c) => c.x);
@@ -555,7 +554,6 @@ export class Session {
     }
     if (id === 'gather' && this.spot) return { ...this.spot, ...dimsOf(this.spot.kind) };
     if (id === 'field' && this.fieldHint) return { ...this.fieldHint, ...dimsOf('field') };
-    if (id === 'plaza') return { ...campPlazaSpot(), ...dimsOf('plaza') };
     if (id === 'house' && this.houseHint) return { ...this.houseHint, ...dimsOf('house') };
     if (id === 'lumber' && this.lumberHint) return { ...this.lumberHint, ...dimsOf('lumber') };
     return null;

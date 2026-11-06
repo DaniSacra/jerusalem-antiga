@@ -44,6 +44,8 @@ export type MilestoneId =
   | 'firstMud'
   | 'firstHarvest'
   | 'firstWinter'
+  /** The first spring with someone living in the city (even after losses). */
+  | 'firstSpring'
   | 'firstStone'
   | 'yearWithoutFamine';
 
@@ -416,6 +418,8 @@ export interface Building {
   cutProgress?: number;
   /** House: ready to climb (13/13 weeks with the needs) but the city lacks this material. */
   waiting?: Material;
+  /** House: the wood is there, but in autumn and winter it keeps the firewood (it climbs in spring). */
+  firewoodHold?: boolean;
 }
 
 /** A cut tree on cell `i`, cut in `week`; it grows back into `kind` after `treeRegrowWeeks`. */

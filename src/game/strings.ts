@@ -23,7 +23,7 @@ export const T = {
   start: 'Começar',
   howTo: [
     'Guarde comida para o inverno: pesque, colete e plante campos.',
-    `Casais precisam de casa. Tendas perto de uma praça viram casas de barro, com madeira de um lenhador. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
+    `Casais precisam de casa. Com madeira de um lenhador, tendas viram casas de barro; guarde lenha para o inverno. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
     'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
@@ -63,6 +63,7 @@ export const T = {
     firstMud: 'A primeira casa de barro está de pé!',
     firstHarvest: 'Primeira colheita: os campos deram comida!',
     firstWinter: 'Primeiro inverno vencido sem perder ninguém!',
+    firstSpring: 'Primavera! A cidade passou o primeiro inverno',
     firstStone: 'A primeira casa de pedra está de pé!',
     yearWithoutFamine: 'Um ano inteiro sem fome!',
   } satisfies Record<MilestoneId, string>,
@@ -78,6 +79,7 @@ export const T = {
     firstMud: 'Primeira casa de barro',
     firstHarvest: 'Primeira colheita',
     firstWinter: 'Primeiro inverno vencido',
+    firstSpring: 'Primeiro inverno passado',
     firstStone: 'Primeira casa de pedra',
     yearWithoutFamine: 'Primeiro ano sem fome',
   } satisfies Record<MilestoneId, string>,
@@ -126,7 +128,9 @@ export const T = {
   /** Extra message when a goal unlocks a building, explaining what it is for. */
   unlocked: {
     workshop: `Oficina liberada: ${BUILDINGS.workshop.jobs} vagas e ${WORKSHOP_BONUS}`,
-    park: 'Parque liberado: casas de pedra perto dele viram casas grandes',
+    park: 'Parque liberado: casas de pedra perto dele e de um mercado viram casas grandes',
+    plaza: 'Praça liberada: casas de barro perto dela viram casas de pedra',
+    market: 'Mercado liberado: com oficina e campos, o povo tem o que trocar',
     quarry: 'Pedreira liberada: tira pedra das rochas para casas de pedra e o Templo',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
@@ -179,17 +183,16 @@ export const T = {
       road: 'Puxe uma rua pelo caminho marcado, até onde há comida',
       gather: 'Construa um pescador junto ao rio ou uma coletora perto das árvores',
       field: 'Construa um campo: ele dá comida já, até o inverno congelar',
-      plaza: 'Construa uma praça perto das tendas da caravana',
-      house: 'Um casal quer se casar: construa uma casa perto da praça',
+      house: 'Um casal quer se casar: construa uma casa perto das tendas',
       wedding: 'O casal vai para a casa nova!',
       lumber: 'Casas pedem madeira: construa um lenhador perto das árvores',
-      market: 'Construa um mercado perto das casas de barro: elas viram casas de pedra',
+      market: 'Construa um mercado perto das casas de pedra: com um parque, viram casas grandes',
     } satisfies Record<TutorialStepId, string>,
     /** The lumber step when its spot needs the marked road first. */
     lumberRoad: 'Casas pedem madeira: puxe a rua marcada e ponha um lenhador no fim',
     /** The house and wedding steps with the names of the caravan's engaged couple. */
     couple: {
-      house: (a: string, b: string) => `${a} e ${b} querem se casar: construa uma casa perto da praça`,
+      house: (a: string, b: string) => `${a} e ${b} querem se casar: construa uma casa perto das tendas`,
       wedding: (a: string, b: string) => `${a} e ${b} vão para a casa nova!`,
     },
     pick: (tool: Tool) => `Toque em ${toolName(tool)}`,
@@ -293,15 +296,15 @@ export const T = {
     foodAfter: (n: number) => `Comida depois: ${signed(n)}/sem`,
     /** What each building is for, in one sentence. */
     effect: {
-      house: 'Abriga uma família. Cresce com praça, mercado e parque perto.',
+      house: 'Abriga uma família. Com madeira vira barro; com praça e pedra, pedra; com mercado e parque, grande.',
       field: 'Dá comida o ano todo, menos no inverno, quando congela. Arraste para fazer vários.',
-      plaza: 'Tendas perto de uma praça viram casas de barro.',
+      plaza: 'Casas de barro perto de uma praça viram casas de pedra, com pedra da pedreira.',
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
       lumber: 'Corta árvores: madeira para obras e lenha do inverno. Divide o bosque com a Coletora.',
       quarry: 'Tira pedra das rochas. Casas de pedra e o Templo precisam dela.',
-      market: 'Casas de barro com mercado por perto viram casas de pedra.',
+      market: 'Lugar de troca: casas de pedra com mercado e parque por perto viram casas grandes.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
       temple: `Vence o jogo com o objetivo ${TEMPLE_GOAL.number} cumprido. Encoste numa rua ligada ao altar.`,
@@ -491,6 +494,8 @@ export const T = {
       nextIn: (name: string, weeks: number) => `${name} em ${weeks} sem`,
       /** Ready to climb, but the city lacks this much of a material (the count stays at 13/13). */
       waiting: (name: string, n: number, m: Material) => `Pronta para virar ${name}: falta ${n} de ${PRODUCT[m]}`,
+      /** Ready and the wood is there, but in autumn and winter it is the firewood (it climbs in spring). */
+      firewoodHold: (name: string) => `Pronta para virar ${name}: a madeira é a lenha do inverno`,
       /** What climbing costs, besides the gains. */
       asks: (m: Materials) => `Ao evoluir: pede ${materialsText(m)}`,
       stump: (weeks: number) => `Toco · vira árvore de novo em ${weeks} sem. Dá para construir em cima`,

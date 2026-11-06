@@ -5,7 +5,7 @@ import { borderCells, cellsInRadius, cellsOf, footprint, inBounds, indexOf } fro
 import { isGatherSource } from './harvest';
 import type { BuildableKind, Building, Cell, GameState, Placeable } from './types';
 
-export type TutorialStepId = 'plaza' | 'road' | 'gather' | 'field' | 'house' | 'wedding' | 'lumber' | 'market';
+export type TutorialStepId = 'road' | 'gather' | 'field' | 'house' | 'wedding' | 'lumber' | 'market';
 export interface TutorialStep {
   id: TutorialStepId;
   /** The tool the step points at (null: just watch, or tap). Every tool stays usable. */
@@ -54,7 +54,6 @@ export function tutorialProgress(s: GameState, step: TutorialStep, mark: Tutoria
       // The first couple moves into its house, or enough weeks waiting.
       return s.milestones.includes('firstWedding') || s.week - mark.week >= TUTORIAL.weddingStepMaxWeeks ? 1 : 0;
     case 'field':
-    case 'plaza':
     case 'lumber':
     case 'market':
       return connected(s, step.id);
@@ -122,17 +121,12 @@ function gatherSpot(s: GameState, kinds: readonly FoodSpot['kind'][]): FoodSpot 
 /** The suggested road of the tutorial: the road to `foodSpot` (empty when there is none to build). */
 export const ghostRoad = (s: GameState): Cell[] => foodSpot(s)?.road ?? [];
 
-/** Free house spots touching the network near a plaza (a cell in a connected plaza's reach): the green spots of the house step. */
-export function plazaHouseSpots(s: GameState): Cell[] {
-  const { w, h } = dimsOf('house');
-  return placeSpots(s, 'house').filter((o) => footprint(o.x, o.y, w, h).some((c) => s.coverage.plaza[indexOf(s, c.x, c.y)]));
-}
-
 /**
- * Where the tutorial arrow suggests the house: the spot near a plaza nearest the altar, so the
- * tent can become a mud-brick house. Null when there is none.
+ * Where the tutorial arrow suggests the house: the free plot touching the network nearest the
+ * altar (a tent needs only its road; the green spots of the house step are all of `placeSpots`).
+ * Null when there is none.
  */
-export const houseHint = (s: GameState): Cell | null => nearestAltar(plazaHouseSpots(s));
+export const houseHint = (s: GameState): Cell | null => nearestAltar(placeSpots(s, 'house'));
 
 /** Where the tutorial camera goes on the field step: the free field spot touching the network nearest the altar. */
 export const fieldHint = (s: GameState): Cell | null => nearestAltar(placeSpots(s, 'field'));

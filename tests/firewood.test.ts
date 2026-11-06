@@ -6,13 +6,15 @@ import {
   firewoodPerWeek,
   firewoodShort,
   HOUSE_LEVELS,
+  houseInfo,
+  keepsFirewood,
   RULES,
   seasonOf,
   stepWeek,
   type GameEvent,
   type Rng,
 } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const AUTUMN = 0;
@@ -181,5 +183,51 @@ describe('firewoodShort and alerts', () => {
     s.wood = 500;
     put(s, 'lumber', EAST, 30);
     expect(alerts(s).filter((a) => a.kind === 'storageFull')).toEqual([{ kind: 'storageFull', material: 'wood' }]);
+  });
+});
+
+describe('the wood is the winter firewood first (plan B1)', () => {
+  it('keepsFirewood: in autumn and winter only when paying would leave the winter short', () => {
+    const s = emptyGame({ week: AUTUMN });
+    put(s, 'house', ROADSIDE, 27, 1);
+    const need = fw(1) * W;
+    s.wood = need + 5;
+    expect(keepsFirewood(s, 5, 0)).toBe(false); // exactly enough left
+    s.wood = need + 4;
+    expect(keepsFirewood(s, 5, 0)).toBe(true);
+    expect(keepsFirewood(s, 5, 1)).toBe(false); // a lumber makes the rest before the spring
+    s.week = SPRING;
+    expect(keepsFirewood(s, 5, 0)).toBe(false);
+    s.week = SPRING + W;
+    expect(keepsFirewood(s, 5, 0)).toBe(false);
+  });
+
+  it('a tent ready in autumn keeps the wood for the winter, shows it, and climbs in the spring', () => {
+    const s = emptyGame({ week: AUTUMN, food: 100 });
+    const tent = put(s, 'house', ROADSIDE, 27, 1);
+    tent.upStreak = UP_WEEKS - 1;
+    s.wood = fw(1) * W + 4; // the winter's firewood and 4 more: short of the 5 the climb costs
+    const wood = s.wood;
+    stepWeek(s, constRng(0.99));
+    expect(tent).toMatchObject({ level: 1, upStreak: UP_WEEKS, firewoodHold: true });
+    expect(tent.waiting).toBeUndefined(); // the wood is there, kept
+    expect(s.wood).toBe(wood);
+    expect(houseInfo(s, tent)).toMatchObject({ waiting: null, firewoodHold: true });
+    s.week = SPRING;
+    s.wood = 5;
+    s.food = 100;
+    expect(stepWeek(s, constRng(0.99))).toContainEqual(expect.objectContaining({ type: 'houseUp', level: 2 }));
+    expect(tent.firewoodHold).toBeUndefined();
+    expect(s.wood).toBe(0);
+  });
+
+  it('a house short of the material itself waits for it, not for the firewood', () => {
+    const s = emptyGame({ week: AUTUMN, food: 100 });
+    const tent = put(s, 'house', ROADSIDE, 27, 1);
+    tent.upStreak = UP_WEEKS - 1;
+    s.wood = 2;
+    stepWeek(s, constRng(0.99));
+    expect(tent).toMatchObject({ level: 1, waiting: 'wood' });
+    expect(tent.firewoodHold).toBeUndefined();
   });
 });

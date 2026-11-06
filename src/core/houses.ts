@@ -35,6 +35,8 @@ export interface HouseInfo {
   next: { name: string; needs: { kind: NeedKind; ok: boolean }[]; materials: Materials } | null;
   /** Ready to climb but waiting for this material (see `Building.waiting`). */
   waiting: Material | null;
+  /** Ready, with the wood, but keeping it as the winter's firewood (see `Building.firewoodHold`). */
+  firewoodHold: boolean;
 }
 
 export function houseInfo(s: GameState, b: Building): HouseInfo | null {
@@ -51,6 +53,7 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
     happiness,
     next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })), materials: next.materials ?? {} } : null,
     waiting: b.waiting ?? null,
+    firewoodHold: !!b.firewoodHold,
   };
 }
 

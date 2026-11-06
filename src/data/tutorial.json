@@ -5,10 +5,9 @@
     { "id": "road", "tool": "road", "target": 1 },
     { "id": "gather", "tool": "fisher", "alt": "gatherer", "target": 1 },
     { "id": "field", "tool": "field", "target": 1 },
-    { "id": "plaza", "tool": "plaza", "target": 1 },
+    { "id": "lumber", "tool": "lumber", "target": 1 },
     { "id": "house", "tool": "house", "target": 1 },
-    { "id": "wedding", "tool": null, "target": 1 },
-    { "id": "lumber", "tool": "lumber", "target": 1 }
+    { "id": "wedding", "tool": null, "target": 1 }
   ],
   "extras": [
     { "id": "market", "tool": "market", "target": 1 }

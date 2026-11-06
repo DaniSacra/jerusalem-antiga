@@ -8,20 +8,16 @@ import {
   foodLastsToHarvest,
   freeHouse,
   plainEating,
-  plazaHouseSpots,
   waitingCouples,
   foodSpot,
   lumberSpot,
   GOALS,
-  needMet,
   place,
   placeSpots,
   RULES,
-  spotsServing,
   stepWeek,
   WEEKS_PER_YEAR,
   type BuildableKind,
-  type Building,
   type Cell,
   type GameState,
 } from '../src/core';
@@ -32,13 +28,15 @@ import { besideRiver, constRng, emptyGame, fill, put } from './helpers';
  * every map. It is the guard against "the game is impossible": if a number change breaks it,
  * this test fails before any player sees it.
  *
- * The plan: road to the best food spot and a fisher or gatherer there, a field, a plaza for the
- * caravan tents; then each week, with the silver it has, the granary once unlocked, more food when
- * the forecast does not reach the spring, a lumber at the tutorial's spot once the first wedding
- * happened, a plot near a plaza when a couple waits for a house, and a plaza for a tent without
- * one. It never spends below 0.
+ * The plan: road to the best food spot and a fisher or gatherer there, a field, a lumber at the
+ * tutorial's spot (no plaza: it opens later); then each week, with the silver it has, the granary
+ * once unlocked, more food when the forecast does not reach the spring and a plot near the altar
+ * when a couple waits for a house. It never spends below 0.
  */
 const altar = RULES.map.altar;
+/** Free house spots touching the network with a cell in a plaza's reach. */
+const plazaHouseSpots = (s: GameState) =>
+  placeSpots(s, 'house').filter((o) => [0, 1].some((dx) => [0, 1].some((dy) => s.coverage.plaza[(o.y + dy) * s.cols + o.x + dx])));
 const near = (to: Cell) => (a: Cell, b: Cell) => Math.abs(a.x - to.x) + Math.abs(a.y - to.y) - (Math.abs(b.x - to.x) + Math.abs(b.y - to.y));
 
 function build(s: GameState, kind: BuildableKind, at: Cell | undefined, rotated = false): boolean {
@@ -56,32 +54,17 @@ function addAt(s: GameState, spot: ReturnType<typeof foodSpot>): boolean {
 /** A fisher or gatherer at the best spot, with its road. */
 const addFood = (s: GameState) => addAt(s, foodSpot(s));
 
-/** A plaza for this house: the spot that also reaches the most houses with a family. */
-function plazaFor(s: GameState, house: Building): boolean {
-  const families = s.buildings.filter((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'plaza'));
-  const reach = (c: Cell) => families.filter((h) => Math.max(c.x - h.x - h.w, h.x - c.x - 2, c.y - h.y - h.h, h.y - c.y - 2) < (BUILDINGS.plaza.radius ?? 0)).length;
-  const spot = spotsServing(s, 'plaza', house).sort((a, b) => reach(b) - reach(a))[0];
-  return build(s, 'plaza', spot, spot?.rotated);
-}
-
-/** A plot near a plaza, so the couple's tent can become a mud-brick house. */
-function addPlot(s: GameState): boolean {
-  const plazas = s.buildings.filter((b) => b.kind === 'plaza' && b.connected);
-  if (!plazas.length) return false;
-  const spot = placeSpots(s, 'house').sort(near(plazas[0]))[0];
-  return build(s, 'house', spot);
-}
+/** A plot near the altar, for a couple waiting for a house. */
+const addPlot = (s: GameState) => build(s, 'house', placeSpots(s, 'house').sort(near(altar))[0]);
 
 function playWeek(s: GameState) {
   const has = (k: BuildableKind) => s.buildings.some((b) => b.kind === k && b.connected);
   if (!has('fisher') && !has('gatherer')) addFood(s);
   if (!has('field')) build(s, 'field', placeSpots(s, 'field').sort(near(altar))[0]);
-  const bare = s.buildings.find((b) => b.kind === 'house' && b.level > 0 && !needMet(s, b, 'plaza'));
-  if (bare) plazaFor(s, bare);
+  // The tutorial's lumber step, right after the field.
+  if (has('field') && !has('lumber')) addAt(s, lumberSpot(s));
   if (s.unlocked.includes('granary') && !has('granary')) build(s, 'granary', placeSpots(s, 'granary').sort(near(altar))[0]);
   if (!foodLastsToHarvest(s)) addFood(s);
-  // The tutorial's lumber step, right after the first wedding.
-  if (s.milestones.includes('firstWedding') && !has('lumber')) addAt(s, lumberSpot(s));
   const free = s.buildings.filter((b) => freeHouse(s, b)).length;
   if (waitingCouples(s).length > free && s.silver >= costOf('house') + 10) addPlot(s);
 }
@@ -118,15 +101,16 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
     expect(runs.filter((r) => r.firstFamine !== null && r.firstFamine < 26)).toEqual([]);
   });
 
-  it('goal 1 (the first wedding) is done in the first autumn and goal 2 (food until the spring) before the spring', () => {
-    expect(GOALS[0]).toMatchObject({ type: 'milestone', milestone: 'firstWedding' });
-    expect(GOALS[1].type).toBe('foodUntilSpring');
-    expect(runs.filter((r) => !(r.goalWeeks[0] < RULES.weeksPerSeason))).toEqual([]);
-    expect(runs.filter((r) => !(r.goalWeeks[1] < 2 * RULES.weeksPerSeason))).toEqual([]);
+  it('goal 1 (food until the spring) and goal 2 (the first wedding) are done in the first autumn', () => {
+    expect(GOALS[0].type).toBe('foodUntilSpring');
+    expect(GOALS[1]).toMatchObject({ type: 'milestone', milestone: 'firstWedding' });
+    expect(runs.filter((r) => !(r.goalWeeks[1] < RULES.weeksPerSeason))).toEqual([]);
   });
 
-  it('goals 1 and 2 are done within the first year', () => {
-    expect(runs.filter((r) => r.goalsYear1 < 2)).toEqual([]);
+  it('goal 3 (the first winter passed) is done the week the spring comes, within the first year', () => {
+    expect(GOALS[2]).toMatchObject({ type: 'milestone', milestone: 'firstSpring' });
+    expect(runs.filter((r) => r.goalWeeks[2] !== 2 * RULES.weeksPerSeason)).toEqual([]);
+    expect(runs.filter((r) => r.goalsYear1 < 3)).toEqual([]);
   });
 
   it('the silver never goes negative', () => {
@@ -135,12 +119,13 @@ describe('viability of the first year (minimal plan, 20 maps)', () => {
 });
 
 describe('invariants of the start', () => {
-  it('the starting silver pays the minimal kit: road to food, fisher or gatherer, field, plaza, a plot', () => {
+  it('the starting silver pays the minimal kit: roads, fisher or gatherer, field, lumber, a plot', () => {
     for (const seed of SEEDS) {
       const s = createGame(createRng(seed));
       const spot = foodSpot(s);
       expect(spot).not.toBeNull();
-      const kit = spot!.road.length * costOf('road') + costOf(spot!.kind) + costOf('field') + costOf('plaza') + costOf('house');
+      const wood = lumberSpot(s)!;
+      const kit = (spot!.road.length + wood.road.length) * costOf('road') + costOf(spot!.kind) + costOf('field') + costOf('lumber') + costOf('house');
       expect(kit).toBeLessThanOrEqual(s.silver);
     }
   });

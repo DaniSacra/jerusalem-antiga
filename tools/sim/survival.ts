@@ -184,12 +184,15 @@ interface Stats {
 }
 
 type ServiceBuilding = 'plaza' | 'market' | 'park';
-/** What a family house of each level waits for to climb: the need its next level adds (from houses.json). */
-const EVOLUTION: [number, ServiceBuilding][] = HOUSE_LEVELS.slice(1, -1).map((def, k) => {
-  const need = HOUSE_LEVELS[k + 2].needs.find((n) => !def.needs.includes(n));
-  if (need !== 'plaza' && need !== 'market' && need !== 'park') throw new Error(`no service the bot builds for house level ${k + 1}: ${need}`);
-  return [k + 1, need];
-});
+/** What a family house of each level waits for to climb: the services its next level adds (from houses.json; none for a tent). */
+const EVOLUTION: [number, ServiceBuilding][] = HOUSE_LEVELS.slice(1, -1).flatMap((def, k) =>
+  HOUSE_LEVELS[k + 2].needs
+    .filter((n) => !def.needs.includes(n))
+    .map((need): [number, ServiceBuilding] => {
+      if (need !== 'plaza' && need !== 'market' && need !== 'park') throw new Error(`no service the bot builds for house level ${k + 1}: ${need}`);
+      return [k + 1, need];
+    }),
+);
 
 /** Connected houses of a level that wait for this service to climb. */
 const stalled = (s: GameState, level: number, kind: ServiceBuilding) =>
@@ -368,7 +371,7 @@ export class SurvivalBot {
     // 2b. Materials: lumbers and quarries.
     if (this.materials(s)) return true;
 
-    // 3. Evolution: family houses stalled for the next unlocked service (1 → plaza, 2 → market, 3 → park).
+    // 3. Evolution: family houses stalled for the next unlocked service (2 → plaza, 3 → market and park).
     // Workshops for jobs come first only while their field bonus is below the cap the player reads.
     const bonusLeft = fieldBonus(s) < (BUILDINGS.workshop.fieldBonusMax ?? 0);
     if (s.unlocked.includes('workshop') && bonusLeft && this.seen('idle') && this.place(s, 'workshop')) return true;

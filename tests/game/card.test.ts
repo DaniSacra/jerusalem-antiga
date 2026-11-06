@@ -82,6 +82,17 @@ describe('the card of a tapped cell (2D and 3D balloons)', () => {
     expect(phone.aside.some((l) => l.tone === 'gold' && l.text === N.nextOnly('Casa de barro'))).toBe(true);
   });
 
+  it('a house keeping its wood as firewood says so in red, not "falta madeira"', () => {
+    const s = emptyGame();
+    const b = put(s, 'house', ROADSIDE, 30, 1);
+    b.firewoodHold = true;
+    refreshCity(s);
+    const texts = cardOf(s, b, readCity(s), false)!.lines.map((l) => l.text);
+    const all = [...texts, ...cardOf(s, b, readCity(s), true)!.aside.map((l) => l.text)];
+    expect(all).toContain(N.firewoodHold('Casa de barro'));
+    expect(all.some((t) => t?.startsWith('Pronta para virar Casa de barro: falta'))).toBe(false);
+  });
+
   it('an empty plot off the road waits for one and asks for Rua', () => {
     const s = emptyGame();
     const b = put(s, 'house', 2, 2);

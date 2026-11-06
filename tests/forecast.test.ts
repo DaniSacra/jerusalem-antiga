@@ -29,12 +29,12 @@ describe('target level of a house', () => {
     const s = emptyGame();
     const tent = put(s, 'house', ROADSIDE, 27, 1);
     const plot = put(s, 'house', ROADSIDE, 29);
-    expect(targetLevel(s, tent)).toBe(1);
+    expect(targetLevel(s, tent)).toBe(2); // the road alone makes a mud-brick house
     expect(targetLevel(s, plot)).toBe(0);
-    put(s, 'plaza', EAST, 27);
-    expect(targetLevel(s, tent)).toBe(2); // climbs with a plaza
     const stone = put(s, 'house', ROADSIDE, 31, 3);
-    expect(targetLevel(s, stone)).toBe(2); // no market: drops to mud-brick
+    expect(targetLevel(s, stone)).toBe(2); // no plaza: drops to mud-brick
+    put(s, 'plaza', EAST, 27);
+    expect(targetLevel(s, tent)).toBe(3); // climbs with a plaza
     s.coverage.market.fill(true);
     s.coverage.sacred.fill(true);
     expect(targetLevel(s, tent)).toBe(3); // the altar's radius is not a need: stops at stone
@@ -175,8 +175,8 @@ describe('food forecast and steps', () => {
     let starved = 0;
     for (let seed = 1; seed <= 80; seed++) {
       const rng = createRng(seed);
-      const s = emptyGame({ food: Math.floor(rng() * 40), week: Math.floor(rng() * WEEKS_PER_YEAR) });
-      const tents = 2 + Math.floor(rng() * 5); // no plaza: they stay tents
+      const s = emptyGame({ food: Math.floor(rng() * 40), week: Math.floor(rng() * WEEKS_PER_YEAR), wood: 0 });
+      const tents = 2 + Math.floor(rng() * 5); // no wood: they stay tents
       for (let k = 0; k < tents; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 1);
       if (rng() < 0.4) put(s, 'fisher', besideRiver(s, 30), 30);
       if (rng() < 0.3) put(s, 'fisher', besideRiver(s, 34), 34);

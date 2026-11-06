@@ -243,7 +243,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
       return goal ? N.lockedNeed(T.need[kind], goal) : T.need[kind];
     };
     // Ready but short of wood or stone: "Pronta…" says every need is met, so the ✓ list goes (a shorter balloon).
-    const wait = h.waiting;
+    const wait = h.waiting ?? (h.firewoodHold ? 'wood' : null);
     // What it has on one line (green ✓) and what it lacks on another (red ✗).
     let gap = 4;
     for (const has of wait ? [] : [true, false]) {
@@ -257,6 +257,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     if (s.cold) level.push({ text: T.nova.cold, tone: 'bad' });
     else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), tone: 'muted', plain: true });
     if (s.famine) level.push({ text: N.famine, tone: 'bad' });
+    else if (h.firewoodHold) level.push({ text: N.firewoodHold(h.next.name), tone: 'bad', gap: 4 });
     else if (wait) level.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), tone: 'bad', gap: 4 });
     else if (left !== null) level.push({ text: N.nextIn(h.next.name, left), tone: 'good' });
     const gain = upgradeGain(h.level);

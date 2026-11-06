@@ -51,5 +51,15 @@ export function firewoodShort(s: GameState, eco: Pick<Economy, 'wood'>): number 
   return have >= need ? 0 : Math.ceil(round2(need - have));
 }
 
+/**
+ * In autumn and winter, paying `wood` now would leave the city short of firewood until the spring
+ * (`firewoodShort` after paying): a house keeps the wood and climbs later. Never in spring or summer.
+ */
+export function keepsFirewood(s: GameState, wood: number, woodPerWeek: number): boolean {
+  const season = seasonOf(s.week);
+  if (season !== 'autumn' && season !== 'winter') return false;
+  return firewoodShort({ ...s, wood: s.wood - wood }, { wood: woodPerWeek }) > 0;
+}
+
 /** A material stock at its cap: its maker stops. */
 export const storageFull = (s: GameState, m: 'wood' | 'stone'): boolean => s[m] >= RULES.materialStorage;

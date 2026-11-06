@@ -106,21 +106,21 @@ describe('materials data', () => {
     expect(upgradeGain(3)!.materials).toEqual({ stone: 10, wood: 5 });
   });
 
-  it('the caravan brings 40 wood and no stone; the lumber is open from the start, the quarry from goal 3 (first birth)', () => {
+  it('the caravan brings 40 wood and no stone; the lumber is open from the start, the quarry from goal 4 (first birth)', () => {
     const s = createGame(createRng(7));
     expect([s.wood, s.stone]).toEqual([40, 0]);
     expect(s.stumps).toEqual([]);
     expect(s.unlocked).toContain('lumber');
     expect(s.unlocked).not.toContain('quarry');
-    expect(unlockingGoal('quarry')).toBe(3);
+    expect(unlockingGoal('quarry')).toBe(4);
     expect(checkPlace(s, 'quarry', 0, 0).ok).toBe(false);
   });
 
-  it('goal 3 (first birth) unlocks the quarry', () => {
-    const s = emptyGame({ goalIndex: 2, unlocked: ['road', 'house'] });
+  it('goal 4 (first birth) unlocks the quarry', () => {
+    const s = emptyGame({ goalIndex: 3, unlocked: ['road', 'house'] });
     s.milestones.push('firstBirth');
     checkGoal(s, []);
-    expect(s.goalIndex).toBe(3);
+    expect(s.goalIndex).toBe(4);
     expect(s.unlocked).toContain('quarry');
   });
 });
@@ -337,7 +337,7 @@ describe('building with materials', () => {
 describe('houses waiting for material', () => {
   const MARKET_X = westOf('market');
 
-  /** Two mud-brick houses with a plaza and a market around (ready to become stone houses), oldest first. */
+  /** Two mud-brick houses with a plaza around (ready to become stone houses), oldest first; a market too. */
   function street() {
     const s = city();
     const a = put(s, 'house', EAST, 27, 2);
@@ -353,7 +353,7 @@ describe('houses waiting for material', () => {
     expect(a.level).toBe(2);
     expect(a.upStreak).toBe(UP);
     expect(a.waiting).toBe('stone');
-    expect(housesWaiting(s)).toEqual({ wood: 0, stone: 2 });
+    expect(housesWaiting(s)).toEqual({ wood: 2, stone: 2 }); // the city's two tents wait for wood
     s.stone = 12;
     s.wood = 50; // firewood, should the week be a winter one
     const events = run(s, 1);
@@ -389,7 +389,7 @@ describe('houses waiting for material', () => {
     const { s, a } = street();
     run(s, UP);
     expect(a.waiting).toBe('stone');
-    clearCell(s, MARKET_X, 31);
+    clearCell(s, ROADSIDE, 29); // the plaza
     run(s, 1);
     expect(a.waiting).toBeUndefined();
     expect(a.upStreak).toBe(0);
@@ -401,16 +401,15 @@ describe('houses waiting for material', () => {
     run(s, UP);
     expect(a.level).toBe(3);
     expect(s.stone).toBe(0);
-    clearCell(s, MARKET_X, 31);
+    clearCell(s, ROADSIDE, 29); // the plaza
     run(s, RULES.weeksToDowngrade);
     expect(a.level).toBe(2);
     expect(s.stone).toBe(0);
   });
 
-  it('a tent becomes a mud-brick house paying 5 wood', () => {
-    const s = city();
+  it('a tent becomes a mud-brick house paying 5 wood, with no plaza', () => {
+    const s = emptyGame({ week: 2 * RULES.weeksPerSeason }); // spring: no firewood to keep
     const t = put(s, 'house', EAST, 29, 1);
-    put(s, 'plaza', ROADSIDE, 29);
     s.wood = 7;
     run(s, UP);
     expect(t.level).toBe(2);
@@ -464,14 +463,14 @@ describe('material readouts and tutorial', () => {
     expect(foodAfter(s, 'gatherer', { x: EAST, y: 30, rotated: false }).product).toBe('food');
   });
 
-  it('the lumber step comes right after the wedding step, with a spot found like the food spot', () => {
+  it('the lumber step comes right before the house step, with a spot found like the food spot', () => {
     const ids = TUTORIAL_STEPS.map((t) => t.id);
-    expect(ids.slice(-2)).toEqual(['wedding', 'lumber']);
+    expect(ids.slice(3, 5)).toEqual(['lumber', 'house']);
     const s = createGame(createRng(3));
     const spot = lumberSpot(s)!;
     expect(spot.kind).toBe('lumber');
     expect(spot.food).toBeGreaterThan(0);
-    const step = TUTORIAL_STEPS.at(-1)!;
+    const step = TUTORIAL_STEPS.find((t) => t.id === 'lumber')!;
     const mark = markTutorial(s);
     expect(tutorialProgress(s, step, mark)).toBe(0);
     for (const c of spot.road) place(s, 'road', c.x, c.y);

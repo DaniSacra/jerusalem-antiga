@@ -370,8 +370,8 @@ describe('milestones', () => {
     for (let k = 0; k < 5; k++) seen.push(...milestones(stepWeek(t, never)));
     expect(t.famineThisYear).toBe(false);
     expect(h.level).toBe(3);
-    // (the weeks also cross the first winter, a milestone of its own)
-    const houses = (ids: string[]) => ids.filter((m) => m !== 'firstWinter');
+    // (the weeks also cross the first winter and spring, milestones of their own)
+    const houses = (ids: string[]) => ids.filter((m) => m !== 'firstWinter' && m !== 'firstSpring');
     expect(houses(seen)).toEqual(['firstMud', 'firstStone']);
     expect(houses(t.milestones)).toEqual(['firstMud', 'firstStone']);
     expect(Object.keys(t.milestoneWeeks).sort()).toEqual([...t.milestones].sort());
@@ -633,6 +633,7 @@ describe('winter (edges)', () => {
     expect(events).toContainEqual(leftAt(ROADSIDE, 27, 'famine'));
     expect(s.winterLoss).toBe(true);
     expect(events).not.toContainEqual({ type: 'milestone', id: 'firstWinter' });
+    expect(events).toContainEqual({ type: 'milestone', id: 'firstSpring' }); // the city got through, with a loss
   });
 
   it('a winter famine alone (no house falls) also keeps the first winter from being won', () => {
@@ -653,9 +654,22 @@ describe('winter (edges)', () => {
     expect(s.winterLoss).toBe(false);
   });
 
-  it('the first winter needs residents at the start of spring', () => {
+  it('the first winter and the first spring need residents at the start of spring', () => {
     const s = emptyGame({ week: SPRING - 1 });
-    expect(stepWeek(s, never)).not.toContainEqual({ type: 'milestone', id: 'firstWinter' });
+    const events = stepWeek(s, never);
+    expect(events).not.toContainEqual({ type: 'milestone', id: 'firstWinter' });
+    expect(events).not.toContainEqual({ type: 'milestone', id: 'firstSpring' });
+  });
+
+  it('a winter without losses gives both the first spring and the first winter, once each', () => {
+    const s = emptyGame({ week: SPRING - 1, food: 100 });
+    put(s, 'house', ROADSIDE, 27, 1);
+    const events = stepWeek(s, never);
+    expect(events).toContainEqual({ type: 'milestone', id: 'firstSpring' });
+    expect(events).toContainEqual({ type: 'milestone', id: 'firstWinter' });
+    s.week = SPRING + 4 * W - 1; // the next spring
+    s.food = 100;
+    expect(stepWeek(s, never).filter((e) => e.type === 'milestone')).toEqual([]);
   });
 });
 

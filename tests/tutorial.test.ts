@@ -12,7 +12,6 @@ import {
   indexOf,
   isFreeLand,
   markTutorial,
-  needMet,
   placeSpots,
   refreshCity,
   RULES,
@@ -23,7 +22,6 @@ import {
   tutorialProgress,
   tutorialStepDone,
   stepWeek,
-  plazaHouseSpots,
   type Cell,
   type TutorialStepId,
 } from '../src/core';
@@ -34,15 +32,14 @@ import { constRng, EAST, emptyGame, put, road, ROADSIDE, westOf } from './helper
 const step = (id: TutorialStepId) => [...TUTORIAL_STEPS, ...TUTORIAL_EXTRAS].find((s) => s.id === id)!;
 
 describe('tutorial steps', () => {
-  it('has the six survival steps, food first, and the short lumber step, then the balance and market extras, each with its tool', () => {
+  it('has the six survival steps, food first and wood before the house (no plaza), then the market extra, each with its tool', () => {
     expect(TUTORIAL_STEPS.map((s) => [s.id, s.tool, s.target])).toEqual([
       ['road', 'road', 1],
       ['gather', 'fisher', 1],
       ['field', 'field', 1],
-      ['plaza', 'plaza', 1],
+      ['lumber', 'lumber', 1],
       ['house', 'house', 1],
       ['wedding', null, 1],
-      ['lumber', 'lumber', 1],
     ]);
     expect(step('gather').alt).toBe('gatherer');
     expect(TUTORIAL_STEPS.filter((s) => s.alt)).toHaveLength(1);
@@ -138,7 +135,7 @@ describe('tutorial steps', () => {
     expect(s.milestones).not.toContain('firstWedding');
   });
 
-  it('field, plaza and market: done by one connected building of the kind', () => {
+  it('field and market: done by one connected building of the kind', () => {
     const s = emptyGame();
     const mark = markTutorial(s);
     const done = (id: TutorialStepId) => tutorialStepDone(s, step(id), mark);
@@ -146,9 +143,6 @@ describe('tutorial steps', () => {
     expect(done('field')).toBe(false);
     put(s, 'field', westOf('field'), 30);
     expect(done('field')).toBe(true);
-    expect(done('plaza')).toBe(false);
-    put(s, 'plaza', EAST, 27);
-    expect(done('plaza')).toBe(true);
     expect(done('market')).toBe(false);
     put(s, 'market', EAST, 30);
     expect(done('market')).toBe(true);
@@ -233,24 +227,19 @@ describe('food spot and ghost road', () => {
 });
 
 describe('house hint', () => {
-  it('is null with no plaza, and otherwise a free spot near one, the nearest to the altar', () => {
+  it('is the free plot touching the network nearest the altar: no plaza needed', () => {
     const s = emptyGame();
-    expect(houseHint(s)).toBeNull();
-    expect(plazaHouseSpots(s)).toEqual([]);
-    put(s, 'plaza', EAST, 27);
-    refreshCity(s);
-    const spots = plazaHouseSpots(s);
+    const spots = placeSpots(s, 'house');
     expect(spots.length).toBeGreaterThan(0);
-    for (const o of spots) {
-      const cells = [0, 1].flatMap((dx) => [0, 1].map((dy) => indexOf(s, o.x + dx, o.y + dy)));
-      expect(cells.some((i) => s.coverage.plaza[i])).toBe(true);
-    }
     const hint = houseHint(s)!;
     expect(spots).toContainEqual(hint);
-    // A family on the hinted plot keeps the gate open: the tent has a plaza.
-    const tent = put(s, 'house', hint.x, hint.y, 1);
-    refreshCity(s);
-    expect(needMet(s, tent, 'plaza')).toBe(true);
+    const d = (c: Cell) => Math.abs(c.x - RULES.map.altar.x) + Math.abs(c.y - RULES.map.altar.y);
+    expect(spots.every((c) => d(c) >= d(hint))).toBe(true);
+    const s2 = emptyGame();
+    for (const c of placeSpots(s2, 'house')) s2.feature[indexOf(s2, c.x, c.y)] = 'rock';
+    refreshCity(s2);
+    expect(placeSpots(s2, 'house')).toEqual([]);
+    expect(houseHint(s2)).toBeNull();
   });
 });
 

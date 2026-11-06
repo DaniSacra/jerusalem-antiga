@@ -156,10 +156,10 @@ describe('happiness on screen (core data)', () => {
 
   it('a sad house shows a sad balloon once no next-level need is missing', () => {
     const s = emptyGame({ famine: true });
-    const b = put(s, 'house', ROADSIDE, 40, 1);
+    const b = put(s, 'house', ROADSIDE, 40, 2);
     expect(balloonNeed(s, b)).toBe('plaza'); // the missing need comes first
     put(s, 'plaza', ROADSIDE, 42);
-    expect(balloonNeed(s, b)).toBe('sad'); // the tent has what a mud-brick house needs: nothing else to point at
+    expect(balloonNeed(s, b)).toBe('sad'); // the house has what a stone house needs: nothing else to point at
     s.famine = false;
     put(s, 'workshop', EAST, 40);
     put(s, 'workshop', EAST, 43); // enough jobs for a big house too
@@ -187,9 +187,9 @@ describe('happiness before the park', () => {
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 7), not before', () => {
+  it('turns on with the goal that unlocks the park (goal 9), not before', () => {
     const n = unlockingGoal('park')!;
-    expect(n).toBe(7);
+    expect(n).toBe(9);
     expect(RULES.startUnlocked).not.toContain('park');
     const s = emptyGame();
     s.unlocked = [...RULES.startUnlocked];

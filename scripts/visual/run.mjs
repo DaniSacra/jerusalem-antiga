@@ -413,7 +413,10 @@ async function ui3dScenario(page, name) {
   assert(await page.evaluate(() => document.querySelector('.panelbox:not(.sheet)').classList.contains('hidden') && !!window.session.selected), 'a family opens its house');
   await page.keyboard.press('Escape');
   // The chosen building's balloon.
-  await page.evaluate(() => window.session.selectTool('plaza'));
+  await page.evaluate(() => {
+    if (!window.state.unlocked.includes('plaza')) window.state.unlocked.push('plaza'); // opens with goal 5
+    window.session.selectTool('plaza');
+  });
   await page.waitForTimeout(200);
   const tip = await page.evaluate(() => ({ shown: !document.querySelector('.toolballoon').classList.contains('hidden'), text: document.querySelector('.toolballoon').textContent }));
   assert(tip.shown && tip.text.startsWith('Praça') && tip.text.includes('prata'), `the chosen building's balloon (${tip.text})`);
@@ -649,42 +652,9 @@ async function tutorial3dScenario(page, name) {
   await settle();
   await shotStep('3-field');
   const f = await build(await page.evaluate(() => window.session.stepSpot('field')));
-  assert((await step()) === 'plaza', `a field ends step 3 (${JSON.stringify(f)})`);
+  assert((await step()) === 'lumber', `a field ends step 3 (${JSON.stringify(f)})`);
 
-  // 4. Plaza near the tents: the preview says how many houses it serves.
-  await inView('plaza');
-  await tapSpot('build-plaza');
-  await settle();
-  const plazaRect = await page.evaluate(() => window.session.stepSpot('plaza'));
-  await hoverAt(plazaRect);
-  const serves = await pill();
-  assert(serves.startsWith('Atende'), `the plaza preview says how many houses it serves (${serves})`);
-  await shotStep('4-plaza');
-  const pz = await build(plazaRect);
-  // The new plaza goes up inside a scaffold for a moment.
-  await page.waitForTimeout(450);
-  await shotStep('4-scaffold');
-  assert((await step()) === 'house', `a plaza ends step 4 (${JSON.stringify(pz)})`);
-
-  // 5. House near the plaza: the green spots show.
-  await tapSpot('build-house');
-  await settle();
-  await inView('house');
-  await shotStep('5-house');
-  const hs = await build(await page.evaluate(() => window.session.stepSpot('house')));
-  assert((await step()) === 'wedding', `a house ends step 5 (${JSON.stringify(hs)})`);
-
-  // 6. The wedding: the clock runs; the step ends with the first wedding or after its weeks.
-  const wedStart = await page.evaluate(() => window.state.week);
-  await page.evaluate(() => window.session.setSpeed(3));
-  await page.waitForTimeout(800);
-  await shotStep('6-wedding');
-  await page.waitForFunction(() => window.session.guide?.step?.id === 'lumber', null, { timeout: 120000 });
-  const wed = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding') }), wedStart);
-  assert(wed.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step ends within weddingStepMaxWeeks (${JSON.stringify(wed)})`);
-
-  // 7. Lumber: its preview says the wood and the cuts.
-  await page.evaluate(() => window.session.setSpeed(0));
+  // 4. Lumber (wood before the house; no plaza in the tutorial): its preview says the wood and the cuts.
   const lumber = await page.evaluate(() => window.session.lumberHint);
   assert(lumber && lumber.food > 0, `the lumber step points at a spot with trees (${JSON.stringify(lumber)})`);
   if (lumber.road.length) {
@@ -701,7 +671,7 @@ async function tutorial3dScenario(page, name) {
   await hoverAt(lumberRect);
   const wood = await pill();
   assert(wood.startsWith('Rende') && wood.includes('madeira') && wood.includes('Corta 1 árvore'), `the lumber preview says the wood and the cuts (${wood})`);
-  await shotStep('7-lumber');
+  await shotStep('4-lumber');
   const tipOver = await page.evaluate(() => {
     const a = document.querySelector('.toolballoon').getBoundingClientRect();
     const b = document.querySelector('.tutorial').getBoundingClientRect();
@@ -709,8 +679,31 @@ async function tutorial3dScenario(page, name) {
   });
   assert(!tipOver, 'the chosen building\'s balloon stays above the tutorial bubble');
   const lb = await build(lumberRect);
-  await page.waitForFunction(() => window.session.guide?.step === null, null, { timeout: 60000 }).catch(() => {});
-  assert(await page.evaluate(() => !!window.session.guide && !window.session.guide.running), `the main steps end after the lumber step (${JSON.stringify(lb)})`);
+  // The new lumber goes up inside a scaffold for a moment.
+  await page.waitForTimeout(450);
+  await shotStep('4-scaffold');
+  assert((await step()) === 'house', `a lumber ends step 4 (${JSON.stringify(lb)})`);
+
+  // 5. House near the tents: the green spots show (any free plot on the road).
+  await tapSpot('build-house');
+  await settle();
+  await inView('house');
+  await shotStep('5-house');
+  const houseRect = await page.evaluate(() => window.session.stepSpot('house'));
+  assert(houseRect, 'the house step has a spot without any plaza');
+  const hs = await build(houseRect);
+  assert((await step()) === 'wedding', `a house ends step 5 (${JSON.stringify(hs)})`);
+
+  // 6. The wedding: the clock runs; the step ends with the first wedding or after its weeks.
+  const wedStart = await page.evaluate(() => window.state.week);
+  await page.evaluate(() => window.session.setSpeed(3));
+  await page.waitForTimeout(800);
+  await shotStep('6-wedding');
+  await page.waitForFunction(() => window.session.guide?.step === null, null, { timeout: 120000 }).catch(() => {});
+  const wed = await page.evaluate((w) => ({ weeks: window.state.week - w, wedding: window.state.milestones.includes('firstWedding') }), wedStart);
+  assert(wed.weeks <= TUTORIAL.weddingStepMaxWeeks + 1, `the wedding step ends within weddingStepMaxWeeks (${JSON.stringify(wed)})`);
+  await page.evaluate(() => window.session.setSpeed(0));
+  assert(await page.evaluate(() => !!window.session.guide && !window.session.guide.running), 'the main steps end after the wedding step');
   await page.waitForTimeout(300);
   const end = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '));
   assert(end.includes('Casais novos precisam de casa'), `the last tutorial toast says couples need houses (${end})`);
@@ -974,7 +967,7 @@ async function town3dScenario(page) {
     s.silver = s.wood = s.stone = 1e6;
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
-    s.unlocked.push('granary', 'market', 'workshop', 'quarry', 'park');
+    s.unlocked.push('granary', 'plaza', 'market', 'workshop', 'quarry', 'park');
     const put = (kind, x, y) => {
       const r = core.place(s, kind, x, y);
       if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);

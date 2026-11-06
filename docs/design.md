@@ -84,6 +84,7 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozi
 - **B1 "Madeira antes da praça"** (sem mecânica nova): exigências novas das casas, Praça no objetivo
   5, Mercado no 7 ("Construa uma oficina"), objetivo 3 "Passe o primeiro inverno" (`firstSpring`),
   casa não gasta a lenha do inverno ao subir, tutorial sem praça. 19 objetivos (sai 125 moradores).
+  **Feito 2026-11-06** (código e testes); falta o sim-tester medir S1–S4.
 - **B2 "Cada um no seu trabalho"** (mecânica nova): `Person.jobId`, produção por local × lotação,
   local vazio rende 0, mudar profissão pela ficha da pessoa, desemprego = adulto sem vaga.
 - **B3 "O frio pesa"** (mecânica nova): tenda queima 0,5/sem; morte de frio por semana de inverno

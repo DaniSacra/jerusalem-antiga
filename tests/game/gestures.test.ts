@@ -149,7 +149,7 @@ describe('gestures on the map (every view)', () => {
 
   it('a single building on touch is aimed 90 px above the finger and drops on release; over the UI it cancels', () => {
     const { s, g } = setup();
-    s.state.unlocked.push('fisher');
+    s.state.unlocked.push('fisher', 'plaza');
     s.selectTool('plaza');
     const target = { x: 10, y: 10 };
     const finger = { sx: px(target).sx, sy: px(target).sy + TOUCH_LIFT };

@@ -1,4 +1,4 @@
-import { dimsOf, footprint, indexOf, plazaHouseSpots, serviceOf, type Building, type Cell, type GameState, type Rect, type TempleSpot } from '../core';
+import { dimsOf, footprint, indexOf, placeSpots, serviceOf, type Building, type Cell, type GameState, type Rect, type TempleSpot } from '../core';
 import { previewOf, coveredCells, type Preview } from '../game/model/preview';
 import { C } from '../game/palette';
 import { isPlaceTool, type Tool } from '../game/tools';
@@ -73,7 +73,7 @@ export function marksOf(s: GameState, m: MarksInput): Marks {
   }
   if (place === 'house' && m.houseSpots) {
     const { w, h } = dimsOf('house');
-    for (const o of plazaHouseSpots(s)) spot(fills, outlines, { x: o.x, y: o.y, w, h }, C.fits);
+    for (const o of placeSpots(s, 'house')) spot(fills, outlines, { x: o.x, y: o.y, w, h }, C.fits);
   }
 
   const preview = previewOf(s, m.tool, m.hover, m.rotated);

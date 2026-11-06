@@ -12,7 +12,7 @@ import { rollLook } from './looks';
 import { refreshCity } from './refresh';
 import { lackingMaterial, levelMaterials, payMaterials } from './materials';
 import { cutTrees, regrowTrees } from './trees';
-import { burnFirewood } from './firewood';
+import { burnFirewood, keepsFirewood } from './firewood';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameEvent, GameState, LeaveReason, Rng } from './types';
 
@@ -22,6 +22,7 @@ function changeLevel(s: GameState, b: Building, dir: 1 | -1, famine: boolean, rn
   b.upStreak = 0;
   b.downStreak = 0;
   b.waiting = undefined;
+  b.firewoodHold = undefined;
   rollLook(s, b, rng);
   rollUpWeeks(b, rng);
   const delta = HOUSE_LEVELS[b.level].capacity - before;
@@ -41,14 +42,16 @@ function abandon(s: GameState, b: Building, reason: LeaveReason, events: GameEve
  * and drops one after `weeksToDowngrade` weeks missing its own. Famine pauses the climb and may
  * drop the house or send the tent's family away. Empty houses (level 0) neither climb nor drop.
  * Climbing pays the next level's materials at once; without them the house waits at `upWeeks`
- * with `waiting` set (houses are visited in list order: the oldest pays first). Dropping gives
- * nothing back.
+ * with `waiting` set (houses are visited in list order: the oldest pays first). In autumn and
+ * winter it also waits (`firewoodHold`) when paying the wood would leave the winter short of
+ * firewood (`keepsFirewood`). Dropping gives nothing back.
  */
-function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
+function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[], woodPerWeek: number) {
   if (b.level === 0) return;
   if (!hasNeeds(s, b, HOUSE_LEVELS[b.level].needs)) {
     b.upStreak = 0;
     b.waiting = undefined;
+    b.firewoodHold = undefined;
     if (++b.downStreak < RULES.weeksToDowngrade) return;
     changeLevel(s, b, -1, false, rng, events);
     // A tent missing its needs lost its road: the family walks out and the plot waits for another.
@@ -80,13 +83,22 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[]) {
     const lacking = lackingMaterial(s, cost);
     if (lacking) {
       b.waiting = lacking;
+      b.firewoodHold = undefined;
       return;
     }
+    // In autumn and winter the wood is the firewood first: a climb waits if paying would leave the winter short.
+    b.waiting = undefined;
+    if (cost.wood && keepsFirewood(s, cost.wood, woodPerWeek)) {
+      b.firewoodHold = true;
+      return;
+    }
+    b.firewoodHold = undefined;
     payMaterials(s, cost);
     changeLevel(s, b, 1, false, rng, events);
   } else {
     b.upStreak = 0;
     b.waiting = undefined;
+    b.firewoodHold = undefined;
   }
 }
 
@@ -139,7 +151,10 @@ function newSeason(s: GameState, rng: Rng, events: GameEvent[]) {
     s.famineThisYear = false;
     s.yearStats = { births: 0, deaths: 0, weddings: 0 };
   }
-  if (season === 'spring' && !s.winterLoss && computeEconomy(s).residents > 0) reach(s, 'firstWinter', events);
+  if (season === 'spring' && computeEconomy(s).residents > 0) {
+    reach(s, 'firstSpring', events);
+    if (!s.winterLoss) reach(s, 'firstWinter', events);
+  }
 }
 
 /** Milestones of the houses: the first mud-brick and stone houses. */
@@ -186,7 +201,7 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   cutTrees(s, eco, events);
   regrowTrees(s, events);
 
-  for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events);
+  for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events, eco.wood);
 
   s.week++;
   if (seasonStarts(s.week)) newSeason(s, rng, events);

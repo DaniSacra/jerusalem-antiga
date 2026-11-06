@@ -57,7 +57,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   dois lados de uma rua curta (`campRoad`, 6 células) que sai do anel; a fila encostada no anel
   enche primeiro, oeste antes de leste (a 5ª tenda abre a 3ª fila, a oeste). A fundadora nunca traz
   um casal de noivos jovens (modelo `engaged`): o seu casal de noivos é o de `start.couple`. Ao lado, a leste, fica um lugar 2 x 2 livre (`campPlazaSpot`) onde **uma praça
-  alcança todas as tendas**. As duas primeiras famílias trazem um filho e uma filha de 18 ou 19
+  alcança todas as tendas** (quando ela abrir). As duas primeiras famílias trazem um filho e uma filha de 18 ou 19
   anos **noivos** (`people.couple`, `start.couple`): o primeiro casamento espera só uma casa vazia.
   Os outros filhos alternam filho e filha entre as famílias. A comida inicial vale **18 a 24
   semanas** do consumo das pessoas, cortada no limite sem celeiro (100). Frases na abertura:
@@ -66,7 +66,9 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   pedra (`startMaterials` em `rules.json`).
 - Nenhuma abertura é sempre a melhor: mais famílias dão mais imposto e trabalhadores, mas comem
   mais; rio perto barateia o Pescador; bosque perto favorece a Coletora; rochas tiram espaço.
-- Liberados: Mover, Rua, Casa, Campo, Praça, Pescador, Coletora, Lenhador e Demolir.
+- Liberados: Mover, Rua, Casa, Campo, Pescador, Coletora, Lenhador e Demolir. **A praça não abre
+  no início** (Pacote B1, `docs/revisoes/2026-11-06/plano-sobrevivencia.md`): o começo é sobreviver
+  (comida, madeira, o primeiro inverno); ela abre no Objetivo 5.
 - **Não há água no jogo** (desde o Pacote 2, 2026-11-04): o Poço saiu, nenhuma casa pede água e a
   porta das famílias não olha água. O rio é só terreno, pesca e o bônus dos campos na seca.
 
@@ -77,16 +79,16 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
 | Campo | 20 | 0,5/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
-| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada no início; tendas no raio viram casas de barro |
+| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (3 casas de barro); casas de barro no raio viram casas de pedra |
 | Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
 | Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
 | Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
-| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 3 (primeiro nascimento); as rochas não acabam |
-| Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 2; melhora (veja Níveis) |
-| Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 4; pode girar para 4 x 2; melhora |
-| Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 5; 6 ofícios (só aparência); melhora |
-| Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 7; casas de pedra no raio viram casas grandes; dá Alegria |
-| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 14 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 17 (175 moradores); não pode ser demolido; o raio só dá Alegria |
+| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (primeiro nascimento); as rochas não acabam |
+| Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
+| Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
+| Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
+| Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
+| Templo | 800 + 300 pedra + 300 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (175 moradores); não pode ser demolido; o raio só dá Alegria |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -219,13 +221,15 @@ Plano: `docs/revisoes/2026-11-05/plano-p4.md`. Código: `src/core/firewood.ts`.
 |---|---|---|---|---|
 | 0 | Terreno | 0 | 0 | – |
 | 1 | Tenda | 3 | 1,25 | rua |
-| 2 | Casa de barro | 4 | 1,75 | rua, praça |
-| 3 | Casa de pedra | 6 | 2,5 | rua, praça, mercado |
+| 2 | Casa de barro | 4 | 1,75 | rua |
+| 3 | Casa de pedra | 6 | 2,5 | rua, praça |
 | 4 | Casa grande | 8 | 3,25 | rua, praça, mercado, parque |
 
 As exigências são serviços com raio (`needs` em `houses.json`): a casa é atendida se alguma
 célula dela estiver no raio de uma praça, mercado ou parque **ligado**. O altar e o templo não
-fazem parte da evolução (só dão Alegria).
+fazem parte da evolução (só dão Alegria). Desde o Pacote B1 a tenda vira casa de barro **só com a
+rua e a madeira**: a primeira evolução é de material, não de serviço; a praça é da casa de pedra e
+o mercado (junto do parque) da casa grande.
 
 **Moradores são pessoas** (veja Pessoas): `capacity` é quantas cabem; uma casa subir de nível não
 traz ninguém, só dá lugar para filhos e parentes. **Uma casa tem nível 1 ou mais exatamente
@@ -241,7 +245,11 @@ sobe só se houver o material, e **paga na hora**. Sem material, a contagem fica
 a casa guarda `waiting: 'wood' | 'stone'` (o primeiro que falta) até o material chegar; sobe na
 semana em que ele chega (a produção entra antes da evolução). Casas prontas na mesma semana pagam
 na ordem da lista (a **mais antiga primeiro**). Perder uma exigência zera a contagem e a espera.
-Cair de nível não devolve; subir de novo paga de novo. O aviso `material` ("N casas esperando
+Cair de nível não devolve; subir de novo paga de novo. **A madeira é a lenha do inverno primeiro**
+(`keepsFirewood`): no outono e no inverno, se pagar a madeira deixaria a lenha faltar até a
+primavera (`firewoodShort` depois de pagar, contando a produção até lá), a casa não paga, guarda
+`firewoodHold` e espera no fim da contagem; o balão diz "Pronta para virar Casa de barro: a madeira é
+a lenha do inverno" (vermelho). Na primavera ela sobe se houver o material. O aviso `material` ("N casas esperando
 madeira/pedra: construa um lenhador", ou, se o material já chega, "já chega aos poucos, um lenhador a
 mais acelera") vem logo depois da comida (ordem: dívida, comida acabando, material, estoque
 cheio, inverno, seca, saldo, desemprego). Com o bônus das oficinas no teto, o aviso de desemprego
@@ -256,7 +264,7 @@ o objetivo que a libera, e o balão sobre a casa mostra o ícone dela com um cad
 
 ## Felicidade
 
-A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 7, `happinessOn`). Antes disso toda casa fica
+A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 9, `happinessOn`). Antes disso toda casa fica
 contente (50, sem motivos), o imposto e a chance de nascer não mudam, a carinha não aparece na
 placa e não há balão de casa triste.
 
@@ -386,7 +394,7 @@ que ainda vai ser colhido). Usada por:
   que acaba);
 - **aviso** "A comida não dura até a primavera: pesque, colete ou plante campos" (em qualquer
   estação, na lista de Avisos enquanto valer; toast só se começar no verão);
-- **Objetivo 2.**
+- **Objetivo 1.**
 
 ## Simulação
 
@@ -480,43 +488,50 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 
 | # | Texto | Alvo | Prêmio | Libera |
 |---|---|---|---|---|
-| 1 | Primeiro casamento | marco | +20 | – |
-| 2 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
-| 3 | Primeiro nascimento | marco | +30 | Pedreira |
-| 4 | Tenha 3 casas de barro | 3 | +40 | Mercado |
-| 5 | Receba a primeira caravana | marco | +50 | Oficina |
-| 6 | Chegue a 30 moradores | 30 | +50 | – |
-| 7 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
-| 8 | Uma criança da cidade virou adulta | marco | +80 | – |
-| 9 | Chegue a 45 moradores | 45 | +80 | – |
-| 10 | Tenha 4 casas grandes | 4 | +80 | – |
-| 11 | Terceira geração | marco | +100 | – |
-| 12 | Chegue a 65 moradores | 65 | +100 | – |
-| 13 | Chegue a 85 moradores | 85 | +120 | – |
-| 14 | Chegue a 100 moradores | 100 | +120 | Templo |
-| 15 | Chegue a 125 moradores | 125 | +150 | – |
-| 16 | Chegue a 150 moradores | 150 | +175 | – |
-| 17 | Chegue a 175 moradores | 175 | +200 | – |
-| 18 | Construa o Templo | 1 | vitória | – |
+| 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
+| 2 | Primeiro casamento | marco | +20 | – |
+| 3 | Passe o primeiro inverno | marco `firstSpring` | +40 | – |
+| 4 | Primeiro nascimento | marco | +30 | Pedreira |
+| 5 | Tenha 3 casas de barro | 3 | +40 | Praça |
+| 6 | Receba a primeira caravana | marco | +50 | Oficina |
+| 7 | Construa uma oficina | 1 | +40 | Mercado |
+| 8 | Chegue a 30 moradores | 30 | +50 | – |
+| 9 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
+| 10 | Uma criança da cidade virou adulta | marco | +80 | – |
+| 11 | Chegue a 45 moradores | 45 | +80 | – |
+| 12 | Tenha 4 casas grandes | 4 | +80 | – |
+| 13 | Terceira geração | marco | +100 | – |
+| 14 | Chegue a 65 moradores | 65 | +100 | – |
+| 15 | Chegue a 85 moradores | 85 | +120 | – |
+| 16 | Chegue a 100 moradores | 100 | +120 | Templo |
+| 17 | Chegue a 150 moradores | 150 | +175 | – |
+| 18 | Chegue a 175 moradores | 175 | +200 | – |
+| 19 | Construa o Templo | 1 | vitória | – |
+
+Ordem do Pacote B1 (sobreviver primeiro): comida, casamento e o primeiro inverno vêm antes de
+qualquer serviço; o marco `firstSpring` ("Primeiro inverno passado") chega no começo da primeira
+primavera com moradores, mesmo com perdas (o marco `firstWinter`, sem perdas, continua à parte). O
+mercado só abre depois da oficina, quando há o que trocar. O objetivo dos 125 moradores saiu.
 
 Calibração do Povo com o Pacote 3 (`docs/revisoes/2026-11-05/sim-tester-p3.md`): com estes números
 o Comum cumpre os objetivos 5 a 17 nas semanas ~76, 96, 122, 194, 211, 221, 275, 325, 380, 423, 511,
-578 e 617 (mediana de 100 partidas), um a cada ~1 a 5 min; vence em ~33 min.
+578 e 617 (mediana de 100 partidas), um a cada ~1 a 5 min; vence em ~33 min. (Números de antes da
+ordem do Pacote B1; o sim-tester mede de novo.)
 
 Tipos de objetivo no core: `milestone` (cumpre quando o marco foi alcançado, mesmo antes de o
 objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
 
-- **Objetivo 2** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão), até as
+- **Objetivo 1** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão), até as
   semanas que faltam para a primavera do Ano 1; a pílula mostra a unidade ("12/26 sem"); na
   primavera, sem semanas a contar, a pílula não mostra número. Cumpre quando a previsão chega lá.
   Na primavera, cumpre se a cidade não está com fome; com fome, espera a comida voltar. O alvo
   nunca é 0. Uma cidade sem moradores tem progresso 0, mesmo com uma família a caminho.
 - **`fromYear`** (opcional, nenhum objetivo usa agora): o objetivo só se cumpre a partir desse ano
-  (`goalOpen`). O Templo libera no Objetivo 14, para o jogador juntar prata e construí-lo antes (a
+  (`goalOpen`). O Templo libera no Objetivo 16, para o jogador juntar prata e construí-lo antes (a
   pílula do objetivo termina com "· Templo 312/800" e a lista de objetivos com "Junte 800 para o
-  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 17 (175 moradores) e 18 (o
+  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 18 (175 moradores) e 19 (o
   Templo) se cumprem. Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na
-  mesma semana do Objetivo 17 (`checkGoal`, `TEMPLE_GOAL` = o objetivo antes da vitória). Erguido
+  mesma semana do Objetivo 18 (`checkGoal`, `TEMPLE_GOAL` = o objetivo antes da vitória). Erguido
   antes (`templeWaitsForGoal`), um toast diz o que falta.
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
@@ -945,7 +960,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   inverno: "Inverno: só pescador e coletora dão comida").
 - Durante a fome, leve tom avermelhado sobre o mapa.
 - Tela inicial com 3 passos numerados ("Guarde comida para o inverno: pesque, colete e plante campos.";
-  "Tendas perto de uma praça viram casas de barro. Sem celeiro, só cabem 50 de comida."; objetivos, Templo e não
+  "Casais precisam de casa. Com madeira de um lenhador, tendas viram casas de barro; guarde lenha para
+  o inverno. Sem celeiro, só cabem 100 de comida."; objetivos, Templo e não
   ficar em dívida),
   uma linha de controles e o
   botão "Começar" (84 px de altura). Depois que o tutorial foi feito ou pulado, aparece ao lado
@@ -973,8 +989,8 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
   primeira cidade ser feita sem pressa, e volta a andar no passo 6 (o casal andando). A
   velocidade escolhida fica guardada.
 - A cada passo a câmera desliza até o lugar dele (a rua marcada, o lugar do pescador ou da
-  coletora, o lugar livre de campo ligado mais perto do altar (`fieldHint`), o lugar da praça junto
-  às tendas (`campPlazaSpot`), o terreno da casa) e o deixa no **meio do mapa livre**: abaixo da
+  coletora, o lugar livre de campo ligado mais perto do altar (`fieldHint`), o lugar do lenhador
+  (`lumberSpot`), o terreno da casa) e o deixa no **meio do mapa livre**: abaixo da
   barra do topo, entre os botões laterais e a coluna, acima do balão do tutorial e dos toasts (a
   frase da caravana não cobre a rua marcada); se o jogador mexer na câmera (arrastar, dois dedos, botão
   direito, roda), ela fica onde ele deixou, e o deslizamento para na borda do mapa.
@@ -988,25 +1004,20 @@ pular continua funcionando). Passos em `src/data/tutorial.json`, condições em
      lugar escolhido; a prévia mostra "Rende N comida/sem" e "Comida depois". Conclui com 1
      pescador ou coletora ligado.
   3. "Construa um campo: ele dá comida já, até o inverno congelar". Conclui com 1 campo ligado.
-  4. "Construa uma praça perto das tendas da caravana": a prévia mostra o raio e "Atende N casas";
-     no lugar `campPlazaSpot` ela alcança todas as tendas. Conclui com 1 praça ligada.
-  5. "Natã e Débora querem se casar: construa uma casa perto da praça" (os nomes do casal da
-     caravana, `start.couple`): os terrenos livres perto de uma praça
-     (alguma célula no raio de uma praça ligada, `plazaHouseSpots`) e encostados na rede ficam
-     verdes, e a seta aponta o mais perto do altar (`houseHint`). Conclui com 1 casa nova ligada.
+  4. Lenhador (Pacote B1: a madeira vem antes da casa, a praça saiu do tutorial): "Casas pedem
+     madeira: construa um lenhador perto das árvores". O lugar é `lumberSpot`, a mesma busca de
+     `foodSpot` (maior rendimento, depois rua mais curta) para o Lenhador. Conclui com 1 lenhador
+     ligado. Se o lugar precisa de rua, a rua dele aparece marcada (como no passo 1), o balão diz
+     "Casas pedem madeira: puxe a rua marcada e ponha um lenhador no fim" e a seta aponta Rua e
+     depois a rua marcada; com a rua pronta, a seta aponta o Lenhador e depois o lugar. A prévia diz
+     "Rende N madeira/sem" e "Corta 1 árvore a cada N sem".
+  5. "Natã e Débora querem se casar: construa uma casa perto das tendas" (os nomes do casal da
+     caravana, `start.couple`): os terrenos livres encostados na rede ficam verdes e a seta aponta
+     o mais perto do altar (`houseHint`). Conclui com 1 casa nova ligada.
   6. "Natã e Débora vão para a casa nova!": os noivos da caravana (`start.couple`) andam até a casa
      vazia e casam ao chegar. Conclui com o marco Primeiro casamento; aparece "Muito bem! Casais
      novos precisam de casa; casas melhores cabem mais filhos". O passo também termina sozinho
      depois de `weddingStepMaxWeeks` (6) semanas (por exemplo, sem casa vazia), com o mesmo toast.
-  7. Mini passo do Lenhador, logo depois do 6 (casamento) (o último de `steps` em `tutorial.json`; o relógio
-     para, como nos passos de construir): "Casas pedem madeira: construa um lenhador perto das
-     árvores". O lugar é `lumberSpot`, a mesma busca de `foodSpot` (maior rendimento, depois rua
-     mais curta) para o Lenhador. Conclui com 1 lenhador ligado. A câmera vai até o lugar. Se o
-     lugar precisa de rua, a rua dele aparece marcada (como no passo 1), o balão diz "Casas pedem
-     madeira: puxe a rua marcada e ponha um lenhador no fim" e a seta aponta Rua e depois a
-     rua marcada; com a rua pronta, a seta aponta o Lenhador e depois o lugar. A prévia diz "Rende
-     N madeira/sem" e "Corta 1 árvore a cada N sem". "Muito bem! Casais novos precisam de casa…" vem depois
-     dele.
 - Com a ferramenta do passo escolhida, a seta aponta o lugar no mapa (pescador ou coletora, campo,
   praça, casa, lenhador) com a ponta **acima da construção** e da pílula da prévia ("Rende N…"),
   para não cobrir a prévia nem o texto dela. No celular, a seta de
