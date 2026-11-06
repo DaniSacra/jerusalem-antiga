@@ -1,6 +1,7 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
 import { roadLevel, roadPieces, roadTraffic, sacredOf } from './roads';
 import VISUAL from '../data/visual.json';
+import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
 
 /**
  * What the 3D view draws for a GameState, as plain data (no Three.js): the model key, place, turn,
@@ -18,8 +19,13 @@ type KindKey = Exclude<BuildingKind, 'house' | 'field'>;
  * one code model per kind and level, drawn over the building (an upper storey, a colonnade, goods).
  */
 export type ExtraKey = `up-${KindKey}-${2 | 3}`;
+/** A house model mirrored left to right (baked: an instanced mesh cannot flip its faces per copy). */
+export type MirroredHouseKey = `house-${1 | 2 | 3 | 4}-m`;
 export type ModelKey =
   | `house-${0 | 1 | 2 | 3 | 4}`
+  | MirroredHouseKey
+  /** A piece of a house kit (kits.ts): what each of the six looks of a level adds. */
+  | KitKey
   | `field-${0 | 1 | 2 | 3}`
   | KindKey
   | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling' | 'road'
@@ -82,9 +88,15 @@ export function footprintOf(key: ModelKey): [number, number] {
   return [1, 1];
 }
 
+/** The mirrored house keys and the key each mirrors. */
+export const MIRRORED_KEYS: MirroredHouseKey[] = ([1, 2, 3, 4] as const).map((l) => `house-${l}-m` as const);
+export const mirrorOf = (key: MirroredHouseKey) => key.slice(0, -2) as `house-${1 | 2 | 3 | 4}`;
+
 /** Every key the code models must provide. */
 export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3, 4] as const).map((l) => `house-${l}` as const),
+  ...MIRRORED_KEYS,
+  ...KIT_KEYS,
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
@@ -141,8 +153,15 @@ export interface BuildingLook {
   vacant: boolean;
   /** An empty house that kept its level: faded, with a barred gate before the door. */
   closed: boolean;
-  /** A lived-in house's yard things (by variant) and on which front corner (+1 right, -1 left). */
-  yard: { key: 'yard-1' | 'yard-2'; side: 1 | -1 } | null;
+  /** A lived-in house's yard things (by variant), on the front right of the model (YARD_AT). */
+  yard: 'yard-1' | 'yard-2' | null;
+  /**
+   * -1: the house is drawn mirrored left to right (its model, kit, yard, door, windows and fire);
+   * every point of the model is placed with x times this.
+   */
+  mirror: 1 | -1;
+  /** The pieces its look adds to the house model (kits.ts). */
+  kit: KitPiece[];
   /** A workshop's craft in its yard (the pottery has none: the model is a pottery). */
   craft: `craft-${1 | 2 | 3 | 4 | 5}` | null;
 }
@@ -156,10 +175,13 @@ export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'vari
   if (b.kind === 'house') {
     const kept = b.level === 0 && b.emptyLevel >= 2 ? b.emptyLevel : 0;
     const level = Math.max(0, Math.min(4, b.level || kept)) as 0 | 1 | 2 | 3 | 4;
-    return { key: `house-${level}`, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0, yard: yardOf(b), craft: null };
+    const mirror = level >= 1 && b.mirrored ? -1 : 1;
+    const key = mirror < 0 ? (`house-${level as 1 | 2 | 3 | 4}-m` as const) : (`house-${level}` as const);
+    const kit = kitOf(level, b.variant, b.level === 0);
+    return { key, extra: null, sy: 1, tint: kept ? VACANT_TINT : 1, houseLevel: level, vacant: b.level === 0, closed: kept > 0, yard: yardOf(b), mirror, kit, craft: null };
   }
   const craft = b.kind === 'workshop' && b.variant >= 1 && b.variant <= 5 ? (`craft-${b.variant as 1 | 2 | 3 | 4 | 5}` as const) : null;
-  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false, yard: null, craft };
+  const none = { extra: null, sy: 1, tint: 1, houseLevel: 0, vacant: false, closed: false, yard: null, mirror: 1 as const, kit: [], craft };
   if (b.kind === 'field') return { ...none, key: `field-${(b.variant % 4) as 0 | 1 | 2 | 3}` };
   if (!LEVELLED.includes(b.kind)) return { ...none, key: b.kind as KindKey };
   const level = Math.max(1, Math.min(3, b.level));
@@ -168,18 +190,17 @@ export function lookOf(b: Pick<Building, 'kind' | 'level' | 'emptyLevel' | 'vari
 }
 
 /**
- * Six looks per house level, as in the core's variants: nothing, jars with a potted plant, or a
- * washing line (variant % 3), on the front corner the mirroring picks. A tent keeps its fire on the
- * front left, so its things stand on the right.
+ * The yard of the six looks per house level (with the kits, kits.ts): nothing, jars with a potted
+ * plant, or a washing line (variant % 3), on the front right of the model (left when mirrored; a
+ * tent keeps its fire on the other front corner).
  */
-export function yardOf(b: Pick<Building, 'kind' | 'level' | 'variant'> & { mirrored?: boolean }): BuildingLook['yard'] {
+export function yardOf(b: Pick<Building, 'kind' | 'level' | 'variant'>): BuildingLook['yard'] {
   if (b.kind !== 'house' || b.level < 1) return null;
   const k = b.variant % 3;
-  if (k === 0) return null;
-  return { key: k === 1 ? 'yard-1' : 'yard-2', side: b.level === 1 || !b.mirrored ? 1 : -1 };
+  return k === 0 ? null : k === 1 ? 'yard-1' : 'yard-2';
 }
 
-/** Where a house's yard things stand (model x for side +1, z; front +z). */
+/** Where a house's yard things stand (model x, z; front +z). */
 export const YARD_AT: [number, number] = [0.68, 0.74];
 
 /**

@@ -83,11 +83,20 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
       .replace(
         '#include <common>',
         `#include <common>
-        varying vec3 vWorld; varying float vUp; varying float vInst;
+        varying vec3 vWorld; varying float vUp; varying float vInst; varying vec3 vTint;
         uniform float uGrow; uniform float uHeat; uniform float uTime;
         ${o.wind || o.cloth ? 'uniform float uWind; uniform vec2 uWindDir;' : ''}
         ${o.cloth ? 'attribute vec2 aFlap;' : ''}
         ${o.terrain ? 'attribute vec3 aGround; varying vec3 vGround;' : ''}`,
+      )
+      .replace(
+        '#include <color_vertex>',
+        `#include <color_vertex>
+        // The instance tint alone (vColor also carries the vertex colours of the house kits).
+        vTint = vec3(1.0);
+        #ifdef USE_INSTANCING_COLOR
+          vTint = instanceColor.rgb;
+        #endif`,
       )
       .replace(
         '#include <begin_vertex>',
@@ -118,7 +127,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
       .replace(
         '#include <common>',
         `#include <common>
-        varying vec3 vWorld; varying float vUp; varying float vInst;
+        varying vec3 vWorld; varying float vUp; varying float vInst; varying vec3 vTint;
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
         ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY;' : ''}
@@ -130,8 +139,8 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         ${o.terrain ? TERRAIN_COLOR : ''}
         #ifdef USE_COLOR
           // (USE_COLOR: the fragment side of the instance colours.) An empty house (tint VACANT_TINT, under 0.8): faded and dusty, not just darker.
-          if (vColor.r < 0.8) {
-            vec3 base = diffuseColor.rgb / max(vColor, vec3(0.05));
+          if (vTint.r < 0.8) {
+            vec3 base = diffuseColor.rgb / max(vTint, vec3(0.05));
             float lum = dot(base, vec3(0.299, 0.587, 0.114));
             diffuseColor.rgb = mix(base, vec3(lum) * vec3(1.02, 0.97, 0.88), 0.7) * 0.92 + vec3(0.04, 0.035, 0.025);
           }
@@ -156,7 +165,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         float lit = step(vInst, uWindows) * (0.85 + 0.15 * sin(vInst * 50.0 + vWorld.x));
         #ifdef USE_COLOR
           // Empty houses are drawn dimmer (see VACANT_TINT): nobody lights their windows.
-          lit *= step(0.8, vColor.r);
+          lit *= step(0.8, vTint.r);
         #endif
         totalEmissiveRadiance += uWindowColor * lit;`,
       );

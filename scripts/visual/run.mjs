@@ -1261,6 +1261,87 @@ async function night3dScenario(page, form) {
  * hand in hand to the house where they marry, a family walking out of town after leaving its tent,
  * washing and awnings in the wind. Fewer at night, none from the farthest zoom; at most 120 calls.
  */
+/**
+ * Varied houses (plano beleza C3): the six looks of every house level along the starting road, each
+ * lived in, and a row of ten mud houses as the core draws them (no two neighbours alike).
+ */
+async function houses3dScenario(page, form) {
+  await open3dGame(page);
+  const n = (name) => `houses3d-${form}-${name}`;
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    const put = (x, y, level, variant, mirrored) => {
+      const r = core.place(s, 'house', x, y);
+      if (!r.ok) throw new Error(`no house at ${x},${y}: ${r.reason}`);
+      const h = s.grid[y * s.cols + x];
+      Object.assign(h, { level, variant, mirrored });
+      for (const [sex, age] of [['m', 34], ['f', 31], ['m', 8], ['f', 66]].slice(0, level + 1)) core.addPerson(s, { sex, age, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+      return h;
+    };
+    // Rows 28..38: by the road mud houses (east) and stone houses (west); behind them tents and big houses.
+    for (let v = 0; v < 6; v++) {
+      put(27, 28 + v * 2, 1, v, v % 2 === 1);
+      put(25, 28 + v * 2, 2, v, v % 2 === 1);
+      put(22, 28 + v * 2, 3, v, v % 2 === 1);
+      put(20, 28 + v * 2, 4, v, v % 2 === 1);
+    }
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s);
+    window.session.refresh();
+    return true;
+  });
+  // The problem balloons (tents behind, no plaza) would hide the houses.
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  await page.waitForTimeout(1500);
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
+  const look = async (cam, name, day = 0.3) => {
+    await page.evaluate(([cam, day, clear]) => {
+      window.view3d.view({ day, pos: 30.5, weather: clear });
+      window.view3d.rig.set(cam);
+    }, [cam, day, clear]);
+    await page.waitForTimeout(900);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  const side = { yaw: Math.PI / 2 + 0.35, pitch: 0.6 };
+  const west = { yaw: -Math.PI / 2 - 0.35, pitch: 0.6 };
+  await look({ x: 27.5, z: 34, dist: 11, ...side }, 'tents');
+  await look({ x: 25.5, z: 34, dist: 13, ...side }, 'mud');
+  await look({ x: 22.5, z: 34, dist: 13, ...west }, 'stone');
+  await look({ x: 20.5, z: 34, dist: 15, ...west }, 'big');
+  const all = await look({ x: 24, z: 34, dist: 26, yaw: Math.PI / 4, pitch: 0.8 }, 'all');
+  assert(all.calls <= 120, `at most 120 draw calls (${all.calls})`);
+  assert(all.triangles <= 300000, `at most 300 thousand triangles (${all.triangles})`);
+  // At night the kits stay dark and the street still lit.
+  await look({ x: 25.5, z: 34, dist: 13, ...side }, 'night', 0.72);
+  // A street of ten mud houses with the looks the core draws: no two neighbours alike.
+  const row = await page.evaluate(() => {
+    const { state: s, core } = window;
+    for (const b of s.buildings.filter((b) => b.kind === 'house')) core.clearCell(s, b.x, b.y);
+    let seed = 11;
+    const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const houses = [];
+    for (let k = 0; k < 10; k++) {
+      core.place(s, 'house', 25, 28 + k * 2);
+      const h = s.grid[(28 + k * 2) * s.cols + 25];
+      h.level = 2;
+      core.rollLook(s, h, rng);
+      core.addPerson(s, { sex: 'f', age: 30, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+      houses.push(h);
+    }
+    core.refreshCity(s);
+    window.session.refresh();
+    return houses.map((h) => [h.variant, h.mirrored]);
+  });
+  for (let k = 1; k < row.length; k++) assert(row[k][0] !== row[k - 1][0], `neighbouring mud houses differ (${JSON.stringify(row)})`);
+  await page.waitForTimeout(800);
+  await look({ x: 25.5, z: 37, dist: 16, ...side }, 'mud-row');
+  await look({ x: 25.5, z: 37, dist: 20, yaw: -Math.PI / 2 - 0.3, pitch: 0.55 }, 'mud-row-street');
+}
+
 async function street3dScenario(page, form) {
   await open3dGame(page);
   const n = (name) => `street3d-${form}-${name}`;
@@ -1419,6 +1500,8 @@ const scenarios = {
   'night3d-phone': { context: PHONE, run: (page) => night3dScenario(page, 'phone') },
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
+  'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
+  'houses3d-phone': { context: PHONE, run: (page) => houses3dScenario(page, 'phone') },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
   'temple3d-phone': { context: PHONE, run: (page) => temple3dScenario(page, 'phone') },

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { extraOf, footprintOf, KILN, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
+import { extraOf, footprintOf, KILN, MIRRORED_KEYS, mirrorOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
+import { KIT_KEYS, type KitKey } from './kits';
 import { paneMaterial, patch } from './shaders';
 import LOOK from './look3d.json';
 
@@ -72,6 +73,17 @@ export const COLORS = {
   dryBush: 0x8f8456,
   fire: 0xff8a2a,
   flame: 0xffd36a,
+  /** House kits (kits.ts): reed mats, figs drying, grapes, a tent's pale walls, white goats. */
+  reed: 0xc2a66a,
+  fig: 0x5a3550,
+  grape: 0x5b3a6b,
+  tentWall: 0xbdb391,
+  goatWhite: 0xe6dccb,
+  /** The kits' own walls, matched to the Meshy houses' textures (warmer than the code houses'). */
+  kitMud: 0xa36d48,
+  kitMudRoof: 0x8b5e3c,
+  kitStone: 0xd8c7a6,
+  kitStoneDark: 0xbca784,
 } as const;
 
 /** Colours of the plants that sway in the wind (trunks too, so a crown never leaves its trunk). */
@@ -210,11 +222,23 @@ const hanging = (sx: number, sy: number, sz: number, x: number, y: number, z: nu
   return { geo: g, color, cloth: 'hang' };
 };
 /** An awning or sail (thin box standing on y), split so its middle can billow; `rotZ` tilts it. */
-const sail = (sx: number, sy: number, sz: number, x: number, y: number, z: number, color: number, rotZ = 0): Piece => {
+const sail = (sx: number, sy: number, sz: number, x: number, y: number, z: number, color: number, rotZ = 0, rotX = 0): Piece => {
   const g = new THREE.BoxGeometry(sx, sy, sz, 4, 1, 4);
   g.rotateZ(rotZ);
+  g.rotateX(rotX);
   g.translate(x, y + sy / 2, z);
   return { geo: g, color, cloth: 'sail' };
+};
+
+/** A round rod (pole, rope, rail) from `a` to `b`. */
+const rod = (a: [number, number, number], b: [number, number, number], r: number, color: number, seg = 4): Piece => {
+  const from = new THREE.Vector3(...a);
+  const d = new THREE.Vector3(...b).sub(from);
+  const g = new THREE.CylinderGeometry(r, r, d.length(), seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize()));
+  const m = from.addScaledVector(d, 0.5);
+  g.translate(m.x, m.y, m.z);
+  return { geo: g, color };
 };
 
 /** Low wall of `h` around a rectangle (w x d) with an optional gap on the front (+z). */
@@ -778,8 +802,217 @@ function closed(): Piece[] {
   ];
 }
 
-/** Code-built model of each key except the additions. */
-const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
+
+// ------------------------------------------------------------------ house kits (kits.ts)
+
+/**
+ * The pieces of the house kits, each in its own space (see kits.ts for where they stand). Built
+ * with the colour in the vertices (`buildKit`), so a piece costs one draw call (two with cloth or
+ * leaves) however many colours it has.
+ */
+const KIT_MAKERS: Record<KitKey, () => Piece[]> = {
+  // A ladder leaning back on a wall behind it, up to a roof at 1.5.
+  'kit-ladder': () => [
+    rod([-0.12, 0, 0], [-0.12, 1.55, -0.3], 0.022, COLORS.wood),
+    rod([0.12, 0, 0], [0.12, 1.55, -0.3], 0.022, COLORS.wood),
+    ...[0.25, 0.5, 0.75, 1.0, 1.25].map((y) => box(0.24, 0.025, 0.03, 0, y, -(y / 1.55) * 0.3, COLORS.wood)),
+  ],
+  // A reed mat with figs drying and a basket.
+  'kit-figs': () => [
+    box(0.5, 0.015, 0.36, 0, 0, 0, COLORS.reed),
+    ...[0, 1, 2, 3].flatMap((i) => [0, 1, 2].map((j) => blob(0.032, -0.17 + i * 0.1, 0.03, -0.1 + j * 0.1, COLORS.fig, 0.6))),
+    cyl(0.07, 0.055, 0.09, 6, 0.33, 0, 0.12, COLORS.ochre),
+  ],
+  // A tabun: a clay dome with its dark mouth, and a pile of sticks.
+  'kit-oven': () => [
+    cyl(0.15, 0.17, 0.14, 7, 0, 0, 0, COLORS.mudDark),
+    blob(0.15, 0, 0.14, 0, COLORS.mudDark, 0.65),
+    box(0.09, 0.08, 0.04, 0, 0.06, 0.15, COLORS.dark),
+    ...[-0.05, 0, 0.05].map((z, k) => tilted(0.32, 0.035, 0.035, 0.27, 0.02 + (k % 2) * 0.03, z, COLORS.trunk, 0, Math.PI / 2 + z)),
+  ],
+  // An upper room on a mud roof: walls, a roof slab with beam ends, a door and a small window.
+  'kit-room-mud': () => [
+    box(0.62, 0.46, 0.5, 0, 0, 0, COLORS.kitMud),
+    box(0.7, 0.05, 0.58, 0, 0.46, 0, COLORS.kitMudRoof),
+    ...[-0.24, -0.08, 0.08, 0.24].map((x) => box(0.04, 0.04, 0.07, x, 0.4, 0.27, COLORS.wood)),
+    box(0.16, 0.3, 0.02, 0.12, 0, 0.255, COLORS.dark),
+    box(0.1, 0.08, 0.02, -0.16, 0.26, 0.255, COLORS.dark),
+  ],
+  // An upper storey of limestone: coping, a wooden door and a window.
+  'kit-room-stone': () => [
+    box(0.62, 0.5, 0.5, 0, 0, 0, COLORS.kitStone),
+    box(0.68, 0.05, 0.56, 0, 0.5, 0, COLORS.kitStoneDark),
+    box(0.16, 0.32, 0.02, -0.12, 0, 0.255, COLORS.wood),
+    box(0.1, 0.12, 0.02, 0.16, 0.24, 0.255, COLORS.dark),
+  ],
+  // A striped awning on four poles.
+  'kit-awning': () => [
+    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => cyl(0.016, 0.016, 0.5, 4, sx * 0.38, 0, sz * 0.27, COLORS.wood))),
+    ...[0, 1, 2, 3].map((k) => sail(0.2, 0.02, 0.6, -0.3 + k * 0.2, 0.49, 0, k % 2 ? COLORS.cloth : COLORS.red)),
+  ],
+  // A rug over a parapet: its top on the coping (y 0), hanging down the front.
+  'kit-rug': () => [
+    box(0.42, 0.012, 0.12, 0, 0, -0.04, COLORS.red),
+    hanging(0.42, 0.34, 0.014, 0, -0.34, 0.025, COLORS.red),
+    hanging(0.42, 0.05, 0.016, 0, -0.24, 0.034, COLORS.blue),
+  ],
+  // A grapevine up the wall behind it, on a pergola, with bunches of grapes.
+  'kit-vine': () => [
+    cyl(0.03, 0.045, 1.0, 5, 0, 0, 0.05, COLORS.trunk),
+    ...[-0.25, 0.25].flatMap((x) => [cyl(0.02, 0.02, 1.0, 4, x, 0, 0.24, COLORS.wood), box(0.035, 0.035, 0.26, x, 0.98, 0.12, COLORS.wood)]),
+    box(0.56, 0.035, 0.035, 0, 0.98, 0.24, COLORS.wood),
+    blob(0.17, -0.18, 1.06, 0.12, COLORS.leaf, 0.5),
+    blob(0.16, 0.06, 1.08, 0.18, COLORS.leafDark, 0.5),
+    blob(0.15, 0.24, 1.05, 0.1, COLORS.leaf, 0.5),
+    blob(0.1, -0.06, 0.55, 0.06, COLORS.leafDark, 0.8),
+    blob(0.08, 0.06, 0.8, 0.06, COLORS.leaf, 0.8),
+    ...([[-0.12, 0.27], [0.14, 0.2], [0.02, 0.3]] as const).map(([x, z]) => blob(0.045, x, 0.9, z, COLORS.grape, 1.3)),
+  ],
+  // An arched gate in a low wall.
+  'kit-arch': () => {
+    const arch = new THREE.TorusGeometry(0.26, 0.06, 4, 8, Math.PI);
+    arch.translate(0, 0.62, 0);
+    return [
+      box(0.12, 0.62, 0.12, -0.26, 0, 0, COLORS.kitStoneDark),
+      box(0.12, 0.62, 0.12, 0.26, 0, 0, COLORS.kitStoneDark),
+      { geo: arch, color: COLORS.kitStoneDark },
+      box(0.1, 0.09, 0.13, 0, 0.84, 0, COLORS.kitStone),
+      box(0.32, 0.3, 0.1, -0.48, 0, 0, COLORS.kitStone),
+      box(0.32, 0.3, 0.1, 0.48, 0, 0, COLORS.kitStone),
+    ];
+  },
+  // A fig tree: a short trunk and broad dark crowns.
+  'kit-fig': () => [
+    cyl(0.04, 0.06, 0.5, 5, 0, 0, 0, COLORS.trunk),
+    rod([0, 0.4, 0], [0.16, 0.58, 0.08], 0.025, COLORS.trunk),
+    blob(0.27, 0, 0.72, 0, COLORS.leafDark, 0.65, 1),
+    blob(0.19, 0.18, 0.62, 0.1, COLORS.leaf, 0.7),
+    blob(0.17, -0.16, 0.64, -0.08, COLORS.leaf, 0.7),
+  ],
+  // A cistern: a stone ring with a windlass and a bucket.
+  'kit-cistern': () => [
+    cyl(0.16, 0.17, 0.16, 8, 0, 0, 0, COLORS.kitStoneDark),
+    cyl(0.12, 0.12, 0.01, 8, 0, 0.155, 0, COLORS.dark),
+    box(0.03, 0.34, 0.03, -0.15, 0, 0, COLORS.wood),
+    box(0.03, 0.34, 0.03, 0.15, 0, 0, COLORS.wood),
+    box(0.33, 0.03, 0.03, 0, 0.31, 0, COLORS.wood),
+    cyl(0.04, 0.032, 0.07, 6, 0.08, 0.16, 0.11, COLORS.wood),
+  ],
+  // An upright loom with a half-woven cloth and loom weights.
+  'kit-loom': () => [
+    box(0.03, 0.6, 0.03, -0.2, 0, 0, COLORS.wood),
+    box(0.03, 0.6, 0.03, 0.2, 0, 0, COLORS.wood),
+    box(0.46, 0.04, 0.04, 0, 0.57, 0, COLORS.wood),
+    hanging(0.36, 0.38, 0.012, 0, 0.18, 0, COLORS.blue),
+    hanging(0.36, 0.06, 0.014, 0, 0.36, 0.008, COLORS.red),
+    ...[-0.15, -0.075, 0, 0.075, 0.15].map((x) => blob(0.025, x, 0.12, 0.01, COLORS.rock)),
+  ],
+  // A tripod over the fire with a cooking pot.
+  'kit-tripod': () => [
+    ...[0, 1, 2].map((k) => rod([Math.sin(k * 2.09) * 0.17, 0, Math.cos(k * 2.09) * 0.17], [0, 0.5, 0], 0.012, COLORS.wood)),
+    rod([0, 0.5, 0], [0, 0.3, 0], 0.005, COLORS.dark),
+    blob(0.075, 0, 0.24, 0, COLORS.dark, 0.85),
+  ],
+  // A tent's front fly: a goat-hair cloth from the eaves to two poles, with guy ropes.
+  'kit-fly': () => [
+    rod([-0.42, 0, 0.18], [-0.42, 0.72, 0.18], 0.018, COLORS.wood),
+    rod([0.42, 0, 0.18], [0.42, 0.72, 0.18], 0.018, COLORS.wood),
+    sail(0.95, 0.025, 0.44, 0, 0.74, -0.02, COLORS.goatHair, 0, 0.3),
+    rod([-0.42, 0.72, 0.18], [-0.55, 0, 0.3], 0.006, COLORS.dark),
+    rod([0.42, 0.72, 0.18], [0.55, 0, 0.3], 0.006, COLORS.dark),
+  ],
+  // Two goats tied at a manger (a dark one and a white one).
+  'kit-goats': () => [
+    box(0.42, 0.13, 0.12, 0, 0, -0.06, COLORS.wood),
+    box(0.38, 0.02, 0.09, 0, 0.13, -0.06, COLORS.wheat),
+    ...goat(-0.1, 0.1, COLORS.goatHair),
+    ...goat(0.13, 0.12, COLORS.goatWhite),
+  ],
+  // A lean-to beside the tent: pale walls under a sloping goat-hair roof.
+  'kit-lean': () => [
+    box(0.6, 0.36, 0.42, 0, 0, 0, COLORS.tentWall),
+    sail(0.72, 0.025, 0.54, 0, 0.36, 0, COLORS.goatHair, 0, -0.28),
+    rod([-0.36, 0, 0.27], [-0.36, 0.42, 0.27], 0.015, COLORS.wood),
+    rod([0.36, 0, 0.27], [0.36, 0.42, 0.27], 0.015, COLORS.wood),
+  ],
+  // Woven bands hanging along a tent wall (the wall behind, -z), from y 0 down.
+  'kit-stripes': () => [hanging(1.0, 0.12, 0.016, 0, -0.14, 0.012, COLORS.red), hanging(1.0, 0.08, 0.016, 0, -0.3, 0.012, COLORS.cloth)],
+};
+
+/** A goat standing along x (head to +x) at (x, z). */
+function goat(x: number, z: number, color: number): Piece[] {
+  return [
+    box(0.22, 0.1, 0.1, x, 0.12, z, color),
+    box(0.08, 0.08, 0.07, x + 0.13, 0.2, z, color),
+    box(0.02, 0.06, 0.02, x + 0.12, 0.27, z, COLORS.dark),
+    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => box(0.025, 0.12, 0.025, x + sx * 0.08, 0, z + sz * 0.035, color))),
+  ];
+}
+
+const kitMaterials = new Map<string, THREE.Material>();
+
+/** A material that takes its colour from the vertices: solid, cloth in the wind, or leaves that sway. */
+function kitMat(kind: 'solid' | 'cloth' | 'sway'): THREE.Material {
+  let m = kitMaterials.get(kind);
+  if (!m) {
+    const base = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: kind === 'cloth' ? 0.95 : 0.92, metalness: 0, flatShading: true });
+    m = patch(base, kind === 'cloth' ? { snow: true, cloth: true } : kind === 'sway' ? { snow: true, wind: WIND.trees } : { snow: true });
+    kitMaterials.set(kind, m);
+  }
+  return m;
+}
+
+/** Merges a kit piece with its colours in the vertices: one part solid, one cloth, one leaves. */
+function buildKit(pieces: Piece[]): Prototype {
+  const groups = new Map<'solid' | 'cloth' | 'sway', THREE.BufferGeometry[]>();
+  const c = new THREE.Color();
+  for (const p of pieces) {
+    const kind = p.cloth ? 'cloth' : SWAYING.includes(p.color) ? 'sway' : 'solid';
+    const g = p.cloth ? flapped(clean(p.geo), p.cloth) : clean(p.geo);
+    c.setHex(p.color);
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    groups.set(kind, [...(groups.get(kind) ?? []), g]);
+  }
+  return { parts: [...groups].map(([kind, geos]) => ({ geometry: mergeGeometries(geos)!, material: kitMat(kind) })) };
+}
+
+/**
+ * A model mirrored left to right (x to -x), with its faces turned back the right way out: an
+ * instanced mesh cannot flip one copy, so a mirrored house is its own prototype.
+ */
+export function mirrored(p: Prototype): Prototype {
+  const flip = new THREE.Matrix4().makeScale(-1, 1, 1);
+  return {
+    ...p,
+    parts: p.parts.map(({ geometry, material }) => {
+      const g = geometry.clone().applyMatrix4(flip);
+      if (g.index) {
+        const a = g.index.array;
+        for (let i = 0; i < a.length; i += 3) [a[i + 1], a[i + 2]] = [a[i + 2], a[i + 1]];
+        g.index.needsUpdate = true;
+      } else
+        for (const attr of Object.values(g.attributes) as THREE.BufferAttribute[]) {
+          const a = attr.array;
+          const k = attr.itemSize;
+          for (let t = 0; t < attr.count; t += 3)
+            for (let j = 0; j < k; j++) [a[(t + 1) * k + j], a[(t + 2) * k + j]] = [a[(t + 2) * k + j], a[(t + 1) * k + j]];
+          attr.needsUpdate = true;
+        }
+      return { geometry: g, material };
+    }),
+  };
+}
+
+/** Adds the mirrored house models of `out` (after the code models are built or a pack replaced them). */
+function addMirrors(out: Record<ModelKey, Prototype>) {
+  for (const key of MIRRORED_KEYS) out[key] = mirrored(out[mirrorOf(key)]);
+}
+
+/** Code-built model of each key except the additions, the kits and the mirrored houses. */
+const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>, () => Piece[]> = {
   'house-0': plot,
   'house-1': tent,
   'house-2': mudHouse,
@@ -833,9 +1066,15 @@ export function codeModels(): Record<ModelKey, Prototype> {
   if (built) return built;
   const out = {} as Record<ModelKey, Prototype>;
   for (const key of MODEL_KEYS) {
+    if ((MIRRORED_KEYS as ModelKey[]).includes(key)) continue;
+    if ((KIT_KEYS as readonly ModelKey[]).includes(key)) {
+      out[key] = buildKit(KIT_MAKERS[key as KitKey]());
+      continue;
+    }
     const extra = extraOf(key);
-    out[key] = build(extra ? (EXTRAS[extra.kind]?.(extra.level) ?? stoneDress(...footprintOf(key), extra.level)) : MAKERS[key as Exclude<ModelKey, ExtraKey>]());
+    out[key] = build(extra ? (EXTRAS[extra.kind]?.(extra.level) ?? stoneDress(...footprintOf(key), extra.level)) : MAKERS[key as keyof typeof MAKERS]());
   }
+  addMirrors(out);
   out.pane = { parts: [{ geometry: new THREE.PlaneGeometry(PANE_SIZE, PANE_SIZE), material: paneMaterial() }] };
   return (built = out);
 }
@@ -893,6 +1132,7 @@ async function readPack(manifestUrl: string, base: Record<ModelKey, Prototype>):
       }
     }),
   );
+  addMirrors(out);
   return out;
 }
 

@@ -629,13 +629,23 @@ README de lá); o último desenho 2D está na tag `ultimo-2d`.
   são sorteados no core (`rollLook`, com o rng do jogo) ao construir e, nas casas, a cada mudança de
   nível. Construções vizinhas (lado com lado) do mesmo tipo e nível não repetem a variante quando
   há alternativa. O ofício da oficina fica guardado na variante.
-- **Casas no 3D:** um modelo por nível (pacote Meshy, `house-1..4`), virado para a rua, com um tom
-  um pouco diferente por casa. A variante escolhe o quintal da casa com gente (`yardOf` em
-  `plan.ts`): nada, três jarros com um vaso de planta, ou um varal com panos vermelho, claro e azul
-  (variante % 3), no canto da frente que o espelhamento escolhe. Isso dá 5 aparências por nível. A
-  tenda tem a fogueira na frente à esquerda e por isso põe o quintal sempre à direita. Casa vazia
-  que guardou o nível: o desenho desse nível desbotado, sem luz nem fumaça, com o portão trancado
-  na porta e sem quintal.
+- **Casas no 3D** (plano beleza C3): um modelo por nível (pacote Meshy, `house-1..4`), virado para a
+  rua, com um tom um pouco diferente por casa. O espelhamento do core desenha a casa inteira
+  espelhada (modelo, kit, quintal, porta, janelas e fogueira; protótipo espelhado `house-N-m`). A
+  variante soma um **kit por código** (`src/render3d/kits.ts`), 6 por nível, todos diferentes:
+  - tenda: faixas tecidas na parede, tripé com panela na fogueira, toldo na frente, cabras na
+    manjedoura, tenda anexa, esteira com figos (com faixas do outro lado);
+  - casa de barro: escada até o telhado, forno tabun, quarto no telhado, toldo listrado, tapete no
+    parapeito, figos secando;
+  - casa de pedra: parreira com uvas na parede, toldo sobre o pátio do telhado, portão em arco,
+    andar de cima;
+  - casa grande: figueira no quintal, toldo largo com tear, cisterna, quarto no telhado, tapete,
+    manjedoura.
+  E o quintal da casa com gente (`yardOf` em `plan.ts`): nada, três jarros com um vaso de planta, ou
+  um varal com panos vermelho, claro e azul (variante % 3), na frente à direita (à esquerda quando
+  espelhada); o kit deixa esse canto livre. Casa vazia que guardou o nível: o desenho desse nível
+  desbotado, sem luz nem fumaça, com o portão trancado na porta, sem quintal e só com as peças
+  construídas do kit (a vida do dia a dia, como panela, figos, toldo, tapete e cabras, some).
 - **Campos** pela plantação (cor do grão) e pela estação (arado, broto, verde, dourado, palha).
 - **Oficina pelos 6 ofícios:** o modelo (pacote Meshy) já é uma olaria, com forno e potes. Os outros
   ofícios põem o seu canto no pátio da frente (`craft-1..5`, por código): a ferraria tem forja de

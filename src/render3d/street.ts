@@ -1,7 +1,7 @@
 import { ageBand, findPath, indexOf, type AgeBand, type Building, type Cell, type GameState, type Person, type Sex } from '../core';
 import type { Load } from './crowd';
 import LOOK from './look3d.json';
-import { hash } from './plan';
+import { hash, lookOf } from './plan';
 
 /**
  * The still life of the streets, as plain data (no Three.js): who stands where and what they do.
@@ -91,11 +91,11 @@ export function idleLoad(act: IdleAct, band: AgeBand, sex: Sex): Load | null {
 }
 
 /** Where each act stands in a house's model (local x, z and facing; `o` is the side away from the yard). */
-function houseSpots(act: IdleAct, level: number, o: number): [number, number, number][] {
+function houseSpots(act: IdleAct, level: number, o: number, mirror: number): [number, number, number][] {
   switch (act) {
     case 'grind':
-      // At the tent: kneeling by the fire ring (front left), facing it; else at the doorstep, facing out.
-      return level === 1 ? [[-0.28, 0.66, -Math.PI / 2]] : [[o * 0.45, 1.06, 0]];
+      // At the tent: kneeling by the fire ring (front left, right when mirrored), facing it; else at the doorstep, facing out.
+      return level === 1 ? [[-0.28 * mirror, 0.66, (-Math.PI / 2) * mirror]] : [[o * 0.45, 1.06, 0]];
     case 'talk':
       return [
         [o * 0.04, 1.14, o * (Math.PI / 2 - 0.4)],
@@ -200,8 +200,9 @@ export function streetPlan(s: GameState, placed: readonly Placed[], max: number 
   for (const p of houses) {
     const b = p.b;
     const home = free.filter((o) => o.houseId === b.id);
-    // The side away from the yard things (the tent keeps its things on the right).
-    const o = b.variant % 3 === 0 ? (hash(b.x, b.y, 72) < 0.5 ? 1 : -1) : b.level === 1 || !b.mirrored ? -1 : 1;
+    // The side away from the yard things (front right of the model, left when it is mirrored).
+    const m = lookOf(b).mirror;
+    const o = b.variant % 3 === 0 ? (hash(b.x, b.y, 72) < 0.5 ? 1 : -1) : -m;
     for (const [n, planned] of houseActs(b.level, hash(b.x, b.y, 60)).entries()) {
       const want = WANT[planned];
       let act = planned;
@@ -218,7 +219,7 @@ export function streetPlan(s: GameState, placed: readonly Placed[], max: number 
         act = fallbackAct(ageBand(who[0], s.week), who[0].sex);
       }
       for (const q of who) free.splice(free.indexOf(q), 1);
-      const spots = houseSpots(act, b.level, o);
+      const spots = houseSpots(act, b.level, o, m);
       add(
         who.map((q, j) => {
           const [lx, lz, yaw] = spots[Math.min(j, spots.length - 1)];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 
@@ -81,7 +81,7 @@ describe('what the 3D view draws', () => {
     const plan = cityPlan(s);
     const of = (id: number) => plan.buildings.filter((p) => p.b.id === id);
     expect(of(h.id)).toHaveLength(1);
-    expect(of(h.id)[0]).toMatchObject({ key: 'house-2', x: 26, z: 28 });
+    expect(of(h.id)[0]).toMatchObject({ key: h.mirrored ? 'house-2-m' : 'house-2', x: 26, z: 28 });
     // The road is on the house's west side: it turns its front (+z) to -x.
     expect(facing(s, h)).toBeCloseTo(-Math.PI / 2);
     expect(of(m.id)[0]).toMatchObject({ key: 'market', x: 21, z: 29 });
@@ -152,20 +152,20 @@ describe('what the 3D view draws', () => {
     for (const k of ['stock-1', 'stock-2', 'stock-3'] as const) expect(MODEL_KEYS).toContain(k);
   });
 
-  it('gives lived-in houses six looks per level: yard things by variant, on the side of the mirroring', () => {
-    const looks = new Set<string>();
-    for (const level of [2, 3, 4])
-      for (let variant = 0; variant < 6; variant++)
-        for (const mirrored of [false, true]) looks.add(JSON.stringify(yardOf({ kind: 'house', level, variant, mirrored })));
-    expect(looks.size).toBe(5); // none, two things, each on two sides
-    expect(yardOf({ kind: 'house', level: 2, variant: 1, mirrored: true })).toEqual({ key: 'yard-1', side: -1 });
-    expect(yardOf({ kind: 'house', level: 3, variant: 5, mirrored: false })).toEqual({ key: 'yard-2', side: 1 });
-    // A tent's fire is on the front left: its things stand on the right. Empty plots and other kinds have none.
-    expect(yardOf({ kind: 'house', level: 1, variant: 2, mirrored: true })).toEqual({ key: 'yard-2', side: 1 });
-    expect(yardOf({ kind: 'house', level: 0, variant: 1, mirrored: false })).toBeNull();
+  it('gives lived-in houses six looks per level: yard things by variant, mirrored with the house', () => {
+    expect([0, 1, 2, 3, 4, 5].map((variant) => yardOf({ kind: 'house', level: 3, variant }))).toEqual([null, 'yard-1', 'yard-2', null, 'yard-1', 'yard-2']);
+    // Empty plots and other kinds have none; an empty house keeps no yard.
+    expect(yardOf({ kind: 'house', level: 0, variant: 1 })).toBeNull();
     expect(lookOf({ ...house(0, 3), variant: 1 }).yard).toBeNull();
     expect(yardOf({ kind: 'market', level: 1, variant: 1 })).toBeNull();
     for (const k of ['yard-1', 'yard-2'] as const) expect(MODEL_KEYS).toContain(k);
+    // A mirrored house is drawn with its own mirrored model and mirrors every point of it.
+    const m = lookOf({ ...house(2), mirrored: true });
+    expect(m).toMatchObject({ key: 'house-2-m', mirror: -1 });
+    expect(lookOf(house(2))).toMatchObject({ key: 'house-2', mirror: 1 });
+    expect(lookOf({ ...house(0), mirrored: true })).toMatchObject({ key: 'house-0', mirror: 1 });
+    for (const k of MIRRORED_KEYS) expect(MODEL_KEYS).toContain(k);
+    expect(mirrorOf('house-4-m')).toBe('house-4');
   });
 
   it("shows a workshop's craft in its yard, the pottery in the model itself", () => {

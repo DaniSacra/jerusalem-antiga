@@ -63,7 +63,8 @@ export class World {
   private placed: Placed[] = [];
   /** The city's instances, and each building's copies in them (its hop, see `lift`). */
   private inst: Instancer | null = null;
-  private copies = new Map<number, [ModelKey, number][]>();
+  /** Each building's instances (model, index, and how high above the ground it stands). */
+  private copies = new Map<number, [ModelKey, number, number?][]>();
   /** The models' own geometries and textures: shared by every build (and the preview ghost), never freed here. */
   private shared = new WeakSet<object>();
 
@@ -123,7 +124,8 @@ export class World {
   lift(x: number, y: number, dy: number, stretch: number) {
     const s = this.s;
     const b = x >= 0 && y >= 0 && x < s.cols && y < s.rows ? s.grid[y * s.cols + x] : null;
-    for (const [key, i] of (b && this.copies.get(b.id)) ?? []) this.inst?.lift(key, i, dy, stretch);
+    // A piece up on the roof rides up with the stretched house.
+    for (const [key, i, up = 0] of (b && this.copies.get(b.id)) ?? []) this.inst?.lift(key, i, dy + up * (stretch - 1), stretch);
   }
 
   /**
@@ -168,21 +170,26 @@ export class World {
     let altar: THREE.Vector3 | null = null;
     for (const { b, look, stock, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
       const y = ground.height(cx, cz);
-      const copies: [ModelKey, number][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
+      const copies: [ModelKey, number, number?][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
       if (look.extra) copies.push([look.extra, inst.add(look.extra, cx, y, cz, rot, scale, 1, sy)]);
       if (stock) copies.push([stock, inst.add(stock, cx, y, cz, rot, scale)]);
       if (look.craft) copies.push([look.craft, inst.add(look.craft, cx, y, cz, rot, scale)]);
       this.copies.set(b.id, copies);
-      // A point of the model (local x, z, front +z) in the world.
-      const at = (lx: number, ly: number, lz: number) => new THREE.Vector3(cx + lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, cz - lx * Math.sin(rot) + lz * Math.cos(rot));
+      // A point of the model (local x, z, front +z) in the world; a mirrored house mirrors x.
+      const m = look.mirror;
+      const at = (lx: number, ly: number, lz: number) => new THREE.Vector3(cx + m * lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, cz - m * lx * Math.sin(rot) + lz * Math.cos(rot));
+      for (const k of look.kit) {
+        const p = at(k.x, k.y, k.z);
+        copies.push([k.key, inst.add(k.key, p.x, p.y, p.z, rot + m * k.rot, k.s, tint), k.y]);
+      }
       if (look.closed) {
         const [gx, gz] = CLOSED_AT[look.houseLevel as 2 | 3 | 4];
         const g = at(gx, 0, gz);
         inst.add('closed', g.x, g.y, g.z, rot);
       }
       if (look.yard) {
-        const g = at(YARD_AT[0] * look.yard.side, 0, YARD_AT[1]);
-        copies.push([look.yard.key, inst.add(look.yard.key, g.x, g.y, g.z, rot)]);
+        const g = at(YARD_AT[0], 0, YARD_AT[1]);
+        copies.push([look.yard, inst.add(look.yard, g.x, g.y, g.z, rot)]);
       }
       const lv = look.vacant ? 0 : look.houseLevel;
       // Light on the ground before the door of a lived-in house (a tent has its fire's), and in the
@@ -211,7 +218,7 @@ export class World {
       if (this.models[look.key].glb)
         for (const [px, py, pz, prot] of panesOf(look)) {
           const p = at(px, py, pz);
-          copies.push(['pane', inst.add('pane', p.x, p.y, p.z, rot + prot)]);
+          copies.push(['pane', inst.add('pane', p.x, p.y, p.z, rot + m * prot)]);
         }
       if (b.kind === 'workshop') {
         // The level-3 kiln has a tall chimney: the smoke leaves from its top.
