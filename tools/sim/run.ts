@@ -120,6 +120,22 @@ function b1Lines(rs: Result[]): string[] {
     `  per goal med wk: ${GOALS.map((_, i) => `g${i + 1} ${m((r) => r.goalWeeks[i] ?? NaN)}`).join(' ')} | gaps: ${GOALS.map((_, i) => m((r) => (r.goalWeeks[i] ?? NaN) - (i ? (r.goalWeeks[i - 1] ?? NaN) : 0))).join(' ')}`,
   ];
 }
+/** Package B2 (plano-sobrevivencia 7): J1-J3, empty workplaces, job moves, unemployment in year 1. */
+function b2Lines(rs: Result[]): string[] {
+  const n = rs.length;
+  const m = (get: (r: Result) => number, d = 0) => f(med(rs.map(get)), d);
+  const q = (get: (r: Result) => number, x: number) => f(qt(rs.map(get), x));
+  const kinds = [...new Set(rs.flatMap((r) => Object.keys(r.b2.emptyByKind)))].sort();
+  const longKinds: Record<string, number> = {};
+  for (const r of rs) if (r.b2.emptyLongest > 8 && r.b2.emptyLongestKind) longKinds[r.b2.emptyLongestKind] = (longKinds[r.b2.emptyLongestKind] ?? 0) + 1;
+  return [
+    `  J1 empty >8 wk runs ${pc(rs.filter((r) => r.b2.emptyLongest > 8).length, n)} (active: no frozen field or cut grove ${pc(rs.filter((r) => r.b2.emptyLongestActive > 8).length, n)}; no field ${pc(rs.filter((r) => r.b2.emptyLongestNoField > 8).length, n)}) longest med ${m((r) => r.b2.emptyLongest)} p90 ${q((r) => r.b2.emptyLongest, 0.9)} kinds ${Object.entries(longKinds).map(([k, v]) => `${k} ${v}`).join(', ') || '-'}` +
+      ` | J2 idle Y1 med ${m((r) => r.b1.idleY1)} p90 ${q((r) => r.b1.idleY1, 0.9)}` +
+      ` | J3 lumber empty in a winter ${pc(rs.filter((r) => r.b2.lumberEmptyWinter).length, n)} (live lumber ${pc(rs.filter((r) => r.b2.liveLumberEmptyWinter).length, n)}, all lumbers empty ${pc(rs.filter((r) => r.b2.noWoodWinter).length, n)})`,
+    `  empty building-weeks med ${m((r) => r.b2.emptyWeeks)} p90 ${q((r) => r.b2.emptyWeeks, 0.9)} Y1 ${m((r) => r.b2.emptyY1)} | by kind (sum/run): ${kinds.map((k) => `${k} ${f(rs.reduce((a, r) => a + (r.b2.emptyByKind[k] ?? 0), 0) / n)}`).join(', ')}` +
+      ` | moves med empty ${m((r) => r.b2.moves.empty)} firewood ${m((r) => r.b2.moves.firewood)} | idle w200 med ${m((r) => r.mat.unemployed200)}`,
+  ];
+}
 /** A5 read per goal: the median wait for each goal (from the goal before; runs that reached it) and the worst of them. */
 function worstGoalGap(rs: Result[]): string {
   const gaps = GOALS.map((_, i) => med(rs.map((r) => (r.goalWeeks[i] ?? NaN) - (i ? (r.goalWeeks[i - 1] ?? NaN) : 0))));
@@ -146,6 +162,7 @@ for (const name of bots) {
     console.log(`${name.padEnd(9)} ${criteria(rs)} | goals ${GOALS.map((_, i) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)))).join(' ')}`);
     for (const l of materialLines(rs)) console.log(l);
     for (const l of b1Lines(rs)) console.log(l);
+    for (const l of b2Lines(rs)) console.log(l);
     continue;
   }
   const won = rs.filter((r) => r.won);
@@ -169,6 +186,7 @@ for (const name of bots) {
   console.log(`criteria: ${criteria(rs)}`);
   for (const l of materialLines(rs)) console.log(l);
   for (const l of b1Lines(rs)) console.log(l);
+  for (const l of b2Lines(rs)) console.log(l);
   console.log(`end people med child/adult/elder ${['child', 'adult', 'elder'].map((k) => f(med(rs.map((r) => r.endBands[k as 'child'])))).join('/')} | unemployed ${f(med(rs.map((r) => r.endUnemployed)))} | death age med ${f(med(rs.map((r) => r.deathAge)))} | couples left med ${f(med(rs.map((r) => r.couplesLeft)))} (runs with any ${rs.filter((r) => r.couplesLeft > 0).length}) | couple wait max med ${f(med(rs.map((r) => r.coupleWaitMax)))} | caravans arrived ${rs.reduce((a, r) => a + r.caravansArrived, 0)} all housed ${rs.reduce((a, r) => a + r.caravansAll, 0)} some ${rs.reduce((a, r) => a + r.caravansSome, 0)}`);
   console.log(`caravans: families stayed ${rs.reduce((a, r) => a + r.caravanHoused, 0)} went on ${rs.reduce((a, r) => a + r.caravanLeft, 0)} | granaries max at once med ${f(med(rs.map((r) => r.maxGranaries)))} max ${Math.max(...rs.map((r) => r.maxGranaries))}`);
   console.log(`silver below 0: Y1 ${rs.filter((r) => r.debtY1).length}/${n}  Y2 ${rs.filter((r) => r.debtY2).length}/${n}  ever ${rs.filter((r) => r.debtEver).length}/${n} | longest wait on one goal med ${f(med(rs.map((r) => r.goalWait)))} max ${f(Math.max(...rs.map((r) => r.goalWait)))}  runs > 52 wk ${rs.filter((r) => r.goalWait > 52).length} (goals ${[...new Set(rs.filter((r) => r.goalWait > 52).map((r) => r.goalWaitIndex + 1))].sort((x, y) => x - y).join(',') || '-'})`);

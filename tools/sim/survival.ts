@@ -51,6 +51,13 @@ import {
   missingMaterial,
   levelMaterials,
   sharedTrees,
+  crewCounts,
+  staffOf,
+  seatsOf,
+  madeByCrew,
+  setJob,
+  canWork,
+  firewoodShort,
   MATERIALS,
   type Material,
   type Building,
@@ -107,14 +114,29 @@ export interface Profile {
   materialReserve: boolean;
   /** Plays the tutorial's build steps in week 0 (the clock stands still on them, see tutorial.json): food, field, lumber, house. `--profile tutorial=true`. */
   tutorial?: boolean;
+  /** B2: moves people between jobs (setJob). Off for the distracted player, who never changes a job. */
+  movesJobs: boolean;
+  /** B2: weeks a workplace must stay empty before the bot moves someone there. */
+  emptyWait: number;
+  /**
+   * B2: who the bot moves into an empty workplace. 'plan' (plano-sobrevivencia 3): only the
+   * unemployed and spare farmers. 'food': also one of a crew of 2+ of a lower-priority workplace
+   * into an empty food building (with food short on screen, even an only worker), and one of a
+   * crew of 2+ of the same kind into another empty workplace (two markets: one each). 'thin': one
+   * of a crew of 2+ of a lower-priority or the same kind into any empty workplace.
+   * `--profile jobDonors="plan"`.
+   */
+  jobDonors: 'plan' | 'food' | 'thin';
+  /** B2: answers the "N sem trabalho" alert (from 3, from the start) with what it names: a workshop, else a lumber (none yet, wood below 20, winter) or a field. */
+  answersIdle?: boolean;
 }
 
 export const PROFILES: Record<string, Profile> = {
-  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true },
+  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin' },
   /** Expert that sows no fields; feeds the city with fishers and gatherers. */
-  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true },
-  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true },
-  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false },
+  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin' },
+  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true, movesJobs: true, emptyWait: 4, jobDonors: 'food', answersIdle: true },
+  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false, movesJobs: false, emptyWait: Infinity, jobDonors: 'plan' },
 };
 
 // ------------------------------------------------------------------ geometry
@@ -228,11 +250,58 @@ const DEAD_YIELD = 0.5;
 /** Goal index from which the planner expects big houses (more stone). */
 const BIG_HOUSES_GOAL = GOALS.findIndex((g) => g.type === 'houses' && (g.level ?? 0) >= 4);
 
+const FOOD_KINDS: ReadonlySet<string> = new Set(['fisher', 'gatherer', 'field']);
+/** A connected food building with nobody in it (a frozen field in winter does not count). */
+const emptyFood = (s: GameState) => {
+  const crews = crewCounts(s);
+  return s.buildings.some((b) => FOOD_KINDS.has(b.kind) && seatsOf(b) > 0 && !crews.get(b.id) && !(b.kind === 'field' && seasonOf(s.week) === 'winter'));
+};
+/** Order in which free adults fill workplaces (rules.jobPriority); unknown kinds last. */
+const jobRank = (kind: string) => { const k = (RULES.jobPriority as string[]).indexOf(kind); return k < 0 ? RULES.jobPriority.length : k; };
+
+/** Workplaces whose work shows (they make by their crew), connected and offering jobs. */
+const crewPlaces = (s: GameState) => s.buildings.filter((b) => madeByCrew(b.kind) && seatsOf(b) > 0);
+
+/**
+ * Someone the bot can move to `target` (B2, see plano-sobrevivencia 3 "Bots"): an unemployed adult,
+ * else a spare farmer (any farmer while the fields are frozen; out of winter one of a field with
+ * 2+ farmers while the food is comfortable; never from a field to a field), else one of a
+ * lower-priority workplace or one of the same kind (`sameOnly`: only the same kind; never a field)
+ * with at least `lowerCrew` people (Infinity: never).
+ */
+function donor(s: GameState, target: Building, lowerCrew: number, sameOnly = false): number | null {
+  const crews = crewCounts(s);
+  const byId = new Map(s.buildings.map((b) => [b.id, b]));
+  const adults = s.people.filter((p) => canWork(s, p)).sort((a, c) => a.id - c.id);
+  const idle = adults.find((p) => p.jobId == null && p.quitWeek !== s.week);
+  if (idle) return idle.id;
+  const eaten = computeEconomy(s).foodEaten;
+  const comfortable = !s.famine && s.food >= eaten * RULES.weeksPerSeason;
+  const winter = seasonOf(s.week) === 'winter';
+  const at = (p: Person) => (p.jobId == null ? undefined : byId.get(p.jobId));
+  if (target.kind !== 'field') {
+    const farmer = adults.find((p) => { const b = at(p); return b?.kind === 'field' && (winter || (comfortable && (crews.get(b.id) ?? 0) >= 2)); });
+    if (farmer) return farmer.id;
+  }
+  if (Number.isFinite(lowerCrew)) {
+    // The lowest-priority workplace gives first.
+    const lower = adults
+      .filter((p) => { const b = at(p); return !!b && b.kind !== 'field' && b.id !== target.id && (b.kind === target.kind || (!sameOnly && jobRank(b.kind) > jobRank(target.kind))) && (crews.get(b.id) ?? 0) >= lowerCrew; })
+      .sort((a, c) => jobRank(at(c)!.kind) - jobRank(at(a)!.kind) || a.id - c.id)[0];
+    if (lower) return lower.id;
+  }
+  return null;
+}
+
 export class SurvivalBot {
   stats: Stats = { actions: 0, built: {}, roadCells: 0 };
   /** Materials a wanted build lacked during the last `act` (the next act reacts to it; the runner reads it for W3). */
   lacked: Record<Material, boolean> = { wood: false, stone: false };
   private streak: Record<string, number> = {};
+  /** Weeks each workplace (by id) has had nobody (B2). */
+  private empty = new Map<number, number>();
+  /** People moved between jobs (setJob) by reason. */
+  moves = { empty: 0, firewood: 0 };
   /** A pending target: the bot laid road toward it and builds it once connected. */
   private pending: { kind: BuildableKind; r: Rect; dig: boolean } | null = null;
   /** The 6x6 kept free for the temple (see `reservesTemple`), or null. */
@@ -325,6 +394,11 @@ export class SurvivalBot {
       this.bump(`temple_${m}`, templeOpen && s[m] < (materialsOf('temple')[m] ?? 0));
       this.lacked[m] = false;
     }
+    this.bump('firewood', firewoodShort(s, eco) > 0);
+    const crews = crewCounts(s);
+    const empty = new Map<number, number>();
+    for (const b of crewPlaces(s)) if (!crews.get(b.id)) empty.set(b.id, (this.empty.get(b.id) ?? 0) + 1);
+    this.empty = empty;
     this.updateReserve(s);
     if (this.p.tutorial && s.week === 0 && !this.tutored) this.playTutorial(s);
     if (this.rng() < this.p.idleChance) return;
@@ -353,6 +427,9 @@ export class SurvivalBot {
     }
     const goal = currentGoal(s);
     const season = seasonOf(s.week);
+
+    // 0. Jobs (B2): fill a workplace left empty, and lumbers before a winter short of firewood.
+    if (this.p.movesJobs && this.jobs(s)) return true;
 
     // 1. Food.
     if (this.seen('famine') && this.food(s, true)) return true;
@@ -391,6 +468,11 @@ export class SurvivalBot {
     // Workshops for jobs come first only while their field bonus is below the cap the player reads.
     const bonusLeft = fieldBonus(s) < (BUILDINGS.workshop.fieldBonusMax ?? 0);
     if (s.unlocked.includes('workshop') && bonusLeft && this.seen('idle') && this.place(s, 'workshop')) return true;
+    if (this.p.answersIdle && this.seen('idle')) {
+      // A lumber while the city has none or the wood runs low (or in winter, when fields are frozen), else a field.
+      const lumberFirst = season === 'winter' || s.wood < 20 || !s.buildings.some((b) => b.kind === 'lumber');
+      if (this.place(s, lumberFirst ? 'lumber' : 'field')) return true;
+    }
     for (const [level, kind] of EVOLUTION) {
       if (!s.unlocked.includes(kind)) continue;
       const waiting = stalled(s, level, kind);
@@ -428,6 +510,41 @@ export class SurvivalBot {
     // 8. Spare silver and stone: service levels.
     if (this.upgradeServices(s)) return true;
     void season;
+    return false;
+  }
+
+  /**
+   * B2 job moves (one per action). A workplace empty for `emptyWait` weeks (not a frozen field, not
+   * a lumber or quarry whose grove is cut) gets someone (see `donor`), the first by jobPriority.
+   * In autumn and winter, with the firewood alert seen for `delay` weeks, a farmer goes to a lumber
+   * with a free job.
+   */
+  private jobs(s: GameState): boolean {
+    const crews = crewCounts(s);
+    const winter = seasonOf(s.week) === 'winter';
+    const targets = crewPlaces(s)
+      .filter((b) => (this.empty.get(b.id) ?? 0) >= this.p.emptyWait && !(winter && b.kind === 'field'))
+      .filter((b) => !((b.kind === 'lumber' || b.kind === 'quarry') && gatherYield(s, b) < DEAD_YIELD))
+      .sort((a, b) => jobRank(a.kind) - jobRank(b.kind) || a.id - b.id);
+    // Food short on screen (famine, or "no births: food"): a food building left empty takes someone
+    // from a lower-priority workplace, even its only worker. Planners also thin crews of 2+ at any time.
+    const hungry = this.p.jobDonors !== 'plan' && (this.seen('famine') || this.seen('blockFood') || (this.p.planner && s.famine));
+    for (const b of targets) {
+      const food = FOOD_KINDS.has(b.kind);
+      const d = this.p.jobDonors;
+      const who = food && hungry ? donor(s, b, 1) : d === 'thin' || (d === 'food' && food) ? donor(s, b, 2) : d === 'food' ? donor(s, b, 2, true) : donor(s, b, Infinity);
+      if (who !== null && setJob(s, who, b.id)) { this.moves.empty++; this.empty.delete(b.id); return true; }
+    }
+    const season = seasonOf(s.week);
+    if ((season === 'autumn' || winter) && this.seen('firewood')) {
+      const lumber = s.buildings.find((b) => b.kind === 'lumber' && (crews.get(b.id) ?? 0) < seatsOf(b) && gatherYield(s, b) >= DEAD_YIELD);
+      if (!lumber) return false;
+      const byId = new Map(s.buildings.map((b) => [b.id, b]));
+      const farmers = s.people.filter((p) => canWork(s, p) && p.jobId != null && byId.get(p.jobId)?.kind === 'field');
+      // A field keeps one farmer if it can (out of winter it still gives food).
+      const who = farmers.find((p) => (crews.get(p.jobId!) ?? 0) >= 2) ?? farmers[0];
+      if (who && setJob(s, who.id, lumber.id)) { this.moves.firewood++; return true; }
+    }
     return false;
   }
 
@@ -512,6 +629,8 @@ export class SurvivalBot {
   /** Food choice for a reacting (non planner) bot. */
   private food(s: GameState, emergency: boolean): boolean {
     if (this.p.planner) return this.plannerFood(s, true);
+    // B2: a player who moves people sees the empty food building's balloon and does not build another.
+    if (this.p.movesJobs && emptyFood(s)) return false;
     const [a, b, c] = this.p.foodMix;
     const r = this.rng() * (a + b + c);
     const order: BuildableKind[] = r < a ? ['fisher', 'gatherer', 'field'] : r < a + b ? ['gatherer', 'fisher', 'field'] : ['field', 'fisher', 'gatherer'];
@@ -551,6 +670,13 @@ export class SurvivalBot {
       place(copy, kind, cand.r.x, cand.r.y);
       const b = copy.buildings[copy.buildings.length - 1];
       b.connected = true;
+      // B2: the copy is not on the road yet (place() left it off the network, so with no crew): staff
+      // it by hand, with the free adults or people the planner would move (setJob would refresh it off again).
+      for (let n = crewCounts(copy).get(b.id) ?? 0; n < statOf(b, 'jobs'); n++) {
+        const who = donor(copy, b, 1);
+        if (who === null) break;
+        copy.people.find((p) => p.id === who)!.jobId = b.id;
+      }
       const v = this.outlook(copy) - base - cand.d * 0.05;
       if (!best || v > best.v) best = { kind, r: cand.r, v, d: cand.d };
     }
@@ -564,12 +690,14 @@ export class SurvivalBot {
     if (!this.p.knowsAutumn || seasonOf(s.week) === 'winter' || s.silver < costOf('field')) return false;
     const st = settle(s);
     const eco = computeEconomy(st);
-    const steady = st.buildings.reduce((a, b) => a + gatherYield(st, b), 0) * eco.efficiency;
+    const crews = crewCounts(st);
+    const steady = st.buildings.reduce((a, b) => a + gatherYield(st, b) * staffOf(b, crews), 0);
     // A year of eating: three seasons as now, the winter at the winter factor.
     const yearEaten = eco.foodEaten * (3 + RULES.winter.foodFactor) * RULES.weeksPerSeason;
     const gap = yearEaten * 1.15 - steady * 52;
     const sown = s.buildings.filter((b) => b.kind === 'field' && b.connected).length;
-    const want = this.p.foodMix[2] === 0 ? 0 : Math.ceil(gap / ((BUILDINGS.field.harvest ?? 1) * Math.max(0.5, eco.efficiency)));
+    // A new field gets the free adults (or someone the planner moves, see `donor`): counted full.
+    const want = this.p.foodMix[2] === 0 ? 0 : Math.ceil(gap / (BUILDINGS.field.harvest ?? 1));
     if (sown >= want) return false;
     if (this.p.staffAware && eco.yearJobs + BUILDINGS.field.jobs > eco.workers + 1 && sown >= 1) return false;
     return this.place(s, 'field');
@@ -713,6 +841,8 @@ export class SurvivalBot {
   }
 
   private service(s: GameState, kind: ServiceBuilding, targets: Building[]) {
+    // B2: a player who moves people sees the empty market's balloon and does not build another.
+    if (this.p.movesJobs && crewPlaces(s).some((b) => b.kind === kind && !crewCounts(s).get(b.id))) return false;
     if (s.silver < costOf(kind) || !this.affords(s, kind) || !this.spends(s, kind) || !this.hasMaterials(s, kind)) return false;
     const { w, h } = dimsOf(kind);
     const rad = BUILDINGS[kind].radius ?? 0;
@@ -937,6 +1067,27 @@ export interface Result {
   mat: MatResult;
   /** Package B1 (plano-sobrevivencia 7): survival of the first year. */
   b1: B1Result;
+  /** Package B2: jobs. */
+  b2: B2Result;
+}
+
+export interface B2Result {
+  /** Building-weeks of a workplace (that makes by its crew, connected) with nobody; in year 1; by kind. */
+  emptyWeeks: number;
+  emptyY1: number;
+  emptyByKind: Record<string, number>;
+  /** J1: longest run of one workplace with nobody (and its kind); the same without frozen fields in winter. */
+  emptyLongest: number;
+  emptyLongestKind: string | null;
+  emptyLongestActive: number;
+  /** The same as `emptyLongestActive` without fields (what is left when the fields have more jobs than farmers). */
+  emptyLongestNoField: number;
+  /** J3: some lumber had nobody in a winter week; a lumber still making wood; every lumber empty. */
+  lumberEmptyWinter: boolean;
+  liveLumberEmptyWinter: boolean;
+  noWoodWinter: boolean;
+  /** Job moves by the bot (setJob). */
+  moves: { empty: number; firewood: number };
 }
 
 export interface B1Result {
@@ -1037,8 +1188,11 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       byYear: { wood: [], stone: [] }, templeLast: null, templeWait: NaN,
     },
     b1: { coldY1: 0, coldWeeks: 0, coldWinters: 0, woodY1: [], holdY1: 0, holdAll: 0, holdHouses: 0, endsY1: {}, idleY1: NaN, unlockWeek: {}, firstLumber: null, emptyWeek: null },
+    b2: { emptyWeeks: 0, emptyY1: 0, emptyByKind: {}, emptyLongest: 0, emptyLongestKind: null, emptyLongestActive: 0, emptyLongestNoField: 0, lumberEmptyWinter: false, liveLumberEmptyWinter: false, noWoodWinter: false, moves: bot.moves },
   };
   const b1 = res.b1;
+  const b2 = res.b2;
+  const emptyRun = new Map<number, number>();
   const coldYears = new Set<number>();
   const held = new Set<number>();
   const idleY1: number[] = [];
@@ -1096,12 +1250,34 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     // The year's people counts, read in its last week (they reset when the autumn begins).
     if ((s.week + 1) % 52 === 0) res.peopleByYear.push({ ...s.yearStats });
     const bonus = fieldBonus(s);
+    const crews = crewCounts(s);
     for (const b of s.buildings) {
       if (!b.connected) continue;
-      if (b.kind === 'field') res.food.field += fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * eco.efficiency;
-      if (b.kind === 'fisher') res.food.fisher += gatherYield(s, b) * eco.efficiency;
-      if (b.kind === 'gatherer') res.food.gatherer += gatherYield(s, b) * eco.efficiency;
+      const staff = staffOf(b, crews);
+      if (b.kind === 'field') res.food.field += fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * staff;
+      if (b.kind === 'fisher') res.food.fisher += gatherYield(s, b) * staff;
+      if (b.kind === 'gatherer') res.food.gatherer += gatherYield(s, b) * staff;
     }
+    // B2: empty workplaces (crew 0), the longest run of one of them, a lumber empty in a winter.
+    const winter = seasonOf(s.week) === 'winter';
+    const nowEmpty = new Set<number>();
+    for (const b of crewPlaces(s)) {
+      if (crews.get(b.id)) continue;
+      nowEmpty.add(b.id);
+      b2.emptyWeeks++;
+      b2.emptyByKind[b.kind] = (b2.emptyByKind[b.kind] ?? 0) + 1;
+      const w = (emptyRun.get(b.id) ?? 0) + 1;
+      emptyRun.set(b.id, w);
+      if (w > b2.emptyLongest) { b2.emptyLongest = w; b2.emptyLongestKind = b.kind; }
+      const dead = (b.kind === 'lumber' || b.kind === 'quarry') && gatherYield(s, b) < DEAD_YIELD;
+      if (!(b.kind === 'field' && winter) && !dead && w > b2.emptyLongestActive) b2.emptyLongestActive = w;
+      if (b.kind !== 'field' && !dead && w > b2.emptyLongestNoField) b2.emptyLongestNoField = w;
+      if (winter && b.kind === 'lumber') { b2.lumberEmptyWinter = true; if (gatherYield(s, b) >= DEAD_YIELD) b2.liveLumberEmptyWinter = true; }
+    }
+    for (const id of [...emptyRun.keys()]) if (!nowEmpty.has(id)) emptyRun.delete(id);
+    const lumbers = s.buildings.filter((b) => b.kind === 'lumber' && seatsOf(b) > 0);
+    if (winter && lumbers.length && lumbers.every((b) => !crews.get(b.id))) b2.noWoodWinter = true;
+    if (s.week < 52) b2.emptyY1 += nowEmpty.size;
     if (res.firstFieldWeek === null && s.buildings.some((b) => b.kind === 'field' && b.connected)) res.firstFieldWeek = s.week;
     if (res.firstGranaryWeek === null && s.buildings.some((b) => b.kind === 'granary' && b.connected)) res.firstGranaryWeek = s.week;
     const goalBefore = s.goalIndex;
