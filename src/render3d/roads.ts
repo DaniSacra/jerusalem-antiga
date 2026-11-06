@@ -78,14 +78,14 @@ export const sacredOf = (s: GameState) => s.buildings.filter((b) => b.kind === '
 
 /** One piece of a road on the ground: its model, cell centre and turn. */
 export interface RoadPiece {
-  key: 'trail' | 'trail-arm' | 'road' | 'kerb';
+  key: 'trail' | 'trail-arm' | 'road' | 'kerb' | 'loose' | 'loose-arm';
   x: number;
   z: number;
   rot: number;
 }
 
 /**
- * The pieces that draw the road on (x, y): a trail is a worn patch in the middle with an arm toward
+ * The pieces that draw the road on (x, y): a road off the network is dashed; a trail is a worn patch in the middle with an arm toward
  * each road beside it (it joins them); a road fills the cell; a kerbed road adds a stone kerb on
  * every side with no road beside it.
  */
@@ -97,6 +97,9 @@ export function roadPieces(s: GameState, x: number, y: number, level: RoadLevel)
     const ny = y + dy;
     return nx >= 0 && ny >= 0 && nx < s.cols && ny < s.rows && s.roads[indexOf(s, nx, ny)];
   };
+  // Off the network (no way to the altar): faded and dashed, a dash in the middle and half a dash
+  // toward each road beside it (two halves meet on the border), as the 2D drew a loose road.
+  if (!s.network[indexOf(s, x, y)]) return [{ key: 'loose', x: cx, z: cz, rot: 0 }, ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => ({ key: 'loose-arm' as const, x: cx, z: cz, rot: turnTo(dx, dy) }))];
   if (level === 0) return [{ key: 'trail', x: cx, z: cz, rot: 0 }, ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => ({ key: 'trail-arm' as const, x: cx, z: cz, rot: turnTo(dx, dy) }))];
   const out: RoadPiece[] = [{ key: 'road', x: cx, z: cz, rot: 0 }];
   if (level === 2) for (const [dx, dy] of SIDES) if (!road(dx, dy)) out.push({ key: 'kerb', x: cx, z: cz, rot: turnTo(dx, dy) });

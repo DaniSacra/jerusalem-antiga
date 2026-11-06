@@ -27,6 +27,10 @@ export type ModelKey =
   | 'closed'
   /** A trail worn down the middle of a cell, its arm toward a road beside it, and a road's stone kerb (`roads.ts`). */
   | 'trail' | 'trail-arm' | 'kerb'
+  /** A road not connected to the altar: a faded dash in the middle and half dashes toward its neighbours. */
+  | 'loose' | 'loose-arm'
+  /** A lit window pane of a .glb house at night (see WINDOWS_AT). */
+  | 'pane'
   /** Sacks and jars in the granary yard as the food store fills (`stockLevel`). */
   | 'stock-1' | 'stock-2' | 'stock-3'
   /** Things in a lived-in house's yard, by its variant: jars and a potted plant, a washing line. */
@@ -50,6 +54,24 @@ export function extraOf(key: ModelKey): { kind: KindKey; level: 2 | 3 } | null {
   return m ? { kind: m[1] as KindKey, level: Number(m[2]) as 2 | 3 } : null;
 }
 
+/**
+ * Smoke sources carry a 0..1 key: the altar and the workshops 0 (they always smoke), each house a
+ * stable key from HOUSE_SMOKE_FROM up (it smokes when its key is under the share of the moment).
+ */
+export const HOUSE_SMOKE_FROM = 0.05;
+/** The smoke key of the house on (x, y). */
+export const houseSmokeKey = (x: number, y: number) => HOUSE_SMOKE_FROM + hash(x, y, 12) * (1 - HOUSE_SMOKE_FROM);
+
+/**
+ * Share of the chimneys smoking now: the season's (`season`: every house in winter, few in summer),
+ * more at night (cooking, warmth). In a winter without firewood (`s.cold`) no house smokes and the
+ * tent fires are out (a warning that reads on the map); the altar and the kilns keep theirs.
+ */
+export function smokeShare(season: number, night: number, cold: boolean): number {
+  if (cold) return HOUSE_SMOKE_FROM;
+  return Math.max(0.01, season, night * 0.35);
+}
+
 /** Footprint (cells) of each model key, used to fit .glb models and to build the additions. */
 export function footprintOf(key: ModelKey): [number, number] {
   const extra = extraOf(key);
@@ -66,7 +88,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
-  'trail', 'trail-arm', 'kerb', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...EXTRA_KEYS,
 ];
@@ -78,6 +100,20 @@ export const MODEL_KEYS: ModelKey[] = [
 export const VACANT_TINT = 0.7;
 /** Where the barred gate of an empty house stands (model x, z; front +z), by the level kept: before its door. */
 export const CLOSED_AT: Record<2 | 3 | 4, [number, number]> = { 2: [0.3, 0.86], 3: [0.05, 0.86], 4: [0, 0.9] };
+/**
+ * Where the lit window panes of the .glb houses stand (model x, y, z and a turn about y from the
+ * front; front +z): over the windows the Meshy stone house and big house have, a hair before the wall.
+ * The code houses light the dark of their own windows instead (see `shaders.ts`).
+ */
+export const WINDOWS_AT: Partial<Record<number, [number, number, number, number][]>> = {
+  3: [[0, 0.98, 0.58, 0], [0, 0.42, 0.6, 0]],
+  4: [[0.38, 1.82, 0.27, 0], [-0.4, 0.64, 0.3, 0]],
+};
+
+/** The window panes of a house drawn with this look: none for an empty house (nobody lights them). */
+export function panesOf(look: Pick<BuildingLook, 'houseLevel' | 'vacant'>): [number, number, number, number][] {
+  return look.vacant ? [] : (WINDOWS_AT[look.houseLevel] ?? []);
+}
 /** The workshop kiln (model x, z; the code and the Meshy model have it there): smoke, night fire and the level-3 chimney. */
 export const KILN: [number, number] = [0.8, -0.1];
 /** Per level of a service building (index = level): height and brightness (richer stone at the top). */

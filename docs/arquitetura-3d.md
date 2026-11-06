@@ -617,7 +617,7 @@ Legenda da fase: 0–5. "Já" = o `render3d` de hoje já desenha. "Decisão" = s
 | Campos pela estação (arado, broto, verde, dourado, palha), seca longe do rio | já | `time/season.ts`, `shaders.ts` | – |
 | **Madeira e pedra:** pílula Materiais, ⚠ vermelho, brilho da pedra liberada | refazer | `ui/topbar.ts` | 1 |
 | Lenhador corta árvore: árvore cai, toco, broto | toco/broto já; queda 3 | `fx.ts` | 3 |
-| **Lenha e inverno:** frio, casas sem fumaça no frio, toasts de frio | fumaça já (ligar ao frio) / 1 | `life.ts`, `events.ts` | 1 |
+| **Lenha e inverno:** frio, casas sem fumaça no frio, toasts de frio | fumaça no frio ✓ 2026-11-06 (`smokeShare`, tendas apagadas) / toasts 1 | `plan.ts`, `life.ts`, `events.ts` | 1 |
 | **Marcos:** brilho, gente reunida, toast, lista com semana | ✓ (gente reunida 2026-11-06, `Walkers.gather`) | `fx.ts`, `life.ts`, `ui/panels.ts` | 3 |
 | **Histórico:** gráficos de 52 semanas | refazer | `ui/charts.ts` (SVG) | 2 |
 | **Dívida e derrota:** toasts, 3x→1x, tela com Mesmo mapa / Tentar de novo | refazer | `session.ts`, `ui/modal.ts` | 2 |

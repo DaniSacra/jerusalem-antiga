@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { extraOf, footprintOf, KILN, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
-import { patch } from './shaders';
+import { paneMaterial, patch } from './shaders';
+import LOOK from './look3d.json';
+
+/** Side of a lit window pane with its halo (the lit core is about a third of it, see `paneMaterial`). */
+const PANE_SIZE = 0.6;
 
 export type { ModelKey };
 
@@ -22,6 +26,10 @@ export interface Part {
 }
 export interface Prototype {
   parts: Part[];
+  /** From the .glb pack (its windows are lit by panes, see WINDOWS_AT). */
+  glb?: boolean;
+  /** Top of a .glb model once fitted (its chimney smoke leaves from there, not from inside it). */
+  top?: number;
 }
 
 export const COLORS = {
@@ -47,6 +55,8 @@ export const COLORS = {
   leaf: 0x7f9257,
   leafDark: 0x5d7340,
   palm: 0x6f8f3a,
+  /** Dates under the palm crown (sway with it). */
+  dates: 0xc9902f,
   trunk: 0x7a5a3a,
   rock: 0xb3a58c,
   water: 0x3d7c8c,
@@ -55,6 +65,8 @@ export const COLORS = {
   road: 0xab8f6a,
   roadStone: 0xcdbfa2,
   roadJoint: 0x9c8c70,
+  /** A road off the network: pale and grey, dashed (see `loose`). */
+  roadLoose: 0xc4bba8,
   paving: 0xd9cbad,
   sand: 0xd9bf8c,
   dryBush: 0x8f8456,
@@ -62,8 +74,12 @@ export const COLORS = {
   flame: 0xffd36a,
 } as const;
 
+/** Colours of the plants that sway in the wind (trunks too, so a crown never leaves its trunk). */
+const SWAYING: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.palm, COLORS.dates, COLORS.trunk];
+const WIND = LOOK.wind;
+
 /** Colours of the road surfaces (no snow settles on them). */
-const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint];
+const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint, COLORS.roadLoose];
 
 /** Crop colours of the four field variants (wheat, barley, lentil, flax). */
 export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
@@ -81,13 +97,17 @@ function mat(color: number, emissive = false): THREE.Material {
   const key = `${color}-${emissive}`;
   let m = materials.get(key);
   if (!m) {
+    const crop = (CROPS as readonly number[]).includes(color);
     m = emissive
       ? new THREE.MeshBasicMaterial({ color })
       : patch(new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, flatShading: true }), {
           // Trodden roads stay clear of snow, so the town still reads in winter.
           snow: !ROAD_COLORS.includes(color),
           windows: color === COLORS.dark,
-          grow: (CROPS as readonly number[]).includes(color),
+          grow: crop,
+          // Plants sway in the wind: trees by their height (the trunk with the crown), crops in waves.
+          wind: crop ? WIND.crops : SWAYING.includes(color) ? WIND.trees : 0,
+          waves: crop,
         });
     materials.set(key, m);
   }
@@ -379,7 +399,7 @@ function palm(): Piece[] {
     g.translate(0.12, 1.68, 0);
     out.push({ geo: g, color: COLORS.palm });
   }
-  out.push(blob(0.08, 0.12, 1.6, 0.05, COLORS.ochre, 1));
+  out.push(blob(0.08, 0.12, 1.6, 0.05, COLORS.dates, 1));
   return out;
 }
 
@@ -439,6 +459,10 @@ const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
 const trail = (): Piece[] => [box(0.4, 0.04, 0.4, 0, 0, 0, COLORS.road)];
 /** A trail's arm from the middle toward the road beside it (+z), so trails join. */
 const trailArm = (): Piece[] => [box(0.34, 0.039, 0.52, 0, 0, 0.25, COLORS.road)];
+/** A road off the network: a pale dash in the middle of the cell... */
+const loose = (): Piece[] => [box(0.3, 0.035, 0.3, 0, 0, 0, COLORS.roadLoose)];
+/** ...and half a dash on the border toward the road beside it (+z): with the neighbour's half, one dash. */
+const looseArm = (): Piece[] => [box(0.3, 0.035, 0.15, 0, 0, 0.425, COLORS.roadLoose)];
 /** A busy road's stone kerb along its +z side (no road there). */
 const kerb = (): Piece[] => [
   box(1, 0.075, 0.09, 0, 0, 0.455, COLORS.roadStone),
@@ -746,6 +770,9 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey>, () => Piece[]> = {
   trail,
   'trail-arm': trailArm,
   kerb,
+  loose,
+  'loose-arm': looseArm,
+  pane: () => [],
   'stock-1': () => stock(1),
   'stock-2': () => stock(2),
   'stock-3': () => stock(3),
@@ -769,6 +796,7 @@ export function codeModels(): Record<ModelKey, Prototype> {
     const extra = extraOf(key);
     out[key] = build(extra ? (EXTRAS[extra.kind]?.(extra.level) ?? stoneDress(...footprintOf(key), extra.level)) : MAKERS[key as Exclude<ModelKey, ExtraKey>]());
   }
+  out.pane = { parts: [{ geometry: new THREE.PlaneGeometry(PANE_SIZE, PANE_SIZE), material: paneMaterial() }] };
   return (built = out);
 }
 
@@ -866,5 +894,6 @@ function fromObject(root: THREE.Object3D, [w, h]: [number, number], entry: PackE
     if (merged) parts.push({ geometry: merged, material });
     else for (const g of geos) parts.push({ geometry: g, material });
   }
-  return { parts };
+  const top = (bounds.max.y - bounds.min.y) * k + (entry.yOffset ?? 0);
+  return { parts, glb: true, top };
 }

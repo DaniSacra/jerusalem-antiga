@@ -4,13 +4,16 @@ import { mainRoadCells, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
 import { Instancer } from './instancer';
 import { Families } from './figures';
-import { FieldHands, Fire, Haulers, NightFires, Smoke, Walkers } from './life';
+import { FieldHands, Flames, Haulers, NightFires, Smoke, Walkers } from './life';
 import type { ModelKey, Prototype } from './models';
-import { cityPlan, CLOSED_AT, hash, KILN, residentsOf, walkerCount, YARD_AT } from './plan';
+import { cityPlan, CLOSED_AT, hash, houseSmokeKey, KILN, panesOf, residentsOf, walkerCount, YARD_AT } from './plan';
 import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
+
+/** Props that lie flat on the ground (roads), sunk a little into it. */
+const FLAT_PROPS = new Set<ModelKey>(['road', 'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm']);
 
 /** Layers of the drawn city that change apart (see `diff.ts`). */
 export type CityLayer = 'buildings' | 'props' | 'people';
@@ -37,7 +40,7 @@ export class World {
   hands!: FieldHands;
   pasture!: Pasture;
   puddles!: THREE.InstancedMesh;
-  altarFire: Fire | null = null;
+  flames!: Flames;
   houses = 0;
   fields = 0;
   private land = new THREE.Group();
@@ -123,11 +126,14 @@ export class World {
     // Smoke sources: x, y, z and a key (altar and workshops 0: always; houses by hash).
     const smoke: THREE.Vector4[] = [];
     const fires: THREE.Vector3[] = [];
+    // Which fire spots are a tent's (out in a winter without firewood) or the altar's, and the tent fires.
+    const fireKind: ('tent' | 'altar' | undefined)[] = [];
+    const tents: THREE.Vector3[] = [];
     const fields: THREE.Vector3[] = [];
     const puddles: THREE.Vector3[] = [];
 
     const plan = cityPlan(s);
-    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (p.key === 'road' || p.key === 'trail' || p.key === 'trail-arm' || p.key === 'kerb' ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
+    for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (FLAT_PROPS.has(p.key) ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)
       if (hash(x, y, 20) < VISUAL.seasons.weather.puddleShare) {
         const px = x + 0.5 + (hash(x, y, 21) - 0.5) * 0.4;
@@ -135,7 +141,7 @@ export class World {
         puddles.push(new THREE.Vector3(px, ground.height(px, pz) + 0.025, pz));
       }
 
-    let altarFire: Fire | null = null;
+    let altar: THREE.Vector3 | null = null;
     for (const { b, look, stock, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
       const y = ground.height(cx, cz);
       const copies: [ModelKey, number][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
@@ -156,14 +162,23 @@ export class World {
       }
       const lv = look.vacant ? 0 : look.houseLevel;
       if (lv >= 2) {
-        const p = at(lv >= 3 ? -0.5 : -0.4, lv >= 4 ? 1.6 : lv === 3 ? 1.3 : 1.05, lv >= 3 ? -0.55 : -0.4);
-        smoke.push(new THREE.Vector4(p.x, p.y, p.z, 0.05 + hash(b.x, b.y, 12) * 0.95));
+        // The code houses' chimney; a .glb house smokes from its roof top (the chimney would be inside it).
+        const p = at(lv >= 3 ? -0.5 : -0.4, Math.max(lv >= 4 ? 1.6 : lv === 3 ? 1.3 : 1.05, (this.models[look.key].top ?? 0) + 0.02), lv >= 3 ? -0.55 : -0.4);
+        smoke.push(new THREE.Vector4(p.x, p.y, p.z, houseSmokeKey(b.x, b.y)));
       }
       if (lv === 1) {
         const p = at(-0.55, 0.06, 0.6);
         fires.push(p);
-        smoke.push(new THREE.Vector4(p.x, p.y + 0.2, p.z, 0.05 + hash(b.x, b.y, 12) * 0.95));
+        fireKind[fires.length - 1] = 'tent';
+        tents.push(p);
+        smoke.push(new THREE.Vector4(p.x, p.y + 0.2, p.z, houseSmokeKey(b.x, b.y)));
       }
+      // The .glb houses light their windows at night with panes before them (the code houses glow in their dark).
+      if (this.models[look.key].glb)
+        for (const [px, py, pz, prot] of panesOf(look)) {
+          const p = at(px, py, pz);
+          copies.push(['pane', inst.add('pane', p.x, p.y, p.z, rot + prot)]);
+        }
       if (b.kind === 'workshop') {
         // The level-3 kiln has a tall chimney: the smoke leaves from its top.
         const p = at(KILN[0], look.extra === 'up-workshop-3' ? 1.8 : 0.95, KILN[1]);
@@ -172,13 +187,12 @@ export class World {
       }
       if (b.kind === 'field') fields.push(new THREE.Vector3(cx, y, cz));
       if (b.kind === 'altar') {
-        altarFire = new Fire(new THREE.Vector3(cx, y + 1.2, cz - 0.2));
+        altar = new THREE.Vector3(cx, y + 1.2, cz - 0.2);
         smoke.push(new THREE.Vector4(cx, y + 1.8, cz - 0.2, 0));
         fires.push(new THREE.Vector3(cx, y + 1.25, cz - 0.2));
-        this.city.add(altarFire.group);
+        fireKind[fires.length - 1] = 'altar';
       }
     }
-    this.altarFire = altarFire;
     // Braziers along the main streets (junctions), one in every few, as the 2D lamps.
     for (const c of mainRoadCells(s)) if (hash(c.x, c.y, 30) * VISUAL.lights.lampEvery < 1) fires.push(new THREE.Vector3(c.x + 0.5, ground.height(c.x + 0.5, c.y + 0.5) + 0.02, c.y + 0.5));
     this.city.add(inst.build(this.shadows));
@@ -188,11 +202,12 @@ export class World {
     // Keep the puddles' look (the stage sets it per frame) across rebuilds.
     const old = this.puddles?.material as THREE.MeshStandardMaterial | undefined;
     this.smoke = new Smoke(smoke);
-    this.fires = new NightFires(fires);
+    this.fires = new NightFires(fires, fireKind);
+    this.flames = new Flames(altar, tents);
     this.hands = new FieldHands(fields, MAX_HANDS, this.shadows);
     this.pasture = new Pasture(s, ground, () => WATER_Y + this.water.mesh.position.y, this.shadows);
     this.puddles = puddleMesh(puddles, old);
-    this.city.add(this.smoke.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
+    this.city.add(this.smoke.mesh, this.flames.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
   }
 
   private buildPeople() {

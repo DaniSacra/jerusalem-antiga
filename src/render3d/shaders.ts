@@ -26,6 +26,15 @@ export const U = {
   uCrack: { value: new THREE.Color(0x6a4e32) },
   uFlowers: { value: 0 },
   uDrought: { value: 0 },
+  /** Wind on the plants: strength 0..1 (a breath in the calm) and the way it blows (x, z). */
+  uWind: { value: 0 },
+  uWindDir: { value: new THREE.Vector2(1, 0.3).normalize() },
+  /** Fine grain and patches on the ground (0 at the minimum quality: skipped). */
+  uGrain: { value: 1 },
+  /** River banks: the water line height now (lower in a drought) and the wet and pale sand colours. */
+  uWaterY: { value: -0.16 },
+  uBank: { value: new THREE.Color(0xe8dab6) },
+  uBankWet: { value: new THREE.Color(0xa89878) },
 };
 
 /** GLSL noise helpers shared by the patches. */
@@ -46,6 +55,13 @@ export interface PatchOptions {
   windows?: boolean;
   /** The terrain: colours from the season uniforms and per-vertex grass/river/noise; cracks and flowers. */
   terrain?: boolean;
+  /**
+   * Plants sway in the wind (vertex shader, by the height above the ground: tall palms more than
+   * olives, crops in waves running across the field): the bend at 1 unit up at full wind.
+   */
+  wind?: number;
+  /** The crop waves of the fields (with `wind`): the rows bend in travelling waves. */
+  waves?: boolean;
 }
 
 const patched = new WeakSet<THREE.Material>();
@@ -57,7 +73,7 @@ const patched = new WeakSet<THREE.Material>();
 export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THREE.Material {
   if (patched.has(m)) return m;
   patched.add(m);
-  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}`;
+  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}${o.wind ? `i${o.wind}${o.waves ? 'v' : ''}` : ''}`;
   m.customProgramCacheKey = () => key;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -67,12 +83,14 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         `#include <common>
         varying vec3 vWorld; varying float vUp; varying float vInst;
         uniform float uGrow; uniform float uHeat; uniform float uTime;
+        ${o.wind ? 'uniform float uWind; uniform vec2 uWindDir;' : ''}
         ${o.terrain ? 'attribute vec3 aGround; varying vec3 vGround;' : ''}`,
       )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        ${o.grow ? 'transformed.y = 0.05 + (transformed.y - 0.05) * uGrow;' : ''}`,
+        ${o.grow ? 'transformed.y = 0.05 + (transformed.y - 0.05) * uGrow;' : ''}
+        ${o.wind ? windChunk(o.wind, !!o.waves) : ''}`,
       )
       .replace(
         '#include <project_vertex>',
@@ -99,7 +117,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         varying vec3 vWorld; varying float vUp; varying float vInst;
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
-        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack; uniform float uFlowers, uDrought;' : ''}
+        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY;' : ''}
         ${NOISE}`,
       )
       .replace(
@@ -143,11 +161,93 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
   return m;
 }
 
+/**
+ * The wind bend, in the vertex shader (no CPU): the model's vertices lean the way the wind blows by
+ * the square of their height (the trunk foot stays put), in slow gusts that run across the land by
+ * the copy's place, with a quick flutter on top. Fields bend in waves along the rows. The world
+ * direction is brought into the copy's own space (rotation and uniform scale) so every tree leans
+ * the same way. The shadows keep the still shape (cheap, and nobody notices).
+ */
+function windChunk(k: number, waves: boolean): string {
+  return /* glsl */ `{
+    vec3 ip = vec3(0.0); mat3 im = mat3(1.0);
+    #ifdef USE_INSTANCING
+      ip = instanceMatrix[3].xyz; im = mat3(instanceMatrix);
+    #endif
+    float hy = max(transformed.y, 0.0);
+    vec2 wd = uWindDir;
+    float gust = 0.6 + 0.4 * sin(uTime * 0.9 + dot(ip.xz, vec2(0.21, 0.13)));
+    ${waves
+      ? `vec2 vp = (im * transformed).xz + ip.xz;
+    float sway = uWind * (0.55 + 0.45 * sin(uTime * 2.4 - dot(vp, wd) * 2.2)) * gust;`
+      : `float sway = uWind * gust * (0.75 + 0.25 * sin(uTime * 1.7 + ip.x * 1.3 + ip.z * 0.7)) + uWind * 0.12 * sin(uTime * 6.0 + transformed.x * 9.0 + ip.z);`}
+    vec3 bend = vec3(wd.x, 0.0, wd.y) * (${k.toFixed(4)} * hy * hy * sway);
+    // World offset -> the copy's space: transpose of the rotation, over the scale.
+    float sc2 = max(dot(im[0], im[0]), 1e-4);
+    transformed += (transpose(im) * bend) / sc2;
+    transformed.y -= ${(k * 0.25).toFixed(4)} * hy * hy * sway * sway * hy;
+  }`;
+}
+
+/**
+ * The lit window pane of a .glb house (instanced, see WINDOWS_AT): black by day and in the houses
+ * that keep their windows dark, a warm square with a soft halo at night. Added on top (additive),
+ * so it never shows by day and needs no texture.
+ */
+export function paneMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uWindows: U.uWindows, uWindowColor: U.uWindowColor },
+    vertexShader: /* glsl */ `
+      uniform float uWindows;
+      varying vec2 vUv; varying float vLit;
+      void main() {
+        vUv = uv;
+        vec4 p = vec4(position, 1.0);
+        float inst = 0.0;
+        #ifdef USE_INSTANCING
+          p = instanceMatrix * p;
+          inst = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+        #endif
+        vLit = step(inst, uWindows) * (0.85 + 0.15 * fract(inst * 37.0));
+        gl_Position = projectionMatrix * modelViewMatrix * p;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uWindowColor;
+      varying vec2 vUv; varying float vLit;
+      void main() {
+        if (vLit <= 0.0) discard;
+        vec2 d = abs(vUv - 0.5) * 2.0;
+        float core = (1.0 - smoothstep(0.2, 0.34, max(d.x, d.y * 0.8))) * 0.85;
+        float halo = pow(max(0.0, 1.0 - length(d)), 2.0) * 0.4;
+        gl_FragColor = vec4(uWindowColor * (core + halo) * vLit, 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+}
+
 /** Terrain colour: sand and grass of the season by the per-vertex share, river mud, drought cracks, spring flowers. */
 const TERRAIN_COLOR = /* glsl */ `
   float n = vGround.z;
   vec3 g = mix(mix(uSand, uSandDark, n * 0.6), mix(uGrass, uGrassDark, n), vGround.x);
-  g = mix(g, uMud, min(1.0, vGround.y * 1.6));
+  // Grain and patches (off at the minimum quality): broad patches two or three cells wide and a fine
+  // grain that fades with the distance (no shimmer far away).
+  if (uGrain > 0.0) {
+    float patchK = vnoise(vWorld.xz * 0.38 + 7.0) * 0.65 + vnoise(vWorld.xz * 1.1 - 3.0) * 0.35;
+    float near = 1.0 - smoothstep(18.0, 55.0, distance(vWorld, cameraPosition));
+    float grain = vnoise(vWorld.xz * 11.0) - 0.5;
+    g *= 1.0 + uGrain * ((patchK - 0.5) * 0.2 + grain * 0.14 * near);
+  }
+  // River banks: a pale band of sand above the water line, wet and dark at the water's edge; in a
+  // drought the uncovered bed and the bank are mud, as before.
+  float riverK = smoothstep(0.0, 0.06, vGround.y);
+  float above = vWorld.y - uWaterY;
+  float bank = riverK * smoothstep(-0.05, -0.01, above) * (1.0 - smoothstep(0.1, 0.17, above)) * (1.0 - uDrought);
+  float wetLine = bank * (1.0 - smoothstep(0.0, 0.05, above));
+  g = mix(g, uMud, min(1.0, vGround.y * 1.6) * (1.0 - bank));
+  g = mix(g, mix(uBank, uBankWet, wetLine), bank * 0.85);
   // Cracked earth in a drought: dark lines along the borders of small cells (Voronoi-like edges).
   if (uDrought > 0.01) {
     vec2 cp = vWorld.xz * 0.95;

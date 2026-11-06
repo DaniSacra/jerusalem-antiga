@@ -1177,6 +1177,83 @@ async function town3dScenario(page) {
     }
 }
 
+/**
+ * The town at night and in a winter without firewood (plano-beleza E1-E3, Q1-Q6): a street of houses of
+ * every level with an empty stone house and an empty big house, two fields and a loose road off the
+ * network. Lit windows on the lived-in .glb stone and big houses (none on the empty ones); with
+ * `s.cold` no house smokes; the loose road is dashed; the altar fire burns in layers; at most 120 calls.
+ */
+async function night3dScenario(page, form) {
+  await open3dGame(page);
+  const n = (name) => `night3d-${form}-${name}`;
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    s.unlocked.push('field');
+    const put = (kind, x, y) => {
+      const r = core.place(s, kind, x, y);
+      if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);
+      return s.grid[y * s.cols + x];
+    };
+    for (let x = 24; x <= 41; x++) core.place(s, 'road', x, 32);
+    [[25, 1], [27, 2], [29, 3], [31, 4], [33, 3], [35, 4]].forEach(([x, level], k) => Object.assign(put('house', x, 30), { level, variant: k }));
+    [[37, 3], [39, 4]].forEach(([x, kept]) => Object.assign(put('house', x, 30), { level: 0, emptyLevel: kept }));
+    put('field', 27, 33);
+    put('field', 29, 33);
+    // A loose road: never joined to the altar's network.
+    for (let x = 28; x <= 36; x++) core.place(s, 'road', x, 37);
+    for (let y = 37; y <= 40; y++) core.place(s, 'road', 36, y);
+    for (const h of s.buildings.filter((b) => b.kind === 'house' && b.level > 0))
+      for (let k = 0; k < 4; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 20 + k * 9, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+    core.refreshCity(s);
+    window.session.refresh();
+  });
+  await page.waitForTimeout(1500);
+  const world = () =>
+    page.evaluate(() => {
+      const w = window.view3d.game.scene.stage.world;
+      const count = (name) => {
+        let c = 0;
+        w.group.traverse((o) => {
+          if (o.name === name) c += o.count;
+        });
+        return c;
+      };
+      return { panes: count('pane'), loose: count('loose'), share: w.smoke.mesh.material.uniforms.uShare.value, calls: window.view3d.info().calls };
+    });
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
+  const look = async (view, cam, name) => {
+    await page.evaluate(([view, cam]) => {
+      window.view3d.view(view);
+      window.view3d.rig.set(cam);
+    }, [view, cam]);
+    await page.waitForTimeout(1000);
+    await shot(page, n(name));
+    return world();
+  };
+  const above = { yaw: Math.PI / 4, pitch: 0.85 };
+  // Night, close: windows lit on the lived-in stone and big houses (2 panes each), none on the empty ones.
+  const night = await look({ day: 0.72, weather: clear }, { x: 31, z: 32, dist: 12, ...above }, 'houses');
+  assert(night.panes === 4 * 2, `the 4 lived-in .glb stone and big houses have their window panes, the 2 empty ones none (${night.panes})`);
+  assert(night.calls <= 120, `at most 120 draw calls at night (${night.calls})`);
+  await look({ day: 0.72, weather: clear }, { x: 31, z: 33, dist: 40 }, 'far');
+  // The altar fire at night: tongues, embers and sparks.
+  await look({ day: 0.72, weather: clear }, { x: 24, z: 24, dist: 9, ...above }, 'altar');
+  // The loose road off the network: dashed and faded, also from the farthest zoom, by day.
+  const day = await look({ day: 0.3, weather: clear }, { x: 32, z: 36, dist: 70 }, 'loose-far');
+  assert(day.loose >= 10, `the loose road is drawn dashed (${day.loose} dashes)`);
+  await look({ day: 0.3, weather: clear }, { x: 32, z: 37, dist: 14 }, 'loose');
+  // Winter: every house smokes; in a winter without firewood (s.cold) none does, the altar smokes on.
+  const winter = await look({ day: 0.3, pos: 20.5, weather: clear }, { x: 30, z: 31, dist: 12, ...above }, 'winter');
+  assert(winter.share >= 1, `every house smokes in winter (share ${winter.share})`);
+  await page.evaluate(() => (window.state.cold = true));
+  const cold = await look({ day: 0.3, pos: 20.5, weather: clear }, { x: 30, z: 31, dist: 12, ...above }, 'cold');
+  assert(cold.share > 0 && cold.share <= 0.05, `with s.cold no house smokes, the altar does (share ${cold.share})`);
+  await look({ day: 0.72, pos: 20.5, weather: clear }, { x: 28, z: 31, dist: 12, ...above }, 'cold-night');
+  await page.evaluate(() => (window.state.cold = false));
+}
+
 const scenarios = {
   /** The HTML title: start and, once the tutorial was seen, the tutorial again; the install button when the browser offers it. */
   async title(page) {
@@ -1214,6 +1291,8 @@ const scenarios = {
   touch3d: { context: PHONE, run: touch3dScenario },
   'context3d-pc': { context: PC, run: context3dScenario },
   'town3d-pc': { context: PC, run: town3dScenario },
+  'night3d-pc': { context: PC, run: (page) => night3dScenario(page, 'pc') },
+  'night3d-phone': { context: PHONE, run: (page) => night3dScenario(page, 'phone') },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },
   'temple3d-phone': { context: PHONE, run: (page) => temple3dScenario(page, 'phone') },

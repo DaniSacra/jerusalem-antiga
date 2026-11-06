@@ -1230,12 +1230,21 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   (`crowd.fieldHands`); nenhum em campo sem rua.
 - **Dia e noite** (só visual): 240 s a 1x, seguindo o tempo do jogo (para na pausa), com a luz do
   sol, o céu, a neblina e as sombras. Em velocidades altas a luz balança perto do meio-dia em vez de
-  piscar. À noite acendem as janelas das casas de pedra e das grandes, as fogueiras das tendas, os
-  braseiros em algumas esquinas das ruas principais, o fogo do altar e o forno da oficina (chama,
-  halo e uma poça de luz no chão), e aparecem estrelas e a lua. Desligado na engrenagem: sempre
-  meio-dia.
-- **Fumaça** nas casas de barro ou melhores, nas tendas (fogueira), na oficina e no altar; casa
-  vazia não solta fumaça.
+  piscar. À noite acendem as janelas das casas de pedra e das grandes (nas casas .glb, um vidro
+  quente com halo na janela e na porta, `WINDOWS_AT` em `plan.ts`; casa vazia fica apagada), as
+  fogueiras das tendas (com faíscas subindo), os braseiros em algumas esquinas das ruas principais,
+  o fogo do altar e o forno da oficina (chama, halo e uma poça de luz no chão), e aparecem estrelas
+  e a lua. Desligado na engrenagem: sempre meio-dia.
+- **Fogo do altar** em camadas: línguas de chama que tremulam (miolo amarelo, laranja, pontas
+  vermelhas), brasas pulsando no leito e faíscas subindo; tudo no shader, uma chamada só.
+- **Fumaça** macia (bolas de fumaça com luz por cima, sobem, incham e se inclinam com o vento) nas
+  casas de barro ou melhores (as casas .glb soltam do alto do telhado), nas tendas (fogueira), na
+  oficina e no altar; casa vazia não solta fumaça. **No frio sem lenha (`s.cold`) nenhuma casa
+  fuma e as fogueiras das tendas apagam** (`smokeShare` em `plan.ts`); o altar e o forno da oficina
+  continuam.
+- **Vento** (só no shader de vértice, sem custo na CPU): palmeiras balançam mais, oliveiras pouco,
+  rochas nada; o trigo e a cevada ondulam em ondas que correm pelo campo. A força segue o vento do
+  clima e quase para na calmaria (`look3d.json` > `wind`).
 - **Ruas que evoluem** (só visual, `src/render3d/roads.ts`): a rua mostra quanta gente passa por
   ela. Cada construção manda o seu povo até o altar pelo caminho de rua mais curto: a casa manda os
   seus moradores, o local de trabalho as suas vagas e os outros serviços 2. Com menos de 6 pessoas
@@ -1284,7 +1293,11 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   para os quintais por variante). Altar 4 x 4 de pedras brutas com chifres, rampa e fogo; Templo
   6 x 6, a construção mais bonita, de calcário com detalhes dourados. Praça de lajes claras com
   toldo de linho ocre sobre esteira e jarro, bancos e uma figueira (sem poço nem fonte); parque murado com oliveiras.
-- **Ruas:** terra batida, gasta e calçada (veja "Vida na cidade"); poças na chuva.
+- **Ruas:** terra batida, gasta e calçada (veja "Vida na cidade"); poças na chuva. Rua fora da
+  rede: tracinhos claros e acinzentados no lugar da rua (`loose`/`loose-arm`), que leem no zoom mínimo.
+- **Chão:** areia e grama pela estação, com manchas de 2 a 3 células e um grão fino de perto
+  (desligados na qualidade mínima); o rio tem uma margem contínua de areia clara, úmida e escura na
+  beira da água; na seca a margem vira lama e o leito aparece.
 - **Árvores:** oliveiras, palmeiras, amendoeiras e figueiras pela estação; toco com muda quando
   volta a crescer (`regrowth`).
 - **Gente** low-poly instanciada (túnica, cabeça, turbante ou manto) em 3 tons de pele, com cores da

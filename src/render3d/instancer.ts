@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { ModelKey, Prototype } from './models';
 
+/** Flat or glowing models that cast no shadow. */
+const NO_SHADOW = new Set<ModelKey>(['road', 'stump', 'loose', 'loose-arm', 'pane']);
+
 /**
  * Collects every copy of every model, then draws each model part as one InstancedMesh: a city of
  * 150 buildings and 300 trees costs a few dozen draw calls instead of thousands.
@@ -35,7 +38,7 @@ export class Instancer {
           mesh.setMatrixAt(i, it.m);
           mesh.setColorAt(i, it.tint);
         });
-        mesh.castShadow = shadows && key !== 'road' && key !== 'stump';
+        mesh.castShadow = shadows && !NO_SHADOW.has(key);
         mesh.receiveShadow = true;
         mesh.computeBoundingSphere();
         mesh.name = key;

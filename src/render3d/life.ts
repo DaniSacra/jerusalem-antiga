@@ -210,74 +210,243 @@ export class Walkers {
   }
 }
 
-const PUFFS = 4;
-const RISE_SECONDS = 4.5;
+const PUFFS = 6;
+const RISE_SECONDS = 5;
+const SMOKE_COLOR = 0xc4c0bc;
+/** Peak opacity of a puff (soft sprites need more than the old solid ones to read as much). */
+export const SMOKE_OPACITY = 0.7;
 
-/** Smoke from house roofs, workshop kilns and the altar fire: puffs that rise, drift and swell. */
+/** A quad of side 1 centred on the origin, drawn once per instance (billboards in the shaders). */
+function quads(count: number): THREE.InstancedBufferGeometry {
+  const g = new THREE.InstancedBufferGeometry();
+  const q = new THREE.PlaneGeometry(1, 1);
+  g.index = q.index;
+  g.setAttribute('position', q.attributes.position);
+  g.setAttribute('uv', q.attributes.uv);
+  g.instanceCount = count;
+  return g;
+}
+
+/** GLSL value noise for the soft sprites. */
+const SPRITE_NOISE = /* glsl */ `
+float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }`;
+
+const SMOKE_VERT = /* glsl */ `
+#include <common>
+#include <fog_pars_vertex>
+attribute vec4 aSrc; attribute float aOff;
+uniform float uTime; uniform float uShare; uniform float uWind; uniform float uOpacity;
+varying vec2 vUv; varying vec2 vView; varying float vA; varying float vSeed;
+void main() {
+  float age = fract(uTime / ${RISE_SECONDS.toFixed(1)} + aOff);
+  // A source smokes when its key is under the share (the altar and the kilns always).
+  float on = step(aSrc.w + 1e-4, uShare);
+  float size = (0.16 + age * 0.6) * min(1.0, (1.0 - age) * 2.5) * on;
+  vec3 c = aSrc.xyz + vec3(age * (0.9 + uWind * 2.2) + sin(uTime + aOff * 40.0) * 0.05, age * (1.8 - uWind * 0.8), -age * 0.3);
+  vec4 mvPosition = modelViewMatrix * vec4(c, 1.0);
+  float r = aOff * 37.0 + age * 1.2;
+  vView = mat2(cos(r), sin(r), -sin(r), cos(r)) * position.xy;
+  mvPosition.xy += vView * size;
+  vUv = uv; vSeed = aOff * 13.0;
+  vA = uOpacity * smoothstep(0.0, 0.12, age) * (1.0 - smoothstep(0.4, 1.0, age)) * on;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+const SMOKE_FRAG = /* glsl */ `
+#include <common>
+#include <fog_pars_fragment>
+uniform vec3 uColor;
+varying vec2 vUv; varying vec2 vView; varying float vA; varying float vSeed;
+${SPRITE_NOISE}
+void main() {
+  vec2 p = vUv - 0.5;
+  // A soft, lumpy puff: radial falloff broken by a little noise at the rim.
+  float d = length(p) * 2.0 + (vnoise(vUv * 4.0 + vSeed) - 0.5) * 0.35;
+  float a = pow(max(0.0, 1.0 - d), 0.8) * vA;
+  if (a < 0.004) discard;
+  // Lit from above: a brighter top and a greyer underside give the puff its volume (and contrast on
+  // pale roofs and sand).
+  float shade = clamp(0.5 + vView.y * 1.2 - vView.x * 0.4, 0.0, 1.0);
+  gl_FragColor = vec4(uColor * mix(0.7, 1.15, shade), a);
+  #include <fog_fragment>
+}`;
+
+/**
+ * Smoke from house roofs, workshop kilns and the altar fire: soft round puffs (billboards) that rise,
+ * drift with the wind and swell. Everything moves in the vertex shader: no work per puff on the CPU.
+ */
 export class Smoke {
-  readonly mesh: THREE.InstancedMesh;
-  private tmp = new THREE.Object3D();
+  readonly mesh: THREE.Mesh;
+  private material: THREE.ShaderMaterial;
 
-  private material: THREE.MeshLambertMaterial;
-
-  /** Sources: x, y, z and in w a 0..1 key (a source smokes when its key is below the share). */
-  constructor(private sources: THREE.Vector4[]) {
-    const g = new THREE.IcosahedronGeometry(1, 0);
-    const m = (this.material = new THREE.MeshLambertMaterial({ color: 0xe2dcd2, transparent: true, opacity: 0.26, depthWrite: false, flatShading: true }));
-    this.mesh = new THREE.InstancedMesh(g, m, Math.max(1, sources.length * PUFFS));
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  /** Sources: x, y, z and in w a 0..1 key (a source smokes when its key is below the share; see `smokeShare`). */
+  constructor(sources: THREE.Vector4[]) {
+    const n = Math.max(1, sources.length * PUFFS);
+    const g = quads(sources.length * PUFFS);
+    const src = new Float32Array(n * 4);
+    const off = new Float32Array(n);
+    sources.forEach((v, k) => {
+      for (let p = 0; p < PUFFS; p++) {
+        src.set([v.x, v.y, v.z, v.w], (k * PUFFS + p) * 4);
+        off[k * PUFFS + p] = (p / PUFFS + k * 0.137) % 1;
+      }
+    });
+    g.setAttribute('aSrc', new THREE.InstancedBufferAttribute(src, 4));
+    g.setAttribute('aOff', new THREE.InstancedBufferAttribute(off, 1));
+    this.material = new THREE.ShaderMaterial({
+      vertexShader: SMOKE_VERT,
+      fragmentShader: SMOKE_FRAG,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uShare: { value: 0 }, uWind: { value: 0 }, uOpacity: { value: SMOKE_OPACITY }, uColor: { value: new THREE.Color(SMOKE_COLOR) } }]),
+      transparent: true,
+      depthWrite: false,
+      fog: true,
+    });
+    this.mesh = new THREE.Mesh(g, this.material);
     this.mesh.frustumCulled = false;
-    this.mesh.count = sources.length * PUFFS;
+    this.mesh.visible = sources.length > 0;
   }
 
   /**
-   * `share` of the chimneys smoke (the season's: every house in winter, few in summer); the wind
-   * bends the plumes and the rain thins them.
+   * `share` of the chimneys smoke (`smokeShare`); the wind bends the plumes and the rain thins them;
+   * `light` (0..1) dims them at night.
    */
-  update(time: number, share: number, wind: number, opacity = 0.26) {
-    this.material.opacity = opacity;
-    let i = 0;
-    for (let k = 0; k < this.sources.length; k++) {
-      const src = this.sources[k];
-      // The first sources (altar, workshops) always smoke; the houses by a stable hash.
-      const on = src.w < share;
-      for (let p = 0; p < PUFFS; p++, i++) {
-        const age = ((time / RISE_SECONDS + p / PUFFS + k * 0.137) % 1 + 1) % 1;
-        const size = 0.05 + age * 0.2;
-        // Swell, then thin out at the top.
-        const s = on ? size * Math.min(1, (1 - age) * 3) : 0;
-        const lean = 0.9 + wind * 2.2;
-        this.tmp.position.set(src.x + age * lean + Math.sin(time + k) * 0.05, src.y + age * (1.8 - wind * 0.8), src.z - age * 0.3);
-        this.tmp.scale.setScalar(s);
-        this.tmp.rotation.set(age * 2, k, 0);
-        this.tmp.updateMatrix();
-        this.mesh.setMatrixAt(i, this.tmp.matrix);
-      }
-    }
-    this.mesh.instanceMatrix.needsUpdate = true;
+  update(time: number, share: number, wind: number, opacity = SMOKE_OPACITY, light = 1) {
+    const u = this.material.uniforms;
+    u.uTime.value = time;
+    u.uShare.value = share;
+    u.uWind.value = wind;
+    u.uOpacity.value = opacity;
+    (u.uColor.value as THREE.Color).setHex(SMOKE_COLOR).multiplyScalar(0.35 + 0.65 * light);
   }
 }
 
-/** Flickering fire on the altar (emissive, no light: cheap on phones). */
-export class Fire {
-  readonly group = new THREE.Group();
-  private outer: THREE.Mesh;
-  private inner: THREE.Mesh;
+/** Tongues, embers and sparks of the altar fire; sparks over each tent fire. */
+const TONGUES = 7;
+const EMBERS = 7;
+const ALTAR_SPARKS = 14;
+const TENT_SPARKS = 3;
 
-  constructor(at: THREE.Vector3) {
-    this.outer = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.6, 6), new THREE.MeshBasicMaterial({ color: COLORS.fire }));
-    this.inner = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 6), new THREE.MeshBasicMaterial({ color: COLORS.flame }));
-    this.outer.position.y = 0.3;
-    this.inner.position.y = 0.22;
-    this.group.add(this.outer, this.inner);
-    this.group.position.copy(at);
+const FLAME_VERT = /* glsl */ `
+#include <common>
+#include <fog_pars_vertex>
+attribute vec3 aAt; attribute vec4 aShape; attribute vec2 aFlags;
+uniform float uTime; uniform float uNight; uniform float uCold; uniform float uRain;
+varying vec2 vUv; varying float vKind; varying float vA; varying float vSeed;
+void main() {
+  float kind = aShape.x; float seed = aShape.y; float size = aShape.z;
+  // Tent sparks show at night only, and never in a winter without firewood; the altar burns always.
+  float vis = max(aFlags.x, uNight) * (1.0 - aFlags.y * uCold) * (1.0 - 0.5 * uRain);
+  vec3 c = aAt; vec2 q = position.xy; float a = vis;
+  float ang = seed * 6.2832;
+  if (kind < 0.5) {
+    // A tongue of flame on a ring, anchored at its foot, flickering in height and licking sideways.
+    float r = 0.13 * aShape.w;
+    c += vec3(cos(ang) * r, 0.0, sin(ang) * r);
+    float h = size * (0.75 + 0.25 * sin(uTime * 9.0 + seed * 21.0) * sin(uTime * 5.3 + seed * 7.0));
+    q = vec2(q.x * size * 0.55, (q.y + 0.5) * h);
+    q.x += q.y * q.y * 0.5 * sin(uTime * 4.0 + seed * 11.0);
+  } else if (kind < 1.5) {
+    // A glowing ember in the bed of the fire, pulsing slowly.
+    c += vec3(cos(ang) * 0.28 * aShape.w, 0.02, sin(ang) * 0.24 * aShape.w);
+    q *= size;
+    a *= 0.6 + 0.4 * sin(uTime * 2.0 + seed * 30.0);
+  } else {
+    // A spark flying up, drifting and dying out.
+    float age = fract(uTime * (0.45 + seed * 0.35) + seed * 3.7);
+    c += vec3(sin(ang + uTime) * 0.12 * age + cos(ang) * 0.05, age * 1.3 * aShape.w, cos(ang * 1.7 + uTime) * 0.12 * age);
+    q *= size * (1.0 - age * 0.7);
+    a *= (1.0 - age) * smoothstep(0.0, 0.08, age);
+  }
+  vec4 mvPosition = modelViewMatrix * vec4(c, 1.0);
+  mvPosition.xy += q * step(0.01, a);
+  vUv = uv; vKind = kind; vA = a; vSeed = seed;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+const FLAME_FRAG = /* glsl */ `
+#include <common>
+#include <fog_pars_fragment>
+uniform float uTime;
+varying vec2 vUv; varying float vKind; varying float vA; varying float vSeed;
+${SPRITE_NOISE}
+void main() {
+  vec3 col; float a;
+  if (vKind < 0.5) {
+    // Flame: wide and round at the foot, a tip on top; white-yellow core, orange, red edges.
+    float y = vUv.y;
+    float hw = pow(1.0 - y, 0.85) * (0.55 + 0.45 * smoothstep(0.0, 0.3, y));
+    float e = abs(vUv.x - 0.5) * 2.0 / max(hw, 1e-3);
+    float flick = vnoise(vec2(vUv.x * 3.0 + vSeed * 5.0, y * 4.0 - uTime * 5.0));
+    a = (1.0 - smoothstep(0.55, 1.0, e + (flick - 0.5) * 0.5)) * (1.0 - smoothstep(0.7, 1.0, y));
+    float heat = (1.0 - min(e, 1.0)) * (1.0 - y * 0.8);
+    col = mix(vec3(0.85, 0.2, 0.05), vec3(1.0, 0.55, 0.12), smoothstep(0.05, 0.45, heat));
+    col = mix(col, vec3(1.0, 0.92, 0.6), smoothstep(0.5, 0.85, heat));
+  } else {
+    float d = length(vUv - 0.5) * 2.0;
+    a = pow(max(0.0, 1.0 - d), 1.5);
+    col = vKind < 1.5 ? vec3(1.0, 0.36, 0.08) : vec3(1.0, 0.8, 0.35);
+  }
+  a *= vA;
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(col, a);
+  #include <fog_fragment>
+}`;
+
+/**
+ * Live fire, all in one draw call and animated in the vertex shader: the altar fire in layers (a ring
+ * of flickering tongues over glowing embers, sparks flying up) and a few sparks over each tent fire
+ * at night (none in a winter without firewood). No lights: cheap on phones.
+ */
+export class Flames {
+  readonly mesh: THREE.Mesh;
+  private material: THREE.ShaderMaterial;
+
+  constructor(altar: THREE.Vector3 | null, tents: THREE.Vector3[]) {
+    const at: number[] = [];
+    const shape: number[] = [];
+    const flags: number[] = [];
+    const add = (p: THREE.Vector3, kind: number, seed: number, size: number, spread: number, always: number, house: number) => {
+      at.push(p.x, p.y, p.z);
+      shape.push(kind, seed, size, spread);
+      flags.push(always, house);
+    };
+    if (altar) {
+      // The tall one in the middle, smaller ones around it.
+      for (let k = 0; k < TONGUES; k++) add(altar, 0, (k + 0.5) / TONGUES, k === 0 ? 0.8 : 0.42 + hash(k, 1) * 0.25, k === 0 ? 0 : 0.6 + hash(k, 2) * 0.8, 1, 0);
+      for (let k = 0; k < EMBERS; k++) add(altar, 1, (k + 0.3) / EMBERS, 0.08 + hash(k, 3) * 0.05, 0.5 + hash(k, 4) * 0.5, 1, 0);
+      for (let k = 0; k < ALTAR_SPARKS; k++) add(altar, 2, hash(k, 5), 0.05, 1, 1, 0);
+    }
+    tents.forEach((p, i) => {
+      for (let k = 0; k < TENT_SPARKS; k++) add(p, 2, hash(i, k + 7), 0.035, 0.45, 0, 1);
+    });
+    const n = at.length / 3;
+    const g = quads(n);
+    g.setAttribute('aAt', new THREE.InstancedBufferAttribute(new Float32Array(at), 3));
+    g.setAttribute('aShape', new THREE.InstancedBufferAttribute(new Float32Array(shape), 4));
+    g.setAttribute('aFlags', new THREE.InstancedBufferAttribute(new Float32Array(flags), 2));
+    this.material = new THREE.ShaderMaterial({
+      vertexShader: FLAME_VERT,
+      fragmentShader: FLAME_FRAG,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uNight: { value: 0 }, uCold: { value: 0 }, uRain: { value: 0 } }]),
+      transparent: true,
+      depthWrite: false,
+      fog: true,
+      toneMapped: false,
+    });
+    this.mesh = new THREE.Mesh(g, this.material);
+    this.mesh.frustumCulled = false;
+    this.mesh.visible = n > 0;
+    this.mesh.renderOrder = 2;
   }
 
-  update(time: number) {
-    const f = 1 + Math.sin(time * 13) * 0.08 + Math.sin(time * 23) * 0.05;
-    this.outer.scale.set(1, f, 1);
-    this.inner.scale.set(1, 2 - f, 1);
-    this.group.rotation.y = time * 0.7;
+  update(time: number, night: number, rain: number, cold: boolean) {
+    const u = this.material.uniforms;
+    u.uTime.value = time;
+    u.uNight.value = night;
+    u.uRain.value = rain;
+    u.uCold.value = cold ? 1 : 0;
   }
 }
 
@@ -316,13 +485,13 @@ export class FieldHands {
 }
 
 const GLOW_VERT = /* glsl */ `
-attribute float aPhase;
-uniform float uTime; uniform float uScale; uniform float uNight;
+attribute float aPhase; attribute float aHouse;
+uniform float uTime; uniform float uScale; uniform float uNight; uniform float uCold;
 varying float vA;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   float f = 0.85 + 0.15 * sin(uTime * 11.0 + aPhase) * sin(uTime * 7.0 + aPhase * 2.0);
-  vA = uNight * f;
+  vA = uNight * f * (1.0 - aHouse * uCold);
   gl_PointSize = uScale * f / -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
@@ -340,16 +509,22 @@ void main() {
 /**
  * Warm lights of the night with no real lights (cheap on phones): flickering flames on the fire
  * spots (tents, braziers along the main streets, the altar, kilns), a glow halo around each and a
- * warm pool of light on the ground. All three fade in with the night.
+ * warm pool of light on the ground. All three fade in with the night. The tent fires (`house`) are
+ * out in a winter without firewood (`s.cold`).
  */
 export class NightFires {
   readonly objects: THREE.Object3D[];
   private flames: THREE.InstancedMesh;
   private glowMat: THREE.ShaderMaterial;
   private poolMat: THREE.MeshBasicMaterial;
+  private pools: THREE.InstancedMesh;
   private tmp = new THREE.Object3D();
+  private cold: boolean | null = null;
+  private house: boolean[];
 
-  constructor(private spots: THREE.Vector3[]) {
+  /** `kinds`: a tent's fire (out in the cold) or the altar's (its flame is `Flames`: glow and pool only). */
+  constructor(private spots: THREE.Vector3[], private kinds: ('tent' | 'altar' | undefined)[] = []) {
+    const house = (this.house = spots.map((_, i) => kinds[i] === 'tent'));
     const n = Math.max(1, spots.length);
     const cone = new THREE.ConeGeometry(0.09, 0.26, 5);
     cone.translate(0, 0.13, 0);
@@ -360,10 +535,11 @@ export class NightFires {
     const pts = new THREE.BufferGeometry();
     pts.setAttribute('position', new THREE.Float32BufferAttribute(spots.flatMap((p) => [p.x, p.y + 0.18, p.z]), 3));
     pts.setAttribute('aPhase', new THREE.Float32BufferAttribute(spots.map((_, i) => i * 1.7), 1));
+    pts.setAttribute('aHouse', new THREE.Float32BufferAttribute(spots.map((_, i) => (house[i] ? 1 : 0)), 1));
     this.glowMat = new THREE.ShaderMaterial({
       vertexShader: GLOW_VERT,
       fragmentShader: GLOW_FRAG,
-      uniforms: { uTime: { value: 0 }, uScale: { value: 900 }, uNight: { value: 0 }, uColor: { value: new THREE.Color(0xffa040) } },
+      uniforms: { uTime: { value: 0 }, uScale: { value: 900 }, uNight: { value: 0 }, uCold: { value: 0 }, uColor: { value: new THREE.Color(0xffa040) } },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -374,20 +550,30 @@ export class NightFires {
     const disc = new THREE.CircleGeometry(1.6, 20);
     disc.rotateX(-Math.PI / 2);
     this.poolMat = new THREE.MeshBasicMaterial({ color: 0xff9a40, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, alphaMap: poolTexture() });
-    const pools = new THREE.InstancedMesh(disc, this.poolMat, n);
-    spots.forEach((p, i) => {
-      this.tmp.position.set(p.x, p.y + 0.06, p.z);
-      this.tmp.rotation.set(0, 0, 0);
-      this.tmp.scale.setScalar(1);
-      this.tmp.updateMatrix();
-      pools.setMatrixAt(i, this.tmp.matrix);
-    });
+    const pools = (this.pools = new THREE.InstancedMesh(disc, this.poolMat, n));
     pools.count = spots.length;
+    this.setCold(false);
     this.objects = [this.flames, glow, pools];
   }
 
+  /** The tent fires go out (their pools of light too) in a winter without firewood, and back. */
+  private setCold(cold: boolean) {
+    if (cold === this.cold) return;
+    this.cold = cold;
+    this.glowMat.uniforms.uCold.value = cold ? 1 : 0;
+    this.spots.forEach((p, i) => {
+      this.tmp.position.set(p.x, p.y + 0.06, p.z);
+      this.tmp.rotation.set(0, 0, 0);
+      this.tmp.scale.setScalar(cold && this.house[i] ? 0 : 1);
+      this.tmp.updateMatrix();
+      this.pools.setMatrixAt(i, this.tmp.matrix);
+    });
+    this.pools.instanceMatrix.needsUpdate = true;
+  }
+
   /** `pixelRatio`: the glow size is in drawing-buffer pixels. */
-  update(time: number, night: number, rain: number, pixelRatio: number) {
+  update(time: number, night: number, rain: number, pixelRatio: number, cold = false) {
+    this.setCold(cold);
     // The rain dampens the fires outside.
     const k = night * (1 - 0.5 * rain);
     this.glowMat.uniforms.uTime.value = time;
@@ -402,7 +588,8 @@ export class NightFires {
       const f = 0.8 + 0.25 * Math.sin(time * 13 + i) + 0.1 * Math.sin(time * 23 + i * 2);
       this.tmp.position.copy(p);
       this.tmp.rotation.set(0, time * 2 + i, 0);
-      this.tmp.scale.set(k, f * k, k);
+      const out = (cold && this.house[i]) || this.kinds[i] === 'altar' ? 0 : 1;
+      this.tmp.scale.set(k * out, f * k * out, k * out);
       this.tmp.updateMatrix();
       this.flames.setMatrixAt(i, this.tmp.matrix);
     }

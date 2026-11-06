@@ -14,6 +14,9 @@ import { nightness } from './time/day';
 import { WeatherClock, type WeatherNow } from './time/weather';
 import LOOK from './look3d.json';
 import { MAX_HANDS, World, type CityLayer } from './world';
+import { smokeShare } from './plan';
+import { SMOKE_OPACITY } from './life';
+import { WATER_Y } from './terrain';
 
 /** The Meshy model pack (public/models/meshy); keys it lacks keep the code models. */
 export const PACK = './models/meshy/manifest.json';
@@ -86,6 +89,7 @@ export class Stage {
   ) {
     const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
     renderer.setPixelRatio(this.pixelRatio(this.level));
+    U.uGrain.value = 1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -138,6 +142,8 @@ export class Stage {
     sun.map?.dispose();
     sun.map = null;
     const share = l === 'high' ? 1 : l === 'low' ? 0.45 : 0.25;
+    // The ground's grain and patches are skipped at the minimum quality.
+    U.uGrain.value = l === 'min' ? 0 : 1;
     for (const p of Object.values(this.fx)) p.limit(share);
     this.renderer.setSize(this.size.w, this.size.h);
   }
@@ -251,6 +257,8 @@ export class Stage {
     materialOf(COLORS.soil).color.setHex(crop.soil);
     this.waterTint.setHex(mixColor(mixColor(0x3f8594, 0x6a7a84, w.rain * 0.6 + s3.snow * 0.3), 0x8a8a6a, s3.drought * 0.4));
     world.water.update(time, dt, w.rain, w.wind, s3.drought * LOOK.drought.river, this.waterTint);
+    U.uWaterY.value = WATER_Y + world.water.mesh.position.y;
+    U.uWind.value = LOOK.wind.calm + (1 - LOOK.wind.calm) * w.wind;
 
     world.walkers.setShare(streetShare(L.night, w.rain));
     world.walkers.update(dt, time);
@@ -258,9 +266,11 @@ export class Stage {
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
-    world.smoke.update(time, Math.max(look.smoke, L.night * 0.35), w.wind, 0.26 * (1 - 0.5 * w.rain));
-    world.fires.update(time, L.night, w.rain, renderer.getPixelRatio());
-    world.altarFire?.update(time);
+    // A winter without firewood: no house smokes and the tent fires are out (the altar burns on).
+    const cold = this.s.cold;
+    world.smoke.update(time, smokeShare(look.smoke, L.night, cold), w.wind, SMOKE_OPACITY * (1 - 0.5 * w.rain), 1 - 0.7 * L.night);
+    world.fires.update(time, L.night, w.rain, renderer.getPixelRatio(), cold);
+    world.flames.update(time, L.night, w.rain, cold);
     // Puddles on bare roads only (none on the snow).
     const puddles = w.puddles * (1 - s3.snow);
     world.puddles.visible = puddles > 0.01;

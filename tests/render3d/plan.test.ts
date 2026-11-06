@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, stockLevel, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 
@@ -177,5 +177,41 @@ describe('what the 3D view draws', () => {
       expect(footprintOf(at(v)!)).toEqual([3, 3]);
     }
     expect(lookOf({ kind: 'market', level: 1, emptyLevel: 0, variant: 2, w: 2, h: 4 }).craft).toBeNull();
+  });
+
+  it('stops every house chimney and tent fire in a winter without firewood; the altar and kilns smoke on', () => {
+    const keys = [...Array(200).keys()].map((k) => houseSmokeKey(k % 48, Math.floor(k / 48)));
+    for (const k of keys) {
+      expect(k).toBeGreaterThanOrEqual(HOUSE_SMOKE_FROM);
+      expect(k).toBeLessThanOrEqual(1);
+    }
+    const smokes = (share: number, key: number) => key < share;
+    // Winter: every house smokes; with s.cold, none does, whatever the season or the hour.
+    expect(keys.every((k) => smokes(smokeShare(1, 0, false), k))).toBe(true);
+    for (const [season, night] of [[1, 0], [1, 1], [0.2, 0.5], [0, 0]])
+      expect(keys.some((k) => smokes(smokeShare(season, night, true), k))).toBe(false);
+    // The altar and the workshop kilns (key 0) always smoke, cold or not, even in summer at noon.
+    for (const cold of [false, true]) for (const season of [0, 0.5, 1]) expect(smokes(smokeShare(season, 0, cold), 0)).toBe(true);
+    // More houses smoke at night than at noon in summer.
+    const count = (share: number) => keys.filter((k) => smokes(share, k)).length;
+    expect(count(smokeShare(0.1, 1, false))).toBeGreaterThan(count(smokeShare(0.1, 0, false)));
+  });
+
+  it('lights window panes on the .glb stone and big houses at night, never on an empty one', () => {
+    expect(panesOf(lookOf(house(3))).length).toBeGreaterThanOrEqual(1);
+    expect(panesOf(lookOf(house(4))).length).toBeGreaterThanOrEqual(1);
+    for (const l of [3, 4]) expect(panesOf(lookOf(house(l))).length).toBeLessThanOrEqual(2);
+    // An empty house that kept its level: dark.
+    expect(panesOf(lookOf(house(0, 3)))).toEqual([]);
+    expect(panesOf(lookOf(house(0, 4)))).toEqual([]);
+    // A tent, an empty plot and other buildings have none.
+    for (const l of [0, 1]) expect(panesOf(lookOf(house(l)))).toEqual([]);
+    expect(panesOf(lookOf({ kind: 'market', level: 1, emptyLevel: 0, variant: 0, w: 2, h: 4 }))).toEqual([]);
+    // On the front half of the house, above the ground.
+    for (const [, y, z] of Object.values(WINDOWS_AT).flatMap((w) => w ?? [])) {
+      expect(y).toBeGreaterThan(0.2);
+      expect(z).toBeGreaterThan(-1);
+    }
+    expect(MODEL_KEYS).toContain('pane');
   });
 });

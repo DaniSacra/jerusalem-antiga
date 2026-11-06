@@ -72,4 +72,23 @@ describe('roads by the people who walk them', () => {
     expect(keys(29)).toContain('kerb');
     expect(keys(29)).toContain('road');
   });
+
+  it('dashes a road off the network: a dash in the middle and half dashes toward its road neighbours', () => {
+    const s = emptyGame();
+    // A loose road far from the starting one: three cells in a row, not joined to the altar.
+    road(s, [[5, 40], [6, 40], [7, 40]]);
+    expect(s.network[indexOf(s, 6, 40)]).toBe(false);
+    const mid = roadPieces(s, 6, 40, 1);
+    expect(mid.map((p) => p.key).sort()).toEqual(['loose', 'loose-arm', 'loose-arm']);
+    expect(mid.filter((p) => p.key === 'loose-arm').map((p) => p.rot).sort()).toEqual([turnTo(1, 0), turnTo(-1, 0)].sort());
+    // Whatever its traffic level, a loose road is never a full road, trail or kerb.
+    for (const level of [0, 1, 2] as const) expect(roadPieces(s, 5, 40, level).map((p) => p.key).sort()).toEqual(['loose', 'loose-arm']);
+    const plan = cityPlan(s).props.filter((p) => p.z > 40 && p.z < 41 && p.x < 8);
+    expect(plan.every((p) => p.key === 'loose' || p.key === 'loose-arm')).toBe(true);
+    // Joined to the network (down to the starting road), it is drawn as a road again.
+    road(s, [...Array(19).keys()].map((k): [number, number] => [8 + k, 40]));
+    expect(s.network[indexOf(s, 6, 40)]).toBe(true);
+    expect(roadPieces(s, 6, 40, 1).map((p) => p.key)).toEqual(['road']);
+    for (const k of ['loose', 'loose-arm'] as const) expect(MODEL_KEYS).toContain(k);
+  });
 });

@@ -67,4 +67,16 @@ describe('what changed in the drawn city', () => {
     s.week = [...Array(52).keys()].find((w) => !harvestsIn(w))!;
     expect(changedLayers(b, cityKeys(s))).toEqual(['people']);
   });
+
+  it('a road losing or getting back its way to the altar changes the props layer (dashed or not)', () => {
+    const s = emptyGame();
+    road(s, [[5, 40], [6, 40]]);
+    const a = cityKeys(s);
+    road(s, [...Array(18).keys()].map((k): [number, number] => [7 + k, 40]));
+    const b = cityKeys(s);
+    expect(changedLayers(a, b)).toContain('props');
+    // The same roads, the network cut by hand: the loose cells change the props key.
+    for (let i = 0; i < s.network.length; i++) if (s.roads[i] && i % s.cols < 10 && Math.floor(i / s.cols) === 40) s.network[i] = false;
+    expect(changedLayers(b, cityKeys(s))).toContain('props');
+  });
 });
