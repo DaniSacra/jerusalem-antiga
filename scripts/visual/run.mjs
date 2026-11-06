@@ -428,11 +428,18 @@ async function ui3dScenario(page, name) {
     page.evaluate(([tool, cell]) => {
       window.session.selectTool(tool);
       window.session.setHover(cell);
+      const before = document.querySelector('.tag').textContent;
       window.session.refresh();
-      return new Promise((ok) => setTimeout(() => {
-        const t = document.querySelector('.tag');
-        ok({ shown: !t.classList.contains('hidden'), text: t.textContent, bad: t.classList.contains('bad') });
-      }, 250));
+      // Wait for the pill to change from the last hover (up to 2 s), then read it.
+      return new Promise((ok) => {
+        const t0 = performance.now();
+        const read = () => {
+          const t = document.querySelector('.tag');
+          if (t.textContent === before && performance.now() - t0 < 2000) return setTimeout(read, 50);
+          ok({ shown: !t.classList.contains('hidden'), text: t.textContent, bad: t.classList.contains('bad') });
+        };
+        setTimeout(read, 250);
+      });
     }, [tool, cell]);
   const far = await pill('gatherer', { x: 4, y: 4 });
   assert(far.shown && far.bad && far.text.startsWith('Sem rua'), `a gatherer off the road says it brings nothing (${JSON.stringify(far)})`);
@@ -562,8 +569,11 @@ async function tutorial3dScenario(page, name) {
       const d = Math.hypot(Math.max(b.left - cx, 0, cx - b.right), Math.max(b.top - cy, 0, cy - b.bottom));
       return { shown: true, d: Math.round(d) };
     }, spot);
-  const pill = async () => {
-    await page.waitForFunction(() => !document.querySelector('.tag').classList.contains('hidden'), null, { timeout: 3000 }).catch(() => {});
+  /** The hover pill's text; `want` waits (up to 3 s) for it to contain that word, so an earlier step's pill is not read. */
+  const pill = async (want = '') => {
+    await page
+      .waitForFunction((w) => { const t = document.querySelector('.tag'); return !t.classList.contains('hidden') && t.textContent.includes(w); }, want, { timeout: 3000 })
+      .catch(() => {});
     return page.evaluate(() => {
       const t = document.querySelector('.tag');
       return t.classList.contains('hidden') ? '' : t.textContent;
@@ -669,7 +679,7 @@ async function tutorial3dScenario(page, name) {
   await inView('lumber');
   const lumberRect = await page.evaluate(() => window.session.stepSpot('lumber'));
   await hoverAt(lumberRect);
-  const wood = await pill();
+  const wood = await pill('Corta');
   assert(wood.startsWith('Rende') && wood.includes('madeira') && wood.includes('Corta 1 árvore'), `the lumber preview says the wood and the cuts (${wood})`);
   await shotStep('4-lumber');
   const tipOver = await page.evaluate(() => {
