@@ -1284,9 +1284,21 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   ela. Cada construção manda o seu povo até o altar pelo caminho de rua mais curto: a casa manda os
   seus moradores, o local de trabalho as suas vagas e os outros serviços 2. Com menos de 6 pessoas
   passando, a rua é uma **trilha** estreita de terra batida no meio da célula, ligada às ruas ao
-  lado. A partir de 6 vira uma **rua** inteira de terra. A partir de 30 ganha **borda de pedra** nos
-  lados sem rua (`look3d.json` > `roads`). Ruas a até 2 células do altar ou do templo são pelo menos
-  rua. Na neve as ruas ficam limpas.
+  lado. A partir de 6 vira uma **rua** inteira de terra, com uma borda escura nos lados sem rua (lê
+  no zoom mínimo), sulcos de roda em direção às ruas vizinhas e, em 35% das células, umas pedrinhas.
+  A partir de 30 vira **lajes de pedra** (fileiras com juntas desencontradas, viradas pela célula)
+  com **meio-fio de pedra** nos lados sem rua (`look3d.json` > `roads`). Ruas a até 2 células do
+  altar ou do templo são pelo menos rua. Na neve as ruas ficam limpas.
+- **Chão pisado** (só visual, `src/render3d/wear.ts`, números em `look3d.json` > `wear`): um mapa de
+  4 x 4 amostras por célula, refeito quando a cidade muda, escurece o chão para terra batida (com a
+  borda quebrada por ruído): meio disco diante da porta de cada casa com gente e de cada local de
+  trabalho (não no campo, altar, templo, praça e parque), uma borda macia ao longo das ruas (mais
+  larga na trilha e na rua comum, quase nada na rua de lajes e na rua solta) e uma trilha fraca
+  entre casas a 1–3 células uma da outra, de centro a centro, como no 2D.
+- **Detalhe do chão** (só visual, `src/render3d/detail.ts`, `look3d.json` > `detail`): tufos de
+  capim (1 a 3) em 80% das células de grama, com a cor da grama da estação e balançando com o vento,
+  e seixos em 30% das células de areia; só no chão livre (sem rua, construção, árvore, rocha, rio
+  nem chão pisado). Somem de longe (distância > 48) e na qualidade mínima.
 - **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
   por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
 - **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e

@@ -1342,6 +1342,84 @@ async function houses3dScenario(page, form) {
   await look({ x: 25.5, z: 37, dist: 20, yaw: -Math.PI / 2 - 0.3, pitch: 0.55 }, 'mud-row-street');
 }
 
+/**
+ * Ground and roads (plano beleza C4): trodden earth before the doors and along the roads, paths
+ * between houses 1 to 3 cells apart, a side street with an edge and wheel ruts, a trail, the busy
+ * street by the altar paved with flagstones and a kerb, tufts on the grass; from far away the roads
+ * still read and the tufts are gone.
+ */
+async function ground3dScenario(page, form) {
+  await open3dGame(page);
+  const n = (name) => `ground3d-${form}-${name}`;
+  await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    const put = (x, y, level, people) => {
+      const r = core.place(s, 'house', x, y);
+      if (!r.ok) throw new Error(`no house at ${x},${y}: ${r.reason}`);
+      const h = s.grid[y * s.cols + x];
+      Object.assign(h, { level, variant: (x + y) % 6, mirrored: false });
+      for (let k = 0; k < people; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 30, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+      return h;
+    };
+    // West of the starting road: stone houses full of people (the street by the altar gets busy).
+    for (const y of [28, 30, 32, 34, 36, 40]) put(22, y, 3, 6);
+    // A side street east at row 38, two mud houses below it with a gap of 2 cells (a path between them).
+    for (let x = 25; x <= 36; x++) core.place(s, 'road', x, 38);
+    put(27, 39, 2, 4);
+    put(31, 39, 2, 4);
+    // A trail: a short branch north with one tent on it.
+    for (let y = 33; y <= 37; y++) core.place(s, 'road', 30, y);
+    put(31, 33, 1, 2);
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s);
+    window.session.refresh();
+  });
+  // The open grass nearest the town (for the tufts).
+  const grass = await page.evaluate(() => {
+    const s = window.state;
+    let best = null;
+    for (let y = 2; y < s.rows - 2; y++)
+      for (let x = 2; x < s.cols - 2; x++) {
+        let ok = true;
+        for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1 && ok; dx++) ok = s.ground[(y + dy) * s.cols + x + dx] === 'grass' && !s.grid[(y + dy) * s.cols + x + dx] && !s.roads[(y + dy) * s.cols + x + dx];
+        const d = Math.hypot(x - 28, y - 34);
+        if (ok && (!best || d < best.d)) best = { x: x + 0.5, z: y + 0.5, d };
+      }
+    return best;
+  });
+  assert(grass, 'there is open grass on the map');
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  await page.waitForTimeout(1500);
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
+  const look = async (cam, name, day = 0.3, pos = 30.5) => {
+    await page.evaluate(([cam, day, clear, pos]) => {
+      window.view3d.view({ day, pos, weather: clear });
+      window.view3d.rig.set(cam);
+    }, [cam, day, clear, pos]);
+    await page.waitForTimeout(900);
+    await shot(page, n(name));
+    return page.evaluate(() => ({ ...window.view3d.info(), detail: window.view3d.game.scene.stage.world.detail.visible }));
+  };
+  const above = { yaw: Math.PI / 4, pitch: 0.85 };
+  const near = await look({ x: 30, z: 39, dist: 9, ...above }, 'side-street');
+  assert(near.detail, 'tufts and pebbles show from near');
+  assert(near.calls <= 120, `at most 120 draw calls (${near.calls})`);
+  await look({ x: 30.5, z: 35, dist: 7, ...above }, 'trail');
+  await look({ x: 23.5, z: 29, dist: 8, ...above }, 'flags');
+  await look({ x: 29, z: 41, dist: 6, yaw: 0.2, pitch: 1.2 }, 'path');
+  await look({ x: grass.x, z: grass.z, dist: 6, ...above }, 'grass');
+  // Straight down on the side street: the earth before the doors, the path between the two houses.
+  await look({ x: 30, z: 39.5, dist: 10, yaw: 0, pitch: 1.5 }, 'top');
+  await look({ x: 30, z: 39, dist: 9, ...above }, 'side-street-summer', 0.3, 45.5);
+  const all = await look({ x: 26, z: 34, dist: 22, ...above }, 'town');
+  assert(all.triangles <= 300000, `at most 300 thousand triangles (${all.triangles})`);
+  const far = await look({ x: 26, z: 30, dist: 60 }, 'far');
+  assert(!far.detail, 'no tufts from far away');
+}
+
 async function street3dScenario(page, form) {
   await open3dGame(page);
   const n = (name) => `street3d-${form}-${name}`;
@@ -1435,7 +1513,9 @@ async function street3dScenario(page, form) {
   assert(at.gap > 0.05 && at.gap < 0.3, `the betrothed walk side by side, hand in hand (${at.gap.toFixed(2)} apart)`);
   await look({ day: 0.3, pos: summer, weather: clear }, { x: at.x, z: at.z, dist: 7, ...above }, 'couple', 150);
   assert((await info()).families === 1, 'the betrothed couple walks');
-  // The tent's family leaves: they walk out of town with their bundles.
+  // The tent's family leaves: they walk out of town with their bundles. First the caravan tents
+  // cleared at the start finish walking out (on a slow phone they may still hold both groups).
+  await page.waitForFunction(() => window.view3d.game.scene.stage.world.leavers.walking === 0, null, { timeout: 60000 });
   await page.evaluate((t) => {
     const { state: s, core } = window;
     core.leaveHouse(s, t.id, 'famine');
@@ -1443,7 +1523,11 @@ async function street3dScenario(page, form) {
     window.session.refresh();
     window.view3d.game.scene.effect({ do: 'leave', x: t.x, y: t.y });
   }, setup.tent);
-  const leaving = await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 44, dist: 9, ...above }, 'leave', 2500);
+  // Checked as soon as they set out: on a slow phone the photo alone takes seconds, and a walk out of
+  // town lasts about ten.
+  await page.waitForTimeout(1200);
+  const leaving = await info();
+  await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 44, dist: 9, ...above }, 'leave', 600);
   const dbg = await page.evaluate((t) => {
     const s = window.state;
     const l = window.view3d.game.scene.stage.world.leavers;
@@ -1501,6 +1585,8 @@ const scenarios = {
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
+  'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },
+  'ground3d-phone': { context: PHONE, run: (page) => ground3dScenario(page, 'phone') },
   'houses3d-phone': { context: PHONE, run: (page) => houses3dScenario(page, 'phone') },
   'tutorial3d-phone': { context: PHONE, run: (page) => tutorial3dScenario(page, 'phone') },
   'tutorial3d-pc': { context: PC, run: (page) => tutorial3dScenario(page, 'pc') },

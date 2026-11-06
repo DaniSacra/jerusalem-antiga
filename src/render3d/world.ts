@@ -11,12 +11,14 @@ import { cityPlan, CLOSED_AT, hash, houseSmokeKey, KILN, panesOf, residentsOf, w
 import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
 import type { Placed } from './street';
 import { Idlers, Leavers } from './townsfolk';
+import { groundDetail } from './detail';
+import { wearMap } from './wear';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
 
 /** Props that lie flat on the ground (roads), sunk a little into it. */
-const FLAT_PROPS = new Set<ModelKey>(['road', 'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm']);
+const FLAT_PROPS = new Set<ModelKey>(['road', 'road-edge', 'ruts', 'road-stones', 'flags', 'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm']);
 
 /** Layers of the drawn city that change apart (see `diff.ts`). */
 export type CityLayer = 'buildings' | 'props' | 'people';
@@ -59,6 +61,8 @@ export class World {
   private people = new THREE.Group();
   private idle = new THREE.Group();
   private leaving = new THREE.Group();
+  /** Tufts and pebbles on the open ground (the stage hides them from far away and at the minimum quality). */
+  readonly detail = new THREE.Group();
   /** Where the last city build drew each building (the still life stands by them). */
   private placed: Placed[] = [];
   /** The city's instances, and each building's copies in them (its hop, see `lift`). */
@@ -92,7 +96,7 @@ export class World {
     this.land.add(skirt.build(shadows));
     this.leavers = new Leavers(s, this.ground, shadows);
     this.leaving.add(...this.leavers.objects);
-    this.group.add(this.land, this.city, this.people, this.idle, this.leaving);
+    this.group.add(this.land, this.city, this.detail, this.people, this.idle, this.leaving);
     this.buildCity();
     this.buildPeople();
   }
@@ -158,6 +162,12 @@ export class World {
     const doors: THREE.Vector4[] = [];
 
     const plan = cityPlan(s);
+    const wear = wearMap(s);
+    ground.setWear(wear);
+    free(this.detail, this.shared);
+    const detail = new Instancer(this.models);
+    for (const d of groundDetail(s, wear)) detail.add(d.key, d.x, ground.height(d.x, d.z) - 0.01, d.z, d.rot, d.scale);
+    this.detail.add(detail.build(false));
     this.placed = plan.buildings;
     for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (FLAT_PROPS.has(p.key) ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)
@@ -271,7 +281,8 @@ export class World {
   }
 
   dispose() {
-    for (const g of [this.land, this.city, this.people, this.idle, this.leaving]) free(g, this.shared);
+    for (const g of [this.land, this.city, this.detail, this.people, this.idle, this.leaving]) free(g, this.shared);
+    this.ground.dispose();
     this.group.removeFromParent();
   }
 }

@@ -76,18 +76,33 @@ export function roadLevel(s: GameState, traffic: Float32Array, x: number, y: num
 /** The altar and the temple (their streets are at least a road). */
 export const sacredOf = (s: GameState) => s.buildings.filter((b) => b.kind === 'altar' || b.kind === 'temple');
 
+/**
+ * The road models: a trail and its arms; a road, its dark edge, its wheel ruts (an arm toward a
+ * road beside it) and a few stones on it; a busy road's flagstones and stone kerb; a loose road.
+ */
+export type RoadKey = 'trail' | 'trail-arm' | 'road' | 'road-edge' | 'ruts' | 'road-stones' | 'flags' | 'kerb' | 'loose' | 'loose-arm';
+export const ROAD_KEYS: RoadKey[] = ['trail', 'trail-arm', 'road', 'road-edge', 'ruts', 'road-stones', 'flags', 'kerb', 'loose', 'loose-arm'];
+
+/** Stable 0..1 of a cell (which roads get stones, how the flagstones turn). */
+const cellHash = (x: number, y: number, k: number) => {
+  const h = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+  return h - Math.floor(h);
+};
+
 /** One piece of a road on the ground: its model, cell centre and turn. */
 export interface RoadPiece {
-  key: 'trail' | 'trail-arm' | 'road' | 'kerb' | 'loose' | 'loose-arm';
+  key: RoadKey;
   x: number;
   z: number;
   rot: number;
 }
 
 /**
- * The pieces that draw the road on (x, y): a road off the network is dashed; a trail is a worn patch in the middle with an arm toward
- * each road beside it (it joins them); a road fills the cell; a kerbed road adds a stone kerb on
- * every side with no road beside it.
+ * The pieces that draw the road on (x, y): a road off the network is dashed; a trail is a worn patch
+ * in the middle with an arm toward each road beside it (it joins them); a road fills the cell, with
+ * a dark edge on every side with no road beside it (it reads from far away), wheel ruts toward each
+ * road beside it and, on some cells, a few stones; a busy road is paved with flagstones (turned by
+ * the cell) and has a stone kerb on every side with no road beside it.
  */
 export function roadPieces(s: GameState, x: number, y: number, level: RoadLevel): RoadPiece[] {
   const cx = x + 0.5;
@@ -101,7 +116,10 @@ export function roadPieces(s: GameState, x: number, y: number, level: RoadLevel)
   // toward each road beside it (two halves meet on the border), as the 2D drew a loose road.
   if (!s.network[indexOf(s, x, y)]) return [{ key: 'loose', x: cx, z: cz, rot: 0 }, ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => ({ key: 'loose-arm' as const, x: cx, z: cz, rot: turnTo(dx, dy) }))];
   if (level === 0) return [{ key: 'trail', x: cx, z: cz, rot: 0 }, ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => ({ key: 'trail-arm' as const, x: cx, z: cz, rot: turnTo(dx, dy) }))];
-  const out: RoadPiece[] = [{ key: 'road', x: cx, z: cz, rot: 0 }];
-  if (level === 2) for (const [dx, dy] of SIDES) if (!road(dx, dy)) out.push({ key: 'kerb', x: cx, z: cz, rot: turnTo(dx, dy) });
+  const piece = (key: RoadKey, rot = 0): RoadPiece => ({ key, x: cx, z: cz, rot });
+  const open = SIDES.filter(([dx, dy]) => !road(dx, dy));
+  if (level === 2) return [piece('flags', Math.floor(cellHash(x, y, 40) * 4) * (Math.PI / 2)), ...open.map(([dx, dy]) => piece('kerb', turnTo(dx, dy)))];
+  const out = [piece('road'), ...open.map(([dx, dy]) => piece('road-edge', turnTo(dx, dy))), ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => piece('ruts', turnTo(dx, dy)))];
+  if (cellHash(x, y, 41) < R.stoneShare) out.push(piece('road-stones', cellHash(x, y, 42) * 6.28));
   return out;
 }

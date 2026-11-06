@@ -35,7 +35,18 @@ export const U = {
   uWaterY: { value: -0.16 },
   uBank: { value: new THREE.Color(0xe8dab6) },
   uBankWet: { value: new THREE.Color(0xa89878) },
+  /** Trodden ground (wear.ts): the map's wear, its size in cells and the colour of bare earth. */
+  uWear: { value: blankWear() as THREE.Texture },
+  uMapSize: { value: new THREE.Vector2(1, 1) },
+  uTrodden: { value: new THREE.Color(0xb08f68) },
 };
+
+/** No wear yet (1 black texel), until the terrain sets the city's. */
+function blankWear(): THREE.DataTexture {
+  const t = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat);
+  t.needsUpdate = true;
+  return t;
+}
 
 /** GLSL noise helpers shared by the patches. */
 const NOISE = /* glsl */ `
@@ -130,7 +141,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         varying vec3 vWorld; varying float vUp; varying float vInst; varying vec3 vTint;
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
-        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY;' : ''}
+        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden;' : ''}
         ${NOISE}`,
       )
       .replace(
@@ -272,6 +283,14 @@ const TERRAIN_COLOR = /* glsl */ `
     float near = 1.0 - smoothstep(18.0, 55.0, distance(vWorld, cameraPosition));
     float grain = vnoise(vWorld.xz * 11.0) - 0.5;
     g *= 1.0 + uGrain * ((patchK - 0.5) * 0.2 + grain * 0.14 * near);
+  }
+  // Trodden earth (wear.ts): before the doors, along the roads, the paths between houses; its edge
+  // broken by noise so the patches read as worn ground, not as painted shapes.
+  vec2 wuv = vWorld.xz / uMapSize;
+  float wear = texture2D(uWear, wuv).r * step(0.0, wuv.x) * step(wuv.x, 1.0) * step(0.0, wuv.y) * step(wuv.y, 1.0);
+  if (wear > 0.002) {
+    float wb = smoothstep(0.08, 0.7, wear + (vnoise(vWorld.xz * 2.7) - 0.5) * 0.32);
+    g = mix(g, uTrodden * (0.9 + 0.2 * vnoise(vWorld.xz * 7.0)), wb * 0.88);
   }
   // River banks: a pale band of sand above the water line, wet and dark at the water's edge; in a
   // drought the uncovered bed and the bank are mud, as before.

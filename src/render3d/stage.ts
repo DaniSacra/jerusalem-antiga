@@ -256,6 +256,8 @@ export class Stage {
     materialOf(COLORS.hedge).color.setHex(s3.leafDark);
     materialOf(COLORS.palm).color.setHex(mixColor(COLORS.palm, s3.leaf, 0.35));
     materialOf(COLORS.grass).color.setHex(s3.grass);
+    materialOf(COLORS.tuft).color.setHex(s3.grass);
+    materialOf(COLORS.tuftDark).color.setHex(s3.grassDark);
     for (const c of CROPS) materialOf(c).color.setHex(mixColor(crop.color, c, 0.2));
     materialOf(COLORS.soil).color.setHex(crop.soil);
     this.waterTint.setHex(mixColor(mixColor(0x3f8594, 0x6a7a84, w.rain * 0.6 + s3.snow * 0.3), 0x8a8a6a, s3.drought * 0.4));
@@ -271,6 +273,8 @@ export class Stage {
     const idle = this.level === 'high' ? 1 : this.level === 'low' ? LOOK.street.lowShare : 0;
     world.idlers.update(time, rig.distance > LOOK.street.farDist ? 0 : streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn');
     world.leavers.update(time);
+    // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
+    world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);

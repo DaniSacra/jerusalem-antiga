@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addPerson, indexOf, refreshCity } from '../../src/core';
 import { cityPlan, MODEL_KEYS } from '../../src/render3d/plan';
-import { roadLevel, roadPieces, roadTraffic, turnTo } from '../../src/render3d/roads';
+import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, turnTo } from '../../src/render3d/roads';
 import LOOK from '../../src/render3d/look3d.json';
 import { emptyGame, put, road } from '../helpers';
 
@@ -56,11 +56,21 @@ describe('roads by the people who walk them', () => {
     expect(trail.filter((p) => p.key === 'trail-arm').map((p) => p.rot).sort()).toEqual([turnTo(0, 1), turnTo(0, -1)].sort());
     const kerbed = roadPieces(s, 24, 40, 2);
     expect(kerbed.filter((p) => p.key === 'kerb').map((p) => p.rot).sort()).toEqual([turnTo(1, 0), turnTo(-1, 0)].sort());
-    expect(roadPieces(s, 24, 40, 1).map((p) => p.key)).toEqual(['road']);
-    // A junction: no kerb toward the new road.
+    // A busy road is paved with flagstones (no plain road under them), turned a quarter by the cell.
+    expect(kerbed.filter((p) => p.key === 'flags')).toHaveLength(1);
+    expect(kerbed.some((p) => p.key === 'road')).toBe(false);
+    expect((kerbed.find((p) => p.key === 'flags')!.rot / (Math.PI / 2)) % 1).toBeCloseTo(0);
+    // A common road: the road, a dark edge on each open side and wheel ruts toward each road beside it.
+    const common = roadPieces(s, 24, 40, 1);
+    expect(common.filter((p) => p.key !== 'road-stones').map((p) => p.key).sort()).toEqual(['road', 'road-edge', 'road-edge', 'ruts', 'ruts']);
+    expect(common.filter((p) => p.key === 'road-edge').map((p) => p.rot).sort()).toEqual([turnTo(1, 0), turnTo(-1, 0)].sort());
+    expect(common.filter((p) => p.key === 'ruts').map((p) => p.rot).sort()).toEqual([turnTo(0, 1), turnTo(0, -1)].sort());
+    // A junction: no kerb or edge toward the new road, and ruts toward it.
     road(s, [[25, 40]]);
     expect(roadPieces(s, 24, 40, 2).filter((p) => p.key === 'kerb')).toHaveLength(1);
-    for (const k of ['trail', 'trail-arm', 'kerb'] as const) expect(MODEL_KEYS).toContain(k);
+    expect(roadPieces(s, 24, 40, 1).filter((p) => p.key === 'road-edge')).toHaveLength(1);
+    expect(roadPieces(s, 24, 40, 1).filter((p) => p.key === 'ruts')).toHaveLength(3);
+    for (const k of ROAD_KEYS) expect(MODEL_KEYS).toContain(k);
   });
 
   it('the city plan draws the far end of a new road as a trail and a crowded street kerbed', () => {
@@ -70,7 +80,7 @@ describe('roads by the people who walk them', () => {
     const keys = (y: number) => cityPlan(s).props.filter((p) => Math.floor(p.x) === 24 && Math.floor(p.z) === y).map((p) => p.key);
     expect(keys(46)).toContain('trail');
     expect(keys(29)).toContain('kerb');
-    expect(keys(29)).toContain('road');
+    expect(keys(29)).toContain('flags');
   });
 
   it('dashes a road off the network: a dash in the middle and half dashes toward its road neighbours', () => {
@@ -88,7 +98,24 @@ describe('roads by the people who walk them', () => {
     // Joined to the network (down to the starting road), it is drawn as a road again.
     road(s, [...Array(19).keys()].map((k): [number, number] => [8 + k, 40]));
     expect(s.network[indexOf(s, 6, 40)]).toBe(true);
-    expect(roadPieces(s, 6, 40, 1).map((p) => p.key)).toEqual(['road']);
+    expect(roadPieces(s, 6, 40, 1).map((p) => p.key)).toContain('road');
     for (const k of ['loose', 'loose-arm'] as const) expect(MODEL_KEYS).toContain(k);
+  });
+});
+
+describe('stones on the common roads', () => {
+  it('puts a few stones on a share of the common roads only', () => {
+    const s = emptyGame();
+    let stones = 0;
+    let roads = 0;
+    for (let y = 28; y < 48; y++) {
+      if (!s.roads[indexOf(s, 24, y)]) continue;
+      roads++;
+      if (roadPieces(s, 24, y, 1).some((p) => p.key === 'road-stones')) stones++;
+      expect(roadPieces(s, 24, y, 2).some((p) => p.key === 'road-stones')).toBe(false);
+      expect(roadPieces(s, 24, y, 0).some((p) => p.key === 'road-stones')).toBe(false);
+    }
+    expect(stones).toBeGreaterThan(0);
+    expect(stones).toBeLessThan(roads);
   });
 });

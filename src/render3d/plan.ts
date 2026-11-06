@@ -1,5 +1,5 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type Building, type BuildingKind, type GameState } from '../core';
-import { roadLevel, roadPieces, roadTraffic, sacredOf } from './roads';
+import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, type RoadKey } from './roads';
 import VISUAL from '../data/visual.json';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
 
@@ -28,13 +28,13 @@ export type ModelKey =
   | KitKey
   | `field-${0 | 1 | 2 | 3}`
   | KindKey
-  | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling' | 'road'
+  | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling'
   /** The barred gate, sand drift and dry bush in front of an empty house. */
   | 'closed'
-  /** A trail worn down the middle of a cell, its arm toward a road beside it, and a road's stone kerb (`roads.ts`). */
-  | 'trail' | 'trail-arm' | 'kerb'
-  /** A road not connected to the altar: a faded dash in the middle and half dashes toward its neighbours. */
-  | 'loose' | 'loose-arm'
+  /** The pieces of the roads, by how busy they are (`roads.ts`). */
+  | RoadKey
+  /** Ground detail (detail.ts): a tuft of grass, pebbles on the sand. */
+  | 'tuft' | 'pebbles'
   /** A lit window pane of a .glb house at night (see WINDOWS_AT). */
   | 'pane'
   /** Sacks and jars in the granary yard as the food store fills (`stockLevel`). */
@@ -99,8 +99,8 @@ export const MODEL_KEYS: ModelKey[] = [
   ...KIT_KEYS,
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
-  'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'road', 'closed',
-  'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
+  ...ROAD_KEYS, 'tuft', 'pebbles', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...EXTRA_KEYS,
 ];

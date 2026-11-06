@@ -66,6 +66,12 @@ export const COLORS = {
   road: 0xab8f6a,
   roadStone: 0xcdbfa2,
   roadJoint: 0x9c8c70,
+  /** A road's dark edge (it reads from far away) and its wheel ruts. */
+  roadEdge: 0x7d6448,
+  roadRut: 0x93775a,
+  /** Tufts of grass (tinted by the season like the grass, see the stage). */
+  tuft: 0x6f9a3e,
+  tuftDark: 0x4f7a2e,
   /** A road off the network: pale and grey, dashed (see `loose`). */
   roadLoose: 0x8a8070,
   paving: 0xd9cbad,
@@ -87,11 +93,11 @@ export const COLORS = {
 } as const;
 
 /** Colours of the plants that sway in the wind (trunks too, so a crown never leaves its trunk). */
-const SWAYING: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.palm, COLORS.dates, COLORS.trunk];
+const SWAYING: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.palm, COLORS.dates, COLORS.trunk, COLORS.tuft, COLORS.tuftDark];
 const WIND = LOOK.wind;
 
 /** Colours of the road surfaces (no snow settles on them). */
-const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint, COLORS.roadLoose];
+const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint, COLORS.roadLoose, COLORS.roadEdge, COLORS.roadRut];
 
 /** Crop colours of the four field variants (wheat, barley, lentil, flax). */
 export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
@@ -527,6 +533,46 @@ const trailArm = (): Piece[] => [box(0.34, 0.039, 0.52, 0, 0, 0.25, COLORS.road)
 const loose = (): Piece[] => [box(0.3, 0.035, 0.3, 0, 0, 0, COLORS.roadLoose)];
 /** ...and half a dash on the border toward the road beside it (+z): with the neighbour's half, one dash. */
 const looseArm = (): Piece[] => [box(0.3, 0.035, 0.15, 0, 0, 0.425, COLORS.roadLoose)];
+/** A road's dark edge along its +z side (no road there): the road reads as a road from far away. */
+const roadEdge = (): Piece[] => [box(1, 0.043, 0.08, 0, 0, 0.46, COLORS.roadEdge)];
+/** Two wheel ruts from the middle toward the road beside it (+z). */
+const ruts = (): Piece[] => [-0.17, 0.17].map((x) => box(0.07, 0.044, 0.5, x, 0, 0.25, COLORS.roadRut));
+/** A few worn stones on a road. */
+const roadStones = (): Piece[] => [
+  blob(0.05, 0.22, 0.04, -0.12, COLORS.roadStone, 0.45),
+  blob(0.035, -0.25, 0.04, 0.2, COLORS.roadJoint, 0.5),
+  blob(0.03, 0.05, 0.04, 0.3, COLORS.roadStone, 0.5),
+];
+/** A busy road paved with flagstones: three rows of slabs with staggered joints. */
+const flags = (): Piece[] => {
+  const j = (sx: number, sz: number, x: number, z: number) => box(sx, 0.043, sz, x, 0, z, COLORS.roadJoint);
+  const rows: [number, number[]][] = [[-0.33, [-0.2, 0.25]], [0, [-0.35, 0.05, 0.4]], [0.33, [-0.1, 0.3]]];
+  return [
+    box(1, 0.04, 1, 0, 0, 0, COLORS.roadStone),
+    j(1, 0.025, 0, -0.165),
+    j(1, 0.025, 0, 0.165),
+    ...rows.flatMap(([z, xs]) => xs.map((x) => j(0.025, 0.33, x, z))),
+  ];
+};
+/** A tuft of grass: a few blades leaning out (green of the season). */
+const tuft = (): Piece[] =>
+  [0, 1, 2, 3, 4].map((k) => {
+    const a = k * 1.26;
+    const g = new THREE.ConeGeometry(0.025, 0.16 + (k % 3) * 0.04, 3);
+    g.translate(0, (0.16 + (k % 3) * 0.04) / 2, 0);
+    g.rotateZ(Math.cos(a) * 0.35);
+    g.rotateX(Math.sin(a) * 0.35);
+    g.translate(Math.cos(a) * 0.03, 0, Math.sin(a) * 0.03);
+    return { geo: g, color: k % 2 ? COLORS.tuftDark : COLORS.tuft };
+  });
+/** Pebbles half sunk in the sand. */
+const pebbles = (): Piece[] => [
+  blob(0.045, 0, 0.01, 0, COLORS.rock, 0.5),
+  blob(0.03, 0.09, 0.005, 0.05, COLORS.limestoneDark, 0.55),
+  blob(0.025, -0.06, 0.005, 0.08, COLORS.rock, 0.6),
+  blob(0.035, 0.02, 0.008, -0.1, COLORS.limestoneDark, 0.5),
+];
+
 /** A busy road's stone kerb along its +z side (no road there). */
 const kerb = (): Piece[] => [
   box(1, 0.075, 0.09, 0, 0, 0.455, COLORS.roadStone),
@@ -1040,6 +1086,12 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   stump,
   sapling,
   road,
+  'road-edge': roadEdge,
+  ruts,
+  'road-stones': roadStones,
+  flags,
+  tuft,
+  pebbles,
   trail,
   'trail-arm': trailArm,
   kerb,

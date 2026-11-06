@@ -64,11 +64,18 @@
     "sunCut": 0.75
   },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
-  "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2 },
+  "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
   "ambient": { "maxAnimals": 40, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
   "night": { "window": 2.3, "door": 0.7, "tentPool": 0.85, "doorRadius": [0, 0.75, 0.9, 1.0, 1.15], "workRadius": 1.5 },
   "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
   "wind": { "calm": 0, "trees": 0.06, "crops": 0.7 },
+  "wear": {
+    "res": 4, "trodden": "0x96734e",
+    "door": { "house": 0.9, "work": 0.75, "reach": 0.95 },
+    "road": { "trail": 0.65, "road": 0.8, "kerb": 0.35, "loose": 0.2, "reach": 0.55 },
+    "path": { "gapMin": 1, "gapMax": 3, "width": 0.3, "strength": 0.6 }
+  },
+  "detail": { "tuftShare": 0.8, "tuftsMax": 3, "pebbleShare": 0.3, "wornOut": 0.35, "farDist": 48 },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
     "ring": { "seconds": 0.7, "start": 0.15, "lift": 0.06 },

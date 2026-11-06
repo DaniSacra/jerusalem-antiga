@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { indexOf, type GameState } from '../core';
-import { patch } from './shaders';
+import LOOK from './look3d.json';
+import { patch, U } from './shaders';
+import { WEAR_RES } from './wear';
 
 /** How far the ground extends around the map (cells), fading into the haze. */
 export const SKIRT = 48;
@@ -96,6 +98,29 @@ export class Terrain {
   }
 
   private geometry: THREE.BufferGeometry | null = null;
+  private wear: THREE.DataTexture | null = null;
+
+  /** The trodden ground of the city now (wear.ts), into the terrain shader; again when the city changes. */
+  setWear(map: Float32Array) {
+    const { cols, rows } = this.s;
+    const w = cols * WEAR_RES;
+    const h = rows * WEAR_RES;
+    if (!this.wear) {
+      this.wear = new THREE.DataTexture(new Uint8Array(w * h), w, h, THREE.RedFormat);
+      this.wear.magFilter = this.wear.minFilter = THREE.LinearFilter;
+    }
+    const data = this.wear.image.data as Uint8Array;
+    for (let i = 0; i < map.length; i++) data[i] = Math.round(map[i] * 255);
+    this.wear.needsUpdate = true;
+    U.uWear.value = this.wear;
+    U.uMapSize.value.set(cols, rows);
+    U.uTrodden.value.setHex(Number(LOOK.wear.trodden));
+  }
+
+  dispose() {
+    this.wear?.dispose();
+    this.wear = null;
+  }
 
   /**
    * The city changed (a road or a building came or went): the flat ground under the city follows,
