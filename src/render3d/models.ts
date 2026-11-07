@@ -63,6 +63,9 @@ export const COLORS = {
   /** Dates under the palm crown (sway with it). */
   dates: 0xc9902f,
   trunk: 0x7a5a3a,
+  /** Almond and fig crowns: recoloured by their state of the year (bloom, leaf, yellow; hidden bare, see the stage). */
+  almondCrown: 0xf1dfe4,
+  figCrown: 0x5e8a36,
   rock: 0xb3a58c,
   water: 0x3d7c8c,
   hedge: 0x4f7234,
@@ -149,7 +152,26 @@ export const materialOf = (color: number) => mat(color) as THREE.MeshStandardMat
  * cloth hanging from its top edge, swings along the wind more the lower it is; 'sail', an awning or
  * sail tied at its edges, billows in the middle.
  */
-type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean; cloth?: 'hang' | 'sail' };
+type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean; cloth?: 'hang' | 'sail'; tone?: number };
+
+/**
+ * A tree crown in one part: its lobes share one colour (`crownMaterial`, recoloured and hidden by
+ * season in the stage) and differ by a shade in the vertices (`tone`, 1 light .. 0.7 dark), so a
+ * two-tone crown is one draw call.
+ */
+const lobe = (r: number, x: number, y: number, z: number, color: number, tone: number, sy = 1): Piece => ({ ...blob(r, x, y, z, color, sy), tone });
+
+const crowns = new Map<number, THREE.MeshStandardMaterial>();
+/** The material of the crowns of a colour (vertex shades times its colour; sways in the wind). */
+export function crownMaterial(color: number): THREE.MeshStandardMaterial {
+  let m = crowns.get(color);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, vertexColors: true, roughness: 0.92, metalness: 0, flatShading: true });
+    patch(m, { snow: true, wind: WIND.trees });
+    crowns.set(color, m);
+  }
+  return m;
+}
 
 /** Geometry with only position and normal, non-indexed, so every piece can be merged. */
 function clean(g: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -195,14 +217,25 @@ const blob = (r: number, x: number, y: number, z: number, color: number, sy = 1,
 /** Merges the pieces by colour: one part (one draw call per instanced mesh) per material. */
 function build(pieces: Piece[]): Prototype {
   const groups = new Map<string, { color: number; emissive: boolean; cloth: boolean; geos: THREE.BufferGeometry[] }>();
+  const crown = new Map<number, THREE.BufferGeometry[]>();
   for (const p of pieces) {
+    if (p.tone !== undefined) {
+      // A crown lobe: its shade in the vertices, one part per crown colour.
+      const geo = clean(p.geo);
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(p.tone), 3));
+      crown.set(p.color, [...(crown.get(p.color) ?? []), geo]);
+      continue;
+    }
     const key = `${p.color}-${!!p.emissive}-${!!p.cloth}`;
     const g = groups.get(key) ?? { color: p.color, emissive: !!p.emissive, cloth: !!p.cloth, geos: [] };
     g.geos.push(p.cloth ? flapped(clean(p.geo), p.cloth) : clean(p.geo));
     groups.set(key, g);
   }
   return {
-    parts: [...groups.values()].map((g) => ({ geometry: mergeGeometries(g.geos)!, material: mat(g.color, g.emissive, g.cloth) })),
+    parts: [
+      ...[...groups.values()].map((g) => ({ geometry: mergeGeometries(g.geos)!, material: mat(g.color, g.emissive, g.cloth) })),
+      ...[...crown].map(([color, geos]) => ({ geometry: mergeGeometries(geos)!, material: crownMaterial(color) as THREE.Material })),
+    ],
   };
 }
 
@@ -501,27 +534,70 @@ function temple(): Piece[] {
   ];
 }
 
+/** A crooked trunk: two leaning rods (open, few triangles), the second from the top of the first. */
+function crooked(lean: [number, number], h: number, r: number): { pieces: Piece[]; top: [number, number, number] } {
+  const mid: [number, number, number] = [lean[0] * 0.5, h * 0.55, lean[1] * 0.5];
+  const top: [number, number, number] = [lean[0] * 0.2 - lean[1] * 0.3, h, lean[1] * 0.2 + lean[0] * 0.3];
+  return { pieces: [rod([0, 0, 0], mid, r, COLORS.trunk, 4), rod(mid, top, r * 0.8, COLORS.trunk, 4)], top };
+}
+
+/** Olive: a gnarled, leaning trunk and a crown of four lobes, light and dark (silvery leaves). */
 function olive(): Piece[] {
+  const { pieces, top } = crooked([0.12, 0.04], 0.5, 0.075);
+  const [x, y, z] = top;
   return [
-    cyl(0.06, 0.1, 0.42, 5, 0, 0, 0, COLORS.trunk),
-    blob(0.36, 0, 0.62, 0, COLORS.leaf, 0.7),
-    blob(0.24, 0.18, 0.72, 0.1, COLORS.leafDark, 0.75),
+    ...pieces,
+    lobe(0.3, x - 0.08, y + 0.08, z, COLORS.leaf, 1, 0.7),
+    lobe(0.24, x + 0.17, y + 0.12, z + 0.06, COLORS.leaf, 0.76, 0.72),
+    lobe(0.22, x + 0.02, y + 0.2, z - 0.16, COLORS.leaf, 1, 0.7),
+    lobe(0.2, x - 0.02, y + 0.26, z + 0.14, COLORS.leaf, 0.76, 0.75),
   ];
 }
 
+/** Almond: a slim trunk, bare branches and a light airy crown (white-pink in bloom, green in leaf). */
+function almond(): Piece[] {
+  const { pieces, top } = crooked([-0.06, 0.1], 0.55, 0.055);
+  const [x, y, z] = top;
+  const branches = [[0.28, 0.32, 0.05], [-0.22, 0.3, 0.14], [0.02, 0.36, -0.26]].map(([dx, dy, dz]) => rod([x, y, z], [x + dx, y + dy, z + dz], 0.025, COLORS.trunk, 3));
+  return [
+    ...pieces,
+    ...branches,
+    lobe(0.25, x + 0.12, y + 0.3, z + 0.03, COLORS.almondCrown, 1, 0.7),
+    lobe(0.22, x - 0.15, y + 0.28, z + 0.1, COLORS.almondCrown, 0.86, 0.72),
+    lobe(0.2, x, y + 0.38, z - 0.17, COLORS.almondCrown, 1, 0.7),
+  ];
+}
+
+/** Fig: a short trunk that splits low and a broad, flat, dark crown of big leaves. */
+function fig(): Piece[] {
+  const branches = [[0.3, 0.42, 0.08], [-0.26, 0.4, 0.12], [0.04, 0.44, -0.3]].map(([dx, dy, dz]) => rod([0, 0.18, 0], [dx, dy, dz], 0.04, COLORS.trunk, 4));
+  return [
+    cyl(0.07, 0.09, 0.22, 5, 0, 0, 0, COLORS.trunk),
+    ...branches,
+    lobe(0.34, 0.12, 0.52, 0.05, COLORS.figCrown, 1, 0.5),
+    lobe(0.3, -0.2, 0.5, 0.08, COLORS.figCrown, 0.78, 0.5),
+    lobe(0.28, 0.02, 0.56, -0.24, COLORS.figCrown, 1, 0.5),
+  ];
+}
+
+/** Palm: a slightly bent trunk, fronds rising and falling in an arc, clusters of dates under them. */
 function palm(): Piece[] {
   const out: Piece[] = [];
-  // Slightly bent trunk made of three segments.
   for (let k = 0; k < 3; k++) out.push(cyl(0.05 - k * 0.006, 0.065 - k * 0.006, 0.55, 5, k * 0.04, k * 0.55, 0, COLORS.trunk));
-  for (let k = 0; k < 7; k++) {
-    const g = new THREE.BoxGeometry(0.75, 0.03, 0.14);
-    g.translate(0.38, 0, 0);
-    g.rotateZ(-0.45);
-    g.rotateY((k / 7) * Math.PI * 2);
-    g.translate(0.12, 1.68, 0);
-    out.push({ geo: g, color: COLORS.palm });
+  for (let k = 0; k < 6; k++) {
+    const turn = (k / 6) * Math.PI * 2 + 0.3;
+    // Two segments: up and out, then bending down.
+    for (const [len, tilt, at] of [[0.42, 0.35, 0], [0.4, -0.55, 0.38]] as const) {
+      const g = new THREE.BoxGeometry(len, 0.02, 0.1 - at * 0.1);
+      g.translate(len / 2, 0, 0);
+      g.rotateZ(tilt);
+      g.translate(at, at === 0 ? 0 : Math.sin(0.35) * 0.42, 0);
+      g.rotateY(turn);
+      g.translate(0.12, 1.66, 0);
+      out.push({ geo: g, color: COLORS.palm });
+    }
   }
-  out.push(blob(0.08, 0.12, 1.6, 0.05, COLORS.dates, 1));
+  out.push(blob(0.07, 0.17, 1.56, 0.06, COLORS.dates, 1.2), blob(0.06, 0.06, 1.56, -0.08, COLORS.dates, 1.2));
   return out;
 }
 
@@ -1140,6 +1216,8 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   altar,
   temple,
   olive,
+  almond,
+  fig,
   palm,
   rock,
   shrub,

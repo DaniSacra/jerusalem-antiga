@@ -1,6 +1,7 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type BuildableKind, type Building, type BuildingKind, type GameState } from '../core';
 import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, type RoadKey } from './roads';
 import VISUAL from '../data/visual.json';
+import { treeKind } from '../game/seasons';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
 
 /**
@@ -28,7 +29,8 @@ export type ModelKey =
   | KitKey
   | `field-${0 | 1 | 2 | 3}`
   | KindKey
-  | 'olive' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling'
+  /** Olive cells are drawn as olives, almonds or figs (`treeKind`, game/seasons.ts). */
+  | 'olive' | 'almond' | 'fig' | 'palm' | 'rock' | 'shrub' | 'stump' | 'sapling'
   /** The barred gate, sand drift and dry bush in front of an empty house. */
   | 'closed'
   /** The pieces of the roads, by how busy they are (`roads.ts`). */
@@ -99,7 +101,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...KIT_KEYS,
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
-  'olive', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
+  'olive', 'almond', 'fig', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
   ...ROAD_KEYS, 'tuft', 'pebbles', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...EXTRA_KEYS,
@@ -316,7 +318,7 @@ export function cityPlan(s: GameState): CityPlan {
         const g = regrowth(s, i);
         if (g >= SAPLING_FROM) props.push({ key: 'sapling', x: jx + 0.12, z: jz + 0.08, rot, scale: 0.35 + 0.65 * g, sy: 1, tint: 1 });
       } else if (f) {
-        props.push({ key: f, x: jx, z: jz, rot, scale: 0.85 + hash(x, y, 4) * 0.4, sy: 1, tint: 0.9 + hash(x, y, 5) * 0.2 });
+        props.push({ key: treeKind(f, x, y), x: jx, z: jz, rot, scale: 0.85 + hash(x, y, 4) * 0.4, sy: 1, tint: 0.9 + hash(x, y, 5) * 0.2 });
       } else if (s.ground[i] === 'grass' && hash(x, y, 6) < 0.35) {
         const sx = cx + (hash(x, y, 7) - 0.5) * 0.7;
         const sz = cz + (hash(x, y, 8) - 0.5) * 0.7;

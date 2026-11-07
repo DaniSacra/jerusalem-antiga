@@ -1318,6 +1318,12 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   um pouco mais alto ou mais baixo que o vizinho (pelo lugar). Na seca, os campos longe do rio
   (`moistMap`: úmido até 2 células da água, seco a partir de 6) ficam ralos, baixos e cor de palha;
   os da beira do rio continuam bonitos.
+- **Árvores** (só visual, plano beleza C6; `models.ts`, `treeKind` em `game/seasons.ts`): as células
+  de oliveira aparecem como oliveiras (30% amendoeiras e 18% figueiras, fixas por célula, como no
+  2D). Oliveira de tronco torto com copa em quatro lóbulos claros e escuros, sempre verde;
+  amendoeira de tronco fino e galhos, flor branco-rosada no fim do inverno, folha na primavera e
+  no verão, nua do fim do outono ao meio do inverno; figueira baixa de copa larga e chata, amarela
+  no outono e nua no inverno; palmeira com folhas em arco que caem e cachos de tâmara.
 - **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
   por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
 - **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e

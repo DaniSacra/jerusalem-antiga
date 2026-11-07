@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { calendar, type GameState } from '../core';
-import { SeasonClock } from '../game/seasons';
+import { SeasonClock, type TreeState } from '../game/seasons';
 import { T } from '../game/strings';
 import { Atmosphere } from './atmosphere';
 import type { CameraRig } from './camera';
-import { COLORS, CROPS, materialOf, type ModelKey, type Prototype } from './models';
+import { COLORS, CROPS, crownMaterial, materialOf, type ModelKey, type Prototype } from './models';
 import { Particles } from './particles';
 import { setColor, U } from './shaders';
 import { mixColor } from './time/color';
@@ -256,6 +256,11 @@ export class Stage {
     materialOf(COLORS.leafDark).color.setHex(s3.leafDark);
     materialOf(COLORS.hedge).color.setHex(s3.leafDark);
     materialOf(COLORS.palm).color.setHex(mixColor(COLORS.palm, s3.leaf, 0.35));
+    // The olive crowns (two shades in one part) follow the season's leaves; almonds bloom white-pink
+    // at the end of winter, figs turn yellow in autumn, both stand bare in winter.
+    crownMaterial(COLORS.leaf).color.setHex(s3.leaf);
+    crownOf(COLORS.almondCrown, look.almond, 0xf2dde3, s3.leaf);
+    crownOf(COLORS.figCrown, look.fig, 0xf2dde3, mixColor(0x5e8a36, s3.leaf, 0.3));
     materialOf(COLORS.grass).color.setHex(s3.grass);
     materialOf(COLORS.tuft).color.setHex(s3.grass);
     materialOf(COLORS.tuftDark).color.setHex(s3.grassDark);
@@ -364,4 +369,14 @@ function disposeScene(scene: THREE.Scene) {
   });
   const shadow = scene.children.find((o): o is THREE.DirectionalLight => o instanceof THREE.DirectionalLight)?.shadow;
   shadow?.dispose();
+}
+
+/** A fig's crown in autumn. */
+const YELLOW = 0xc9a43a;
+
+/** Recolours a tree's crown for its state of the year (bare: the crown is hidden, the branches show). */
+function crownOf(color: number, state: TreeState, bloom: number, leaf: number) {
+  const m = crownMaterial(color);
+  m.visible = state !== 'bare';
+  m.color.setHex(state === 'bloom' ? bloom : state === 'yellow' ? YELLOW : leaf);
 }

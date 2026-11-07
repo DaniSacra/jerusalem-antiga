@@ -1361,6 +1361,53 @@ async function houses3dScenario(page, form) {
 }
 
 /**
+ * Trees (plano beleza C6): a grove of olive cells (drawn as olives, almonds and figs) with a row of
+ * palms, up close through the year: almonds in white-pink bloom at the end of winter, everything in
+ * leaf in summer, figs yellow and almonds bare in late autumn, both bare in winter.
+ */
+async function trees3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `trees3d-pc-${name}`;
+  const at = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    // An open 7 x 6 block of land nearest the altar.
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    let best = null;
+    for (let y = 2; y < s.rows - 8; y++)
+      for (let x = 2; x < s.cols - 9; x++) {
+        let ok = true;
+        for (let dy = 0; dy < 6 && ok; dy++) for (let dx = 0; dx < 7 && ok; dx++) { const i = (y + dy) * s.cols + x + dx; ok = s.ground[i] !== 'river' && !s.grid[i] && !s.roads[i]; }
+        const d = Math.hypot(x - altar.x - 6, y - altar.y);
+        if (ok && (!best || d < best.d)) best = { x, y, d };
+      }
+    for (let dy = 0; dy < 6; dy++) for (let dx = 0; dx < 7; dx++) s.feature[(best.y + dy) * s.cols + best.x + dx] = dx === 6 ? 'palm' : 'olive';
+    core.refreshCity(s);
+    window.session.refresh();
+    return { x: best.x + 3.5, z: best.y + 3 };
+  });
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  await page.waitForTimeout(1500);
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
+  const look = async (name, pos) => {
+    await page.evaluate(([at, pos, clear]) => {
+      window.view3d.view({ day: 0.33, pos, weather: clear, force: { snow: false, drought: false } });
+      window.view3d.rig.set({ x: at.x, z: at.z, dist: 10, yaw: Math.PI / 4, pitch: 0.55 });
+    }, [at, pos, clear]);
+    await page.waitForTimeout(900);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  await look('bloom', 22);
+  const summer = await look('summer', 44);
+  await look('autumn', 11);
+  await look('winter', 16);
+  assert(summer.calls <= 120, `at most 120 draw calls (${summer.calls})`);
+  assert(summer.triangles <= 300000, `at most 300 thousand triangles (${summer.triangles})`);
+}
+
+/**
  * Fields (plano beleza C6): the four crops by the river and away from it, up close; in a dry year
  * the fields away from the water grow thin and yellow while those by it stay green; ripe gold in
  * spring. Within the draw-call and triangle limits.
@@ -1671,6 +1718,7 @@ const scenarios = {
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
+  'trees3d-pc': { context: PC, run: (page) => trees3dScenario(page) },
   'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },
   'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },
   'ground3d-phone': { context: PHONE, run: (page) => ground3dScenario(page, 'phone') },

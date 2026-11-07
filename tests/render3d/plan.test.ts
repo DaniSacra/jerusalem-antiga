@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
 import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, thumbKey, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
+import { treeKind } from '../../src/game/seasons';
 import { emptyGame, put } from '../helpers';
 
 const house = (level: number, emptyLevel = 0) => ({ kind: 'house' as const, level, emptyLevel, variant: 0, w: 2, h: 2 });
@@ -218,5 +219,18 @@ describe('what the 3D view draws', () => {
   it('every building of the column has a thumbnail model', () => {
     for (const k of Object.keys(BUILDINGS).filter((k) => k !== 'altar') as BuildableKind[]) expect(MODEL_KEYS).toContain(thumbKey(k));
     expect(thumbKey('house')).toBe('house-2');
+  });
+
+  it('olive cells are drawn as olives, almonds and figs (the look of each cell, stable)', () => {
+    const s = emptyGame();
+    s.feature = s.feature.map(() => null);
+    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) s.feature[indexOf(s, x, y)] = 'olive';
+    const trees = cityPlan(s).props.filter((p) => ['olive', 'almond', 'fig'].includes(p.key));
+    expect(trees).toHaveLength(144);
+    for (const p of trees) expect(p.key).toBe(treeKind('olive', Math.floor(p.x), Math.floor(p.z)));
+    const n = (k: string) => trees.filter((p) => p.key === k).length;
+    expect(n('almond')).toBeGreaterThan(144 * 0.15);
+    expect(n('fig')).toBeGreaterThan(144 * 0.07);
+    expect(n('olive')).toBeGreaterThan(144 * 0.3);
   });
 });
