@@ -15,6 +15,7 @@ import {
   nextFieldTurn,
   RULES,
   seasonOf,
+  TEMPLE_STAGES,
   type CityReadout,
   type GameState,
   type Material,
@@ -94,8 +95,10 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
   });
   // Wood (and stone once the quarry is unlocked): red with ⚠ while a house waits for it.
   const waiting = housesWaiting(s);
-  const made: Record<Material, number> = { wood: eco.wood, stone: eco.stone, livestock: eco.livestock };
-  const bad = (m: Material) => waiting[m] > 0 || (m === 'wood' && (s.cold || firewoodShort(s, { wood: made.wood }) > 0));
+  // Livestock: what the pastures bring less the altar's weekly offering (red while the restored altar goes without).
+  const offering = s.temple.done >= 1 ? TEMPLE_STAGES[s.temple.done - 1].offering : 0;
+  const made: Record<Material, number> = { wood: eco.wood, stone: eco.stone, livestock: Math.round((eco.livestock - offering) * 100) / 100 };
+  const bad = (m: Material) => waiting[m] > 0 || (m === 'wood' && (s.cold || firewoodShort(s, { wood: made.wood }) > 0)) || (m === 'livestock' && s.temple.done >= 1 && !s.offered);
   const mats: Material[] = ['wood'];
   if (s.unlocked.includes('quarry') || s.stone > 0) mats.push('stone');
   if (s.unlocked.includes('pasture') || s.livestock > 0) mats.push('livestock');
@@ -107,7 +110,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
       parts: [
         ...(phone || fit >= 1 ? [] : [{ text: N.material[m], tone: 'muted' } as Part]),
         { text: (bad(m) ? '⚠ ' : '') + fmtInt(s[m]), tone: bad(m) ? 'bad' : 'text', size: 'num' },
-        ...(phone || fit >= 3 ? [] : [{ text: `+${fmt(made[m])}${N.perWeek}`, tone: made[m] > 0 ? 'good' : 'muted', size: 'text' } as Part]),
+        ...(phone || fit >= 3 ? [] : [{ text: `${made[m] < 0 ? '−' : '+'}${fmt(Math.abs(made[m]))}${N.perWeek}`, tone: made[m] > 0 ? 'good' : made[m] < 0 ? 'bad' : 'muted', size: 'text' } as Part]),
       ],
     });
   pills.push({ key: 'people', icon: 'people', alarm: false, parts: [...label(N.residents), { text: fmtInt(eco.residents), size: 'num' }] });

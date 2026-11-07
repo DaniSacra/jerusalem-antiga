@@ -2217,11 +2217,11 @@ async function nextstep3dScenario(page, name) {
   // PC: under the bar; the phone: under it or beside the goal pill, clear of the bar and the column.
   assert((phone || v.below) && v.clear && v.oneLine && v.font >= 12, `one line clear of the top bar, text 12 px or more (${JSON.stringify(v)})`);
   if (phone) assert(v.h === 28, `28 px on the phone (${v.h})`);
+  else assert(Math.abs(v.mid) <= 2, `centred on PC (${v.mid})`);
   // The Gado pill is in: the PC bar's pills stay on one row.
   const rows = await page.evaluate(() => new Set([...document.querySelectorAll('header.top [data-pill]')].map((e) => Math.round(e.getBoundingClientRect().top))).size);
   const gado = await page.evaluate(() => !!document.querySelector('[data-pill="livestock"]'));
   assert(gado && (phone || rows === 1), `the Gado pill shows${phone ? '' : ' and the PC pills stay on one row'} (${gado}, ${rows} rows)`);
-  else assert(Math.abs(v.mid) <= 2, `centred on PC (${v.mid})`);
   // A tap opens the altar's balloon and the arrow points at the altar.
   await page.click('[data-spot="next-step"]');
   await page.waitForSelector('[data-spot="balloon-stage"]', { timeout: 5000 });

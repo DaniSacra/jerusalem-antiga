@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { readCity } from '../../src/core';
+import { readCity, TEMPLE_STAGES } from '../../src/core';
 import { FIT_MAX, fitPills, pillsWidth, topBar, type Part } from '../../src/game/model/topbar';
-import { T } from '../../src/game/strings';
+import { fmt, T } from '../../src/game/strings';
 import { emptyGame } from '../helpers';
 
 const texts = (parts: Part[]) => parts.filter((p): p is { text: string } => 'text' in p).map((p) => p.text);
@@ -15,6 +15,18 @@ describe('top bar as data', () => {
     expect(bar.pills.map((p) => p.key)).toEqual(['silver', 'food', 'wood', 'people']);
     s.unlocked.push('quarry');
     expect(topBar(s, readCity(s), true).pills.map((p) => p.key)).toContain('stone');
+  });
+
+  it('Gado once the pasture opens: the pastures less the altar\'s offering, red while the altar goes without', () => {
+    const s = emptyGame();
+    expect(topBar(s, readCity(s), false, 0).pills.map((p) => p.key)).not.toContain('livestock');
+    s.unlocked.push('pasture');
+    Object.assign(s, { temple: { done: 1, active: false, progress: 0 }, offered: true, livestock: 6 });
+    const pill = () => topBar(s, readCity(s), false, 0).pills.find((p) => p.key === 'livestock')!;
+    expect(texts(pill().parts)).toContain(`−${fmt(TEMPLE_STAGES[0].offering)}${T.nova.perWeek}`);
+    expect(pill().parts.some((p) => 'tone' in p && p.tone === 'bad' && 'size' in p && p.size === 'num')).toBe(false);
+    s.offered = false;
+    expect(pill().parts.some((p) => 'tone' in p && p.tone === 'bad' && 'size' in p && p.size === 'num')).toBe(true);
   });
 
   it('debt turns the silver red and blinks; famine the food', () => {

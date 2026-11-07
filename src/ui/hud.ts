@@ -153,7 +153,10 @@ export class Hud {
     if (!this.next.shown) return;
     let style = { left: '50%', top: `${Math.round(barBottom + 4)}px`, transform: 'translateX(-50%)', maxWidth: '' };
     const goal = this.phone ? this.top.el.querySelector('.goal')?.getBoundingClientRect() : null;
-    const room = goal ? colLeft - 8 - (goal.right + 6) : 0;
+    // Up to the column, and to the bar's right group (season, speed, gear) when it reaches down to the goal's row.
+    const right = this.top.el.querySelector('.right')?.getBoundingClientRect();
+    const end = goal && right && right.bottom > goal.top + 2 ? Math.min(colLeft, right.left) : colLeft;
+    const room = goal ? end - 8 - (goal.right + 6) : 0;
     if (goal && goal.width && room >= NEXT_BESIDE_MIN)
       style = { left: `${Math.round(goal.right + 6)}px`, top: `${Math.round(goal.top + (goal.height - el.offsetHeight) / 2)}px`, transform: 'none', maxWidth: `${Math.floor(room)}px` };
     Object.assign(el.style, style);

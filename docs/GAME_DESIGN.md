@@ -665,9 +665,9 @@ Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
   objetivo, "Antes: objetivo 9, Chegue a 30 moradores".
 - **Objetivos:** as cinco etapas em dourado com o ícone de obra (muro de pedras e colher de pedreiro) e
   "etapa 2/5".
-- Pílula do objetivo e lista de objetivos (`stageStatus`): "Marque o lugar do Templo"; "Alicerce:
-  junte 30 prata, 50 pedra"; "Alicerce: toque no Templo para começar"; "Alicerce 18/40 · ~6 sem"
-  (ou "· sem construtores").
+- Lista de objetivos, embaixo (`stageStatus`): "Alicerce: junte 50 pedra, 30 prata"; "Alicerce: toque
+  no Templo para começar"; "Alicerce 18/40 · ~6 sem" (ou "· sem construtores"). A pílula do objetivo
+  mostra só o objetivo: a linha "O que fazer agora" diz onde está a etapa (não se repete).
 
 Ordem do Pacote B1 (sobreviver primeiro): comida, casamento e o primeiro inverno vêm antes de
 qualquer serviço; o marco `firstSpring` ("Primeiro inverno passado") chega no começo da primeira
@@ -1169,8 +1169,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - Uma **linha fixa** logo abaixo da barra do topo, sempre visível fora do tutorial (no tutorial ela
   some: a frase do tutorial é a ajuda): um ícone e uma frase curta (`nextStep` em
   `src/game/model/nextStep.ts`, lê o core, sem regra própria). Celular: 28 px de altura (o toque pega
-  44 px), corta com reticências, ao lado da pílula do objetivo quando cabe antes da coluna (a pílula
-  do celular deixa de repetir a etapa: a linha já diz), senão embaixo; os toasts continuam abaixo do
+  44 px), corta com reticências, ao lado da pílula do objetivo quando cabe antes da coluna, senão
+  embaixo; os toasts continuam abaixo do
   meio da tela. PC: centrada sob a barra,
   numa linha. A área livre do mapa (balões) começa abaixo dela.
 - Ordem: 1) **crise** (vermelha, borda vermelha): dívida ("Dívida: N semanas para perder. Demolir corta
