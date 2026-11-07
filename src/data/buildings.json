@@ -18,6 +18,6 @@
                 "crafts": ["pottery", "smithy", "carpentry", "weaving", "dyeing", "tannery"],
                 "levels": [{ "cost": 50, "upkeep": 2, "fieldBonus": 0.2, "materials": { "stone": 20 } }, { "cost": 80, "upkeep": 3, "fieldBonus": 0.3, "materials": { "stone": 40 } }] },
   "park":     { "name": "Parque", "category": "home",  "cost": 60,  "upkeep": 1,  "w": 2, "h": 2, "jobs": 0, "radius": 4, "materials": { "stone": 5 } },
-  "temple":   { "name": "Templo", "category": "special",  "cost": 800, "upkeep": 0, "w": 6, "h": 6, "jobs": 2, "radius": 12, "protected": true, "materials": { "stone": 300, "wood": 200 } },
+  "temple":   { "name": "Templo", "category": "special",  "cost": 0,   "upkeep": 0, "w": 6, "h": 6, "jobs": 0, "radius": 12 },
   "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "radius": 4, "protected": true }
 }

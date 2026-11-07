@@ -7,7 +7,7 @@
   "materialStorage": 400,
   "weekSeconds": 3.2,
   "unemploymentAlert": 3,
-  "jobPriority": ["fisher", "gatherer", "field", "lumber", "quarry", "granary", "market", "workshop", "temple"],
+  "jobPriority": ["fisher", "gatherer", "field", "lumber", "quarry", "granary", "market", "workshop", "altar", "temple"],
   "staffedServices": ["market"],
   "familyCellsPerWeek": 6,
   "weeksPerSeason": 13,

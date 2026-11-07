@@ -4,12 +4,15 @@ import goals from '../data/goals.json';
 import rules from '../data/rules.json';
 import walkers from '../data/walkers.json';
 import names from '../data/names.json';
-import type { Building, BuildingDef, BuildingKind, BuildingLevelDef, Dims, GoalDef, HouseLevelDef, LevelStat, Rect, Rules, WalkerDef } from './types';
+import temple from '../data/temple.json';
+import type { Building, BuildingDef, BuildingKind, BuildingLevelDef, Dims, GoalDef, HouseLevelDef, LevelStat, Rect, Rules, TempleStageDef, WalkerDef } from './types';
 
 export const BUILDINGS = buildings as Record<BuildingKind, BuildingDef>;
 export const HOUSE_LEVELS = houses as unknown as HouseLevelDef[];
 export const GOALS = goals as unknown as GoalDef[];
 export const RULES = rules as unknown as Rules;
+/** The Temple's stages, in order (stage 1 = index 0). */
+export const TEMPLE_STAGES = temple as unknown as TempleStageDef[];
 export const WALKERS = walkers as unknown as WalkerDef[];
 export const MAX_HOUSE_LEVEL = HOUSE_LEVELS.length - 1;
 /** Given names by sex and family names (clans) of the people. */

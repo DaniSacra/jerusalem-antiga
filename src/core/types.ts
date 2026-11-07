@@ -233,9 +233,12 @@ export interface GoalDef {
   /**
    * residents: at least `target` residents; houses: houses of at least `level`; build: connected
    * buildings of `kind`; foodUntilSpring: weeks the food lasts, up to the first spring (see
-   * goalTarget); milestone: the `milestone` was reached (even before the goal came up).
+   * goalTarget); milestone: the `milestone` was reached (even before the goal came up);
+   * templeStage: the Temple's stage `stage` (1-based, `temple.json`) is built.
    */
-  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'milestone';
+  type: 'residents' | 'houses' | 'build' | 'foodUntilSpring' | 'milestone' | 'templeStage';
+  /** For type "templeStage": the stage, from 1. */
+  stage?: number;
   /** For type "milestone". */
   milestone?: MilestoneId;
   target: number;
@@ -249,6 +252,16 @@ export interface GoalDef {
   /** The goal can only be reached from this year on (1 = the first year). */
   fromYear?: number;
   text: string;
+}
+
+/** A stage of the Temple (`temple.json`): where it is built, what it costs, its builders' jobs and its work in builder-weeks. */
+export interface TempleStageDef {
+  name: string;
+  site: 'altar' | 'temple';
+  cost: number;
+  materials: Materials;
+  builders: number;
+  work: number;
 }
 
 export interface Rules {
@@ -431,6 +444,8 @@ export interface Building {
   mirrored: boolean;
   /** Week it was built (a field only harvests in a spring after an autumn it stood through). */
   built: number;
+  /** Altar or Temple while a stage of the Temple is being built there: the builders' jobs (see temple.ts). */
+  builders?: number;
   /** Lumber: wood made since its last cut tree (see trees.ts). */
   cutProgress?: number;
   /** House: ready to climb (13/13 weeks with the needs) but the city lacks this material. */
@@ -524,6 +539,8 @@ export interface GameState {
    * job filled, the game before the Profissões panel); a number caps the crew of that kind.
    */
   jobTargets: Partial<Record<BuildingKind, number>>;
+  /** The Temple in stages (temple.ts): stages built, the current one paid and under way, and its work done. */
+  temple: { done: number; active: boolean; progress: number };
   /** Later caravans, rolled at the start. */
   caravans: CaravanPlan[];
   /** Births, deaths (of age and of cold; `coldDeaths` of cold only) and weddings since the last autumn began. */
@@ -532,6 +549,10 @@ export interface GameState {
 }
 
 export type GameEvent =
+  /** A stage of the Temple was paid and its work begins (`stage` from 1). */
+  | { type: 'stageStart'; stage: number }
+  /** A stage of the Temple is built (`stage` from 1). */
+  | { type: 'stageDone'; stage: number; x: number; y: number }
   /** A `staffedServices` building (the market) lost its last worker: it covers nothing now. */
   | { type: 'serviceEmpty'; kind: BuildingKind; x: number; y: number }
   | { type: 'houseUp'; x: number; y: number; level: number; delta: number }

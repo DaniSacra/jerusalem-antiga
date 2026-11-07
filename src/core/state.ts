@@ -52,6 +52,7 @@ export function createGame(rng: Rng): GameState {
     departed: [],
     caravans: [],
     jobTargets: {},
+    temple: { done: 0, active: false, progress: 0 },
     yearStats: { births: 0, deaths: 0, coldDeaths: 0, weddings: 0 },
     nextId: 1,
   };

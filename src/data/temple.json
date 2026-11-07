@@ -1,0 +1,7 @@
+[
+  { "name": "Altar restaurado",  "site": "altar",  "cost": 40,  "materials": { "stone": 20, "wood": 20 },  "builders": 2, "work": 12 },
+  { "name": "Alicerce",          "site": "temple", "cost": 150, "materials": { "stone": 80 },              "builders": 4, "work": 40 },
+  { "name": "Paredes",           "site": "temple", "cost": 200, "materials": { "stone": 120, "wood": 40 }, "builders": 5, "work": 60 },
+  { "name": "Pórtico e telhado", "site": "temple", "cost": 250, "materials": { "stone": 60, "wood": 120 }, "builders": 6, "work": 72 },
+  { "name": "Consagração",       "site": "temple", "cost": 200, "materials": { "wood": 40 },               "builders": 4, "work": 32 }
+]
