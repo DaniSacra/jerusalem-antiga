@@ -210,6 +210,14 @@ export class Stage {
   /** The game speed (0 paused): the food workers stop with it. */
   speed = 1;
 
+  /** Tests (dev hook): the walkers stand where they are, so a click lands on the one just found. */
+  holdWalkers = false;
+
+  /** No layer of the city waits to be drawn again (the walkers on screen are the ones that stay). */
+  get settled() {
+    return this.pending.size === 0;
+  }
+
   /** The season and year shown (for tests and the dev hooks). */
   private label() {
     const cal = calendar(this.week);
@@ -285,7 +293,7 @@ export class Stage {
     U.uWind.value = LOOK.wind.calm + (1 - LOOK.wind.calm) * w.wind;
 
     world.walkers.setShare(streetShare(L.night, w.rain));
-    world.walkers.update(dt, time);
+    world.walkers.update(this.holdWalkers ? 0 : dt, time);
     world.families.update(time);
     // The still life: like the walkers, fewer at night and in the rain; half at the low quality, none at
     // the minimum or from far away (specks there); the olive pickers in autumn.

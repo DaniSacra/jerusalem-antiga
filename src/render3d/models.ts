@@ -1365,6 +1365,12 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   closed,
 };
 
+/**
+ * Code models drawn as one part, their colours in the vertices like the kits: the empty plot's
+ * building site is many small pieces in three colours, and the city can hold many plots.
+ */
+const ONE_PART: readonly ModelKey[] = ['house-0'];
+
 let built: Record<ModelKey, Prototype> | null = null;
 
 /** The code-built models, by key (built once and kept: they are reused each time the 3D view opens). */
@@ -1375,6 +1381,10 @@ export function codeModels(): Record<ModelKey, Prototype> {
     if ((MIRRORED_KEYS as ModelKey[]).includes(key)) continue;
     if ((KIT_KEYS as readonly ModelKey[]).includes(key)) {
       out[key] = buildKit(KIT_MAKERS[key as KitKey]());
+      continue;
+    }
+    if (ONE_PART.includes(key)) {
+      out[key] = buildKit(MAKERS[key as keyof typeof MAKERS]());
       continue;
     }
     const extra = extraOf(key);

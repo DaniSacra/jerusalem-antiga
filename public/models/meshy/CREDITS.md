@@ -28,8 +28,12 @@ Triângulos e tamanho atuais (versão leve da 2.ª leva); entre parênteses, a 1
 | `market` mercado | market.glb | 2 499 (6 726) | 342 KB | 1 | 01a1a7cc-e50f-7365-b69f-371a1bbc4f9e | 01a1a7cd-6a59-70d8-bbf0-93003db37983 | 15 + 5 |
 | `lumber` lenhador | lumber.glb | 1 999 (3 727) | 271 KB | 1 | 01a1a7cc-e527-7777-b44b-6f8fee3aaf50 | 01a1a7cd-69c3-7456-9ddc-e7b397179aaf | 15 + 5 |
 | `quarry` pedreira | quarry.glb | 1 913 (5 068) | 207 KB | 3 | 01a1a7e2-2d04-77e5-8b6c-c62fdbf393fd | 01a1a7e2-8a12-732c-8ee8-7202e0dff3af | 15 + 15 + 15 |
-| `temple` templo | temple.glb | 4 151 (7 441) | 354 KB | 2 | 01a1a7cf-5f3e-7185-847c-d9b87013c39c | 01a1a7cf-bc54-7470-949e-70d5eb3cf3a3 | 15 + 15 + 5 |
+| `temple` templo | ~~temple.glb~~ (apagado) | 4 151 (7 441) | 354 KB | 2 | 01a1a7cf-5f3e-7185-847c-d9b87013c39c | 01a1a7cf-bc54-7470-949e-70d5eb3cf3a3 | 15 + 15 + 5 |
 | `olive` oliveira | olive.glb | 1 235 (1 879) | 212 KB | 2 | 01a1a7cf-5f3e-7680-89b8-1b73cceed271 | 01a1a7cf-e6aa-772c-9758-a6b471c14baf | 15 + 15 + 5 + 15 |
+
+**`temple.glb` apagado (2026-11-07):** o Templo é desenhado por código (`temple()` em
+`src/render3d/models.ts`, C8); o arquivo saiu do manifesto e depois do repositório (pacote T0). A linha
+acima fica só como histórico dos créditos gastos.
 
 **`plaza.glb` fora do manifesto (2026-11-05):** o toldo sobre postes lia como tenda; a visão 3D usa
 a praça feita por código (lajes, poço, bancos, figueira). Nenhum crédito gasto nesta troca.
