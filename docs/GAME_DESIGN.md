@@ -1311,6 +1311,13 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   capim (1 a 3) em 80% das células de grama, com a cor da grama da estação e balançando com o vento,
   e seixos em 30% das células de areia; só no chão livre (sem rua, construção, árvore, rocha, rio
   nem chão pisado). Somem de longe (distância > 48) e na qualidade mínima.
+- **Campos** (só visual, plano beleza C6; `models.ts` `field`, `fields.ts`, `look3d.json` > `fields`):
+  cada campo fica num socalco com muro baixo de pedra solta e capim nos cantos; as cinco fileiras
+  mostram a cultura: trigo em touceiras retas com espiga, cevada curvada pela barba, lentilha em
+  moitas baixas e redondas, linho em hastes finas com flor azul. Crescem com a estação, cada campo
+  um pouco mais alto ou mais baixo que o vizinho (pelo lugar). Na seca, os campos longe do rio
+  (`moistMap`: úmido até 2 células da água, seco a partir de 6) ficam ralos, baixos e cor de palha;
+  os da beira do rio continuam bonitos.
 - **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
   por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
 - **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e

@@ -39,14 +39,33 @@ export const U = {
   uWear: { value: blankWear() as THREE.Texture },
   uMapSize: { value: new THREE.Vector2(1, 1) },
   uTrodden: { value: new THREE.Color(0xb08f68) },
+  /** Moist land by the river (fields.ts moistMap, cell per texel): crops away from it dry out in a drought. */
+  uMoist: { value: blankWear(255) as THREE.Texture },
+  uDryCrop: { value: new THREE.Color(0xb08a52) },
 };
 
-/** No wear yet (1 black texel), until the terrain sets the city's. */
-function blankWear(): THREE.DataTexture {
-  const t = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat);
+/** One texel of `v` (no wear yet: 0; moist everywhere: 255), until the terrain sets the city's. */
+function blankWear(v = 0): THREE.DataTexture {
+  const t = new THREE.DataTexture(new Uint8Array([v]), 1, 1, THREE.RedFormat);
   t.needsUpdate = true;
   return t;
 }
+
+/**
+ * The crops grow with the season (`uGrow`), each field a little taller or shorter than the next (by
+ * where it stands), and in a drought the fields away from the river (`uMoist`) grow thin and dry.
+ */
+const GROW_CHUNK = /* glsl */ `{
+  vec2 fp = vec2(-100.0);
+  #ifdef USE_INSTANCING
+    fp = instanceMatrix[3].xz;
+  #endif
+  float fh = fract(sin(dot(floor(fp), vec2(12.9898, 78.233))) * 43758.5453);
+  vec2 muv = fp / uMapSize;
+  float moist = texture2D(uMoist, muv).r;
+  vDry = uDrought * (1.0 - moist);
+  transformed.y = 0.05 + (transformed.y - 0.05) * uGrow * (0.86 + 0.28 * fh) * (1.0 - 0.5 * vDry);
+}`;
 
 /** GLSL noise helpers shared by the patches. */
 const NOISE = /* glsl */ `
@@ -98,6 +117,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         uniform float uGrow; uniform float uHeat; uniform float uTime;
         ${o.wind || o.cloth ? 'uniform float uWind; uniform vec2 uWindDir;' : ''}
         ${o.cloth ? 'attribute vec2 aFlap;' : ''}
+        ${o.grow ? 'uniform sampler2D uMoist; uniform vec2 uMapSize; uniform float uDrought; varying float vDry;' : ''}
         ${o.terrain ? 'attribute vec3 aGround; varying vec3 vGround;' : ''}`,
       )
       .replace(
@@ -112,7 +132,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        ${o.grow ? 'transformed.y = 0.05 + (transformed.y - 0.05) * uGrow;' : ''}
+        ${o.grow ? GROW_CHUNK : ''}
         ${o.wind ? windChunk(o.wind, !!o.waves) : ''}
         ${o.cloth ? CLOTH_CHUNK : ''}`,
       )
@@ -141,6 +161,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         varying vec3 vWorld; varying float vUp; varying float vInst; varying vec3 vTint;
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
+        ${o.grow ? 'varying float vDry; uniform vec3 uDryCrop;' : ''}
         ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden;' : ''}
         ${NOISE}`,
       )

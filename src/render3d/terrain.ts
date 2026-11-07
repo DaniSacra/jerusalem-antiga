@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { indexOf, type GameState } from '../core';
 import LOOK from './look3d.json';
 import { patch, U } from './shaders';
+import { moistMap } from './fields';
 import { WEAR_RES } from './wear';
 
 /** How far the ground extends around the map (cells), fading into the haze. */
@@ -45,6 +46,20 @@ export class Terrain {
   constructor(private s: GameState, private seed: number) {
     this.flat = new Float32Array(s.cols * s.rows);
     this.flatten();
+    this.setMoist();
+  }
+
+  /** The moist land by the river for the crops (the river does not move: once). */
+  private moist: THREE.DataTexture | null = null;
+  private setMoist() {
+    const { cols, rows } = this.s;
+    const m = moistMap(this.s);
+    this.moist = new THREE.DataTexture(Uint8Array.from(m, (v) => Math.round(v * 255)), cols, rows, THREE.RedFormat);
+    this.moist.magFilter = this.moist.minFilter = THREE.LinearFilter;
+    this.moist.needsUpdate = true;
+    U.uMoist.value = this.moist;
+    U.uMapSize.value.set(cols, rows);
+    U.uDryCrop.value.setHex(Number(LOOK.fields.dryCrop));
   }
 
   /** Flatness per cell: 1 on roads and buildings, fading out over two cells (again when the city changes). */
@@ -120,6 +135,8 @@ export class Terrain {
   dispose() {
     this.wear?.dispose();
     this.wear = null;
+    this.moist?.dispose();
+    this.moist = null;
   }
 
   /**

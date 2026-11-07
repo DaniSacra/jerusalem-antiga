@@ -5,7 +5,7 @@ import { thumbKey } from './plan';
 import { U } from './shaders';
 
 /** The shared uniforms set for the thumbnails (a clear summer day, crops grown, no wind) and put back after. */
-const CLEAR_DAY = { uSnow: 0, uWet: 0, uCloud: 0, uWindows: 0, uGrow: 1, uWind: 0, uHeat: 0 } as const;
+const CLEAR_DAY = { uSnow: 0, uWet: 0, uCloud: 0, uWindows: 0, uGrow: 1, uWind: 0, uHeat: 0, uDrought: 0 } as const;
 
 /** Side of a thumbnail (px): twice the phone's 46 px disc, sharp on a dense screen. */
 export const THUMB_PX = 96;

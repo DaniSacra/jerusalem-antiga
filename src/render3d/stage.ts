@@ -223,7 +223,8 @@ export class Stage {
     const week = Math.floor(pos);
     const look = this.seasons.at(week, pos - week, this.s);
     const s3 = season3d(pos, look);
-    const crop = cropLook(pos, look.drought);
+    // The crops' drought is per field in the shader (dry away from the river, see fields.ts); the soil dries everywhere.
+    const crop = { ...cropLook(pos), soil: cropLook(pos, look.drought).soil };
     const w: WeatherNow = { ...this.weather.at(pos), ...o?.weather };
     const t = o?.day ?? dayT;
     const L = frameLight(t, t, 1, s3, w, look.clouds);

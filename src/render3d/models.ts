@@ -53,6 +53,10 @@ export const COLORS = {
   barley: 0xe2cf8c,
   lentil: 0x7f9a45,
   flax: 0x6f9a8a,
+  /** The blue flower of the flax (grows and sways with the crop). */
+  flaxFlower: 0x7f9ee0,
+  /** Loose stones of a field's terrace wall. */
+  rubble: 0xa89a80,
   leaf: 0x7f9257,
   leafDark: 0x5d7340,
   palm: 0x6f8f3a,
@@ -101,6 +105,8 @@ const ROAD_COLORS: number[] = [COLORS.road, COLORS.roadStone, COLORS.roadJoint, 
 
 /** Crop colours of the four field variants (wheat, barley, lentil, flax). */
 export const CROPS = [COLORS.wheat, COLORS.barley, COLORS.lentil, COLORS.flax] as const;
+/** What grows with the crop (`uGrow`) and sways in waves: the crops and the flax flowers. */
+const GROWING: number[] = [...CROPS, COLORS.flaxFlower];
 
 // ------------------------------------------------------------------ building blocks
 
@@ -115,7 +121,7 @@ function mat(color: number, emissive = false, cloth = false): THREE.Material {
   const key = `${color}-${emissive}${cloth ? '-cloth' : ''}`;
   let m = materials.get(key);
   if (!m) {
-    const crop = (CROPS as readonly number[]).includes(color);
+    const crop = GROWING.includes(color);
     m = emissive
       ? new THREE.MeshBasicMaterial({ color })
       : cloth
@@ -324,12 +330,58 @@ function bigHouse(): Piece[] {
   ];
 }
 
+/**
+ * A field on its terrace (plano beleza C6): soil with plowed ridges, a low wall of loose stones round
+ * it with grass tufts at its foot, a scarecrow pole with a rag, and five rows of the crop, drawn by
+ * kind: wheat in upright clumps with ears, barley bowed under its beards, lentil in low round bushes,
+ * flax in thin stems with blue flowers. Crops grow, dry and sway in the shader (see `GROW_CHUNK`).
+ */
 function field(crop: number): Piece[] {
-  // Soil with plowed ridges (they show when the crop is low) and five rows of crop.
-  const rows: Piece[] = [box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.soil)];
-  for (let k = 0; k < 5; k++) rows.push(box(0.2, 0.05, 1.7, -0.72 + k * 0.36, 0.03, 0, COLORS.soil), box(0.24, 0.22, 1.65, -0.72 + k * 0.36, 0.05, 0, crop));
-  rows.push(cyl(0.02, 0.02, 0.6, 4, 0.9, 0, 0.9, COLORS.wood), hanging(0.3, 0.2, 0.05, 0.9, 0.45, 0.9, COLORS.cloth));
-  return rows;
+  let seed = crop % 9973;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const out: Piece[] = [box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.soil)];
+  // The terrace wall: four stones a side, a little uneven, leaving the corners open.
+  for (const side of [0, 1, 2, 3]) {
+    const rot = (side * Math.PI) / 2;
+    for (let k = 0; k < 4; k++) {
+      const a = -0.66 + k * 0.44 + (rnd() - 0.5) * 0.06;
+      const h = 0.08 + rnd() * 0.05;
+      const [x, z] = [Math.cos(rot) * a - Math.sin(rot) * 0.93, Math.sin(rot) * a + Math.cos(rot) * 0.93];
+      out.push(box(0.38 + rnd() * 0.06, h, 0.12, x, 0, z, COLORS.rubble, rot + (rnd() - 0.5) * 0.12));
+    }
+  }
+  // Grass at the foot of the wall, at the corners.
+  for (const [x, z] of [[-0.95, -0.95], [0.95, -0.95], [-0.95, 0.95], [0.95, 0.95]]) out.push(cone(0.09, 0.16, 4, x, 0, z, COLORS.tuft, rnd()));
+  const kind = CROPS.indexOf(crop as (typeof CROPS)[number]);
+  for (let r = 0; r < 5; r++) {
+    const x = -0.72 + r * 0.36;
+    out.push(box(0.2, 0.05, 1.7, x, 0.03, 0, COLORS.soil));
+    const n = kind === 2 ? 6 : 8;
+    for (let k = 0; k < n; k++) {
+      const z = -0.74 + (k + 0.5) * (1.48 / n) + (rnd() - 0.5) * 0.06;
+      const jx = x + (rnd() - 0.5) * 0.06;
+      if (kind === 0) {
+        // Wheat: an upright clump, its ear a darker tip.
+        out.push(cone(0.08, 0.3, 4, jx, 0.05, z, crop, rnd()), cone(0.035, 0.12, 3, jx + 0.02, 0.28, z, crop));
+      } else if (kind === 1) {
+        // Barley: the clump bows, its beards hang to one side.
+        const g = new THREE.ConeGeometry(0.075, 0.32, 4);
+        g.translate(0, 0.16, 0);
+        g.rotateZ(0.32 + rnd() * 0.15);
+        g.rotateY(rnd() * 0.6 - 0.3);
+        g.translate(jx, 0.05, z);
+        out.push({ geo: g, color: crop });
+      } else if (kind === 2) {
+        // Lentil: a low round bush.
+        out.push(blob(0.11, jx, 0.12, z, crop, 0.65));
+      } else {
+        // Flax: two thin stems, a blue flower on each.
+        for (const d of [-0.04, 0.04]) out.push(cyl(0.012, 0.018, 0.34, 3, jx + d, 0.05, z + d, crop), box(0.05, 0.035, 0.05, jx + d, 0.38, z + d, COLORS.flaxFlower));
+      }
+    }
+  }
+  out.push(cyl(0.02, 0.02, 0.6, 4, 0.9, 0, 0.9, COLORS.wood), hanging(0.3, 0.2, 0.05, 0.9, 0.45, 0.9, COLORS.cloth));
+  return out;
 }
 
 /**
@@ -558,19 +610,27 @@ const flags = (): Piece[] => {
 const tuft = (): Piece[] =>
   [0, 1, 2, 3, 4].map((k) => {
     const a = k * 1.26;
-    const g = new THREE.ConeGeometry(0.025, 0.16 + (k % 3) * 0.04, 3);
+    // Open at the foot (no cap: it stands on the ground), 3 triangles a blade.
+    const g = new THREE.ConeGeometry(0.025, 0.16 + (k % 3) * 0.04, 3, 1, true);
     g.translate(0, (0.16 + (k % 3) * 0.04) / 2, 0);
     g.rotateZ(Math.cos(a) * 0.35);
     g.rotateX(Math.sin(a) * 0.35);
     g.translate(Math.cos(a) * 0.03, 0, Math.sin(a) * 0.03);
     return { geo: g, color: k % 2 ? COLORS.tuftDark : COLORS.tuft };
   });
-/** Pebbles half sunk in the sand. */
+/** Pebbles half sunk in the sand (octahedra: 8 triangles each, there are hundreds). */
+const pebble = (r: number, x: number, y: number, z: number, color: number, sy: number): Piece => {
+  const g = new THREE.OctahedronGeometry(r, 0);
+  g.rotateY(x * 17);
+  g.scale(1, sy, 1);
+  g.translate(x, y, z);
+  return { geo: g, color };
+};
 const pebbles = (): Piece[] => [
-  blob(0.045, 0, 0.01, 0, COLORS.rock, 0.5),
-  blob(0.03, 0.09, 0.005, 0.05, COLORS.limestoneDark, 0.55),
-  blob(0.025, -0.06, 0.005, 0.08, COLORS.rock, 0.6),
-  blob(0.035, 0.02, 0.008, -0.1, COLORS.limestoneDark, 0.5),
+  pebble(0.045, 0, 0.01, 0, COLORS.rock, 0.5),
+  pebble(0.03, 0.09, 0.005, 0.05, COLORS.limestoneDark, 0.55),
+  pebble(0.025, -0.06, 0.005, 0.08, COLORS.rock, 0.6),
+  pebble(0.035, 0.02, 0.008, -0.1, COLORS.limestoneDark, 0.5),
 ];
 
 /** A busy road's stone kerb along its +z side (no road there). */

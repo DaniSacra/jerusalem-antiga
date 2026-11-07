@@ -938,9 +938,14 @@ async function context3dScenario(page) {
   await page.waitForTimeout(500);
   const paused = await framesIn(2000);
   assert(paused <= 26, `paused and still: about 10 frames a second (${paused} in 2 s)`);
+  // The throttle itself (frame counts alone depend on how fast this machine draws with SwiftShader):
+  // paused and still it holds frames back, running it never does.
+  const idle = () => page.evaluate(() => window.view3d.game.idle);
+  assert((await idle()) === true, 'paused and still: frames are held back');
   await page.evaluate(() => window.session.setSpeed(1));
+  await page.waitForTimeout(300);
   const running = await framesIn(2000);
-  assert(running > paused, `running draws more frames than paused (${running} vs ${paused} in 2 s)`);
+  assert((await idle()) === false && running > 0, `running: no frame is held back (${running} in 2 s)`);
   await page.evaluate(() => window.session.setSpeed(0));
   const lost = await page.evaluate(() => {
     const gl = document.querySelector('.g3d canvas').getContext('webgl2');
@@ -1356,6 +1361,74 @@ async function houses3dScenario(page, form) {
 }
 
 /**
+ * Fields (plano beleza C6): the four crops by the river and away from it, up close; in a dry year
+ * the fields away from the water grow thin and yellow while those by it stay green; ripe gold in
+ * spring. Within the draw-call and triangle limits.
+ */
+async function fields3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `fields3d-pc-${name}`;
+  const spots = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.unlocked = [...new Set([...s.unlocked, 'field'])];
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    const river = [];
+    for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++) if (s.ground[y * s.cols + x] === 'river') river.push([x, y]);
+    const dist = (x, y) => Math.min(...river.map(([rx, ry]) => Math.max(Math.abs(rx - x), Math.abs(ry - y), Math.abs(rx - x - 1), Math.abs(ry - y - 1))));
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    const placed = { near: [], far: [] };
+    // Four fields in a square (one per crop) by the river and four far from it, nearest the altar.
+    const AT = [[0, 0], [2, 0], [0, 2], [2, 2]];
+    const rowAt = (ok) => {
+      const cands = [];
+      for (let y = 2; y < s.rows - 5; y++)
+        for (let x = 2; x < s.cols - 5; x++) {
+          let good = true;
+          for (let k = 0; k < 4 && good; k++) good = ok(dist(x + AT[k][0], y + AT[k][1])) && core.checkPlace(s, 'field', x + AT[k][0], y + AT[k][1]).ok;
+          if (good) cands.push({ x, y, d: Math.hypot(x - altar.x, y - altar.y) });
+        }
+      return cands.sort((a, b) => a.d - b.d)[0];
+    };
+    for (const [key, ok] of [['near', (d) => d <= 3], ['far', (d) => d >= 8]]) {
+      const r = rowAt(ok);
+      if (!r) throw new Error(`no row of fields ${key}`);
+      for (let k = 0; k < 4; k++) {
+        const [fx, fy] = [r.x + AT[k][0], r.y + AT[k][1]];
+        const res = core.place(s, 'field', fx, fy);
+        if (!res.ok) throw new Error(`no field at ${fx},${fy}: ${res.reason}`);
+        s.grid[fy * s.cols + fx].variant = k;
+      }
+      placed[key] = { x: r.x + 2, z: r.y + 2 };
+    }
+    core.refreshCity(s);
+    window.session.refresh();
+    return placed;
+  });
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  await page.waitForTimeout(1500);
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.4, snowing: false };
+  const look = async (at, name, pos, drought = false) => {
+    await page.evaluate(([at, pos, drought, clear]) => {
+      window.view3d.view({ day: 0.32, pos, weather: clear, force: { drought } });
+      window.view3d.rig.set({ x: at.x, z: at.z, dist: 9, yaw: Math.PI / 4, pitch: 0.62 });
+    }, [at, pos, drought, clear]);
+    await page.waitForTimeout(900);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  // Late winter: green and grown. Mid spring: ripe gold; in a dry year (the drought shows from mid
+  // spring) the fields by the river stay gold, those away from it thin and straw-brown.
+  await look(spots.near, 'winter', 22);
+  const spring = await look(spots.near, 'spring', 33);
+  await look(spots.near, 'dry-near', 33, true);
+  await look(spots.far, 'dry-far', 33, true);
+  assert(spring.calls <= 120, `at most 120 draw calls (${spring.calls})`);
+  assert(spring.triangles <= 300000, `at most 300 thousand triangles (${spring.triangles})`);
+}
+
+/**
  * Ground and roads (plano beleza C4): trodden earth before the doors and along the roads, paths
  * between houses 1 to 3 cells apart, a side street with an edge and wheel ruts, a trail, the busy
  * street by the altar paved with flagstones and a kerb, tufts on the grass; from far away the roads
@@ -1598,6 +1671,7 @@ const scenarios = {
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
+  'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },
   'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },
   'ground3d-phone': { context: PHONE, run: (page) => ground3dScenario(page, 'phone') },
   'houses3d-phone': { context: PHONE, run: (page) => houses3dScenario(page, 'phone') },
