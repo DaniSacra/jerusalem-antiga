@@ -124,6 +124,88 @@ async function setupPeople(page, { freeHouse = true } = {}) {
 }
 
 /**
+ * The maquete finish: tilt-shift at the top and bottom, a warm grade, and the contact shadow at the foot
+ * of the buildings (stronger under clouds and at night); off at the minimum quality.
+ */
+async function maquete3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `maquete3d-pc-${name}`;
+  const at = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.unlocked = [...new Set([...s.unlocked, 'house'])];
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    const cands = [];
+    for (let y = 1; y < s.rows - 1; y++) for (let x = 1; x < s.cols - 1; x++) if (core.checkPlace(s, 'house', x, y).ok) cands.push({ x, y, d: Math.hypot(x - altar.x, y - altar.y) });
+    let built = 0;
+    for (const c of cands.sort((a, b) => a.d - b.d)) if (built < 10 && core.place(s, 'house', c.x, c.y).ok) built++;
+    core.refreshCity(s);
+    window.session.refresh();
+    return { x: altar.x + 1, z: altar.y + 1, built };
+  });
+  assert(at.built >= 6, `houses around the altar (${at.built})`);
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  const look = async (name, day, overcast) => {
+    await page.evaluate(([at, day, overcast]) => {
+      window.view3d.view({ day, pos: 30.5, weather: { rain: 0, wet: 0, overcast, puddles: 0, wind: 0.3, snowing: false } });
+      window.view3d.rig.set({ x: at.x, z: at.z, dist: 16, yaw: Math.PI / 4, pitch: 0.8 });
+    }, [at, day, overcast]);
+    await page.waitForTimeout(1000);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  const sunny = await look('day', 0.3, 0);
+  assert(sunny.finish === true, 'the finish is on at high quality');
+  await look('overcast', 0.3, 1);
+  await look('night', 0.72, 0);
+  await page.evaluate(() => window.view3d.quality('min'));
+  const min = await look('min', 0.3, 0);
+  assert(min.finish === false, 'the finish is off at the minimum quality');
+  await page.evaluate(() => window.view3d.quality('high'));
+}
+
+/** The Temple drawn in code (plano beleza C8): close by day from the front and the side, at night, and from the opening view. */
+async function sanctuary3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `sanctuary3d-pc-${name}`;
+  const at = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.unlocked = [...new Set([...s.unlocked, 'temple'])];
+    s.feature = s.feature.map(() => null);
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    let best = null;
+    for (let y = 1; y < s.rows - 7; y++)
+      for (let x = 1; x < s.cols - 7; x++) {
+        const d = Math.hypot(x - altar.x, y - altar.y);
+        if ((!best || d < best.d) && core.checkPlace(s, 'temple', x, y).ok) best = { x, y, d };
+      }
+    if (!best || !core.place(s, 'temple', best.x, best.y).ok) return null;
+    core.refreshCity(s);
+    window.session.refresh();
+    const t = s.buildings.find((b) => b.kind === 'temple');
+    return { x: t.x + t.w / 2, z: t.y + t.h / 2 };
+  });
+  assert(at, 'the Temple has a place near the altar');
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  const look = async (name, day, cam) => {
+    await page.evaluate(([at, day, cam]) => {
+      window.view3d.view({ day, pos: 30.5, weather: { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false } });
+      window.view3d.rig.set({ x: at.x, z: at.z, ...cam });
+    }, [at, day, cam]);
+    await page.waitForTimeout(1000);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  const front = await page.evaluate(() => window.view3d.rig.heading);
+  await look('near', 0.32, { dist: 13, pitch: 0.55 });
+  await look('side', 0.32, { dist: 13, pitch: 0.5, yaw: front + Math.PI / 2 });
+  await look('night', 0.72, { dist: 15, pitch: 0.6 });
+  const far = await look('far', 0.32, { dist: 34 });
+  assert(far.calls <= 120, `at most 120 draw calls (${far.calls})`);
+}
+
+/**
  * The 3D game: no Phaser at all, the HTML interface over the map, the
  * tutorial's first step and its marked road, and a road pulled by drag along the marked cells.
  */
@@ -1799,6 +1881,8 @@ const scenarios = {
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
   'river3d-pc': { context: PC, run: (page) => river3dScenario(page) },
+  'maquete3d-pc': { context: PC, run: (page) => maquete3dScenario(page) },
+  'sanctuary3d-pc': { context: PC, run: (page) => sanctuary3dScenario(page) },
   'trees3d-pc': { context: PC, run: (page) => trees3dScenario(page) },
   'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },
   'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },

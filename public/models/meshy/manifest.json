@@ -6,7 +6,6 @@
   "market": { "file": "market.glb", "rotationDeg": 90, "yOffset": -0.12 },
   "lumber": { "file": "lumber.glb" },
   "quarry": { "file": "quarry.glb" },
-  "temple": { "file": "temple.glb" },
   "workshop": { "file": "workshop.glb" },
   "fisher": { "file": "fisher.glb", "yOffset": -0.07 },
   "gatherer": { "file": "gatherer.glb", "yOffset": -0.12 },

@@ -514,23 +514,63 @@ function altar(): Piece[] {
   ];
 }
 
+/**
+ * The Temple, the most beautiful building in the city (6x6 cells): a platform in two steps with a stair
+ * at the front, a paved court inside a low wall with a gatehouse, the tall sanctuary at the back (the
+ * porch taller than the hall, side chambers, flat roofs with a gold cornice: no pediment, no
+ * battlements), the two free bronze columns before the porch, the bronze sea and the altar of rough
+ * stones in the court. Five colours: five parts.
+ */
 function temple(): Piece[] {
+  const white = 0xf4ecdc;
+  const bronze = COLORS.ochre;
+  const { limestone: stone, limestoneDark: dark, gold } = COLORS;
+  const back = (p: Piece) => (p.geo.translate(0, 0, -0.3), p);
+  const court = 0.45;
+  /** A flat roof: a limestone slab with a thin gold cornice around its edge. */
+  const roof = (w: number, d: number, y: number, z: number): Piece[] => [
+    box(w + 0.06, 0.08, d + 0.06, 0, y, z, stone),
+    ...walls(w + 0.1, d + 0.1, 0.1, 0.07, gold, y + 0.04).map((p) => (p.geo.translate(0, 0, z), p)),
+  ];
   return [
-    box(5.9, 0.3, 5.9, 0, 0, 0, COLORS.limestoneDark),
-    box(5.3, 0.25, 5.3, 0, 0.3, 0, COLORS.limestone),
-    ...walls(5.3, 5.3, 0.55, 0.18, COLORS.limestone, 0.55, 1.2),
-    // Sanctuary with a gold cornice, porch and two columns.
-    box(2.0, 2.4, 3.0, 0, 0.55, -0.9, 0xf4ecdc),
-    box(2.1, 0.14, 3.1, 0, 2.95, -0.9, COLORS.gold),
-    box(1.4, 0.5, 0.8, 0, 2.95, -0.2, 0xf4ecdc),
-    cyl(0.14, 0.14, 1.6, 8, -0.55, 0.55, 0.85, 0xf4ecdc),
-    cyl(0.14, 0.14, 1.6, 8, 0.55, 0.55, 0.85, 0xf4ecdc),
-    cyl(0.2, 0.17, 0.18, 8, -0.55, 2.15, 0.85, COLORS.gold),
-    cyl(0.2, 0.17, 0.18, 8, 0.55, 2.15, 0.85, COLORS.gold),
-    box(0.6, 1.1, 0.04, 0, 0.55, 0.61, COLORS.gold),
-    // Bronze altar and basin in the court.
-    box(0.9, 0.45, 0.9, -1.4, 0.55, 1.6, COLORS.ochre),
-    cyl(0.35, 0.25, 0.3, 10, 1.4, 0.55, 1.6, COLORS.gold),
+    // Platform: a full lower step, the court raised on it, and a stair up the front.
+    box(5.95, 0.22, 5.95, 0, 0, 0, dark),
+    box(5.6, 0.23, 5.0, 0, 0.22, -0.3, stone),
+    box(1.4, 0.115, 0.4, 0, 0.22, 2.4, stone),
+    box(1.4, 0.23, 0.2, 0, 0.22, 2.3, stone),
+    // Joints of the paving.
+    ...[-1.6, -0.5, 0.6, 1.7].map((z) => box(5.4, 0.006, 0.035, 0, court, z, dark)),
+    ...[-1.9, -0.65, 0.65, 1.9].map((x) => box(0.035, 0.006, 4.8, x, court, -0.3, dark)),
+    // The court's wall, open at the gate, and the gatehouse: two towers and a lintel, gold on top.
+    ...walls(5.6, 5.0, 0.5, 0.16, stone, court, 1.4).map(back),
+    ...[-0.95, 0.95].flatMap((x) => [box(0.5, 1.25, 0.5, x, court, 2.0, white), box(0.54, 0.06, 0.54, x, court + 1.25, 2.0, gold)]),
+    box(1.9, 0.28, 0.42, 0, court + 0.97, 2.0, white),
+    // The sanctuary: the hall, the side chambers along it, the tall porch in front, gold cornices and doors.
+    box(1.9, 2.0, 2.6, 0, court, -1.35, white),
+    ...roof(1.9, 2.6, court + 2.0, -1.35),
+    // Narrow windows high on the hall, above the side chambers.
+    ...[-0.95, 0.95].flatMap((x) => [-2.2, -1.35, -0.5].map((z) => box(0.04, 0.38, 0.13, x, court + 1.42, z, dark))),
+    ...[-1.18, 1.18].flatMap((x) => [box(0.45, 1.25, 2.4, x, court, -1.4, stone), box(0.49, 0.06, 2.44, x, court + 1.25, -1.4, dark)]),
+    box(2.3, 2.8, 0.7, 0, court, 0.25, white),
+    ...roof(2.3, 0.7, court + 2.8, 0.25),
+    // Pilasters on the porch front and a band of stone above the doors.
+    ...[-1.08, -0.42, 0.42, 1.08].map((x) => box(0.14, 2.8, 0.05, x, court, 0.62, stone)),
+    box(2.3, 0.1, 0.06, 0, court + 1.38, 0.62, stone),
+    box(0.62, 1.15, 0.04, 0, court, 0.61, gold),
+    ...[-0.62, 0.62].map((x) => box(0.12, 0.42, 0.03, x, court + 1.7, 0.61, bronze)),
+    // The two free columns of bronze before the porch, with bowl capitals.
+    ...[-0.78, 0.78].flatMap((x) => [cyl(0.13, 0.15, 1.95, 10, x, court, 1.0, bronze), cyl(0.23, 0.14, 0.3, 10, x, court + 1.95, 1.0, gold)]),
+    // The bronze sea on its base (front right) and the altar of rough stones with its ramp (front left).
+    box(0.72, 0.16, 0.72, 1.55, court, 1.25, dark),
+    cyl(0.55, 0.4, 0.36, 12, 1.55, court + 0.16, 1.25, bronze),
+    box(1.0, 0.55, 1.0, -1.55, court, 1.15, dark),
+    ...[-0.4, 0.4].flatMap((dx) => [-0.4, 0.4].map((dz) => box(0.14, 0.14, 0.14, -1.55 + dx, court + 0.55, 1.15 + dz, dark))),
+    (() => {
+      const g = new THREE.BoxGeometry(0.42, 0.06, 0.9);
+      g.rotateX(0.55);
+      g.translate(-1.55, court + 0.27, 1.95);
+      return { geo: g, color: dark };
+    })(),
   ];
 }
 

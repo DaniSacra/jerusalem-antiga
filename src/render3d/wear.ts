@@ -122,3 +122,20 @@ export function wearAt(s: Pick<GameState, 'cols' | 'rows'>, map: Float32Array, x
   if (i < 0 || j < 0 || i >= w || j >= s.rows * WEAR_RES) return 0;
   return map[j * w + i];
 }
+
+/** Kinds that stand flat on the ground (no contact shadow around them). */
+const FLAT_KINDS = new Set(['field', 'plaza', 'park']);
+
+/**
+ * Where a building stands, a cell per sample (1 under a building, 0 elsewhere): the terrain samples it
+ * smoothly, so the ground darkens softly at the foot of the walls (a contact shadow that keeps the
+ * buildings on the ground when the sun is weak: night, clouds, rain). Fields, plazas, parks and empty plots are flat.
+ */
+export function standMap(s: GameState): Uint8Array {
+  const out = new Uint8Array(s.cols * s.rows);
+  for (let i = 0; i < out.length; i++) {
+    const b = s.grid[i];
+    if (b && !FLAT_KINDS.has(b.kind) && !(b.kind === 'house' && b.level === 0)) out[i] = 1;
+  }
+  return out;
+}

@@ -156,7 +156,7 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   faíscas, vinheta CSS, grão do chão, margem do rio, toasts e FOME calmos, relevo dos botões
 - (c) Pacotes, em ordem: C1 Música (architect; **feito 2026-11-06**: gerada no navegador, falta o usuário ouvir `music-samples/*.wav` e aprovar o timbre) → C2 Vida na rua (**feito 2026-11-06**) → C3 Casas variadas (**feito 2026-11-06**: kit por código, 6 por nível, e casa espelhada) → C4 Chão e ruas (**feito 2026-11-06**: chão pisado, tufos e seixos, rua com borda escura, sulcos e lajes) →
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
-  título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas)
+  título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **parte 1 feita 2026-11-07**: acabamento de maquete, sombra de contato e Templo por código)
 
 ## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
 0. Pacote B "Primeiro ano de sobrevivência" (feito 2026-11-06) → ajuste "Fim sem frio" (feito

@@ -42,6 +42,9 @@ export const U = {
   /** Moist land by the river (fields.ts moistMap, cell per texel): crops away from it dry out in a drought. */
   uMoist: { value: blankWear(255) as THREE.Texture },
   uDryCrop: { value: new THREE.Color(0xb08a52) },
+  /** Where buildings stand (wear.ts standMap, cell per texel) and how dark the ground gets at their foot. */
+  uStand: { value: blankWear() as THREE.Texture },
+  uContact: { value: 0 },
 };
 
 /** One texel of `v` (no wear yet: 0; moist everywhere: 255), until the terrain sets the city's. */
@@ -162,7 +165,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
         ${o.grow ? 'varying float vDry; uniform vec3 uDryCrop;' : ''}
-        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden;' : ''}
+        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden; uniform sampler2D uStand; uniform float uContact;' : ''}
         ${NOISE}`,
       )
       .replace(
@@ -313,6 +316,9 @@ const TERRAIN_COLOR = /* glsl */ `
     float wb = smoothstep(0.08, 0.7, wear + (vnoise(vWorld.xz * 2.7) - 0.5) * 0.32);
     g = mix(g, uTrodden * (0.9 + 0.2 * vnoise(vWorld.xz * 7.0)), wb * 0.88);
   }
+  // Contact shadow: the ground darkens softly at the foot of the buildings (stronger without sun).
+  float stand = texture2D(uStand, wuv).r;
+  g *= 1.0 - uContact * smoothstep(0.0, 0.5, stand);
   // River banks: a pale band of sand above the water line, wet and dark at the water's edge; in a
   // drought the uncovered bed and the bank are mud, as before.
   float riverK = smoothstep(0.0, 0.06, vGround.y);

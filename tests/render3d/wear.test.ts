@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { indexOf, refreshCity } from '../../src/core';
 import LOOK from '../../src/render3d/look3d.json';
-import { doorOf, pathPairs, WEAR_RES, wearAt, wearMap } from '../../src/render3d/wear';
+import { doorOf, pathPairs, standMap, WEAR_RES, wearAt, wearMap } from '../../src/render3d/wear';
 import { emptyGame, put } from '../helpers';
 
 const W = LOOK.wear;
@@ -67,5 +67,22 @@ describe('trodden ground (wear map)', () => {
     // On the gap between a and b, along the line between their centres.
     expect(wearAt(s, map, 33, 11)).toBeGreaterThan(0.3);
     expect(wearAt(s, map, 33, 11.6)).toBe(0);
+  });
+});
+
+describe('stand map (contact shadow)', () => {
+  it('marks the cells under standing buildings, not fields, empty plots or open ground', () => {
+    const s = emptyGame();
+    put(s, 'house', 25, 27, 2);
+    put(s, 'field', 25, 29);
+    put(s, 'house', 25, 32);
+    const m = standMap(s);
+    expect(m[indexOf(s, 25, 32)]).toBe(0);
+    expect(m[indexOf(s, 25, 27)]).toBe(1);
+    for (let i = 0; i < m.length; i++) if (!s.grid[i]) expect(m[i]).toBe(0);
+    expect(m[indexOf(s, 25, 29)]).toBe(0);
+    expect(m[indexOf(s, 26, 30)]).toBe(0);
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    expect(m[indexOf(s, altar.x, altar.y)]).toBe(1);
   });
 });

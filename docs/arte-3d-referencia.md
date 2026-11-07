@@ -67,7 +67,7 @@ Em ordem do que mais destoa:
 
 | Modelo | O que destoa | Situação |
 |---|---|---|
-| `temple` (Meshy) | pórtico de colunas em volta e ameias: lê grego/romano, não "simples e imponente"; um bloco solto à esquerda | igual: duas novas tentativas saíram piores (frontão grego; salão sem teto). Próximo passo: templo por código mais rico ou Meshy 7.1 só para o santuário |
+| `temple` (Meshy) | pórtico de colunas em volta e ameias: lê grego/romano, não "simples e imponente"; um bloco solto à esquerda | igual: duas novas tentativas saíram piores (frontão grego; salão sem teto). **Resolvido 2026-11-07 (C8): o Templo agora é por código** (`temple()` em `models.ts`: plataforma em dois degraus com escadaria, pátio lajeado com muro e portaria, santuário alto com pórtico mais alto que o salão, câmaras laterais, janelas estreitas, cornija dourada fina, as duas colunas de bronze, o mar de bronze e o altar de pedras; 5 cores, 5 peças). O `temple.glb` saiu do manifesto e fica só no repositório |
 | `house-4` (Meshy) | casa-torre de 2,5 de altura (≈ 5,5 adultos), sem pátio: fora da escala humana | igual: as tentativas saíram sem teto ou com falha preta na textura e mais baixas que a casa de pedra |
 | `market` (Meshy) | vermelho saturado e base que parecia rocha | **trocado** (retexture: linho cru, ocre, terracota apagado; base de terra batida) |
 | `park` (Meshy) | verde-bandeira, folhas pretas, blocos vermelhos e amarelos | **trocado** (retexture: verde-oliva suave, calcário creme, flores apagadas) |

@@ -812,6 +812,19 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     "Rende N…", "Corta 1 árvore a cada N sem", "Divide o bosque…", "Comida depois", "Sem rua ao
     lado: não rende nada" (vermelho), "Congelado no inverno…"; com Demolir, "Cortar árvore · 5 prata"
     ou, num celeiro cheio (ou na rua dele), "Perde N de comida" em vermelho.
+  - **Templo por código** (plano beleza C8, 2026-11-07): a construção mais bonita da cidade, sem
+    frontão grego nem ameias: plataforma em dois degraus com escadaria, pátio lajeado com muro baixo e
+    portaria de duas torres, santuário alto de calcário claro ao fundo (pórtico mais alto que o salão,
+    câmaras laterais, janelas estreitas no alto, telhados planos com cornija dourada fina, portas de
+    ouro), as duas colunas de bronze soltas diante do pórtico, o mar de bronze e o altar de pedras com
+    rampa no pátio.
+  - **Acabamento de maquete** (plano beleza C8, 2026-11-07): um passe final barato sobre o 3D
+    (`render3d/finish.ts`): o alto e o pé da tela ficam levemente desfocados (tilt-shift, a cidade
+    parece maquete sobre a mesa; nítido numa faixa no meio), cor um pouco mais quente e com um toque de
+    contraste. Sombra de contato: o chão escurece de leve ao pé das construções em pé (não campos,
+    praças, parques nem terrenos vazios), mais no tempo nublado, na chuva e à noite (o sol fraco não
+    segura mais os prédios no chão). Números em `look3d.json > finish`. O desfoque e a gradação
+    desligam na qualidade mínima; a sombra de contato não custa nada (vem no shader do chão).
   - **Acabamento da interface HTML** (pacote beleza, 2026-11-06): uma vinheta suave escurece as bordas
     da tela (camada CSS sobre o mapa e sob a interface, sem passe na GPU); os botões de pergaminho e o
     dourado têm sombra deslocada (2 px) e afundam 2 px ao toque; o escolhido (ferramenta, construção,

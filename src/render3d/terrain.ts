@@ -132,7 +132,24 @@ export class Terrain {
     U.uTrodden.value.setHex(Number(LOOK.wear.trodden));
   }
 
+  private stand: THREE.DataTexture | null = null;
+
+  /** Where the buildings stand now (wear.ts standMap), for the contact shadow; again when the city changes. */
+  setStand(map: Uint8Array) {
+    const { cols, rows } = this.s;
+    if (!this.stand) {
+      this.stand = new THREE.DataTexture(new Uint8Array(cols * rows), cols, rows, THREE.RedFormat);
+      this.stand.magFilter = this.stand.minFilter = THREE.LinearFilter;
+    }
+    const data = this.stand.image.data as Uint8Array;
+    for (let i = 0; i < map.length; i++) data[i] = map[i] * 255;
+    this.stand.needsUpdate = true;
+    U.uStand.value = this.stand;
+  }
+
   dispose() {
+    this.stand?.dispose();
+    this.stand = null;
     this.wear?.dispose();
     this.wear = null;
     this.moist?.dispose();

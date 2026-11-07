@@ -12,7 +12,7 @@ import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
 import type { Placed } from './street';
 import { Idlers, Leavers } from './townsfolk';
 import { groundDetail } from './detail';
-import { wearMap } from './wear';
+import { standMap, wearMap } from './wear';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
@@ -164,6 +164,7 @@ export class World {
     const plan = cityPlan(s);
     const wear = wearMap(s);
     ground.setWear(wear);
+    ground.setStand(standMap(s));
     free(this.detail, this.shared);
     const detail = new Instancer(this.models);
     for (const d of groundDetail(s, wear)) detail.add(d.key, d.x, ground.height(d.x, d.z) - 0.01, d.z, d.rot, d.scale);

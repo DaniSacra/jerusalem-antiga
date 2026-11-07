@@ -6,6 +6,7 @@ import { Atmosphere } from './atmosphere';
 import type { CameraRig } from './camera';
 import { COLORS, CROPS, crownMaterial, materialOf, type ModelKey, type Prototype } from './models';
 import { Particles } from './particles';
+import { Finish } from './finish';
 import { setColor, U } from './shaders';
 import { mixColor } from './time/color';
 import { fieldHands, frameLight, streetShare } from './time/light';
@@ -69,6 +70,10 @@ export class Stage {
   private seasons: SeasonClock;
   private climate: SeasonClock;
   private weather: WeatherClock;
+  /** The maquete finish (tilt-shift and grading), above the minimum quality. */
+  private finish = new Finish();
+  /** Draw calls and triangles of the scene alone in the last frame (the finish adds one call). */
+  private drawn = { calls: 0, triangles: 0 };
   private fx: Record<'rain' | 'splash' | 'snow' | 'leaves' | 'petals' | 'dust', Particles>;
   private cloudOffset = new THREE.Vector2();
   private waterTint = new THREE.Color();
@@ -130,12 +135,14 @@ export class Stage {
   resize(w: number, h: number, rig: CameraRig) {
     this.size = { w, h };
     this.renderer.setSize(w, h);
+    this.finish.setSize(this.renderer);
     rig.resize(w, h);
   }
 
   setLevel(l: Level) {
     this.level = l;
     this.renderer.setPixelRatio(this.pixelRatio(l));
+    this.finish.setSize(this.renderer);
     this.renderer.shadowMap.type = l === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     const sun = this.atmo.sun.shadow;
     sun.mapSize.setScalar(l === 'high' ? 2048 : l === 'low' ? 1024 : 512);
@@ -269,6 +276,9 @@ export class Stage {
     this.waterTint.setHex(mixColor(mixColor(0x3f8594, 0x6a7a84, w.rain * 0.6 + s3.snow * 0.3), 0x8a8a6a, s3.drought * 0.4));
     world.water.update(time, dt, w.rain, w.wind, s3.drought * LOOK.drought.river, this.waterTint);
     // Glints on the river: a clear sky and a low sun, most in the afternoon.
+    // Contact shadow at the foot of the buildings: light in the sun, darker when the sun is weak.
+    const sunny = (1 - L.night) * (1 - L.clouds) * (1 - w.rain);
+    U.uContact.value = LOOK.finish.contactSun + (LOOK.finish.contactDim - LOOK.finish.contactSun) * (1 - sunny);
     const low = 1 - 0.75 * Math.min(1, Math.max(0, (L.sunDir.y - 0.45) / 0.45));
     world.water.sun(L.sunDir, rig.camera, (1 - L.night) * (1 - L.clouds) * (1 - w.rain) * low * (t > LOOK.day.noon ? 1 : 0.35));
     U.uWaterY.value = WATER_Y + world.water.mesh.position.y;
@@ -311,7 +321,10 @@ export class Stage {
 
     this.week = week;
     this.frames++;
-    renderer.render(this.scene, rig.camera);
+    if (this.level === 'min') {
+      renderer.render(this.scene, rig.camera);
+      this.drawn = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
+    } else this.drawn = this.finish.render(renderer, this.scene, rig.camera);
     return this.checkQuality(now);
   }
 
@@ -338,13 +351,14 @@ export class Stage {
 
   info() {
     const r = this.renderer;
-    return { fps: this.fps(), level: this.level, calls: r.info.render.calls, triangles: r.info.render.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, idle: this.world?.idlers.shown ?? 0, idlePlanned: this.world?.idlers.planned ?? 0, leaving: this.world?.leavers.walking ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
+    return { fps: this.fps(), level: this.level, calls: this.drawn.calls, finish: this.level !== 'min', triangles: this.drawn.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, idle: this.world?.idlers.shown ?? 0, idlePlanned: this.world?.idlers.planned ?? 0, leaving: this.world?.leavers.walking ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */
   dispose() {
     this.renderer.setAnimationLoop(null);
     disposeScene(this.scene);
+    this.finish.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.el.remove();
