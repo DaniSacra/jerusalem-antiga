@@ -837,8 +837,12 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     e o áudio é suspenso, volta em 4 s. Tecla **M** liga e desliga no PC. A chave de silêncio do
     iPhone cala a música.
   - **Tela inicial em HTML**: nome, como jogar, controles, "Começar" (Enter no
-    PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. O Three.js baixa
-    enquanto ela está aberta; o jogo abre com os modelos feitos em código e troca pelos modelos do
+    PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. Abre na hora
+    sobre um fundo quente; o Three.js baixa e **a cidade da partida abre atrás dela**: o fundo
+    clareia em 1,2 s para uma vinheta, a câmera gira devagar (uma volta em ~3 min), as pessoas e a
+    água se mexem, mas as semanas, a interface e as teclas do jogo esperam. "Começar" volta a câmera
+    à vista de abertura e o jogo começa. O nome usa uma serifa de pedra (`TITLE_FONT`, fontes do
+    sistema, funciona sem rede). O jogo abre com os modelos feitos em código e troca pelos modelos do
     pacote (Meshy) quando eles chegam.
   - **Vida e efeitos no 3D**: a gente da comida (carregadores com saco do campo ao
     celeiro ou ao altar na época de colheita, pescador com o cesto na margem do rio, coletora com o
@@ -1035,7 +1039,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     cidade que vira adulta diz o nome ("Miriã, nascida aqui, virou adulta!", `grownUpThisWeek`);
   - toasts sobem para ficar acima do balão do tutorial quando ele é mais alto que as ferramentas
     (no celular encostavam nele);
-  - a tela de vitória tem a linha "N nascimentos · N casamentos" (contados pela cena na partida);
+  - vitória e derrota: a cidade desfocada atrás, ramos de oliveira dourados dos dois lados do
+    título (serifa), um filete dourado no cartão e **medalhas** (número grande num disco dourado e o
+    que ele conta): na vitória moradores, nascimentos e casamentos (contados pela cena na partida);
+    na derrota semanas jogadas e moradores no auge;
   - os avisos de casais e de nascimentos ("Casal esperando casa", "Sem nascimentos: …") não viram
     toast enquanto o tutorial roda (o balão do tutorial já fala do casal).
 - **Tamanhos de teste:** 844 x 390, 915 x 412 e 1366 x 768.

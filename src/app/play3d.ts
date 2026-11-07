@@ -21,7 +21,12 @@ const PERSON_REACH_MOUSE = 16;
 export interface Play3DOptions extends Scene3DOptions {
   /** A new game after a defeat: the same map or a new one. */
   restart(sameMap: boolean): void;
+  /** Opens behind the title screen: the weeks wait, the interface hides, the camera circles slowly until `begin`. */
+  behind?: boolean;
 }
+
+/** The camera's slow turn behind the title screen (radians a second: a full circle in ~3 minutes). */
+const TITLE_ORBIT = 0.035;
 
 /**
  * The playable city in 3D: the Session drawn by `Scene3D` under the HTML interface. This owns the
@@ -41,6 +46,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
   private lastTouch = navigator.maxTouchPoints > 0;
   /** Something happened since the last frame drawn (input, the game): draw the next one. */
   private wake = true;
+  /** Behind the title screen (see `Play3DOptions.behind`). */
+  private behind: boolean;
+  /** The opening view's heading, put back when the game begins. */
+  private readonly openingYaw: number;
 
   private constructor(
     readonly session: Session,
@@ -48,7 +57,9 @@ export class Play3D implements SessionView, GestureView, HudHost {
     private opts: Play3DOptions,
   ) {
     const root = (this.root = document.createElement('div'));
-    root.className = 'g3d';
+    root.className = opts.behind ? 'g3d behind' : 'g3d';
+    this.behind = !!opts.behind;
+    this.openingYaw = scene.rig.heading;
     root.style.cssText = `position:fixed;inset:0;z-index:5;background:${NOVA_CSS.bg};overflow:hidden;touch-action:none;`;
     const el = scene.el;
     el.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
@@ -111,7 +122,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
     }, { passive: false });
     on<Event>(el, 'contextmenu', (e) => e.preventDefault());
     on<KeyboardEvent>(window, 'keydown', (e) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || this.behind) return;
       const c = keyCommand(e.key, true);
       if (!c) return;
       e.preventDefault();
@@ -131,7 +142,17 @@ export class Play3D implements SessionView, GestureView, HudHost {
   // ---------------------------------------------------------------- GestureView
 
   get modalOpen() {
-    return this.hud.modalOpen;
+    return this.behind || this.hud.modalOpen;
+  }
+
+  /** The title screen closed: the camera back at the opening view, the interface and the weeks start. */
+  begin(tutorial: boolean) {
+    if (!this.behind) return;
+    this.behind = false;
+    this.root.classList.remove('behind');
+    this.scene.rig.set({ yaw: this.openingYaw });
+    this.wake = true;
+    this.session.begin(tutorial);
   }
 
   /** The cell under a screen point: a building's box first with Mover and Demolir, else the ground. */
@@ -280,7 +301,9 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.pointTutorial();
     this.drawThumbs();
     this.hud.frame(dt * 1000);
-    const speed = this.modalOpen ? 0 : s.speed;
+    // Behind the title the weeks wait but the town lives (people, smoke, water) under a turning camera.
+    if (this.behind) this.scene.rig.turnBy(dt * TITLE_ORBIT);
+    const speed = this.behind ? 1 : this.modalOpen ? 0 : s.speed;
     this.scene.frame(dt, (now - this.start) / 1000, s.state.week + s.weekFrac, speed, settings.dayNight, !!this.gestures.press);
   }
 
@@ -298,7 +321,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
   /** The game stands still, the camera too, and nothing happened since the last frame. */
   private get idle() {
     const s = this.session;
-    return !this.wake && (s.speed === 0 || this.modalOpen) && !this.gestures.press && !this.marksDirty && this.scene.still;
+    return !this.wake && !this.behind && (s.speed === 0 || this.modalOpen) && !this.gestures.press && !this.marksDirty && this.scene.still;
   }
 
   private drawMarks() {

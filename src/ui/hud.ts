@@ -1,7 +1,7 @@
 import type { BuildableKind, Rect } from '../core';
 import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
-import { NOVA_CSS, NOVA_FONT } from '../game/palette';
+import { NOVA_CSS, NOVA_FONT, TITLE_FONT } from '../game/palette';
 import { T } from '../game/strings';
 import { Anchors, type Free } from './anchors';
 import { CardBalloon } from './cardBalloon';
@@ -77,6 +77,7 @@ export class Hud {
     for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad, parchment: NOVA_CSS.parchment, 'gold-light': NOVA_CSS.goldLight, shadow: NOVA_CSS.shadow, vignette: NOVA_CSS.vignette }))
       root.style.setProperty(`--c-${k}`, v);
     root.style.setProperty('--font', NOVA_FONT);
+    root.style.setProperty('--title-font', TITLE_FONT);
     const s = host.session;
     this.anchors = new Anchors((r, top) => host.screenOf(r, top));
     this.settings = new SettingsPanel();
@@ -270,13 +271,21 @@ export class Hud {
   }
 
   showVictory(week: number, residents: number, births: number, weddings: number) {
-    this.modal.show(T.victoryTitle, `${T.victoryText(week, residents)}\n${T.victoryPeople(births, weddings)}`, [[T.keepBuilding, () => this.modal.close()]]);
+    const m = T.medal;
+    this.modal.show(T.victoryTitle, T.victoryText(week, residents), [[T.keepBuilding, () => this.modal.close()]], [
+      [residents, m.residents(residents)],
+      [births, m.births(births)],
+      [weddings, m.weddings(weddings)],
+    ]);
   }
 
   showDefeat(week: number, peak: number) {
     this.modal.show(T.defeatTitle, T.defeatText(week, peak), [
       [T.sameMap, () => this.host.restart(true)],
       [T.retry, () => this.host.restart(false)],
+    ], [
+      [week, T.medal.weeks(week)],
+      [peak, T.medal.peak(peak)],
     ]);
   }
 

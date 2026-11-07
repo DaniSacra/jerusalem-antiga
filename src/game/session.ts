@@ -120,9 +120,9 @@ export class Session {
   /** First-game tutorial (null when seen before or skipped). */
   guide: TutorialGuide | null;
   /** The road the tutorial suggests (chosen once per game). */
-  readonly ghost: Cell[];
+  ghost: Cell[];
   /** The fisher or gatherer spot at the end of that road (the gather step points at it). */
-  readonly spot: FoodSpot | null;
+  spot: FoodSpot | null;
   /** A free house spot for the tutorial arrow (houses step). */
   houseHint: Cell | null = null;
   /** The lumber step's spot and the road to it, found once when the step starts. */
@@ -150,6 +150,23 @@ export class Session {
     this.spot = this.guide ? foodSpot(this.state) : null;
     this.ghost = this.spot?.road ?? [];
     this.city = readCity(this.state);
+    this.saveSeen = o.saveSeen;
+  }
+
+  private saveSeen?: () => void;
+
+  /**
+   * The game starts (the title screen closed over the city): the tutorial too when it was asked for
+   * ("Ver tutorial de novo"), and the camera goes again to the current step.
+   */
+  begin(tutorial: boolean) {
+    if (tutorial && !this.guide) {
+      this.guide = new TutorialGuide(this.state, this.saveSeen);
+      this.spot = foodSpot(this.state);
+      this.ghost = this.spot?.road ?? [];
+    }
+    this.pannedFor = null;
+    this.refresh();
   }
 
   /** The view that draws this session (set once it exists). */

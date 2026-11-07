@@ -101,8 +101,9 @@ outro agente durante a rodada não recarrega a página no meio de um cenário.
 
 | Cenário | O que faz e verifica | Screenshots |
 |---|---|---|
-| `title` | tela inicial; depois de ver o tutorial, com "Rever o tutorial"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-again`, `title-install` |
+| `title` | tela inicial; a cidade abre atrás dela (o fundo clareia, a câmera gira, a interface do jogo fica escondida) e Enter volta à vista de abertura com a interface; depois de ver o tutorial, com "Rever o tutorial"; um `beforeinstallprompt` falso mostra "Instalar app" e o clique chama a instalação | `title`, `title-live`, `title-again`, `title-install` |
 | `play3d`, `play3d-pc` | `?seed=7`: tela inicial em HTML (Começar ≥ 44 px, sem "Rever o tutorial" no primeiro jogo; toque ou Enter), o jogo em 3D (um canvas), interface no formato do aparelho e dentro da tela, tutorial aberto; Rua e arrasto (toque ou mouse) pela rua marcada constrói a rua; a engrenagem liga e desliga dia e noite (salvo) e fecha (Esc no PC) | `play3d-<phone/pc>`, `-title`, `-road`, `-settings` |
+| `end3d`, `end3d-pc` | cartões de vitória e de derrota (abertos pelo `hud`): ramos dourados, 3 e 2 medalhas, cartão inteiro na tela | `end3d-<phone/pc>-victory`, `-defeat` |
 | `input3d-pc` | 3D direto no PC: D move a câmera, Q gira um quarto de volta, a roda aproxima, o botão direito arrasta o mapa, 2 escolhe Rua, Esc volta para Mover, Espaço muda a velocidade | `input3d-pc` |
 | `touch3d` | 3D direto no celular: um dedo com Mover move o mapa; com Rua, a pinça aproxima e não constrói; dois dedos girando giram o mapa sem construir | `touch3d` |
 | `context3d-pc` | 3D no PC: pausado e parado desenha ~10 quadros por segundo e segura os quadros (`idle`); andando nunca segura (o teste olha o estado, não a contagem: o SwiftShader é lento demais para comparar quadros); a cidade volta inteira depois de perder e recuperar o contexto WebGL (`WEBGL_lose_context`) | `context3d-pc` |

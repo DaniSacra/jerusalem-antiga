@@ -271,6 +271,25 @@ async function music3dScenario(page, name) {
   assert(!errors.length, `no page errors (${errors.join(' | ')})`);
 }
 
+/** The victory and defeat cards: gold branches, the medals, the blurred city, all on screen. */
+async function end3dScenario(page, suffix) {
+  await open3dGame(page);
+  const check = async (name, medals) => {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${OUT}/end3d-${suffix}-${name}.png` });
+    const fit = await page.evaluate(() => {
+      const r = document.querySelector('.modal.end .card').getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, w: innerWidth, h: innerHeight, medals: document.querySelectorAll('.modal.end .medal').length, branches: document.querySelectorAll('.modal.end .branch svg').length };
+    });
+    assert(fit.medals === medals && fit.branches === 2, `the ${name} card has its ${medals} medals and two branches (${JSON.stringify(fit)})`);
+    assert(fit.top >= 0 && fit.bottom <= fit.h && fit.left >= 0 && fit.right <= fit.w, `the ${name} card fits the screen (${JSON.stringify(fit)})`);
+  };
+  await page.evaluate(() => window.view3d.game.hud.showVictory(160, 84, 23, 11));
+  await check('victory', 3);
+  await page.evaluate(() => window.view3d.game.hud.showDefeat(70, 31));
+  await check('defeat', 2);
+}
+
 /** Opens the 3D game on its own and leaves the title screen (tutorial marked as seen). */
 async function open3dGame(page, seed = 7) {
   await page.addInitScript(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
@@ -1728,6 +1747,20 @@ const scenarios = {
     await page.waitForSelector('[data-spot="start"]', { timeout: 60000 });
     await shot(page, 'title');
     assert(!(await page.$('[data-spot="tutorial-again"]')), 'a first game offers no tutorial again');
+    // The city opens behind the title: the backdrop clears, the camera circles, the weeks and the interface wait.
+    await page.waitForSelector('.title-screen.live', { timeout: 180000 });
+    await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3, null, { timeout: 180000 });
+    const h0 = await page.evaluate(() => window.view3d.rig.heading);
+    await page.waitForTimeout(3000);
+    await shot(page, 'title-live');
+    const behind = await page.evaluate(() => ({ heading: window.view3d.rig.heading, hud: getComputedStyle(document.querySelector('.g3d #hud')).visibility }));
+    assert(behind.heading !== h0, `the camera circles behind the title (${h0} → ${behind.heading})`);
+    assert(behind.hud === 'hidden', `the game's interface waits behind the title (${behind.hud})`);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.session, null, { timeout: 30000 });
+    const begun = await page.evaluate(() => ({ heading: window.view3d.rig.heading, hud: getComputedStyle(document.querySelector('.g3d #hud')).visibility, title: !!document.querySelector('.title-screen') }));
+    const offView = Math.abs(((begun.heading - Math.PI / 4) % (Math.PI / 2) + Math.PI / 2) % (Math.PI / 2));
+    assert(Math.min(offView, Math.PI / 2 - offView) < 0.01 && begun.hud === 'visible' && !begun.title, `Começar shows the game from the opening view (${JSON.stringify(begun)})`);
     // Once the tutorial was seen, the title offers it again.
     await page.evaluate(() => localStorage.setItem('jerusalem.tutorialDone', '1'));
     await page.reload();
@@ -1755,6 +1788,8 @@ const scenarios = {
   play3d: { context: PHONE, run: (page) => play3dScenario(page, 'phone') },
   'play3d-pc': { context: PC, run: (page) => play3dScenario(page, 'pc') },
   'input3d-pc': { context: PC, run: input3dScenario },
+  end3d: { context: PHONE, run: (page) => end3dScenario(page, 'phone') },
+  'end3d-pc': { context: PC, run: (page) => end3dScenario(page, 'pc') },
   touch3d: { context: PHONE, run: touch3dScenario },
   'context3d-pc': { context: PC, run: context3dScenario },
   'town3d-pc': { context: PC, run: town3dScenario },

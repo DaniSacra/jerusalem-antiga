@@ -29,15 +29,21 @@ export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 
     onSettings(() => m.apply());
     if (import.meta.env.DEV) Object.assign(window, { music: m });
   }
-  // The title screen shows while Three.js and the models download.
-  const [{ Play3D }, { tutorial }] = await Promise.all([import('./play3d'), title ? showTitle() : { tutorial: false }]);
-  const session = new Session({ seed, tutorial, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
+  // The title screen shows at once; the city opens behind it while Three.js and the models download.
+  const screen = title ? showTitle() : null;
+  const { Play3D } = await import('./play3d');
+  const session = new Session({ seed, tutorial: false, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
   const game = await Play3D.open(session, {
+    behind: !!screen,
     restart: (sameMap) => {
       game.close();
       void start3d(sameMap ? seed : (Math.random() * 2 ** 32) >>> 0, false);
     },
   });
+  if (screen) {
+    screen.reveal();
+    game.begin((await screen.chosen).tutorial);
+  }
   listen = () => ({ season: seasonOf(session.state.week), night: game.scene.ambience.night > 0.5, rain: game.scene.ambience.rain > 0.3 });
   const s = session.state;
   if (s.week === 0) {

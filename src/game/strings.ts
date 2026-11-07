@@ -237,9 +237,14 @@ export const T = {
   victoryTitle: 'Vitória!',
   victoryText: (played: number, residents: number) =>
     `O Templo foi construído em ${duration(played)}, com ${residents} moradores.`,
-  /** Second line of the victory: the city's own story. */
-  victoryPeople: (births: number, weddings: number) =>
-    `${births} ${births === 1 ? 'nascimento' : 'nascimentos'} · ${weddings} ${weddings === 1 ? 'casamento' : 'casamentos'}`,
+  /** The "medals" under the victory and defeat text: a big number and what it counts. */
+  medal: {
+    residents: (n: number) => (n === 1 ? 'morador' : 'moradores'),
+    births: (n: number) => (n === 1 ? 'nascimento' : 'nascimentos'),
+    weddings: (n: number) => (n === 1 ? 'casamento' : 'casamentos'),
+    weeks: (n: number) => (n === 1 ? 'semana jogada' : 'semanas jogadas'),
+    peak: (n: number) => (n === 1 ? 'morador no auge' : 'moradores no auge'),
+  },
   keepBuilding: 'Continuar construindo',
   defeatTitle: 'Jerusalém foi abandonada',
   defeatText: (weeksPlayed: number, peak: number) =>

@@ -63,4 +63,6 @@ export const NOVA_CSS = {
 };
 
 /** Rounded and readable, system fonts only (the game is an offline app): falls back to the classic font. */
+/** The game's name and the victory and defeat titles: a carved-stone serif (system fonts only: the app works offline). */
+export const TITLE_FONT = '"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif';
 export const NOVA_FONT = 'ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", "Varela Round", "Trebuchet MS", Verdana, sans-serif';
