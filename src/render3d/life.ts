@@ -238,14 +238,14 @@ const SMOKE_VERT = /* glsl */ `
 #include <common>
 #include <fog_pars_vertex>
 attribute vec4 aSrc; attribute float aOff;
-uniform float uTime; uniform float uShare; uniform float uWind; uniform float uOpacity;
+uniform float uTime; uniform float uShare; uniform float uWind; uniform float uOpacity; uniform float uRise; uniform float uSize;
 varying vec2 vUv; varying vec2 vView; varying float vA; varying float vSeed;
 void main() {
   float age = fract(uTime / ${RISE_SECONDS.toFixed(1)} + aOff);
   // A source smokes when its key is under the share (the altar and the kilns always).
   float on = step(aSrc.w + 1e-4, uShare);
-  float size = (0.16 + age * 0.6) * min(1.0, (1.0 - age) * 2.5) * on;
-  vec3 c = aSrc.xyz + vec3(age * (0.9 + uWind * 2.2) + sin(uTime + aOff * 40.0) * 0.05, age * (1.8 - uWind * 0.8), -age * 0.3);
+  float size = (0.16 + age * 0.6) * min(1.0, (1.0 - age) * 2.5) * on * uSize;
+  vec3 c = aSrc.xyz + vec3(age * (0.9 + uWind * 2.2) + sin(uTime + aOff * 40.0) * 0.05, age * (1.8 - uWind * 0.8) * uRise, -age * 0.3);
   vec4 mvPosition = modelViewMatrix * vec4(c, 1.0);
   float r = aOff * 37.0 + age * 1.2;
   vView = mat2(cos(r), sin(r), -sin(r), cos(r)) * position.xy;
@@ -282,8 +282,11 @@ export class Smoke {
   readonly mesh: THREE.Mesh;
   private material: THREE.ShaderMaterial;
 
-  /** Sources: x, y, z and in w a 0..1 key (a source smokes when its key is below the share; see `smokeShare`). */
-  constructor(sources: THREE.Vector4[]) {
+  /**
+   * Sources: x, y, z and in w a 0..1 key (a source smokes when its key is below the share; see `smokeShare`).
+   * `look` makes other puffs of it: the quarry's dust is sandy, low and wide (`rise` and `size` scale the climb and the puffs).
+   */
+  constructor(sources: THREE.Vector4[], private look = { color: SMOKE_COLOR, rise: 1, size: 1 }) {
     const n = Math.max(1, sources.length * PUFFS);
     const g = quads(sources.length * PUFFS);
     const src = new Float32Array(n * 4);
@@ -299,7 +302,7 @@ export class Smoke {
     this.material = new THREE.ShaderMaterial({
       vertexShader: SMOKE_VERT,
       fragmentShader: SMOKE_FRAG,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uShare: { value: 0 }, uWind: { value: 0 }, uOpacity: { value: SMOKE_OPACITY }, uColor: { value: new THREE.Color(SMOKE_COLOR) } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uShare: { value: 0 }, uWind: { value: 0 }, uOpacity: { value: SMOKE_OPACITY }, uRise: { value: look.rise }, uSize: { value: look.size }, uColor: { value: new THREE.Color(look.color) } }]),
       transparent: true,
       depthWrite: false,
       fog: true,
@@ -319,7 +322,7 @@ export class Smoke {
     u.uShare.value = share;
     u.uWind.value = wind;
     u.uOpacity.value = opacity;
-    (u.uColor.value as THREE.Color).setHex(SMOKE_COLOR).multiplyScalar(0.35 + 0.65 * light);
+    (u.uColor.value as THREE.Color).setHex(this.look.color).multiplyScalar(0.35 + 0.65 * light);
   }
 }
 

@@ -205,6 +205,82 @@ async function sanctuary3dScenario(page) {
   assert(far.calls <= 120, `at most 120 draw calls (${far.calls})`);
 }
 
+/** Workshops by craft (plano beleza C8): the six crafts in a row, each read by its silhouette and colour from mid distance; and a market of each level. */
+async function crafts3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `crafts3d-pc-${name}`;
+  const at = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.unlocked = [...new Set([...s.unlocked, 'workshop', 'market'])];
+    s.feature = s.feature.map(() => null);
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    // A row of six workshops (3x3) and three markets (2x4) on free land, nearest the altar.
+    const fits = (x, y) => {
+      for (let k = 0; k < 6; k++) if (!core.checkPlace(s, 'workshop', x + k * 3, y).ok) return false;
+      for (let k = 0; k < 3; k++) if (!core.checkPlace(s, 'market', x + k * 3, y + 4).ok) return false;
+      return true;
+    };
+    let best = null;
+    for (let y = 1; y < s.rows - 10; y++)
+      for (let x = 1; x < s.cols - 19; x++) {
+        const d = Math.hypot(x - altar.x, y - altar.y);
+        if ((!best || d < best.d) && fits(x, y)) best = { x, y, d };
+      }
+    if (!best) return null;
+    for (let k = 0; k < 6; k++) {
+      core.place(s, 'workshop', best.x + k * 3, best.y);
+      s.grid[best.y * s.cols + best.x + k * 3].variant = k;
+    }
+    for (let k = 0; k < 3; k++) {
+      core.place(s, 'market', best.x + k * 3, best.y + 4);
+      s.grid[(best.y + 4) * s.cols + best.x + k * 3].level = k + 1;
+    }
+    core.refreshCity(s);
+    window.session.refresh();
+    return { x: best.x + 9, z: best.y + 1.5, mz: best.y + 6 };
+  });
+  assert(at, 'room for six workshops and three markets');
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  const look = async (name, cam, day = 0.32) => {
+    await page.evaluate(([day, cam]) => {
+      window.view3d.view({ day, pos: 30.5, weather: { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.5, snowing: false } });
+      window.view3d.rig.set(cam);
+    }, [day, cam]);
+    await page.waitForTimeout(1000);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  const mid = await look('row', { x: at.x, z: at.z, dist: 26, yaw: 0, pitch: 0.8 });
+  assert(mid.calls <= 120, `at most 120 draw calls (${mid.calls})`);
+  await look('near-a', { x: at.x - 4.5, z: at.z, dist: 11, yaw: 0, pitch: 0.65 });
+  await look('near-b', { x: at.x + 4.5, z: at.z, dist: 11, yaw: 0, pitch: 0.65 });
+  await look('night', { x: at.x, z: at.z, dist: 22, yaw: 0, pitch: 0.8 }, 0.72);
+  await look('markets', { x: at.x - 4.5, z: at.mz, dist: 13, yaw: 0, pitch: 0.7 });
+  // A quarry by the road network cuts stone: dust over it by day, none at night.
+  const q = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.unlocked = [...new Set([...s.unlocked, 'quarry'])];
+    s.stone = 100; // under the store's limit: the quarry cuts
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    let best = null;
+    for (let y = 1; y < s.rows - 3; y++)
+      for (let x = 1; x < s.cols - 3; x++) {
+        const d = Math.hypot(x - altar.x, y - altar.y);
+        if ((!best || d < best.d) && core.checkPlace(s, 'quarry', x, y).ok) best = { x, y, d };
+      }
+    if (!best || !core.place(s, 'quarry', best.x, best.y).ok) return null;
+    core.refreshCity(s);
+    window.session.refresh();
+    const b = s.grid[best.y * s.cols + best.x];
+    return { x: b.x + 1, z: b.y + 1, connected: b.connected };
+  });
+  await page.waitForTimeout(800);
+  if (q) q.dust = await page.evaluate(() => window.view3d.game.scene.stage.world.dust.mesh.visible);
+  assert(q && q.connected && q.dust, `a working quarry raises dust (${JSON.stringify(q)})`);
+  await look('quarry', { x: q.x, z: q.z, dist: 9, yaw: 0, pitch: 0.6 });
+}
+
 /**
  * The 3D game: no Phaser at all, the HTML interface over the map, the
  * tutorial's first step and its marked road, and a road pulled by drag along the marked cells.
@@ -1882,6 +1958,7 @@ const scenarios = {
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
   'river3d-pc': { context: PC, run: (page) => river3dScenario(page) },
   'maquete3d-pc': { context: PC, run: (page) => maquete3dScenario(page) },
+  'crafts3d-pc': { context: PC, run: (page) => crafts3dScenario(page) },
   'sanctuary3d-pc': { context: PC, run: (page) => sanctuary3dScenario(page) },
   'trees3d-pc': { context: PC, run: (page) => trees3dScenario(page) },
   'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },

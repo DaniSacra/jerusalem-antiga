@@ -80,6 +80,7 @@
   "finish": { "blur": 2.6, "band": 0.16, "fade": 0.3, "warm": 0.035, "contrast": 1.05, "samples": 4, "contactSun": 0.12, "contactDim": 0.35 },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
+    "quarryDust": { "color": "0xe0cfae", "rise": 0.35, "size": 1.9, "opacity": 0.6 },
     "ring": { "seconds": 0.7, "start": 0.15, "lift": 0.06 },
     "celebrate": { "rings": 4, "every": 0.18, "radius": 2.6, "grow": 0.75, "sparks": 40 },
     "upgraded": { "radius": 1.2 },

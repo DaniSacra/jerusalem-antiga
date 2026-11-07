@@ -818,6 +818,15 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     câmaras laterais, janelas estreitas no alto, telhados planos com cornija dourada fina, portas de
     ouro), as duas colunas de bronze soltas diante do pórtico, o mar de bronze e o altar de pedras com
     rampa no pátio.
+  - **Oficinas por ofício e obra** (plano beleza C8, 2026-11-07): cada ofício se lê de longe por uma
+    forma grande na sua cor, sobre o alpendre e no telhado: ferraria com toldo de fuligem e chaminé de
+    forja acesa na boca; carpintaria com pilhas de tábuas amarelas no telhado e toras encostadas;
+    tecelagem com toldo listrado azul e um tear no telhado; tinturaria com varais de panos vermelhos,
+    azuis e ocres; curtume com toldo marrom e couros esticados em armações. A olaria fica como o
+    modelo. O mercado de nível 2 e 3 ganha montes de romãs, laranjas e grãos nas bancas. O terreno
+    vazio mostra a obra: estacas nos cantos com a linha do pedreiro, um trenó de madeira para as
+    pedras e um maço. A pedreira ligada levanta poeira de pedra no pátio, de dia, sem chuva e com o
+    estoque de pedra abaixo do limite (cheio, ela para e a poeira também).
   - **Acabamento de maquete** (plano beleza C8, 2026-11-07): um passe final barato sobre o 3D
     (`render3d/finish.ts`): o alto e o pé da tela ficam levemente desfocados (tilt-shift, a cidade
     parece maquete sobre a mesa; nítido numa faixa no meio), cor um pouco mais quente e com um toque de

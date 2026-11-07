@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { calendar, type GameState } from '../core';
+import { calendar, storageFull, type GameState } from '../core';
 import { SeasonClock, type TreeState } from '../game/seasons';
 import { T } from '../game/strings';
 import { Atmosphere } from './atmosphere';
@@ -300,6 +300,8 @@ export class Stage {
     // A winter without firewood: no house smokes and the tent fires are out (the altar burns on).
     const cold = this.s.cold;
     world.smoke.update(time, smokeShare(look.smoke, L.night, cold), w.wind, SMOKE_OPACITY * (1 - 0.5 * w.rain), 1 - 0.7 * L.night);
+    // The quarries cut by day: dust, none at night, in the rain (wet stone) or with the stone store full (they stop).
+    world.dust.update(time, storageFull(this.s, 'stone') ? 0 : 1, w.wind, LOOK.fx.quarryDust.opacity * (1 - L.night) * (1 - w.wet), 1);
     world.fires.update(time, L.night, w.rain, renderer.getPixelRatio(), cold);
     world.flames.update(time, L.night, w.rain, cold);
     world.doors.update(L.night, L.windows, w.rain);

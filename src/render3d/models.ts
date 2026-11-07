@@ -299,8 +299,21 @@ function walls(w: number, d: number, h: number, t: number, color: number, y = 0,
 // ------------------------------------------------------------------ the models
 
 function plot(): Piece[] {
-  // Empty plot: a foundation course and a pile of stones ready to build.
-  return [...walls(1.4, 1.4, 0.12, 0.14, COLORS.limestoneDark), blob(0.16, 0.35, 0.08, 0.3, COLORS.rock, 0.6), blob(0.12, 0.15, 0.06, 0.4, COLORS.rock, 0.6)];
+  // Empty plot, ready to build: a foundation course, a pile of stones, the corner stakes with the
+  // builder's line between them, a wooden sledge for the stones and a mallet (all wood: one part more).
+  const wood = COLORS.wood;
+  return [
+    ...walls(1.4, 1.4, 0.12, 0.14, COLORS.limestoneDark),
+    blob(0.16, 0.35, 0.08, 0.3, COLORS.rock, 0.6),
+    blob(0.12, 0.15, 0.06, 0.4, COLORS.rock, 0.6),
+    ...[[-0.82, -0.82], [0.82, -0.82], [-0.82, 0.82], [0.82, 0.82]].map(([x, z]) => box(0.04, 0.3, 0.04, x, 0, z, wood)),
+    ...walls(1.64, 1.64, 0.012, 0.012, wood, 0.26),
+    box(0.62, 0.04, 0.3, -0.3, 0.02, 0.45, wood, 0.3),
+    box(0.04, 0.03, 0.34, -0.62, 0.03, 0.38, wood, 0.3),
+    box(0.04, 0.03, 0.34, 0.0, 0.03, 0.52, wood, 0.3),
+    box(0.12, 0.08, 0.08, 0.45, 0, -0.35, wood),
+    box(0.03, 0.03, 0.28, 0.45, 0.03, -0.2, wood),
+  ];
 }
 
 function tent(): Piece[] {
@@ -778,7 +791,67 @@ const CRAFT_AT: [number, number] = [0.72, 0.78];
 /** Height of the workshop's yard floor (the Meshy model stands on a raised platform). */
 const CRAFT_FLOOR = 0.24;
 function craft(k: 1 | 2 | 3 | 4 | 5): Piece[] {
-  return craftPieces(k).map((p) => ({ ...p, geo: p.geo.translate(0, CRAFT_FLOOR, 0) }));
+  return [...craftPieces(k).map((p) => ({ ...p, geo: p.geo.translate(0, CRAFT_FLOOR, 0) })), ...craftSign(k)];
+}
+
+/** Over the workshop's porch (its front, +z) and on its roof (the back half). */
+const PORCH: [y: number, z: number] = [1.02, 0.72];
+const ROOF: [y: number, z: number] = [1.32, -0.85];
+
+/**
+ * What tells a craft from far away (plano beleza C8): a large shape in the craft's own colour over
+ * the porch and on the roof, so a row of workshops no longer reads as six potteries. The smithy: a
+ * sooty awning and a tall forge chimney glowing at its mouth; the carpentry: stacks of yellow planks on
+ * the roof and long timbers leaning on the porch; the weaving: a striped awning and a loom on the roof;
+ * the dyeing: lines of red, blue and ochre cloth drying on the roof; the tannery: a brown awning and
+ * hides stretched on frames on the roof.
+ */
+function craftSign(k: 1 | 2 | 3 | 4 | 5): Piece[] {
+  const [py, pz] = PORCH;
+  const [ry, rz] = ROOF;
+  const awning = (color: number, x = 0, w = 2.5): Piece => ({ ...box(w, 0.03, 1.15, x, py, pz, color), cloth: 'sail' });
+  switch (k) {
+    case 1:
+      return [
+        awning(COLORS.dark),
+        box(0.42, 0.95, 0.42, -0.85, ry, rz, COLORS.rock),
+        box(0.5, 0.08, 0.5, -0.85, ry + 0.95, rz, COLORS.dark),
+        { ...box(0.24, 0.16, 0.03, -0.85, ry + 0.12, rz + 0.215, COLORS.flame), emissive: true },
+      ];
+    case 2:
+      return [
+        ...[0, 1, 2, 3, 4].map((n) => box(1.5, 0.07, 0.2, 0.1, ry + n * 0.07, rz - 0.4 + (n % 2) * 0.05, COLORS.wheat)),
+        ...[0, 1, 2].map((n) => box(1.2, 0.07, 0.2, 0.25, ry + n * 0.07, rz - 0.05, COLORS.wheat)),
+        ...[-1.0, -0.75].map((x) => box(0.08, 1.2, 0.08, x, 0, pz + 0.55, COLORS.trunk, 0.2)),
+      ];
+    case 3:
+      return [
+        ...[0, 1, 2, 3, 4].map((n) => ({ ...box(0.5, 0.03, 1.15, -1.0 + n * 0.5, py, pz, n % 2 ? COLORS.cloth : COLORS.blue), cloth: 'sail' as const })),
+        box(0.06, 0.6, 0.06, -0.5, ry, rz, COLORS.wood),
+        box(0.06, 0.6, 0.06, 0.5, ry, rz, COLORS.wood),
+        box(1.1, 0.06, 0.06, 0, ry + 0.58, rz, COLORS.wood),
+        { ...box(0.9, 0.5, 0.02, 0, ry + 0.06, rz, COLORS.blue), cloth: 'hang' },
+      ];
+    case 4:
+      return [
+        ...[-0.25, 0.25].map((dz) => box(2.0, 0.025, 0.025, 0, ry + 0.62, rz + dz, COLORS.dark)),
+        ...[-1.0, 1.0].flatMap((x) => [-0.25, 0.25].map((dz) => box(0.05, 0.64, 0.05, x, ry, rz + dz, COLORS.wood))),
+        ...[COLORS.red, COLORS.blue, COLORS.ochre, COLORS.red, COLORS.blue, COLORS.ochre].map((c, n) => ({
+          ...box(0.28, 0.45, 0.02, -0.75 + (n % 3) * 0.6 + (n > 2 ? 0.3 : 0), ry + 0.17, rz + (n > 2 ? 0.25 : -0.25), c),
+          cloth: 'hang' as const,
+        })),
+      ];
+    case 5:
+      return [
+        awning(0x7a5236),
+        ...[-0.6, 0, 0.6].flatMap((x) => [
+          box(0.04, 0.6, 0.04, x - 0.24, ry, rz, COLORS.wood),
+          box(0.04, 0.6, 0.04, x + 0.24, ry, rz, COLORS.wood),
+          box(0.52, 0.04, 0.04, x, ry + 0.58, rz, COLORS.wood),
+          box(0.42, 0.46, 0.02, x, ry + 0.08, rz, 0x9a6a3a),
+        ]),
+      ];
+  }
 }
 function craftPieces(k: 1 | 2 | 3 | 4 | 5): Piece[] {
   const [x, z] = CRAFT_AT;
@@ -994,6 +1067,9 @@ function marketUp(level: 2 | 3): Piece[] {
   const out: Piece[] = [...stoneDress(2, 4, level)];
   for (const z of [-1.45, 0.05, 1.45]) out.push(...jars(3, -0.95, 0.06, z, [COLORS.mudDark, COLORS.ochre, COLORS.red]));
   out.push(box(0.3, 0.12, 0.22, 0.8, 0.06, -0.6, COLORS.red), box(0.3, 0.1, 0.22, 0.8, 0.18, -0.6, COLORS.blue), box(0.3, 0.12, 0.22, 0.8, 0.06, 0.7, COLORS.ochre));
+  // Heaps of produce on the stalls' fronts: pomegranates, oranges and grain (colours the stalls already use).
+  for (const [x, z, c] of [[-0.55, -1.0, COLORS.red], [0.55, -1.0, COLORS.ochre], [-0.55, 1.0, COLORS.ochre], [0.55, 1.0, COLORS.red], [-0.55, 0.0, COLORS.red], [0.55, 0.25, COLORS.ochre]] as const)
+    out.push(blob(0.12, x, 0.42, z, c, 0.6), blob(0.08, x + 0.1, 0.44, z + 0.08, c, 0.6));
   for (const [x, z] of [[-0.78, -0.4], [0.78, -0.4], [-0.78, 0.4], [0.78, 0.4]]) out.push(box(0.04, 1.5, 0.04, x, 0, z, COLORS.wood));
   out.push(sail(1.7, 0.03, 0.9, 0, 1.5, 0, COLORS.blue));
   if (level === 3) {

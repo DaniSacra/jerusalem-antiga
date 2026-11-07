@@ -41,6 +41,8 @@ export class World {
   families!: Families;
   haulers!: Haulers;
   smoke!: Smoke;
+  /** Dust over the working quarries (by day, see the stage). */
+  dust!: Smoke;
   fires!: NightFires;
   hands!: FieldHands;
   pasture!: Pasture;
@@ -153,6 +155,7 @@ export class World {
     this.copies.clear();
     // Smoke sources: x, y, z and a key (altar and workshops 0: always; houses by hash).
     const smoke: THREE.Vector4[] = [];
+    const dust: THREE.Vector4[] = [];
     const fires: THREE.Vector3[] = [];
     // Which fire spots are a tent's (out in a winter without firewood) or the altar's, and the tent fires.
     const fireKind: ('tent' | 'altar' | undefined)[] = [];
@@ -238,6 +241,8 @@ export class World {
         fires.push(at(KILN[0], 0.05, KILN[1] + 0.35));
       }
       if (b.kind === 'field') fields.push(new THREE.Vector3(cx, y, cz));
+      // Stone being cut: dust over the cut face while the quarry works (connected).
+      if (b.kind === 'quarry' && b.connected) for (const [lx, lz] of [[0.35, 0.45], [-0.1, 0.75]]) dust.push(new THREE.Vector4(...at(lx, 0.2, lz).toArray(), 0));
       if (b.kind === 'altar') {
         altar = new THREE.Vector3(cx, y + 1.2, cz - 0.2);
         smoke.push(new THREE.Vector4(cx, y + 1.8, cz - 0.2, 0));
@@ -254,13 +259,14 @@ export class World {
     // Keep the puddles' look (the stage sets it per frame) across rebuilds.
     const old = this.puddles?.material as THREE.MeshStandardMaterial | undefined;
     this.smoke = new Smoke(smoke);
+    this.dust = new Smoke(dust, { color: Number(LOOK.fx.quarryDust.color), rise: LOOK.fx.quarryDust.rise, size: LOOK.fx.quarryDust.size });
     this.fires = new NightFires(fires, fireKind);
     this.flames = new Flames(altar, tents);
     this.hands = new FieldHands(fields, MAX_HANDS, this.shadows);
     this.pasture = new Pasture(s, ground, () => WATER_Y + this.water.mesh.position.y, this.shadows);
     this.puddles = puddleMesh(puddles, old);
     this.doors = new DoorLights(doors);
-    this.city.add(this.doors.mesh, this.smoke.mesh, this.flames.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
+    this.city.add(this.doors.mesh, this.smoke.mesh, this.dust.mesh, this.flames.mesh, ...this.fires.objects, ...this.hands.objects, ...this.pasture.objects, this.puddles);
     this.buildIdle();
   }
 
