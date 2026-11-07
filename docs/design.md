@@ -37,6 +37,14 @@ Mantidos:
     do ritmo; nenhuma é sistema novo), aceita quando o usuário aprovou seguir o roteiro (04/11).
 
 ## Decisões tomadas
+- 2026-11-07 (usuário, depois do playtest; medido pelo sim-tester em `docs/revisoes/2026-11-07/sim-tester-aperto.md`):
+  **aperto da economia** antes do Templo em ruínas, porque "um campo e um pescador e já era". Campo
+  `harvest` 468 → 180; Pescador 0,75/4,5 → 0,38/1,9; Coletora 0,3/3,5 → 0,16/1,5; Pedreira 0,4/2 →
+  0,3/1,4; manutenção maior (praça 0,75, pedreira 1,75, parque 2, celeiro 1,75/3,5/5,5, mercado
+  3,5/5/8, oficina 1,75/3,5/5); casa de pedra e casa grande 15 pedra. Comum vence 75% (era 89%), perde
+  5% (era 0%), fome ou frio em 91% das partidas; o Ano 1 fica igual. Em aberto para o pacote
+  Dificuldade: o Distraído perde 84% (era 65%) e em 10% das partidas do Comum a fome passa de 25 sem
+  (o modo Tranquilo deve aliviar os dois).
 - 2026-11-04 (usuário): Pacote Povo antes de Madeira e pedra. Motivo: o Povo muda capacidade,
   crescimento e meta do templo; calibrar materiais antes obrigaria a refazer a conta
 - 2026-11-04 (diretor): a casa vazia guarda o nível (`emptyLevel`) e "nível ≥ 1" continua querendo
@@ -127,6 +135,17 @@ Mantidos:
   inverno, com o objetivo "Construa um pasto"; Dificuldade escolhida no título (Normal padrão), com
   casas maiores comendo e queimando mais e invernos que pioram do Ano 3. **A2 novo por dificuldade**:
   Comum vence 80–95% (Tranquilo), 50–70% (Normal), 20–40% (Difícil), seção 4.6 do plano
+- 2026-11-07 (usuário, escopo do diretor): os pacotes 2 e 3 do plano Desafio viram um só,
+  **"Templo em ruínas + altar com ofertas + Gado"** (`docs/revisoes/2026-11-07/plano-ruinas.md`). A
+  ruína do Templo nasce no mapa ao norte do altar, ligada e protegida (sai a ferramenta e a marcação);
+  o altar começa em ruínas e não cobre; cada etapa dá ao altar um raio sagrado (6/7/8/10) e uma oferta
+  de gado por semana (0,5/0,75/1,0/1,25/1,5); sem gado o altar não cobre; `sacred` passa a ser
+  exigência da Casa de pedra e da Casa grande; Pasto liberado no objetivo 4, objetivo 5 "Construa um
+  pasto", objetivo 17 "Tenha 2 pastos" (sai "Terceira geração"). Mercado com gado: só alavanca (ou
+  Difícil). Motivo: pedido do usuário ("ele vira altar primeiro e a gente já precisa de gado para
+  holocaustos") e o "fácil e sem rumo": a cidade de pedra depende do altar e das ofertas desde o Ano 1.
+  Alvos R1–R10 (Comum vence 55–75%, derrotas 3–10%, sem ofertas alguma vez ≥ 30%, > 8 sem ≤ 15%).
+  "Ofertas"/"holocaustos" podem aparecer na tela; sem história nem versículo
 
 ## Feito: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06, fechado no mesmo dia)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
@@ -168,13 +187,13 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
 - **1 Profissões** (mecânica: metas de trabalhadores; 12–15,5 h): painel com cada profissão, − / +,
   "Sem trabalho" e "Automático"; o core solta o que mora mais longe e puxa o mais perto. Sem toque no
   painel = jogo de hoje (P1).
-- **2 Templo em etapas + "O que fazer agora"** (mecânica: obra do Templo; 33–44 h): Altar restaurado →
-  Alicerce → Paredes → Pórtico e telhado → Consagração (`temple.json`), cada etapa um objetivo, paga ao
-  começar e erguida por construtores; 21 objetivos; uma linha fixa sob a barra com o próximo passo e
-  a seta. Critérios E1–E7.
-- **3 Gado** (mecânica: pasto e gado; 23–31 h): seção 1 do `plano-backlog.md`, renumerado (22
-  objetivos, Pastor no painel). Critérios G1–G6.
-- **4 Dificuldade** (mecânica: multiplicadores; 18–24,5 h): Tranquilo / Normal / Difícil
+- **2 Templo em ruínas + altar com ofertas + Gado** (desde 2026-11-07 substitui os antigos 2 e 3;
+  mecânica: gado, criado no pasto e queimado no altar; ~46–59 h; `plano-ruinas.md`): a ruína ao norte
+  do altar desde o mapa; Altar restaurado → Alicerce → Paredes → Pórtico e telhado → Consagração, cada
+  etapa um objetivo, paga ao começar, erguida por construtores, com raio sagrado e oferta maiores;
+  casas de pedra e grandes pedem o altar com ofertas; 22 objetivos; linha "O que fazer agora".
+  Critérios R1–R10.
+- **3 Dificuldade** (mecânica: multiplicadores; 18–24,5 h): Tranquilo / Normal / Difícil
   (`difficulty.json`), `foodFactor` e lenha crescentes por nível, inverno que piora do Ano 3. A2 por
   dificuldade (seção 4.6).
 
@@ -191,7 +210,8 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
 ## Próximos candidatos (um pacote por vez)
-Desde 2026-11-07: primeiro o plano "Desafio e rumo" (acima, inclui o Gado). Depois, o
+Desde 2026-11-07: primeiro o plano "Desafio e rumo" (acima; o Gado entrou no pacote 2 "Ruínas",
+`plano-ruinas.md`; o mercado com gado ficou como alavanca ou para o Difícil). Depois, o
 `docs/revisoes/2026-11-07/plano-backlog.md` na ordem dele a partir do D1 Um dia na cidade (o B4,
 Recuperação e vitória, D2 Retratos, D3 Contemplar, Governo, D4 Festas, Oficina com ofícios, D5,
 Roupas, Doenças, Eventos, Alojamento, Incêndio, História), **sem o C** (feito no plano Desafio) e
@@ -224,8 +244,8 @@ por cima das seções abaixo:
 - Feitos e no main: Pacote 1 da sobrevivência (95dd36c), rebalanceamento do usuário (a01a506) e
   Pacote 1 "Um Ano 1 justo" da revisão 2026-11-03 (d390712, 11a95cd)
 - Campo: dá comida toda semana, menos no inverno (congela). `harvest` 468 por ano = 12/sem com 2
-  vagas. Sai "semeia no outono, colhe na primavera"
-- Pescador e Coletora: `perCell` 0,75 e 0,3, teto 4,5/sem
+  vagas (histórico: 180 desde o aperto de 2026-11-07). Sai "semeia no outono, colhe na primavera"
+- Pescador e Coletora: `perCell` 0,75 e 0,3, teto 4,5/sem (histórico: 0,38/1,9 e 0,16/1,5 desde o aperto)
 - Custos do pacote M: casa 15, campo 20, poço 25, pescador e coletora 20, celeiro 40, mercado 60,
   oficina 50, jardim 35, templo 800. `workerShare` 0,5; manutenção depois do objetivo 3;
   caravana com comida para 14–22 semanas; estoque base 50
@@ -282,7 +302,7 @@ antigos):
   teto 3/sem), com a regra da Coletora. Trabalham o ano todo
 - Estoque da cidade sem limite e sem depósito; a caravana traz 20 de madeira
 - Custos: casa nova 5 madeira; celeiro, mercado e oficina 10 madeira; parque 5 pedra; templo 800 +
-  300 pedra + 150 madeira. Evolução: barro 5 madeira, pedra 10 pedra, casa grande 10 pedra + 5
+  300 pedra + 150 madeira. Evolução: barro 5 madeira, pedra 10 pedra, casa grande 10 pedra + 5 (histórico: 15 pedra desde o aperto)
   madeira, pagos ao subir; sem material a casa espera pronta (13/13), como a pausa da fome
 - Rua, campo, praça, pescador, coletora e lenhador nunca pedem material
 - Corte: a cada 10 de madeira o Lenhador corta a árvore mais próxima; o toco não bloqueia (constrói

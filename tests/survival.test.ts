@@ -163,7 +163,7 @@ describe('stores and granary', () => {
     expect(foodCapacity(s)).toBe(700);
     put(s, 'granary', 2, 2); // not connected
     expect(foodCapacity(s)).toBe(700);
-    expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 1, w: 3, h: 3, jobs: 1, storage: 300, category: 'supply' });
+    expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 1.75, w: 3, h: 3, jobs: 1, storage: 300, category: 'supply' });
   });
 
   it('spoils the food above the stores, with one event per stretch and an alert', () => {
@@ -556,11 +556,12 @@ describe('stores (edges)', () => {
 });
 
 describe('forecast (edges)', () => {
-  /** Two crowded big houses (30 each) and one field, in the first week of the spring of year 2. */
+  /** Two crowded big houses that eat about 95% of a wet field (the winter empties the stores, a dry field falls short) and the field, in the first week of the spring of year 2. */
+  const HALF = Math.floor((WEEKLY * 0.48) / RULES.people.food.adult);
   const town = (drought: boolean) => {
     const s = emptyGame({ week: SPRING + YEAR, food: 40, drought });
-    put(s, 'house', ROADSIDE, 27, 4, false, 30);
-    put(s, 'house', ROADSIDE, 29, 4, false, 30);
+    put(s, 'house', ROADSIDE, 27, 4, false, HALF);
+    put(s, 'house', ROADSIDE, 29, 4, false, HALF);
     put(s, 'field', westOf('field'), 31).built = 0;
     for (const k of Object.keys(s.coverage) as (keyof typeof s.coverage)[]) s.coverage[k].fill(true); // they stay big
     return s;
@@ -575,7 +576,7 @@ describe('forecast (edges)', () => {
       const w = s.week + k;
       const dry = drought && seasonOf(w) !== 'autumn' && w < s.week + 2 * W; // the dry spring and summer
       const made = harvestsIn(w) ? WEEKLY * (dry ? RULES.drought.harvestFactor : 1) : 0;
-      const delta = Math.round((made - 60 * foodOf('adult', 4, w)) * 100) / 100;
+      const delta = Math.round((made - 2 * HALF * foodOf('adult', 4, w)) * 100) / 100;
       food = Math.min(cap, Math.round((food + delta) * 100) / 100);
       if (food <= 0 && delta < 0) return { weeks: k, season: seasonOf(w) };
     }

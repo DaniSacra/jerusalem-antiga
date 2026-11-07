@@ -976,6 +976,8 @@ export interface Result {
   lowestResidentsY1: number;
   famineY1: number;
   famineWeeks: number;
+  /** Economy squeeze: silver that came in (start + every week's net gain), weeks with stone at the store's cap, weeks played, food buildings (fisher, gatherer, field) at the end of each year. */
+  sq: { silverIn: number; stoneCap: number; weeks: number; foodBuildings: number[] };
   longestFamine: number;
   left: number;
   leftWinter1: number;
@@ -1214,7 +1216,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     year1: false, residents52: 0, residents104: 0, lowestResidentsY1: Infinity, famineY1: 0, famineWeeks: 0, longestFamine: 0, left: 0, leftWinter1: 0, emptied: false,
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
     food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
-    houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
+    sq: { silverIn: s.silver, stoneCap: 0, weeks: 0, foodBuildings: [] }, houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, templeGap: null, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
     endSilver: 0, endIncome: 0, endTempleRoom: false, endTempleAny: false,
     growthMax: NaN, growthPeak: NaN, residentsStart: computeEconomy(s).residents, couplesLeft: 0, coupleWaitMax: 0, caravansArrived: 0, caravansAll: 0, caravansSome: 0, g15: null, coupleBlocksByYear: [],
@@ -1377,7 +1379,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       coldWho.set(p.id, k);
       if (k === 'tent_v' && s.week < 52) b3.tentVulnWeeksY1++;
     }
+    const silverBefore = s.silver;
     const events = stepWeek(s, rng);
+    res.sq.silverIn += Math.max(0, s.silver - silverBefore);
+    res.sq.weeks++;
+    if (s.stone >= RULES.materialStorage * 0.95) res.sq.stoneCap++;
+    if (s.week % 52 === 0) res.sq.foodBuildings.push(s.buildings.filter((b) => FOOD_KINDS.has(b.kind)).length);
     for (const e of events) {
       if (e.type !== 'coldDeath') continue;
       const k = coldWho.get(e.id) ?? 'unknown';

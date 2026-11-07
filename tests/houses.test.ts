@@ -320,7 +320,7 @@ describe('house info and balloons', () => {
           { kind: 'road', ok: true },
           { kind: 'plaza', ok: true },
         ],
-        materials: { stone: 10 },
+        materials: HOUSE_LEVELS[3].materials,
       },
       waiting: null,
       firewoodHold: false,

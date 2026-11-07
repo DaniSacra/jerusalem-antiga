@@ -26,19 +26,19 @@ const WINTER = W;
 
 describe('service building levels', () => {
   it('granary, market and workshop list their next levels; the definition is level 1', () => {
-    expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 1, storage: 300 });
-    expect(BUILDINGS.granary.levels).toMatchObject([{ cost: 60, upkeep: 2, storage: 600 }, { cost: 100, upkeep: 4, storage: 1000 }]);
-    expect(BUILDINGS.market.levels).toMatchObject([{ cost: 60, upkeep: 3, radius: 6 }, { cost: 90, upkeep: 5, radius: 7 }]);
-    expect(BUILDINGS.workshop.levels).toMatchObject([{ cost: 50, upkeep: 2, fieldBonus: 0.2 }, { cost: 80, upkeep: 3, fieldBonus: 0.3 }]);
+    expect(BUILDINGS.granary).toMatchObject({ cost: 40, upkeep: 1.75, storage: 300 });
+    expect(BUILDINGS.granary.levels).toMatchObject([{ cost: 60, upkeep: 3.5, storage: 600 }, { cost: 100, upkeep: 5.5, storage: 1000 }]);
+    expect(BUILDINGS.market.levels).toMatchObject([{ cost: 60, upkeep: 5, radius: 6 }, { cost: 90, upkeep: 8, radius: 7 }]);
+    expect(BUILDINGS.workshop.levels).toMatchObject([{ cost: 50, upkeep: 3.5, fieldBonus: 0.2 }, { cost: 80, upkeep: 5, fieldBonus: 0.3 }]);
   });
 
   it('statOf reads the value of the level (or of the definition when the level does not set it)', () => {
     const s = emptyGame();
     const g = put(s, 'granary', EAST, 36);
     expect(g.level).toBe(1);
-    expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([300, 1, 1]);
+    expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([300, 1.75, 1]);
     g.level = 3;
-    expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([1000, 4, 1]);
+    expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([1000, 5.5, 1]);
     expect(statOf({ kind: 'field', level: 1 }, 'upkeep')).toBe(0.5);
     expect(statOf({ kind: 'house', level: 3 }, 'upkeep')).toBe(0);
   });
@@ -51,7 +51,7 @@ describe('service building levels', () => {
     const events: GameEvent[] = [];
     expect(foodCapacity(s)).toBe(RULES.baseFoodStorage + 300);
     expect(upgradeBuilding(s, EAST + 1, 37, events)).toEqual({ ok: true });
-    expect([g.level, s.silver, foodCapacity(s), computeEconomy(s).upkeep.granary]).toEqual([2, 440, RULES.baseFoodStorage + 600, 2]);
+    expect([g.level, s.silver, foodCapacity(s), computeEconomy(s).upkeep.granary]).toEqual([2, 440, RULES.baseFoodStorage + 600, 3.5]);
     expect(events).toEqual([{ type: 'buildingUp', x: EAST, y: 36, level: 2 }]);
     expect(upgradeBuilding(s, EAST, 36).ok).toBe(true);
     expect([g.level, s.silver, foodCapacity(s)]).toEqual([3, 340, RULES.baseFoodStorage + 1000]);
@@ -126,16 +126,18 @@ describe('upkeep from the first week', () => {
     put(s, 'plaza', 10, 10); // no road
     put(s, 'market', EAST, 33);
     const e = computeEconomy(s);
-    expect(e.upkeep).toEqual({ field: 0.25, plaza: 0.5, market: 1 }); // nobody lives here: field and market empty
-    expect(e.silverDelta).toBe(-1.75);
+    const half = (k: 'field' | 'market') => BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor;
+    expect(e.upkeep).toEqual({ field: half('field'), plaza: BUILDINGS.plaza.upkeep, market: half('market') }); // nobody lives here: field and market empty
+    const total = half('field') + BUILDINGS.plaza.upkeep! + half('market');
+    expect(e.silverDelta).toBe(-total);
     const before = s.silver;
     stepWeek(s, constRng(0.99));
-    expect(s.silver).toBe(before - 1.75);
+    expect(s.silver).toBe(before - total);
   });
 
-  it('level-1 upkeep: small food and plaza buildings 0.5, park, granary and workshop 1, market 2, temple and houses 0', () => {
-    expect(['field', 'plaza', 'fisher', 'gatherer'].map((k) => BUILDINGS[k as 'field'].upkeep)).toEqual([0.5, 0.5, 0.5, 0.5]);
-    expect([BUILDINGS.park.upkeep, BUILDINGS.granary.upkeep, BUILDINGS.workshop.upkeep, BUILDINGS.market.upkeep, BUILDINGS.temple.upkeep]).toEqual([1, 1, 1, 2, 0]);
+  it('level-1 upkeep: small food buildings 0.5, plaza 0.75, granary and workshop 1.75, park 2, market 3.5, temple and houses 0', () => {
+    expect(['field', 'plaza', 'fisher', 'gatherer'].map((k) => BUILDINGS[k as 'field'].upkeep)).toEqual([0.5, 0.75, 0.5, 0.5]);
+    expect([BUILDINGS.park.upkeep, BUILDINGS.granary.upkeep, BUILDINGS.workshop.upkeep, BUILDINGS.market.upkeep, BUILDINGS.temple.upkeep]).toEqual([2, 1.75, 1.75, 3.5, 0]);
     expect(BUILDINGS.house.upkeep).toBeUndefined();
   });
 });
@@ -150,8 +152,8 @@ describe('winter for the fisher and the gatherer', () => {
     expect(BUILDINGS.fisher.gather?.winterFactor).toBe(0.3);
     expect(BUILDINGS.gatherer.gather?.winterFactor).toBe(0.3);
     expect(gatherFood(s, f, WINTER)).toBeCloseTo(full * 0.3);
-    // A house of 8 (the workers) eats less than the fisher brings, but more than its winter catch.
-    put(s, 'house', ROADSIDE, 27, 4);
+    // A house of 4 (the workers) eats less than the fisher brings, but more than its winter catch.
+    put(s, 'house', ROADSIDE, 27, 2);
     s.week = WINTER;
     expect(computeEconomy(s).foodMade).toBeCloseTo(full * 0.3, 2);
     put(s, 'granary', EAST, 36);
