@@ -93,6 +93,8 @@ quebrar ou a página registrar erro no console. Em falha, salva também `FAILED-
 `run.mjs` segura a trava `logs/visual.lock`, e uma segunda rodada espera a primeira terminar. Use
 `VISUAL_SHARD` para rodadas curtas. O `tools/watchdog.sh` mata o navegador de teste maior se a memória
 livre cair abaixo de 1 GB, e o Vitest usa no máximo 6 workers (`vite.config.ts`).
+Os testes desligam a entrada animada de balões, painéis e fichas (um script no início de cada página):
+com quadros lentos, a foto pegava o balão ainda meio transparente.
 
 O servidor roda sem recarga automática (`hmr: false`, sem vigiar arquivos): um arquivo editado por
 outro agente durante a rodada não recarrega a página no meio de um cenário.

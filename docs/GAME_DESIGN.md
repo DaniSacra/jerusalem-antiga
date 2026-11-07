@@ -957,6 +957,9 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     sobraria, a pílula vermelha "Perde N de comida" (nada quando 0);
   - Rua e Demolir mostram uma dica curta num balão acima do botão ao serem escolhidos (some ao tocar
     no mapa);
+  - balões, painéis e fichas entram com calma (0,12 s, sobem 4 px); uma pílula de recurso que aparece
+    pela primeira vez brilha três vezes; o ✕ do balão fica na linha do título (não rola com a lista);
+    tudo isso some com "menos movimento" do sistema;
   - Demolir no balão da construção tocada pede confirmação: o primeiro toque vira "Certeza?" por
     2,5 s, o segundo demole;
   - no celular, a ferramenta Demolir num celeiro (ou na rua que liga um) com perda de comida não

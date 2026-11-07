@@ -1,6 +1,7 @@
 import { fitPills, topBar, type MeasureText, type PillMetrics } from '../game/model/topbar';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
+import type { Speed } from '../game/tools';
 import { h, keyed, onTap, setText } from './dom';
 import { iconButton, iconEl, partsTo } from './parts';
 
@@ -20,7 +21,11 @@ export class TopBar {
   private goal = h('div.pill.goal.hit', { role: 'button' });
   private season = h('div.pill.season');
   private speed: HTMLButtonElement;
+  /** PC: pause, 1x and 3x side by side, the one in use gold (as the 2D); the phone cycles one button. */
+  private speeds = new Map<Speed, HTMLButtonElement>();
   private right: HTMLElement;
+  /** The pills shown so far: a pill that appears (stone, happiness) glows gold three times. */
+  private seen: Set<string> | null = null;
   /** The page's sizes for `fitPills`, read again when the window changes. */
   private metrics: { key: string; m: PillMetrics; measure: MeasureText } | null = null;
 
@@ -31,7 +36,14 @@ export class TopBar {
     onTap(this.goal, o.goals);
     onTap(this.pills, o.stats);
     onTap(this.season, o.stats);
-    const right = (this.right = h('div.right', {}, this.season, this.speed));
+    const group = h('div.speeds');
+    for (const v of [0, 1, 3] as Speed[]) {
+      const b = h('button.round.speedbtn', { 'data-spot': `speed-${v}`, 'aria-label': v === 0 ? T.nova.buttons.paused : `${v}x` }, v === 0 ? iconEl('pause') : `${v}x`);
+      onTap(b, () => s.setSpeed(v));
+      this.speeds.set(v, b);
+      group.append(b);
+    }
+    const right = (this.right = h('div.right', {}, this.season, this.speed, group));
     right.append(iconButton('gear', T.nova.buttons.settings, o.settings, 'settings'));
     this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.goal)), right);
   }
@@ -50,14 +62,18 @@ export class TopBar {
     setText(this.level.querySelector('b')!, String(bar.level));
     this.level.style.setProperty('--f', String(bar.goalFraction));
     keyed(this.pills, bar.pills.map((p) => p.key).join(), () => bar.pills.map((p) => h('div.pill', { 'data-pill': p.key }, iconEl(p.icon), h('span.parts'))));
+    const seen = this.seen;
+    this.seen = new Set(bar.pills.map((p) => p.key));
     for (const p of bar.pills) {
       const el = this.pills.querySelector<HTMLElement>(`[data-pill="${p.key}"]`)!;
+      if (seen && !seen.has(p.key)) el.classList.add('new');
       el.classList.toggle('alarm', p.alarm);
       partsTo(el.querySelector('.parts')!, p.parts);
     }
     partsTo(this.goal, bar.goal);
     keyed(this.speed, String(s.speed), () => (s.speed === 0 ? [iconEl('pause')] : [`${s.speed}x`]));
     this.speed.setAttribute('aria-label', s.speed === 0 ? T.nova.buttons.paused : `${s.speed}x`);
+    for (const [v, b] of this.speeds) b.classList.toggle('on', s.speed === v);
   }
 
   /** Pill sizes from ui.css and a text measure with the bar's fonts (once per window size). */

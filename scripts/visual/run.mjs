@@ -1847,6 +1847,13 @@ for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
     let context, page;
     try {
       context = await browser.newContext(def.context ?? PC);
+      // The calm entry of balloons and panels (120 ms) starts on the next frame drawn, and SwiftShader
+      // draws a few frames a second: shots would catch them half faded. Shown at once in the tests.
+      await context.addInitScript(() => addEventListener('DOMContentLoaded', () => {
+        const st = document.createElement('style');
+        st.textContent = '.balloon, .toolballoon, .panelbox, .sheet { animation: none !important; }';
+        document.head.append(st);
+      }));
       page = await context.newPage();
     } catch (e) {
       if (attempt === 2 || !killed(e)) throw e;

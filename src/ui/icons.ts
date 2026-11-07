@@ -32,3 +32,13 @@ export const ICONS: Record<string, string> = {
   gear: svg('<path d="M12 2l1.6 2.6 3-.8.6 3 2.8 1.3-1.2 2.9 1.2 2.9-2.8 1.3-.6 3-3-.8L12 22l-1.6-2.6-3 .8-.6-3-2.8-1.3L5.2 13 4 10.1l2.8-1.3.6-3 3 .8z" fill="currentColor"/><circle cx="12" cy="12" r="3.4" fill="#24190e"/>'),
   arrow: svg('<path d="M20 56L0 34h12V2h16v32h12z" fill="#ffd77a" stroke="#3b2a1a" stroke-width="3" stroke-linejoin="round"/>', '-2 0 44 58'),
 };
+
+/** The hand path of Mover's icon, for the map cursors. */
+const HAND = 'M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V13M17 12v-1.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3.4L3.6 14a1.5 1.5 0 0 1 2.6-1.5L8 15';
+/** A closed (grabbing) hand: the fingers folded down. */
+const FIST = 'M7 12.5V9.5a1.5 1.5 0 0 1 3 0V11M10 10V8.5a1.5 1.5 0 0 1 3 0V11M13 10.5V9a1.5 1.5 0 0 1 3 0V12M16 11.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3.4L3.6 14a1.5 1.5 0 0 1 2.6-1.5L7 13.5';
+const cursorOf = (path: string, fallback: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'><path d='${path}' fill='#f4e8cc' stroke='#3b2a1a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>`)}") 13 13, ${fallback}`;
+
+/** The map's hand cursors on PC (painted as the 2D's): open over the map, closed while dragging it. */
+export const CURSORS = { open: cursorOf(HAND, 'grab'), grab: cursorOf(FIST, 'grabbing') };

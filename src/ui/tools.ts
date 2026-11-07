@@ -5,7 +5,7 @@ import { arrowOf, setArrow } from './anchors';
 import { cardLine } from './lines';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
-import { COLUMN_ORDER, type Tool } from '../game/tools';
+import { COLUMN_ORDER, keyOf, toolName, type Tool } from '../game/tools';
 import { h, onTap, setText } from './dom';
 import { LOCK } from './labels';
 import { iconButton, toolButton } from './parts';
@@ -50,7 +50,11 @@ export class Tools {
   /** `bottom`: the tool balloon stays above it (the tutorial bubble's top when it shows). */
   update(phone: boolean, bottom = innerHeight - 8) {
     const s = this.s;
-    for (const [t, el] of this.toolEls) el.classList.toggle('on', s.tool === t);
+    for (const [t, el] of this.toolEls) {
+      el.classList.toggle('on', s.tool === t);
+      // PC: the key beside the name ("Mover · 1"), as the 2D.
+      setText(el.querySelector('.label')!, phone ? toolName(t) : `${toolName(t)} · ${keyOf(t)}`);
+    }
     for (const btn of buildColumn(s.state, s.tool, phone)) {
       const el = this.builds.get(btn.kind)!;
       el.classList.toggle('on', btn.on);

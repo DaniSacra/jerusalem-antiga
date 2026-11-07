@@ -10,6 +10,7 @@ import { settings } from '../game/settings';
 import { Scene3D, type Scene3DOptions } from '../render3d/scene3d';
 import type { Level, ViewOverride } from '../render3d/stage';
 import { Hud, type HudHost } from '../ui/hud';
+import { CURSORS } from '../ui/icons';
 
 /** Time between frames while the game is paused and nothing moves (10 a second). */
 const IDLE_FRAME_MS = 100;
@@ -173,7 +174,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
 
   cursorChanged() {
     const c = this.gestures.cursor;
-    this.scene.el.style.cursor = c === 'grab' ? 'grabbing' : c === 'open' ? 'grab' : 'default';
+    this.scene.el.style.cursor = c === 'grab' ? CURSORS.grab : c === 'open' ? CURSORS.open : 'default';
   }
 
   hoverChanged() {

@@ -59,6 +59,14 @@
 .bar { width: 80px; height: 8px; border-radius: 4px; background: #5a4630; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--c-gold); }
 .top .right { display: flex; gap: var(--gap); align-items: flex-start; flex: none; }
+/* Speed: the phone cycles one gold button; the PC shows pause, 1x and 3x side by side, the one in use gold. */
+.speeds { display: flex; gap: 4px; padding: 3px; border-radius: calc(var(--btn) / 2 + 3px); background: rgba(36, 25, 14, 0.78); border: 1.5px solid var(--c-filet); }
+.speedbtn { width: calc(var(--btn) - 6px); height: calc(var(--btn) - 6px); background: var(--c-parchment); background-image: var(--parchment-grain); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); font-size: var(--text); }
+.speedbtn svg { width: 50%; height: 50%; }
+.speedbtn.on { background: var(--c-gold); background-image: none; box-shadow: 0 0 0 3px var(--c-gold-light); }
+#hud[data-form='phone'] .speeds, #hud:not([data-form='phone']) [data-spot='speed'] { display: none; }
+/* PC: the tool's label carries its key ("Mover · 1"), wider than the disc. */
+#hud:not([data-form='phone']) .tool { width: auto; min-width: var(--tool); }
 .round { width: var(--btn); height: var(--btn); border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; font-weight: 800; font-size: var(--num); }
 .round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); box-shadow: 0 2px 0 var(--c-shadow); }
 /* Relief (as the 2D's buttons): parchment and gold buttons sit on an offset shadow and sink 2 px when pressed. */
@@ -148,6 +156,10 @@
 .act.dim { background: #8a8174; color: #2b1f14; }
 .act.confirm { background: #c0392b; border-color: var(--c-gold); }
 .act.close { flex: none; width: 44px; }
+/* The balloon's title with ✕ at its end. */
+.bhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.bhead .line { padding-top: 4px; }
+.bhead .act.close { margin: 0; }
 /* The house balloon stays out of sight while a person sheet is open over it. */
 .balloon.under { opacity: 0; pointer-events: none; }
 .panelbox .x { float: right; margin: 0 0 6px 10px; position: sticky; top: 0; z-index: 1; }
@@ -220,6 +232,12 @@
 .toast.bad { background: rgba(142, 42, 31, 0.94); } .toast.good { background: rgba(46, 94, 34, 0.94); }
 .toast.quiet { color: var(--c-muted); font-weight: 400; } .toast.big { font-size: calc(var(--num) * 1.2); border: 2px solid var(--c-gold); }
 @keyframes hud-in { from { opacity: 0; } }
+/* Balloons, panels and the person sheet come in calmly: a fade and 4 px of rise (the CSS translate, apart from their transform). */
+.balloon, .toolballoon, .panelbox, .sheet { animation: hud-rise 0.12s ease-out; }
+@keyframes hud-rise { from { opacity: 0; translate: 0 4px; } }
+/* A pill that appears (stone, happiness) glows gold three times. */
+.pill.new { animation: hud-glow 0.7s ease-in-out 3; }
+@keyframes hud-glow { 50% { box-shadow: 0 0 0 3px var(--c-gold), 0 0 14px var(--c-gold); } }
 .tutorial { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--margin); display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 20px; border-radius: 16px;
   background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); font-size: var(--big); font-weight: 700; max-width: min(760px, calc(100vw - 2 * var(--tool) - 3 * 10px - var(--col) - 4 * var(--margin))); pointer-events: auto; }
 #hud[data-form='phone'] .tutorial { font-size: var(--num); }
@@ -260,6 +278,6 @@
 /* ---------- calm motion ---------- */
 /* Less motion asked for: nothing blinks, bobs or slides; every signal stays (colour, rim, text). */
 @media (prefers-reduced-motion: reduce) {
-  .pill.alarm .parts, .side button.pulse, .arrow svg, .toast { animation: none; }
+  .pill.alarm .parts, .side button.pulse, .arrow svg, .toast, .balloon, .toolballoon, .panelbox, .sheet, .pill.new { animation: none; }
   .toast.out, .toast.slide, .famine { transition: none; }
 }

@@ -106,7 +106,11 @@ export class CardBalloon {
     const s = this.s;
     const cell = s.selected!;
     const person = (id: number) => this.openPerson(id);
-    const main = h('div.main', {}, ...card.lines.map((l) => cardLine(l, person)));
+    // ✕ on the title's line (a building with no buttons, the altar, needs no row of its own).
+    const close = h('button.act.close', { 'data-spot': 'balloon-close', 'aria-label': T.nova.inspect.close }, '✕');
+    onTap(close, () => s.deselect());
+    const [title, ...rest] = card.lines.map((l) => cardLine(l, person));
+    const main = h('div.main', {}, h('div.bhead', {}, title, close), ...rest);
     const acts = h('div.acts');
     if (card.action) acts.append(this.actionButton(card.action));
     if (card.demolish) {
@@ -128,16 +132,13 @@ export class CardBalloon {
       });
       acts.append(del);
     }
-    const close = h('button.act.close', { 'data-spot': 'balloon-close', 'aria-label': T.nova.inspect.close }, '✕');
-    onTap(close, () => s.deselect());
-    acts.append(close);
     if (card.aside.length) {
       // Phone: the level part in a second column; the buttons under the people, the shorter one
       // (the screen is short).
-      main.append(acts);
+      if (acts.childElementCount) main.append(acts);
       const aside = h('div.aside', {}, ...card.aside.map((l) => cardLine(l, person)));
       this.el.replaceChildren(h('div.body', {}, h('div.cols', {}, main, aside)));
-    } else this.el.replaceChildren(h('div.body', {}, main, acts));
+    } else this.el.replaceChildren(h('div.body', {}, main, ...(acts.childElementCount ? [acts] : [])));
   }
 
   private actionButton(a: CardAction) {
