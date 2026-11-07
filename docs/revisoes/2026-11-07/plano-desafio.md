@@ -134,6 +134,9 @@ determinismo pela seed.
 
 ## 2. Templo em etapas + "O que fazer agora"
 
+> **Substituído em 2026-11-07** (com a seção 3) por `plano-ruinas.md`: ruína fixa no mapa, altar com
+> ofertas de gado, `sacred` nas casas de pedra. O que segue vale só onde aquele plano remete para cá.
+
 ### 2.1 Regra (versão mais simples)
 1. **Cinco etapas**, em `src/data/temple.json`, na ordem: **Altar restaurado** (no altar do centro),
    **Alicerce**, **Paredes**, **Pórtico e telhado**, **Consagração** (no lugar do Templo). Nomes de

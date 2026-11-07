@@ -50,6 +50,9 @@ import {
 } from '../src/core';
 import { constRng, EAST, emptyGame, put, restoreAltar, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
+/** Stone a house pays to become a stone house (houses.json). */
+const STONE = HOUSE_LEVELS[3].materials!.stone!;
+
 const never = constRng(0.99);
 const UP = UP_WEEKS;
 const lumber = BUILDINGS.lumber.gather!;
@@ -88,8 +91,8 @@ describe('materials data', () => {
   it('lumber and quarry: work buildings gathering wood from trees and stone from rocks', () => {
     expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 0.5, w: 2, h: 2, jobs: 2, cutEvery: 10 });
     expect(lumber).toEqual({ source: 'tree', radius: 3, perCell: 0.25, max: 2.5, product: 'wood' });
-    expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 1, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
-    expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.4, max: 2, product: 'stone' });
+    expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 1.75, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
+    expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.3, max: 1.4, product: 'stone' });
   });
 
   it('building costs: wood for houses and works, stone for the park; the temple, food and wood never need material', () => {
@@ -100,10 +103,10 @@ describe('materials data', () => {
     for (const k of ['temple', 'road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(cost(k)).toEqual({});
   });
 
-  it('house levels: tents are free, then mud 5 wood, stone 10 stone, big 10 stone and 5 wood', () => {
-    expect(HOUSE_LEVELS.map((l) => l.materials ?? {})).toEqual([{}, {}, { wood: 5 }, { stone: 10 }, { stone: 10, wood: 5 }]);
+  it('house levels: tents are free, then mud 5 wood, stone 15 stone, big 15 stone and 5 wood', () => {
+    expect(HOUSE_LEVELS.map((l) => l.materials ?? {})).toEqual([{}, {}, { wood: 5 }, { stone: 15 }, { stone: 15, wood: 5 }]);
     expect(upgradeGain(1)!.materials).toEqual({ wood: 5 });
-    expect(upgradeGain(3)!.materials).toEqual({ stone: 10, wood: 5 });
+    expect(upgradeGain(3)!.materials).toEqual({ stone: 15, wood: 5 });
   });
 
   it('the caravan brings 40 wood, no stone and no livestock; the lumber is open from the start, the quarry from goal 5 (a pasture)', () => {
@@ -364,7 +367,7 @@ describe('houses waiting for material', () => {
     expect(a.upStreak).toBe(UP);
     expect(a.waiting).toBe('stone');
     expect(housesWaiting(s)).toEqual({ wood: 2, stone: 2, livestock: 0 }); // the city's two tents wait for wood
-    s.stone = 12;
+    s.stone = STONE + 2;
     s.wood = 50; // firewood, should the week be a winter one
     const events = run(s, 1);
     expect(events).toContainEqual({ type: 'houseUp', x: EAST, y: 27, level: 3, delta: HOUSE_LEVELS[3].capacity - HOUSE_LEVELS[2].capacity });
@@ -377,7 +380,7 @@ describe('houses waiting for material', () => {
     const { s, a } = street();
     run(s, UP);
     expect(a.waiting).toBe('stone');
-    s.stone = 10 - quarry.max;
+    s.stone = STONE - quarry.max;
     put(s, 'quarry', EAST, 37);
     for (let y = 35; y <= 40; y++) plant(s, 'rock', [[27, y], [28, y]]); // 12 rocks: max a week
     run(s, 1);
@@ -388,7 +391,7 @@ describe('houses waiting for material', () => {
   it('two ready houses with material for one: the oldest climbs, the other waits', () => {
     const { s, a, b } = street();
     run(s, UP - 1);
-    s.stone = 15;
+    s.stone = STONE + 5;
     run(s, 1);
     expect([a.level, b.level]).toEqual([3, 2]);
     expect(b.waiting).toBe('stone');
@@ -407,7 +410,7 @@ describe('houses waiting for material', () => {
 
   it('a house that drops gives nothing back, and pays again to climb back', () => {
     const { s, a } = street();
-    s.stone = 10;
+    s.stone = STONE;
     run(s, UP);
     expect(a.level).toBe(3);
     expect(s.stone).toBe(0);
@@ -505,7 +508,7 @@ describe('materials and trees: edge cases', () => {
   it('levelMaterials: none for a plot, a tent or a level past the top', () => {
     expect(levelMaterials(0)).toEqual({});
     expect(levelMaterials(1)).toEqual({});
-    expect(levelMaterials(4)).toEqual({ stone: 10, wood: 5 });
+    expect(levelMaterials(4)).toEqual({ stone: 15, wood: 5 });
     expect(levelMaterials(HOUSE_LEVELS.length)).toEqual({});
   });
 
@@ -640,7 +643,7 @@ describe('waiting houses: edge cases', () => {
 
   it('houseInfo shows the next level materials and the wait; weeksToNextLevel shows 1', () => {
     const { s, a } = street();
-    expect(houseInfo(s, a)!.next!.materials).toEqual({ stone: 10 });
+    expect(houseInfo(s, a)!.next!.materials).toEqual({ stone: STONE });
     expect(houseInfo(s, a)!.waiting).toBeNull();
     run(s, UP + 2);
     expect(houseInfo(s, a)!.waiting).toBe('stone');
@@ -664,11 +667,11 @@ describe('waiting houses: edge cases', () => {
     const { s, a } = street();
     run(s, UP);
     expect(a.waiting).toBe('stone');
-    s.stone = 10;
+    s.stone = STONE;
     s.food = 0;
     stepWeek(s, never);
     expect(s.famine).toBe(true);
-    expect([a.level, s.stone]).toEqual([2, 10]);
+    expect([a.level, s.stone]).toEqual([2, STONE]);
     run(s, 1); // fed again
     expect([a.level, s.stone]).toEqual([3, 0]);
   });

@@ -133,8 +133,9 @@ describe('winter in the forecast', () => {
 describe('workshop bonus in the forecast', () => {
   it('the fields bring more food with workshops: a field short of the eating becomes enough', () => {
     const s = emptyGame({ food: 5, week: 2 * W }); // spring: the field is at work
-    for (const y of [27, 29, 31]) put(s, 'house', ROADSIDE, y, 4, false, 20); // crowded: 66 people in all
-    for (const y of [33, 35]) put(s, 'house', ROADSIDE, y, 1);
+    // One crowded house that eats between the field alone and the field with the full bonus.
+    const crowd = Math.round(((BUILDINGS.field.harvest! / (3 * W)) * (1 + BUILDINGS.workshop.fieldBonusMax! / 2)) / RULES.people.food.adult);
+    put(s, 'house', ROADSIDE, 27, 4, false, crowd);
     put(s, 'field', westOf('field'), 38);
     const serve = () => {
       for (const need of ['plaza', 'market', 'park'] as const) s.coverage[need].fill(true);

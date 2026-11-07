@@ -336,7 +336,7 @@ describe('house info and balloons', () => {
           { kind: 'plaza', ok: true },
           { kind: 'sacred', ok: true },
         ],
-        materials: { stone: 10 },
+        materials: HOUSE_LEVELS[3].materials,
       },
       waiting: null,
       firewoodHold: false,

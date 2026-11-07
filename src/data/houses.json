@@ -2,6 +2,6 @@
   { "name": "Terreno",       "capacity": 0, "tax": 0,    "firewood": 0, "variants": 2, "needs": [] },
   { "name": "Tenda",         "capacity": 3, "tax": 1.25, "firewood": 0.3, "variants": 6, "needs": ["road"] },
   { "name": "Casa de barro", "capacity": 4, "tax": 1.75, "firewood": 0.2, "variants": 6, "needs": ["road"], "materials": { "wood": 5 } },
-  { "name": "Casa de pedra", "capacity": 6, "tax": 2.5,  "firewood": 0.15, "variants": 6, "needs": ["road", "plaza", "sacred"], "materials": { "stone": 10 } },
-  { "name": "Casa grande",   "capacity": 8, "tax": 3.25, "firewood": 0.15, "variants": 6, "needs": ["road", "plaza", "market", "park", "sacred"], "materials": { "stone": 10, "wood": 5 } }
+  { "name": "Casa de pedra", "capacity": 6, "tax": 2.5,  "firewood": 0.15, "variants": 6, "needs": ["road", "plaza", "sacred"], "materials": { "stone": 15 } },
+  { "name": "Casa grande",   "capacity": 8, "tax": 3.25, "firewood": 0.15, "variants": 6, "needs": ["road", "plaza", "market", "park", "sacred"], "materials": { "stone": 15, "wood": 5 } }
 ]

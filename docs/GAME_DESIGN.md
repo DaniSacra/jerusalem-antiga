@@ -85,16 +85,16 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
-| Campo | 20 | 0,5/sem | 2 x 2 | 2 | 468 comida/ano fora do inverno (12/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
-| Praça | 25 | 0,5/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (5 casas de barro); casas de barro no raio viram casas de pedra |
-| Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,75, máx. 4,5 comida/sem; × 0,3 no inverno | 2 | |
-| Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,3, máx. 3,5 comida/sem; × 0,3 no inverno | 3 | |
+| Campo | 20 | 0,5/sem | 2 x 2 | 2 | 180 comida/ano fora do inverno (cerca de 4,6/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
+| Praça | 25 | 0,75/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (5 casas de barro); casas de barro no raio viram casas de pedra |
+| Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,38, máx. 1,9 comida/sem; × 0,3 no inverno | 2 | |
+| Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,16, máx. 1,5 comida/sem; × 0,3 no inverno | 3 | |
 | Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
-| Pedreira | 40 + 10 madeira | 1/sem | 2 x 2 | 3 | rochas no raio × 0,4, máx. 2 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (passe o primeiro inverno); as rochas não acabam |
-| Celeiro | 40 + 10 madeira | 1/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
-| Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
-| Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
-| Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
+| Pedreira | 40 + 10 madeira | 1,75/sem | 2 x 2 | 3 | rochas no raio × 0,3, máx. 1,4 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (passe o primeiro inverno); as rochas não acabam |
+| Celeiro | 40 + 10 madeira | 1,75/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
+| Mercado | 60 + 10 madeira | 3,5/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
+| Oficina | 50 + 10 madeira | 1,75/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
+| Parque | 60 + 5 pedra | 2/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
 | Templo | grátis (o lugar); as etapas pagam | – | 6 x 6 | – (construtores na obra) | – | 12 | lugar liberado pelo Objetivo 9 (30 moradores); sem manutenção; erguido em 5 etapas (ver Objetivos); protegido depois do Alicerce; o raio só dá Alegria, e só depois da Consagração |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
@@ -118,7 +118,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   valor do nível): Celeiro, Mercado e Oficina sobem até o nível 3 com a ação **Melhorar** do
   balão (`upgradeBuilding`): paga o custo do nível (Celeiro 60 / 100, Mercado 60 / 90, Oficina 50 /
   80) **mais pedra** (20 no nível 2, 40 no nível 3, `materials` do nível; segura a pedra que sobrava
-  no fim da partida) e passa a pagar a manutenção dele (Celeiro 2 / 4, Mercado 3 / 5, Oficina 2 / 3).
+  no fim da partida) e passa a pagar a manutenção dele (Celeiro 3,5 / 5,5, Mercado 5 / 8, Oficina 3,5 / 5).
   Não dá em dívida, sem prata, sem a pedra (`materials`) ou no topo. Toast "Celeiro subiu para o nível 2".
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
@@ -142,7 +142,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   com a razão `materials` sem gastar nada (a prata é conferida antes). `missingMaterial(s, kind)`
   diz o material que falta (madeira primeiro) para o botão, a prévia e o toast.
 - **Evolução das casas** (`materials` em `houses.json`, pago ao subir para o nível): Casa de barro
-  5 madeira, Casa de pedra 10 pedra, Casa grande 10 pedra + 5 madeira (terreno e tenda: nada).
+  5 madeira, Casa de pedra 15 pedra, Casa grande 15 pedra + 5 madeira (terreno e tenda: nada).
   Veja Casas.
 - **Corte** (`trees.ts`): cada Lenhador ligado soma a madeira que fez na semana (pela sua equipe)
   em `cutProgress`; a cada **10** (`cutEvery`) corta a **árvore mais próxima no raio** (menor
@@ -338,7 +338,7 @@ e uma tranca, sem gente, bichos, fumaça, varal nem toldo, num tom empoeirado.
 O imposto é por casa (com o fator da Alegria), não por pessoa.
 
 **Material ao evoluir** (coluna nova de `houses.json`): Casa de barro **5 madeira**, Casa de pedra
-**10 pedra**, Casa grande **10 pedra + 5 madeira**. Cumpridas as `upWeeks` semanas e as exigências, a casa
+**15 pedra**, Casa grande **15 pedra + 5 madeira**. Cumpridas as `upWeeks` semanas e as exigências, a casa
 sobe só se houver o material, e **paga na hora**. Sem material, a contagem fica parada no fim e
 a casa guarda `waiting: 'wood' | 'stone'` (o primeiro que falta) até o material chegar; sobe na
 semana em que ele chega (a produção entra antes da evolução). Casas prontas na mesma semana pagam
@@ -461,8 +461,9 @@ ficar).
 ## Colheita
 
 - O campo dá comida **na primavera, no verão e no outono**, desde a semana em que é construído:
-  **468 por ano** (`harvest` em `buildings.json`) nas 39 semanas fora do inverno, ou seja
-  **12 por semana × a lotação do campo**. **No inverno ele congela** (`harvestsIn`): não dá
+  **180 por ano** (`harvest` em `buildings.json`) nas 39 semanas fora do inverno, ou seja
+  **cerca de 4,6 por semana × a lotação do campo** (desde o aperto de 2026-11-07: um campo e um pescador
+  seguram o Ano 1, mas do Ano 2 em diante a cidade pede 3 a 5 fontes de comida e o celeiro). **No inverno ele congela** (`harvestsIn`): não dá
   comida; desde o Pacote B2 os lavradores **ficam nele, descansando** (não migram para o pescador
   ou a coletora; só o jogador os move). O desafio é guardar comida para o inverno (estoque e celeiro).
 - A prévia mostra "Rende N comida/sem" e "Comida depois: ±X/sem" (veja Interface Nova); no
@@ -1023,7 +1024,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     "Próximo nível: Casa de pedra"), imposto (só PC), alegria com os motivos, uma linha com o que
     já tem ("✓ Rua") e outra com o que falta ("✗ Praça, Mercado"; um serviço bloqueado diz "(libera
     no objetivo 4)"), "Casa de pedra em N sem" e os ganhos ao evoluir (`upgradeGain`; PC num quadro
-    "Ao evoluir", celular numa linha); se a evolução pede material, "Ao evoluir: pede 10 de pedra"
+    "Ao evoluir", celular numa linha); se a evolução pede material, "Ao evoluir: pede 15 de pedra"
     (e 5 de madeira) logo abaixo. **Casa pronta esperando material** (`houseInfo().waiting`): no
     lugar das exigências (todas cumpridas) e da contagem, a linha vermelha "Pronta para virar Casa
     de pedra: falta 7 de pedra" e a ação principal "Onde pôr uma pedreira" (ou "um lenhador"), que
@@ -1034,7 +1035,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     caminho ("A caminho: Natã, Débora") ou "Sem rua"; toco: "Toco · vira árvore de novo em N sem.
     Dá para construir em cima";
   - celeiro, mercado e oficina: "Nível 1 de 3", a linha do próximo nível num quadro dourado
-    ("Nível 2: guarda 600 · 2/sem (hoje 300 · 1/sem)"; mercado "alcance", oficina "+20% nos
+    ("Nível 2: guarda 600 · 3,5/sem (hoje 300 · 1,75/sem)"; mercado "alcance", oficina "+20% nos
     campos") e a ação principal **"Melhorar · 60 · 20 pedra"** dourada; sem prata o botão fica cinza,
     "Falta prata: custa 60"; sem a pedra, cinza com "Falta pedra: 20 (tem 0)"; tocar nele
     diz o mesmo num toast; no topo, "Nível máximo" e nenhuma ação.

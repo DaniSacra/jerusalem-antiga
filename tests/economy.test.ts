@@ -60,7 +60,7 @@ describe('economy', () => {
     put(s, 'field', 1, 1);
     put(s, 'workshop', 5, 1);
     put(s, 'market', 9, 1);
-    const up = (k: 'field' | 'workshop' | 'market') => BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor; // nobody works there
+    const up = (k: 'field' | 'workshop' | 'market') => Math.round(BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor * 100) / 100; // nobody works there (cents)
     const e = computeEconomy(s);
     expect(e.jobs).toBe(0);
     expect(e.yearJobs).toBe(0);
@@ -86,23 +86,23 @@ describe('economy', () => {
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
       field: 0.5,
-      plaza: 0.5,
+      plaza: 0.75,
       fisher: 0.5,
       gatherer: 0.5,
       lumber: 0.5,
-      quarry: 1,
+      quarry: 1.75,
       pasture: 0.5,
-      granary: 1,
-      market: 2,
-      workshop: 1,
-      park: 1,
+      granary: 1.75,
+      market: 3.5,
+      workshop: 1.75,
+      park: 2,
     });
     // The temple has no upkeep: built early, it never drains the city (plano-p2-correcoes 2.1).
     expect(BUILDINGS.temple.upkeep).toBe(0);
     // The market stands off the road: nobody can work there, so it pays half.
-    expect(e.upkeep).toEqual({ plaza: 0.5, field: 0.5, market: 1, workshop: 1 });
-    expect(costliestUpkeep(e)?.amount).toBe(1);
-    expect(e.silverDelta).toBeCloseTo(e.taxes - 3); // the balance shown as +X/sem
+    expect(e.upkeep).toEqual({ plaza: BUILDINGS.plaza.upkeep, field: BUILDINGS.field.upkeep, market: BUILDINGS.market.upkeep! * RULES.emptyUpkeepFactor, workshop: BUILDINGS.workshop.upkeep });
+    expect(costliestUpkeep(e)?.amount).toBe(Math.max(BUILDINGS.market.upkeep! * RULES.emptyUpkeepFactor, BUILDINGS.workshop.upkeep!));
+    expect(e.silverDelta).toBeCloseTo(e.taxes - Object.values(e.upkeep).reduce((x, v) => x + v, 0)); // the balance shown as +X/sem
   });
 
   it('each person eats by age band, the same in every house level out of winter', () => {
@@ -163,7 +163,7 @@ describe('winter eating', () => {
 
 describe('fields make food, not silver', () => {
   it('a field has 2 jobs and a yearly harvest; no building makes silver now', () => {
-    expect(BUILDINGS.field).toMatchObject({ jobs: 2, harvest: 468 });
+    expect(BUILDINGS.field).toMatchObject({ jobs: 2, harvest: 180 });
     expect('food' in BUILDINGS.field).toBe(false); // fields feed the city through the harvest
     for (const def of Object.values(BUILDINGS)) expect('silver' in def).toBe(false);
   });

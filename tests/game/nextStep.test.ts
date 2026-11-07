@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOALS, refreshCity, startStage, TEMPLE_STAGES, type BuildableKind, type GameState } from '../../src/core';
+import { GOALS, HOUSE_LEVELS, refreshCity, startStage, TEMPLE_STAGES, type BuildableKind, type GameState } from '../../src/core';
 import { nextStep } from '../../src/game/model/nextStep';
 import { T } from '../../src/game/strings';
 import { EAST, emptyGame, hire, person, put, ROADSIDE } from '../helpers';
@@ -161,7 +161,7 @@ describe('nextStep: what to do now', () => {
       const h = put(s, 'house', ROADSIDE, 27, 2, false, 2);
       h.waiting = 'stone';
       s.stone = 2;
-      expect(nextStep(s)).toMatchObject({ text: N.material(8, 'stone'), aim: { tool: 'quarry' } });
+      expect(nextStep(s)).toMatchObject({ text: N.material(HOUSE_LEVELS[3].materials!.stone! - 2, 'stone'), aim: { tool: 'quarry' } });
     });
 
     it('mud houses: more houses, then when they climb', () => {

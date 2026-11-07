@@ -26,8 +26,8 @@ describe('fisher and gatherer data', () => {
       expect(BUILDINGS[k]).toMatchObject({ cost: 20, upkeep: 0.5, jobs: 1, w: 2, h: 2, category: 'supply' });
       expect(RULES.startUnlocked).toContain(k);
     }
-    expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.75, max: 4.5, winterFactor: 0.3 });
-    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.3, max: 3.5, winterFactor: 0.3 });
+    expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.38, max: 1.9, winterFactor: 0.3 });
+    expect(tree).toEqual({ source: 'tree', radius: 3, perCell: 0.16, max: 1.5, winterFactor: 0.3 });
   });
 });
 

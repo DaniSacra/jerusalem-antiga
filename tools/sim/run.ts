@@ -101,6 +101,18 @@ function materialLines(rs: Result[]): string[] {
       ` | unlock→temple marked med ${m((r) => r.mat.templeWait)}`,
   ];
 }
+/** Economy squeeze (sim-tester-aperto): wins, defeats, hunger or cold, spoiled food, silver never spent, stone at its cap. */
+function squeezeLine(rs: Result[]): string {
+  const n = rs.length;
+  const m = (get: (r: Result) => number, d = 0) => f(med(rs.map(get)), d);
+  const won = rs.filter((r) => r.won).map((r) => r.weeks);
+  const made = rs.reduce((a, r) => a + r.food.field + r.food.fisher + r.food.gatherer, 0);
+  const hungry = rs.filter((r) => r.famineWeeks > 0);
+  const lostY1 = rs.filter((r) => r.lost && r.weeks <= 52).length;
+  return `  SQ won ${pc(won.length, n)} lost ${pc(rs.filter((r) => r.lost).length, n)} (Y1 ${lostY1}) | win ${f(mins(med(won)), 1)} min p10-p90 ${f(mins(qt(won, 0.1)), 1)}-${f(mins(qt(won, 0.9)), 1)}` +
+    ` | hunger|cold ${pc(rs.filter((r) => r.famineWeeks > 0 || r.b1.coldWeeks > 0).length, n)} hunger ${pc(hungry.length, n)} wks med ${m((r) => r.famineWeeks)} (of hungry ${f(med(hungry.map((r) => r.famineWeeks)))}) p90 ${f(qt(rs.map((r) => r.famineWeeks), 0.9))} Y1 ${pc(rs.filter((r) => r.famineY1 > 0).length, n)}` +
+    ` | spoiled ${f((100 * rs.reduce((a, r) => a + r.food.spoiled, 0)) / made)}% | silver unspent med ${m((r) => (100 * Math.max(0, r.endSilver)) / r.sq.silverIn)}% | stone cap wks med ${m((r) => (100 * r.sq.stoneCap) / Math.max(1, r.sq.weeks))}% | res52 ${m((r) => r.residents52)} res104 ${m((r) => r.residents104)} | food bldgs Y1-5 ${[0, 1, 2, 3, 4].map((y) => m((r) => r.sq.foodBuildings[y] ?? NaN)).join('/')}`;
+}
 /** Package B1 (plano-sobrevivencia 7): S1-S4, cold, wood in year 1, the firewood hold, year-1 losses. */
 function b1Lines(rs: Result[]): string[] {
   const n = rs.length;
@@ -217,6 +229,7 @@ for (const name of bots) {
   all.push(...rs);
   if (args.includes('--json')) continue;
   const n = rs.length;
+  if (args.includes('--squeeze')) { console.log(`${name.padEnd(9)}${squeezeLine(rs)}`); continue; }
   if (args.includes('--brief')) {
     console.log(`${name.padEnd(9)} ${criteria(rs)} | goals ${GOALS.map((_, i) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)))).join(' ')}`);
     for (const l of materialLines(rs)) console.log(l);
@@ -224,6 +237,7 @@ for (const name of bots) {
     for (const l of b2Lines(rs)) console.log(l);
     for (const l of b3Lines(rs)) console.log(l);
     for (const l of templeLines(rs)) console.log(l);
+    console.log(squeezeLine(rs));
     if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
     continue;
   }

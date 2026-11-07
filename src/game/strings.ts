@@ -152,7 +152,7 @@ export const T = {
         ? `Dívida e fome: demolir serviços corta a manutenção · ${weeks(a.weeksLeft)}`
         : `Em dívida: ${weeks(a.weeksLeft)} para a cidade ser abandonada. Reduza a manutenção`;
     if (a.kind === 'deficit')
-      return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
+      return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt2(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
     if (a.kind === 'material')
       return `${a.count} ${a.count === 1 ? 'casa esperando' : 'casas esperando'} ${PRODUCT[a.material]}: ${a.making ? `já chega aos poucos, ${MAKER[a.material]} a mais acelera` : `construa ${MAKER[a.material]}`}`;
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
