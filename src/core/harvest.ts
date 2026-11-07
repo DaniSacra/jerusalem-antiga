@@ -67,7 +67,7 @@ export function nextFieldTurn(week: number): { season: 'winter' | 'spring'; week
   return { season: 'winter', weeks: d };
 }
 
-/** River, tree or rock cells within a gathering building's radius. */
+/** River, tree, rock or free grass cells within a gathering building's radius. */
 export function gatherCells(s: GameState, b: Building): number {
   const g = BUILDINGS[b.kind].gather;
   if (!g) return 0;
@@ -77,9 +77,11 @@ export function gatherCells(s: GameState, b: Building): number {
 /** A tree a gatherer or lumber takes from (a stump is not one). */
 export const isTree = (f: Feature | null): f is TreeFeature => f === 'olive' || f === 'palm';
 
-/** A cell a fisher (river), gatherer or lumber (olive or palm tree) or quarry (rock) takes from. */
+/** A cell a fisher (river), gatherer or lumber (olive or palm tree), quarry (rock) or pasture (free grass) takes from. */
 export function isGatherSource(s: GameState, i: number, source: GatherSource): boolean {
   if (source === 'river') return s.ground[i] === 'river';
+  // A pasture grazes free grass: no building, road, tree or rock on it (the growing city eats it).
+  if (source === 'grass') return s.ground[i] === 'grass' && !s.feature[i] && !s.grid[i] && !s.roads[i];
   return source === 'rock' ? s.feature[i] === 'rock' : isTree(s.feature[i]);
 }
 

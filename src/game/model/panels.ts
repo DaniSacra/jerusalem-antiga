@@ -20,8 +20,8 @@ import {
   lastsToHarvest,
   RULES,
   seasonOf,
-  templeSavings,
   waitingCouples,
+  TEMPLE_STAGES,
   type BuildingKind,
   type Economy,
   type FoodForecast,
@@ -30,6 +30,7 @@ import {
 } from '../../core';
 import type { Notice } from '../notices';
 import { fmt, fmtInt, signed, T } from '../strings';
+import { stageStatus } from './temple';
 import type { CardTone } from './card';
 
 /**
@@ -46,6 +47,8 @@ export interface PanelPart {
   big?: boolean;
   small?: boolean;
   plain?: boolean;
+  /** An ICONS key drawn before the text (the Temple's stages in Objetivos). */
+  icon?: string;
 }
 
 /** A small line chart of the last weeks; `limit` is drawn dashed (the food store limit). */
@@ -91,18 +94,21 @@ export function goalsPanel(s: GameState, phone: boolean): PanelLine[] {
     // Phone: the reward and the unlock only on the current goal (the list must fit the short screen).
     const extra = phone && !cur ? '' : [g.victory ? N.goals.victory : N.goals.reward(g.reward), ...(g.unlock ? [N.goals.unlocks(g.unlock)] : [])].join(' · ');
     const shown = cur ? N.goalProgress(g, goalProgress(s, g), goalTarget(s, g)) : null;
+    // The Temple's stages stand out: the construction mark, gold, and "etapa 2/5".
+    const stage = g.type === 'templeStage';
     lines.push({
       parts: [
         { text: mark, tone: done ? 'good' : cur ? 'gold' : 'muted' },
-        { text: `${i + 1}. ${N.goalText(g)}`, tone: done ? 'muted' : 'text', plain: !cur },
+        { text: `${i + 1}. ${N.goalText(g)}`, tone: done ? 'muted' : stage ? 'gold' : 'text', plain: !cur, ...(stage ? { icon: 'stage' } : {}) },
+        ...(stage ? [{ text: N.stage.ofStages(g.stage ?? 0, TEMPLE_STAGES.length), tone: 'muted' as const, small: true, plain: true }] : []),
         ...(shown ? [{ text: shown, tone: 'gold' as const }] : []),
         ...(extra ? [{ text: extra, tone: 'muted' as const, small: true, plain: true }] : []),
       ],
       gap: cur ? 2 : 0,
     });
   });
-  const save = templeSavings(s);
-  if (save) lines.push({ parts: [{ text: N.goals.templeSavings(save.silver, save.cost), tone: save.silver >= save.cost ? 'good' : 'gold' }], gap: 2 });
+  const stage = stageStatus(s);
+  if (stage) lines.push({ parts: [{ text: stage.text, tone: stage.tone }], gap: 2 });
   return lines;
 }
 

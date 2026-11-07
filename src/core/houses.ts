@@ -97,7 +97,7 @@ export function balloonNeed(s: GameState, b: Building): BalloonKind | null {
 
 /** Houses ready to climb that wait for each material (the `material` alert and the top bar). */
 export function housesWaiting(s: GameState): Record<Material, number> {
-  const out: Record<Material, number> = { wood: 0, stone: 0 };
+  const out: Record<Material, number> = { wood: 0, stone: 0, livestock: 0 };
   for (const b of s.buildings) if (b.kind === 'house' && b.waiting) out[b.waiting]++;
   return out;
 }

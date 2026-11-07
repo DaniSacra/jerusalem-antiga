@@ -3,6 +3,7 @@ import type { PanelLine } from '../game/model/panels';
 import { chartSvg } from './charts';
 import { h, onTap } from './dom';
 import { figureSvg } from './figure';
+import { iconEl } from './parts';
 
 /** Lines of a balloon or a panel (from src/game/model) as HTML. */
 
@@ -17,6 +18,7 @@ export function cardLine(l: CardLine, onPerson: (id: number) => void): HTMLEleme
     return grid;
   }
   const cls = [toneClass(l.tone), l.big ? 'big' : '', l.plain ? 'plain' : '', l.box ? 'box' : ''].filter(Boolean).join(' ');
+  if (l.bar !== undefined) return h('div.line.barline', { class: cls || null, style }, h('span.bar', {}, h('i', { style: `width:${Math.round(l.bar * 100)}%` })), h('span', {}, l.text));
   if (l.parts) return h('div.line', { class: cls || null, style }, ...l.parts.map((p) => h('span', { class: toneClass(p.tone) || null }, p.text)));
   return h('div.line', { class: cls || null, style }, l.text);
 }
@@ -50,6 +52,6 @@ export function panelLine(l: PanelLine, onHouse: (id: number) => void): HTMLElem
   return h(
     'div.pline',
     { class: l.wrap ? 'wrap' : null, style },
-    ...l.parts.map((p) => h('span', { class: [toneClass(p.tone), p.big ? 'big' : '', p.small ? 'small' : '', p.plain ? 'plain' : ''].filter(Boolean).join(' ') || null }, p.text)),
+    ...l.parts.map((p) => h('span', { class: [toneClass(p.tone), p.big ? 'big' : '', p.small ? 'small' : '', p.plain ? 'plain' : '', p.icon ? 'withicon' : ''].filter(Boolean).join(' ') || null }, p.icon ? iconEl(p.icon) : null, p.text)),
   );
 }

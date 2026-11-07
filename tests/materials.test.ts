@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  TEMPLE_STAGES,
   alerts,
   BUILDINGS,
   checkClear,
@@ -91,13 +92,12 @@ describe('materials data', () => {
     expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.4, max: 2, product: 'stone' });
   });
 
-  it('building costs: wood for houses and works, stone for the park, both for the temple; food and wood never need material', () => {
+  it('building costs: wood for houses and works, stone for the park; the temple, food and wood never need material', () => {
     const cost = (k: Placeable) => materialsOf(k);
     expect(cost('house')).toEqual({ wood: 10 });
     for (const k of ['granary', 'market', 'workshop', 'quarry'] as const) expect(cost(k)).toEqual({ wood: 10 });
     expect(cost('park')).toEqual({ stone: 5 });
-    expect(cost('temple')).toEqual({ stone: 300, wood: 200 });
-    for (const k of ['road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(cost(k)).toEqual({});
+    for (const k of ['temple', 'road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(cost(k)).toEqual({});
   });
 
   it('house levels: tents are free, then mud 5 wood, stone 10 stone, big 10 stone and 5 wood', () => {
@@ -320,15 +320,18 @@ describe('building with materials', () => {
     expect(checkPlace(s, 'house', EAST, 33)).toEqual({ ok: false, reason: 'silver' });
     for (const k of ['road', 'field', 'plaza', 'fisher', 'gatherer', 'lumber'] as const) expect(missingMaterial(s, k)).toBeNull();
     expect(missingMaterial(s, 'park')).toBe('stone');
-    s.stone = 300;
-    expect(missingMaterial(s, 'temple')).toBe('wood');
+    expect(missingMaterial(s, 'temple')).toBeNull();
   });
 
-  it('the temple pays 800 silver, 300 stone and 200 wood', () => {
+  it('the temple is marked for free; its stages after the altar cost 800 silver, 260 stone and 200 wood in all', () => {
     const s = city();
-    Object.assign(s, { silver: 1000, wood: 350, stone: 400 });
+    Object.assign(s, { silver: 0, wood: 0, stone: 0 });
     expect(place(s, 'temple', EAST, 34).ok).toBe(true);
-    expect([s.silver, s.stone, s.wood]).toEqual([200, 100, 150]);
+    expect([s.silver, s.stone, s.wood]).toEqual([0, 0, 0]);
+    const rest = TEMPLE_STAGES.slice(1);
+    expect(rest.reduce((a, st) => a + st.cost, 0)).toBe(800);
+    expect(rest.reduce((a, st) => a + (st.materials.stone ?? 0), 0)).toBe(260);
+    expect(rest.reduce((a, st) => a + (st.materials.wood ?? 0), 0)).toBe(200);
   });
 });
 

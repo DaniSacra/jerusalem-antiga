@@ -13,6 +13,7 @@ import type { Placed } from './street';
 import { Idlers, Leavers } from './townsfolk';
 import { groundDetail } from './detail';
 import { standMap, wearMap } from './wear';
+import { COURT, templeBuilt } from './works';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
@@ -182,7 +183,9 @@ export class World {
       }
 
     let altar: THREE.Vector3 | null = null;
-    for (const { b, look, stock, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
+    // The altar burns once restored (works.ts); a map without a stage state keeps it burning.
+    let altarFire = 1;
+    for (const { b, look, stock, site, x: cx, z: cz, rot, scale, sy, tint } of plan.buildings) {
       const y = ground.height(cx, cz);
       const copies: [ModelKey, number, number?][] = [[look.key, inst.add(look.key, cx, y, cz, rot, scale, tint, sy)]];
       if (look.extra) copies.push([look.extra, inst.add(look.extra, cx, y, cz, rot, scale, 1, sy)]);
@@ -243,7 +246,19 @@ export class World {
       if (b.kind === 'field') fields.push(new THREE.Vector3(cx, y, cz));
       // Stone being cut: dust over the cut face while the quarry works (connected).
       if (b.kind === 'quarry' && b.connected) for (const [lx, lz] of [[0.35, 0.45], [-0.1, 0.75]]) dust.push(new THREE.Vector4(...at(lx, 0.2, lz).toArray(), 0));
-      if (b.kind === 'altar') {
+      if (site) {
+        // The Temple's stages: the stage rising, its works and the tools left (works.ts).
+        for (const a of site.adds) copies.push([a.key, inst.add(a.key, cx, y + a.y, cz, rot, scale, 1, a.sy), a.y]);
+        const floor = b.kind === 'temple' && templeBuilt(s) >= 1 ? COURT : 0;
+        if (site.dust) for (const [lx, lz] of b.kind === 'altar' ? LOOK.works.altarDustAt : LOOK.works.dustAt) dust.push(new THREE.Vector4(...at(lx, floor + 0.2, lz).toArray(), 0));
+        if (site.smokes) {
+          // The consecrated Temple's altar in its court burns and smokes.
+          smoke.push(new THREE.Vector4(...at(-1.55, COURT + 1.0, 1.15).toArray(), 0));
+          fires.push(at(-1.55, COURT + 0.72, 1.15));
+        }
+        if (b.kind === 'altar') altarFire = site.fire;
+      }
+      if (b.kind === 'altar' && altarFire > 0) {
         altar = new THREE.Vector3(cx, y + 1.2, cz - 0.2);
         smoke.push(new THREE.Vector4(cx, y + 1.8, cz - 0.2, 0));
         fires.push(new THREE.Vector3(cx, y + 1.25, cz - 0.2));
@@ -261,7 +276,7 @@ export class World {
     this.smoke = new Smoke(smoke);
     this.dust = new Smoke(dust, { color: Number(LOOK.fx.quarryDust.color), rise: LOOK.fx.quarryDust.rise, size: LOOK.fx.quarryDust.size });
     this.fires = new NightFires(fires, fireKind);
-    this.flames = new Flames(altar, tents);
+    this.flames = new Flames(altar, tents, altarFire);
     this.hands = new FieldHands(fields, MAX_HANDS, this.shadows);
     this.pasture = new Pasture(s, ground, () => WATER_Y + this.water.mesh.position.y, this.shadows);
     this.puddles = puddleMesh(puddles, old);

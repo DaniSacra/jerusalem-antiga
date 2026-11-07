@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, refreshCity, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
-import { atHarvest, constRng, EAST, hire, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
+import { atHarvest, consecrate, constRng, EAST, hire, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = UP_WEEKS;
@@ -102,6 +102,7 @@ describe('house evolution', () => {
     put(s, 'plaza', ROADSIDE, 38);
     put(s, 'market', westOf('market'), 34);
     put(s, 'temple', EAST, 36);
+    consecrate(s);
     expect(s.coverage.sacred[indexOf(s, ROADSIDE, 40)]).toBe(true);
     run(s, UP + 1);
     expect(far.level).toBe(3);
@@ -362,8 +363,8 @@ describe('house info and balloons', () => {
       { kind: 'park', ok: false },
     ]);
     expect(s.unlocked).not.toContain('park');
-    expect(unlockingGoal('market')).toBe(7);
-    expect(unlockingGoal('park')).toBe(9);
+    expect(unlockingGoal('market')).toBe(8);
+    expect(unlockingGoal('park')).toBe(10);
   });
 
   it('needLocked: only a service need whose building is still locked', () => {

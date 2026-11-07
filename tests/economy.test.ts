@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILDINGS,
   computeEconomy,
+  seatsOf,
   costliestUpkeep,
   fieldBonus,
   fieldHarvest,
@@ -113,10 +114,16 @@ describe('economy', () => {
     }
   });
 
-  it('counts temple jobs once connected', () => {
+  it('counts the temple builders\' jobs only while a stage is under way there; none once consecrated', () => {
     const s = emptyGame();
-    put(s, 'temple', EAST, 30);
-    expect(computeEconomy(s).jobs).toBe(2);
+    const t = put(s, 'temple', EAST, 30);
+    expect(computeEconomy(s).jobs).toBe(0);
+    t.builders = 4;
+    expect(seatsOf(t)).toBe(4);
+    t.builders = undefined;
+    expect(seatsOf(t)).toBe(0);
+    s.temple = { done: 5, active: false, progress: 0 };
+    expect(computeEconomy(s).jobs).toBe(0);
   });
 });
 

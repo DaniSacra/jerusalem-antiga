@@ -2,11 +2,12 @@ import { indexOf, type GameState } from '../core';
 import type { HerdKind } from './animals';
 import LOOK from './look3d.json';
 import { hash } from './plan';
+import { PEN, penAnimals } from './works';
 
 /**
  * The life around the town, as plain data (no Three.js): where the animals, boats and washerwomen
  * stay. Goats and chickens by the tents, a donkey tied at each market, flocks of sheep on the open
- * grass near the altar, pigeons on the altar court, fishing boats and washerwomen on the river
+ * grass near the altar, pigeons on the altar court, the offerings' flock in the restored altar's pen, fishing boats and washerwomen on the river
  * nearest the town. Only a sight; tested in tests/render3d/ambient.test.ts. `pasture.ts` draws and
  * moves them.
  */
@@ -48,6 +49,11 @@ export function ambientPlan(s: GameState): AmbientSpot[] {
 
   // Pigeons on the altar court.
   if (altar) for (let k = 0; k < A.pigeons; k++) add({ kind: 'pigeon', x: cx + (hash(k, 1, 40) - 0.5) * 3, z: cz + (hash(k, 2, 40) - 0.5) * 3, range: 0.5, yaw: hash(k, 3, 40) * 6.28, k: hash(k, 4, 40) });
+
+  // The offerings' flock in the restored altar's pen (works.ts), sheep and a goat.
+  if (altar)
+    for (let k = 0; k < penAnimals(s); k++)
+      add({ kind: k % 3 === 2 ? 'goat' : 'sheep', x: cx + PEN.x + (hash(k, 1, 52) - 0.5) * PEN.w * 0.6, z: cz + PEN.z + (hash(k, 2, 52) - 0.5) * PEN.d * 0.6, range: 0.2, yaw: hash(k, 3, 52) * 6.28, k: hash(k, 4, 52) });
 
   for (const b of s.buildings) {
     // Every other lived-in tent keeps a goat and two chickens on the free ground beside it.

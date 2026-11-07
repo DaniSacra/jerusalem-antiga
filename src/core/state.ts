@@ -4,7 +4,7 @@ import { rollUpWeeks } from './houses';
 import { round2 } from './economy';
 import { rollLook } from './looks';
 import { cellsOf, indexOf } from './grid';
-import { caravanSpots, entranceCell, generateTerrain, startRoad } from './map';
+import { caravanSpots, entranceCell, generateTerrain, startRoad, templeRuin } from './map';
 import { refreshCity } from './refresh';
 import { between } from './rng';
 import type { GameState, Rng } from './types';
@@ -29,6 +29,8 @@ export function createGame(rng: Rng): GameState {
     food: 0,
     wood: RULES.startMaterials.wood,
     stone: RULES.startMaterials.stone,
+    livestock: RULES.startMaterials.livestock,
+    offered: false,
     stumps: [],
     week: 0,
     famine: false,
@@ -61,6 +63,14 @@ export function createGame(rng: Rng): GameState {
   altarB.connected = true;
   s.buildings.push(altarB);
   for (const c of cellsOf(altarB)) s.grid[indexOf(s, c.x, c.y)] = altarB;
+  // The Temple in ruins stands beside it from the start (its stages rebuild it in place).
+  const ruin = newBuilding(s.nextId++, 'temple', templeRuin(), 0);
+  s.buildings.push(ruin);
+  for (const c of cellsOf(ruin)) {
+    const i = indexOf(s, c.x, c.y);
+    s.grid[i] = ruin;
+    s.feature[i] = null;
+  }
   foundCaravan(s, rng);
   rollCaravans(s, rng);
   refreshCity(s);

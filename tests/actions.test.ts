@@ -53,10 +53,10 @@ describe('placing buildings', () => {
 });
 
 describe('temple placement', () => {
-  it('occupies 6x6 cells and costs 800', () => {
-    const s = emptyGame({ silver: 850 });
+  it('occupies 6x6 cells and is marked for free (no silver, no material)', () => {
+    const s = emptyGame({ silver: 0, stone: 0, wood: 0 });
     expect(place(s, 'temple', EAST, 30)).toEqual({ ok: true });
-    expect(s.silver).toBe(50);
+    expect([s.silver, s.stone, s.wood]).toEqual([0, 0, 0]);
     const t = s.grid[indexOf(s, EAST, 30)]!;
     expect(t).toMatchObject({ kind: 'temple', w: 6, h: 6, connected: true });
     expect(s.grid[indexOf(s, EAST + 5, 35)]).toBe(t);
@@ -204,9 +204,10 @@ describe('clearing', () => {
     expect(clearCell(s, 6, 2)).toEqual({ ok: false, reason: 'invalid' });
   });
 
-  it('protects the altar and the temple', () => {
+  it('protects the altar, and the temple once its foundation began', () => {
     const s = emptyGame();
     put(s, 'temple', EAST, 30);
+    s.temple = { done: 1, active: true, progress: 0 };
     expect(clearCell(s, 25, 25)).toEqual({ ok: false, reason: 'protected' });
     expect(clearCell(s, EAST + 3, 33)).toEqual({ ok: false, reason: 'protected' });
     expect(s.buildings.map((b) => b.kind)).toEqual(['altar', 'temple']);

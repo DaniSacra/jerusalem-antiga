@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  templeSavings,
   foodLostIfRemoved,
   balanceAfter,
   BUILDINGS,
@@ -341,20 +340,5 @@ describe('food lost if removed (Demolir preview)', () => {
     const s = full();
     s.silver = -50;
     expect(foodLostIfRemoved(s, EAST, 30)).toBe(G);
-  });
-});
-
-describe('temple savings', () => {
-  it('shows the silver toward the temple only from its unlock until it stands, never below 0', () => {
-    const s = emptyGame({ silver: 312 });
-    s.unlocked = s.unlocked.filter((k) => k !== 'temple');
-    expect(templeSavings(s)).toBeNull();
-    s.unlocked.push('temple');
-    expect(templeSavings(s)).toEqual({ silver: 312, cost: BUILDINGS.temple.cost });
-    s.silver = -20.5;
-    expect(templeSavings(s)!.silver).toBe(0);
-    s.silver = 1e4;
-    put(s, 'temple', EAST, 30);
-    expect(templeSavings(s)).toBeNull();
   });
 });

@@ -37,6 +37,7 @@ export class CardBalloon {
     private phone: () => boolean,
     private openPerson: (id: number) => void,
     private nudge: (dx: number) => void,
+    private openJobs: () => void,
   ) {}
 
   /** The building the camera was last moved aside for (once per tap). */
@@ -73,7 +74,7 @@ export class CardBalloon {
     }
     this.rect = card.foot;
     this.anchors.pin(this.el, card.foot, this.at);
-    const key = JSON.stringify([c, card.lines, card.aside, card.action?.label, card.action?.dim, card.demolish]);
+    const key = JSON.stringify([c, card.lines, card.aside, card.action?.label, card.action?.dim, card.demolish, card.jobs]);
     const hidden = this.el.classList.contains('hidden');
     const rebuilt = key !== this.key;
     if (rebuilt) {
@@ -113,6 +114,11 @@ export class CardBalloon {
     const main = h('div.main', {}, h('div.bhead', {}, title, close), ...rest);
     const acts = h('div.acts');
     if (card.action) acts.append(this.actionButton(card.action));
+    if (card.jobs) {
+      const jobs = h('button.act', { 'data-spot': 'balloon-jobs' }, icon('jobs'), h('span', {}, T.nova.buttons.jobs));
+      onTap(jobs, () => this.openJobs());
+      acts.append(jobs);
+    }
     if (card.demolish) {
       const label = h('span', {}, T.nova.inspect.demolish);
       const del = h('button.act.red', { 'data-spot': 'balloon-demolish' }, icon('clear'), label);
@@ -142,6 +148,12 @@ export class CardBalloon {
   }
 
   private actionButton(a: CardAction) {
+    if (a.kind === 'stage') {
+      // A stage of the Temple: grey with what is missing (a tap says why), gold when it can begin.
+      const b = h('button.act.gold', { class: a.dim ? 'dim' : null, 'data-spot': 'balloon-stage' }, icon('stage'), h('span', {}, a.label));
+      onTap(b, () => this.s.startStage());
+      return b;
+    }
     // The building's thumbnail (Melhorar: the building itself), or the road's icon.
     const kind = a.kind === 'upgrade' ? (a.target.kind as BuildableKind) : a.kind;
     const url = kind === 'road' ? null : this.thumbs[kind];

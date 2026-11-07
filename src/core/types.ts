@@ -4,13 +4,13 @@ export type Feature = 'rock' | 'palm' | 'olive' | 'stump';
 /** The trees on the map (a stump remembers which one it was). */
 export type TreeFeature = 'olive' | 'palm';
 /** Building materials kept by the city, like silver. */
-export type Material = 'wood' | 'stone';
-export const MATERIALS: readonly Material[] = ['wood', 'stone'];
+export type Material = 'wood' | 'stone' | 'livestock';
+export const MATERIALS: readonly Material[] = ['wood', 'stone', 'livestock'];
 /** Materials a building or a house level costs (missing = none). */
 export type Materials = Partial<Record<Material, number>>;
 /** What a gathering building brings every week. */
 export type Product = 'food' | Material;
-export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'lumber' | 'quarry' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
+export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'lumber' | 'quarry' | 'pasture' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 /** The four seasons, in order. */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -32,7 +32,7 @@ export const SERVICE_KINDS: readonly ServiceKind[] = ['plaza', 'market', 'sacred
 export type Rng = () => number;
 
 /** Cells a gathering building takes from: river water, trees (olive or palm) or rocks. */
-export type GatherSource = 'river' | 'tree' | 'rock';
+export type GatherSource = 'river' | 'tree' | 'rock' | 'grass';
 
 /** Moments celebrated once per game. */
 export type MilestoneId =
@@ -262,6 +262,9 @@ export interface TempleStageDef {
   materials: Materials;
   builders: number;
   work: number;
+  /** Once built: the altar's sacred radius (from its edge) and the livestock it burns a week. */
+  sacredRadius: number;
+  offering: number;
 }
 
 export interface Rules {
@@ -275,6 +278,8 @@ export interface Rules {
   goodGatherShare: number;
   /** Most wood and most stone the city stores; a lumber or quarry stops at it. */
   materialStorage: number;
+  /** Most livestock the city keeps (the pastures stop at it). */
+  livestockStorage: number;
   weekSeconds: number;
   /** Weeks in each season (spring, summer, autumn, winter; the game starts in spring). Looks only for now. */
   weeksPerSeason: number;
@@ -497,6 +502,8 @@ export interface GameState {
   /** Building materials in store (no limit). */
   wood: number;
   stone: number;
+  /** Livestock in the pens (pastures make it; the restored altar burns it). */
+  livestock: number;
   /** Cut trees waiting to grow back (their cells hold the 'stump' feature). */
   stumps: Stump[];
   /** Weeks elapsed. */
@@ -541,6 +548,8 @@ export interface GameState {
   jobTargets: Partial<Record<BuildingKind, number>>;
   /** The Temple in stages (temple.ts): stages built, the current one paid and under way, and its work done. */
   temple: { done: number; active: boolean; progress: number };
+  /** The restored altar had its offering this week (it covers its sacred radius); false before it is restored. */
+  offered: boolean;
   /** Later caravans, rolled at the start. */
   caravans: CaravanPlan[];
   /** Births, deaths (of age and of cold; `coldDeaths` of cold only) and weddings since the last autumn began. */
@@ -551,6 +560,10 @@ export interface GameState {
 export type GameEvent =
   /** A stage of the Temple was paid and its work begins (`stage` from 1). */
   | { type: 'stageStart'; stage: number }
+  /** The restored altar had no livestock for its offering: it covers nothing until it has (once per episode). */
+  | { type: 'offeringsMissing'; x: number; y: number }
+  /** The offerings are back after a week without. */
+  | { type: 'offeringsBack' }
   /** A stage of the Temple is built (`stage` from 1). */
   | { type: 'stageDone'; stage: number; x: number; y: number }
   /** A `staffedServices` building (the market) lost its last worker: it covers nothing now. */

@@ -3,6 +3,7 @@ import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, type RoadKey }
 import VISUAL from '../data/visual.json';
 import { treeKind } from '../game/seasons';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
+import { SITE_KEYS, siteLook, type SiteKey, type SiteLook } from './works';
 
 /**
  * What the 3D view draws for a GameState, as plain data (no Three.js): the model key, place, turn,
@@ -45,6 +46,8 @@ export type ModelKey =
   | 'yard-1' | 'yard-2'
   /** A workshop's craft in its front yard (1 smithy .. 5 tannery; the pottery is the model itself). */
   | `craft-${1 | 2 | 3 | 4 | 5}`
+  /** The Temple by stage, the stage rising, the works, the restored altar, tools left (works.ts). */
+  | SiteKey
   | ExtraKey;
 
 /** Kinds with a level 2 and 3 (from buildings.json `levels`). */
@@ -85,6 +88,8 @@ export function footprintOf(key: ModelKey): [number, number] {
   const extra = extraOf(key);
   if (extra) return kindFootprint(extra.kind);
   if (key.startsWith('craft-')) return kindFootprint('workshop');
+  if (key === 'altar-new' || key === 'altar-ruin' || key === 'works-1') return kindFootprint('altar');
+  if (/^(temple|rise|works)-/.test(key)) return kindFootprint('temple');
   if (key.startsWith('house-') || key.startsWith('field-')) return kindFootprint(key.startsWith('house') ? 'house' : 'field');
   if (key in BUILDINGS) return kindFootprint(key as BuildingKind);
   return [1, 1];
@@ -104,6 +109,7 @@ export const MODEL_KEYS: ModelKey[] = [
   'olive', 'almond', 'fig', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
   ...ROAD_KEYS, 'tuft', 'pebbles', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
+  ...SITE_KEYS,
   ...EXTRA_KEYS,
 ];
 
@@ -269,6 +275,8 @@ export interface BuildingPlacement extends Placement {
   look: BuildingLook;
   /** A granary's yard as the food store fills (null: nearly empty or not a connected granary). */
   stock: 'stock-1' | 'stock-2' | 'stock-3' | null;
+  /** The altar and the Temple: their stages built and the works under way (works.ts). */
+  site: SiteLook | null;
 }
 
 export interface CityPlan {
@@ -327,10 +335,11 @@ export function cityPlan(s: GameState): CityPlan {
     }
   for (const b of s.buildings) {
     if (s.grid[indexOf(s, b.x, b.y)] !== b) continue;
-    const look = lookOf(b);
+    const site = siteLook(s, b);
+    const look = site ? { ...lookOf(b), key: site.key, sy: site.sy } : lookOf(b);
     const tint = look.tint * (0.95 + hash(b.x, b.y, 11) * 0.08);
     const full = b.kind === 'granary' && b.connected && stock ? (`stock-${stock}` as const) : null;
-    buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint, stock: full });
+    buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint, stock: full, site });
   }
   return { buildings, props, roads };
 }

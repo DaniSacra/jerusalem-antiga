@@ -15,15 +15,15 @@ import {
   indexOf,
   RULES,
   stepWeek,
-  TEMPLE_GOAL,
-  templeWaitsForGoal,
+  TEMPLE_STAGES,
+  buildersAtWork,
   unlockingGoal,
   WEEKS_PER_YEAR,
   yearOf,
   type GameEvent,
   type GameState,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, person, put, ROAD_X, ROADSIDE } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, hire, person, put, ROAD_X, ROADSIDE } from './helpers';
 
 const W = RULES.weeksPerSeason;
 const SPRING = 2 * W;
@@ -46,27 +46,31 @@ function bigHouses(s: GameState, n: number) {
 
 describe('goals', () => {
   it('has the configured targets, rewards, unlocks and milestones in order', () => {
-    expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? g.milestone ?? null, g.reward, g.unlock ?? null])).toEqual([
+    expect(GOALS.map((g) => [g.type, g.target, g.level ?? g.kind ?? g.milestone ?? g.stage ?? null, g.reward, g.unlock ?? null])).toEqual([
       ['foodUntilSpring', 1, null, 30, 'granary'],
       ['milestone', 1, 'firstWedding', 20, null],
       ['milestone', 1, 'firstBirth', 40, null],
       ['milestone', 1, 'firstSpring', 30, 'quarry'],
       ['houses', 5, 2, 40, 'plaza'],
+      ['templeStage', 1, 1, 50, null],
       ['milestone', 1, 'firstCaravan', 50, 'workshop'],
       ['build', 1, 'workshop', 40, 'market'],
-      ['residents', 30, null, 50, null],
+      ['residents', 30, null, 50, 'temple'],
       ['houses', 6, 3, 60, 'park'],
+      ['templeStage', 1, 2, 80, null],
       ['milestone', 1, 'firstGrownUp', 80, null],
       ['residents', 45, null, 80, null],
       ['houses', 4, 4, 80, null],
+      ['templeStage', 1, 3, 100, null],
       ['milestone', 1, 'thirdGeneration', 100, null],
       ['residents', 65, null, 100, null],
       ['residents', 85, null, 120, null],
-      ['residents', 100, null, 120, 'temple'],
-      ['residents', 130, null, 175, null],
-      ['residents', 160, null, 200, null],
-      ['build', 1, 'temple', 0, null],
+      ['templeStage', 1, 4, 150, null],
+      ['residents', 120, null, 175, null],
+      ['templeStage', 1, 5, 0, null],
     ]);
+    // One goal per stage of the Temple, in order, the last one the victory.
+    expect(GOALS.filter((g) => g.type === 'templeStage').map((g) => g.stage)).toEqual(TEMPLE_STAGES.map((_, i) => i + 1));
     expect(GOALS.at(-1)!.victory).toBe(true);
     expect(GOALS.filter((g) => g.victory)).toHaveLength(1);
     expect(GOALS.some((g) => g.fromYear)).toBe(false); // no goal waits for a year any more
@@ -81,30 +85,31 @@ describe('goals', () => {
     expect(unlockingGoal('granary')).toBe(1);
     expect(unlockingGoal('quarry')).toBe(4);
     expect(unlockingGoal('plaza')).toBe(5);
-    expect(unlockingGoal('workshop')).toBe(6);
-    expect(unlockingGoal('market')).toBe(7);
-    expect(unlockingGoal('park')).toBe(9);
-    expect(unlockingGoal('temple')).toBe(16); // built before the 160 residents; the victory still asks for them
+    expect(unlockingGoal('workshop')).toBe(7);
+    expect(unlockingGoal('market')).toBe(8);
+    expect(unlockingGoal('temple')).toBe(9); // its place, before the Alicerce (goal 11)
+    expect(unlockingGoal('park')).toBe(10);
+    expect(GOALS.findIndex((g) => g.type === 'templeStage' && g.stage === 2)).toBeGreaterThan(unlockingGoal('temple')! - 1);
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
     });
   });
 
-  it('the plaza waits for goal 5 (5 mud-brick houses); goal 9 (6 stone houses) unlocks the park', () => {
+  it('the plaza waits for goal 5 (5 mud-brick houses); goal 10 (6 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).not.toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).not.toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
     expect(GOALS[4]).toMatchObject({ type: 'houses', target: 5, level: 2, unlock: 'plaza' });
-    const goal = GOALS[8];
+    const goal = GOALS[9];
     expect(goal).toMatchObject({ type: 'houses', target: 6, level: 3, unlock: 'park' });
-    const s = emptyGame({ goalIndex: 8, silver: 0, unlocked: [...RULES.startUnlocked] });
+    const s = emptyGame({ goalIndex: 9, silver: 0, unlocked: [...RULES.startUnlocked] });
     for (let k = 0; k < goal.target; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 3);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events[0]).toEqual({ type: 'goal', index: 8, reward: goal.reward, unlock: 'park' });
+    expect(events[0]).toEqual({ type: 'goal', index: 9, reward: goal.reward, unlock: 'park' });
     expect(s.unlocked).toContain('park');
   });
 
@@ -231,32 +236,48 @@ describe('goals', () => {
     });
   });
 
-  it('declares victory when the temple is built, with weeks and residents', () => {
+  it('declares victory when the Consagração is built, with weeks and residents', () => {
+    const last = TEMPLE_STAGES.length - 1;
     const s = emptyGame({ goalIndex: GOALS.length - 1, week: 41 });
     put(s, 'house', ROADSIDE, 27, TOP);
+    const t = put(s, 'temple', EAST, 30);
+    // The Consagração under way, one builder-week short.
+    s.temple = { done: last, active: true, progress: 0 };
+    t.builders = TEMPLE_STAGES[last].builders;
+    hire(s, t, TEMPLE_STAGES[last].builders);
+    s.temple.progress = TEMPLE_STAGES[last].work - buildersAtWork(s) - 1;
     expect(stepWeek(s, constRng(0.99))).not.toContainEqual(expect.objectContaining({ type: 'victory' }));
-    put(s, 'temple', EAST, 30);
+    expect(s.won).toBe(false);
     expect(stepWeek(s, constRng(0.99))).toContainEqual({ type: 'victory', week: 43, residents: HOUSE_LEVELS[TOP].capacity });
     expect(s.won).toBe(true);
     expect(currentGoal(s)).toBeUndefined();
   });
 
+  it('a marked Temple alone wins nothing (the victory is the Consagração, not the building)', () => {
+    const s = emptyGame({ goalIndex: GOALS.length - 1 });
+    put(s, 'temple', EAST, 30);
+    const events: GameEvent[] = [];
+    checkGoal(s, events);
+    expect(events).toEqual([]);
+    expect(s.won).toBe(false);
+  });
+
   it('completes one goal per check, even when the next one is already met', () => {
     // Six big houses meet "30 residents" and "6 stone houses" at once.
-    const s = emptyGame({ goalIndex: 7 });
+    const s = emptyGame({ goalIndex: 8 });
     for (const y of [27, 29, 31, 33, 35, 37]) put(s, 'house', ROADSIDE, y, TOP);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(8);
+    expect(s.goalIndex).toBe(9);
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(9);
-    checkGoal(s, events); // no child born in the city has grown up
-    expect(s.goalIndex).toBe(9);
-    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([7, 8]);
+    expect(s.goalIndex).toBe(10);
+    checkGoal(s, events); // the Alicerce is not built
+    expect(s.goalIndex).toBe(10);
+    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([8, 9]);
   });
 });
 
-describe('years and the temple goal', () => {
+describe('years and the last goals', () => {
   it('yearOf counts years from 1, one every WEEKS_PER_YEAR weeks', () => {
     expect(yearOf(0)).toBe(1);
     expect(yearOf(WEEKS_PER_YEAR - 1)).toBe(1);
@@ -274,32 +295,9 @@ describe('years and the temple goal', () => {
     expect(goalOpen(s, later)).toBe(true);
   });
 
-  it('the temple goal is the one right before the victory (160 residents)', () => {
-    const i = GOALS.length - 2;
-    expect(TEMPLE_GOAL).toEqual({ number: i + 1, goal: GOALS[i] });
-    expect(GOALS[i]).toMatchObject({ type: 'residents', target: 160 });
-  });
-
-  it('a temple built before the last goal wins the week it is met (and says what it waits for)', () => {
-    const i = GOALS.length - 2;
-    const goal = GOALS[i];
-    const s = emptyGame({ goalIndex: i, silver: 0, food: 100, unlocked: ['road', 'house', 'temple'] });
-    expect(templeWaitsForGoal(s)).toBe(false); // no temple yet
-    put(s, 'temple', EAST, 30);
-    expect(templeWaitsForGoal(s)).toBe(true);
-    const never = constRng(0.99);
-    expect(stepWeek(s, never).some((e) => e.type === 'goal' || e.type === 'victory')).toBe(false);
-    bigHouses(s, Math.ceil(goal.target / HOUSE_LEVELS[TOP].capacity));
-    const events = stepWeek(s, never);
-    expect(events).toContainEqual(goalEvent(i));
-    expect(events).toContainEqual(expect.objectContaining({ type: 'victory', week: 2 })); // the second week
-    expect(s.won).toBe(true);
-    expect(templeWaitsForGoal(s)).toBe(false);
-  });
-
-  it('the temple does not wait once only the victory goal is left', () => {
-    const s = emptyGame({ goalIndex: GOALS.length - 1 });
-    put(s, 'temple', EAST, 30);
-    expect(templeWaitsForGoal(s)).toBe(false);
+  it('the goal right before the victory asks for 120 residents (no 130 or 160 any more)', () => {
+    expect(GOALS[GOALS.length - 2]).toMatchObject({ type: 'residents', target: 120 });
+    expect(GOALS.some((g) => g.type === 'residents' && g.target > 120)).toBe(false);
+    expect(GOALS.some((g) => g.type === 'build' && g.kind === 'temple')).toBe(false);
   });
 });

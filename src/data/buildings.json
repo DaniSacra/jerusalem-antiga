@@ -18,6 +18,7 @@
                 "crafts": ["pottery", "smithy", "carpentry", "weaving", "dyeing", "tannery"],
                 "levels": [{ "cost": 50, "upkeep": 2, "fieldBonus": 0.2, "materials": { "stone": 20 } }, { "cost": 80, "upkeep": 3, "fieldBonus": 0.3, "materials": { "stone": 40 } }] },
   "park":     { "name": "Parque", "category": "home",  "cost": 60,  "upkeep": 1,  "w": 2, "h": 2, "jobs": 0, "radius": 4, "materials": { "stone": 5 } },
-  "temple":   { "name": "Templo", "category": "special",  "cost": 0,   "upkeep": 0, "w": 6, "h": 6, "jobs": 0, "radius": 12 },
-  "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "radius": 4, "protected": true }
+  "temple":   { "name": "Templo", "category": "special",  "cost": 0,   "upkeep": 0, "w": 6, "h": 6, "jobs": 0, "radius": 12, "protected": true },
+  "pasture":  { "name": "Pasto", "category": "supply", "cost": 30, "upkeep": 0.5, "w": 3, "h": 3, "jobs": 1, "materials": { "wood": 10 }, "gather": { "source": "grass", "radius": 2, "perCell": 0.06, "max": 1.5, "winterFactor": 0.5, "product": "livestock" } },
+  "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "protected": true }
 }

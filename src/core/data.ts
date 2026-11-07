@@ -5,7 +5,7 @@ import rules from '../data/rules.json';
 import walkers from '../data/walkers.json';
 import names from '../data/names.json';
 import temple from '../data/temple.json';
-import type { Building, BuildingDef, BuildingKind, BuildingLevelDef, Dims, GoalDef, HouseLevelDef, LevelStat, Rect, Rules, TempleStageDef, WalkerDef } from './types';
+import type { Building, BuildingDef, BuildingKind, BuildingLevelDef, Dims, GoalDef, HouseLevelDef, LevelStat, Material, Rect, Rules, TempleStageDef, WalkerDef } from './types';
 
 export const BUILDINGS = buildings as Record<BuildingKind, BuildingDef>;
 export const HOUSE_LEVELS = houses as unknown as HouseLevelDef[];
@@ -46,3 +46,6 @@ export function dimsOf(kind: BuildingKind, rotated = false): Dims {
 
 /** Only buildings with a non-square footprint can be rotated. */
 export const canRotate = (kind: BuildingKind) => dimsOf(kind).w !== dimsOf(kind).h;
+
+/** Most of a material the city keeps: `livestockStorage` for the pens, `materialStorage` for the rest. */
+export const storageOf = (m: Material) => (m === 'livestock' ? RULES.livestockStorage : RULES.materialStorage);

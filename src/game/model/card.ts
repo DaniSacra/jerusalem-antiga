@@ -35,8 +35,9 @@ import {
   nextLevelOf,
   personById,
   regrowLeft,
-  RULES,
+  altarRadius,
   seasonOf,
+  storageOf,
   statOf,
   storageFull,
   unlockingGoal,
@@ -56,7 +57,12 @@ import {
   type NeedKind,
   type Rect,
   type Sex,
+  type Materials,
+  currentGoal,
+  TEMPLE_STAGES,
+  templeLaid,
 } from '../../core';
+import { stagePlan } from './temple';
 import { treeKind } from '../seasons';
 import { T } from '../strings';
 import { ageNow, bandOf, jobText, residentsOf } from './people';
@@ -95,6 +101,8 @@ export interface CardLine {
    * in red); `text` is then the whole line. Never wraps.
    */
   parts?: { text: string; tone: CardTone }[];
+  /** A progress bar (0..1) before the text (the Temple's stage under way). */
+  bar?: number;
   /** Instead of the text: rows of people in `cols` columns. */
   people?: PersonChip[];
   cols?: number;
@@ -104,7 +112,7 @@ export interface CardLine {
  * What the main (gold) button does: pick a building and show where it would solve the need, pick
  * Rua, or raise a service building a level (`dim`: grey, the silver or a material is short).
  */
-export type CardAction = { label: string; kind: BuildableKind | 'road' | 'upgrade'; target: Building; dim?: boolean };
+export type CardAction = { label: string; kind: BuildableKind | 'road' | 'upgrade' | 'stage'; target: Building; dim?: boolean };
 
 export interface Card {
   lines: CardLine[];
@@ -115,6 +123,8 @@ export interface Card {
   building: Building | null;
   action: CardAction | null;
   demolish: boolean;
+  /** A Profissões button beside the action (the altar's and the Temple's stage: its builders). */
+  jobs?: boolean;
 }
 
 const ok = (yes: boolean, label: string): CardLine => ({ text: `${yes ? '✓' : '✗'} ${label}`, tone: yes ? 'good' : 'bad' });
@@ -150,13 +160,16 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
   const def = BUILDINGS[b.kind];
   const craft = craftOf(b);
   lines.push({ text: craft ? `${def.name} (${T.craft[craft]})` : def.name, big: true });
+  const stage = stageCard(s, b);
   if (b.kind === 'altar') {
-    lines.push({ text: N.altar, plain: true }, { text: T.nova.reach(def.radius ?? 0), tone: 'muted', plain: true });
-    return { lines, foot, building: b, action: null, demolish: false, aside: [] };
+    lines.push({ text: N.altar, plain: true }, { text: T.nova.reach(altarRadius(s)), tone: 'muted', plain: true }, ...stage.lines);
+    return { lines, foot, building: b, action: stage.action, demolish: false, aside: [], jobs: stage.jobs };
   }
   lines.push({ text: T.nova.effect[b.kind], plain: true });
   lines.push(ok(b.connected, b.connected ? N.connected : N.disconnected));
+  lines.push(...stage.lines);
   if (!b.connected) action = { label: N.where.road, kind: 'road', target: b };
+  else if (stage.action) action = stage.action;
   else {
     const served = housesServed(s, b);
     if (served !== null) lines.push({ text: N.serves(served) });
@@ -193,9 +206,11 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
     }
   }
   if (!def.protected) levels.push(...lossLine(s, c));
+  // The Temple stays once its foundation began.
+  const demolish = !def.protected && !(b.kind === 'temple' && templeLaid(s));
   // Phone: a building with levels shows them in a second column, with the buttons under it (the screen is short).
-  if (phone && def.levels) return { lines, foot, building: b, action, demolish: !def.protected, aside: levels };
-  return { lines: [...lines, ...levels], foot, building: b, action, demolish: !def.protected, aside: [] };
+  if (phone && def.levels) return { lines, foot, building: b, action, demolish, aside: levels };
+  return { lines: [...lines, ...levels], foot, building: b, action, demolish, aside: [], jobs: stage.jobs };
 }
 
 /**
@@ -285,6 +300,47 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
   return phone ? { lines, foot, building: b, action, demolish: true, aside: [...family, ...level] } : { lines: [...lines, ...family, ...level], foot, building: b, action, demolish: true, aside: [] };
 }
 
+/**
+ * The altar's and the Temple's stages (plan "Desafio" 2.4): the stages built there, then the next
+ * one: "Etapa 2 de 5: Alicerce". While it is the goal: before it starts its cost (what is short in red),
+ * its builders and time, and the gold "Começar: Alicerce" (grey with what is missing); under way its
+ * builders "2 de 4", a bar "18/40" and "~6 sem" (or that it stopped), with Profissões beside. Not the
+ * goal yet: the goal that comes first.
+ */
+function stageCard(s: GameState, b: Building): { lines: CardLine[]; action: CardAction | null; jobs: boolean } {
+  const N = T.nova.stage;
+  const lines: CardLine[] = [];
+  const here = (k: number) => TEMPLE_STAGES[k].site === b.kind;
+  TEMPLE_STAGES.forEach((st, k) => k < s.temple.done && here(k) && lines.push({ ...ok(true, N.built(st.name)), gap: 4 }));
+  const k = TEMPLE_STAGES.findIndex((_, i) => i >= s.temple.done && here(i));
+  if (k < 0) return { lines, action: null, jobs: false };
+  const st = TEMPLE_STAGES[k];
+  lines.push({ text: N.head(k + 1, TEMPLE_STAGES.length, st.name), tone: 'gold', gap: 4 });
+  const p = k === s.temple.done ? stagePlan(s) : null;
+  const goal = currentGoal(s);
+  if (!p) {
+    if (goal) lines.push({ text: N.first(s.goalIndex + 1, T.nova.goalText(goal)), tone: 'muted', plain: true });
+    return { lines, action: null, jobs: false };
+  }
+  if (p.at === 'work') {
+    const tone = p.builders === 0 ? 'bad' : p.builders < st.builders ? 'warn' : 'good';
+    lines.push({ text: N.builders(p.builders, st.builders), tone });
+    lines.push({ text: N.progress(p.progress, st.work), bar: Math.min(1, p.progress / st.work), tone: 'gold' });
+    lines.push(p.weeksLeft === null ? { text: N.stopped, tone: 'bad' } : { text: N.left(p.weeksLeft), tone: 'good' });
+    return { lines, action: null, jobs: true };
+  }
+  lines.push(costParts(s, st.cost, st.materials));
+  lines.push({ text: N.plan(st.builders, Math.ceil(st.work / st.builders)), tone: 'muted', plain: true });
+  let label = N.begin(st.name);
+  if (p.at === 'road') label = N.noRoad(st.site);
+  else if (p.at === 'debt') label = N.debt(st.name);
+  else if (p.at === 'lack') {
+    const [, what] = p.need[0];
+    label = what === 'silver' ? T.missingSilver(st.cost) : T.lackingAmount(what, st.materials[what] ?? 0, s[what]);
+  }
+  return { lines, action: { label, kind: 'stage', target: b, dim: p.at !== 'ready' }, jobs: true };
+}
+
 /** "Perde N de comida" when demolishing this would spoil food (a granary, or the road to one). */
 function lossLine(s: GameState, c: Cell): CardLine[] {
   const n = foodLostIfRemoved(s, c.x, c.y);
@@ -321,7 +377,7 @@ function foodLines(s: GameState, b: Building): CardLine[] {
     const made = materialMadeBy(b.kind as BuildableKind);
     // A full store stops it: that line alone, not a green yield beside it. No source only when there
     // is none (without workers the balloon already says "Sem trabalhadores").
-    if (made && storageFull(s, made)) out.push({ text: N.storeFull(RULES.materialStorage), tone: 'bad' });
+    if (made && storageFull(s, made)) out.push({ text: N.storeFull(storageOf(made)), tone: 'bad' });
     else if (n > 0) out.push({ text: N.yields(n, def.gather.product), tone: 'good' });
     else if (raw <= 0) out.push(ok(false, N.inspect.noSource[def.gather.source]));
     const every = def.cutEvery ? weeksPerCut(n) : null;
@@ -334,13 +390,14 @@ function foodLines(s: GameState, b: Building): CardLine[] {
 }
 
 /** "25 prata · 10 madeira", gold, with what is short in red and how much there is. */
-export function costLine(s: GameState, kind: BuildableKind): CardLine {
+export const costLine = (s: GameState, kind: BuildableKind): CardLine => costParts(s, costOf(kind), materialsOf(kind));
+
+/** The same for any silver and materials (a Temple stage); "Grátis" when it costs nothing. */
+function costParts(s: GameState, cost: number, m: Materials): CardLine {
   const N = T.nova;
   const piece = (text: string, need: number, has: number) => (has < need ? { text: text + N.have(has), tone: 'bad' as const } : { text, tone: 'gold' as const });
-  const cost = costOf(kind);
-  const parts = [piece(N.silverCost(cost), cost, s.silver)];
-  const m = materialsOf(kind);
-  for (const k of MATERIALS) if (m[k]) parts.push({ text: ' · ', tone: 'gold' }, piece(N.materialCost(m[k]!, k), m[k]!, s[k]));
+  const parts = cost || !MATERIALS.some((k) => m[k]) ? [cost ? piece(N.silverCost(cost), cost, s.silver) : { text: N.free, tone: 'gold' as const }] : [];
+  for (const k of MATERIALS) if (m[k]) parts.push(...(parts.length ? [{ text: ' · ', tone: 'gold' as const }] : []), piece(N.materialCost(m[k]!, k), m[k]!, s[k]));
   return { text: parts.map((p) => p.text).join(''), parts };
 }
 

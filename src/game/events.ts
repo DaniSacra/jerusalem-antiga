@@ -1,4 +1,5 @@
 import {
+  TEMPLE_STAGES,
   BUILDINGS,
   fieldHarvest,
   grownUpThisWeek,
@@ -35,6 +36,8 @@ export type GameOut =
   | { do: 'upgraded'; building: Building }
   /** A milestone: the place shines and people gather; `note` adds its sentence to the interface. */
   | { do: 'milestone'; building: Building; id: MilestoneId; note: boolean }
+  /** A stage of the Temple is built at this site (`stage` from 1): it shines and people gather, like a milestone. */
+  | { do: 'stageDone'; building: Building; stage: number }
   | { do: 'spoil'; building: Building }
   | { do: 'harvestRing'; building: Building }
   | { do: 'fell'; x: number; y: number }
@@ -92,6 +95,16 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
         if (e.unlock && T.unlocked[e.unlock]) toast(T.unlocked[e.unlock]!, 'good');
         if (e.unlock) out.push({ do: 'unlocked', kind: e.unlock });
         out.push({ do: 'invite3D' });
+        break;
+      case 'stageStart':
+        toast(T.nova.stage.started(TEMPLE_STAGES[e.stage - 1].name), 'good');
+        break;
+      case 'stageDone':
+        toast(T.nova.stage.done(TEMPLE_STAGES[e.stage - 1].name), 'good');
+        {
+          const site = s.grid[e.y * s.cols + e.x];
+          if (site) out.push({ do: 'stageDone', building: site, stage: e.stage });
+        }
         break;
       case 'victory':
         out.push({ do: 'victory', week: e.week, residents: e.residents, births: tally.births, weddings: tally.weddings });

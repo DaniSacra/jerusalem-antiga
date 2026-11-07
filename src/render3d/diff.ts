@@ -2,6 +2,7 @@ import type { GameState } from '../core';
 import { haulJobs } from './haul';
 import { residentsOf, stockLevel } from './plan';
 import { roadLevel, roadTraffic, sacredOf } from './roads';
+import { siteKey } from './works';
 
 /**
  * What changed in the drawn city since the last look, as cheap keys (pure, no Three.js). The live
@@ -9,7 +10,7 @@ import { roadLevel, roadTraffic, sacredOf } from './roads';
  * stumps) or the people walking. Ground and river never change.
  */
 export interface CityKeys {
-  /** Every building's id, kind, level, kept level, variant, size and connection, and how full the granaries look. */
+  /** Every building's id, kind, level, kept level, variant, size and connection, how full the granaries look and the Temple's works. */
   buildings: string;
   /** Roads (with their look by traffic, dashed off the network), trees, rocks and stumps (with the saplings growing on them, by regrowth step). */
   props: string;
@@ -18,7 +19,7 @@ export interface CityKeys {
 }
 
 export function cityKeys(s: GameState): CityKeys {
-  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}`;
+  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}|works:${siteKey(s)}`;
   let props = '';
   // A road is its look (0 trail, 1 road, 2 kerbed; 'x' off the network: dashed), else the feature's name or '-'.
   const traffic = roadTraffic(s);

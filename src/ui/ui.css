@@ -339,3 +339,23 @@
 /* Profissões: in the side column on PC, as a labelled disc after the tools on a phone (no room above them). */
 #hud[data-form='phone'] .side [data-spot='panel-jobs'], #hud[data-form='pc'] .tools .tool.jobs { display: none; }
 .tools .tool.jobs { margin-left: 8px; width: auto; }
+
+/* ---------- "O que fazer agora" (nextStep.ts): one line under the top bar ---------- */
+/* PC: centred under the bar on one line; the phone: 28 px, cut with an ellipsis (its hit area is 44 px tall). */
+.nextstep { position: absolute; left: 50%; transform: translateX(-50%); top: 90px; box-sizing: border-box; display: flex; align-items: center; gap: 8px;
+  max-width: min(720px, calc(100vw - 2 * var(--margin) - var(--col) - var(--btn) - 4 * var(--gap))); height: 34px; padding: 0 14px 0 8px; border-radius: 17px;
+  font-size: var(--text); font-weight: 700; white-space: nowrap; cursor: pointer; z-index: 1; }
+.nextstep::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.nextstep .ico { display: flex; flex: none; }
+.nextstep .ico svg { width: 22px; height: 22px; }
+.nextstep .txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nextstep[data-kind='crisis'] { border-color: var(--c-bad); }
+.nextstep[data-kind='stage'] { border-color: var(--c-gold); }
+.nextstep:active { translate: 0 1px; }
+#hud[data-form='phone'] .nextstep { height: 28px; border-radius: 14px; padding: 0 12px 0 6px; gap: 6px; font-size: var(--small); }
+#hud[data-form='phone'] .nextstep .ico svg { width: 18px; height: 18px; }
+/* A stage's progress in a balloon: the bar and "18/40" beside it. */
+.balloon .barline { display: flex; align-items: center; gap: 8px; }
+.balloon .barline .bar { width: 120px; height: 10px; flex: none; }
+/* Objetivos: a Temple stage's construction mark before its text. */
+.pline .withicon svg { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 4px; }

@@ -78,6 +78,7 @@
   "fields": { "moistNear": 2, "moistFar": 6, "dryCrop": "0xb08a52" },
   "detail": { "tuftShare": 0.8, "tuftsMax": 3, "pebbleShare": 0.3, "wornOut": 0.35, "farDist": 48, "bankReach": 22, "reedShare": 0.6, "reedScale": 2.6, "stoneShare": 0.5, "stoneScale": 2.4 },
   "finish": { "blur": 2.6, "band": 0.16, "fade": 0.3, "warm": 0.035, "contrast": 1.05, "samples": 4, "contactSun": 0.12, "contactDim": 0.35 },
+  "works": { "restoredFire": 1.45, "mallet": 5.5, "workSeconds": [3, 6], "pileSeconds": [0.6, 1.4], "stone": "0xd9cdb4", "dustAt": [[-1.6, 1.9], [1.7, -1.2]], "altarDustAt": [[-1.4, 1.5]] },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
     "quarryDust": { "color": "0xe0cfae", "rise": 0.35, "size": 1.9, "opacity": 0.6 },

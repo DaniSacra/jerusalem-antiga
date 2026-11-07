@@ -407,7 +407,8 @@ export class Flames {
   readonly mesh: THREE.Mesh;
   private material: THREE.ShaderMaterial;
 
-  constructor(altar: THREE.Vector3 | null, tents: THREE.Vector3[]) {
+  /** `altarSize` grows the altar's fire (the restored altar burns bigger). */
+  constructor(altar: THREE.Vector3 | null, tents: THREE.Vector3[], altarSize = 1) {
     const at: number[] = [];
     const shape: number[] = [];
     const flags: number[] = [];
@@ -418,8 +419,9 @@ export class Flames {
     };
     if (altar) {
       // The tall one in the middle, smaller ones around it.
-      for (let k = 0; k < TONGUES; k++) add(altar, 0, (k + 0.5) / TONGUES, k === 0 ? 0.8 : 0.42 + hash(k, 1) * 0.25, k === 0 ? 0 : 0.6 + hash(k, 2) * 0.8, 1, 0);
-      for (let k = 0; k < EMBERS; k++) add(altar, 1, (k + 0.3) / EMBERS, 0.08 + hash(k, 3) * 0.05, 0.5 + hash(k, 4) * 0.5, 1, 0);
+      const z = altarSize;
+      for (let k = 0; k < TONGUES; k++) add(altar, 0, (k + 0.5) / TONGUES, (k === 0 ? 0.8 : 0.42 + hash(k, 1) * 0.25) * z, k === 0 ? 0 : (0.6 + hash(k, 2) * 0.8) * z, 1, 0);
+      for (let k = 0; k < EMBERS; k++) add(altar, 1, (k + 0.3) / EMBERS, (0.08 + hash(k, 3) * 0.05) * z, (0.5 + hash(k, 4) * 0.5) * z, 1, 0);
       for (let k = 0; k < ALTAR_SPARKS; k++) add(altar, 2, hash(k, 5), 0.05, 1, 1, 0);
     }
     tents.forEach((p, i) => {
@@ -662,18 +664,23 @@ interface Hauler {
   pace: number;
 }
 
+const SACK = new THREE.Color(0xb08a58);
+const STONE = new THREE.Color(Number(LOOK.works.stone));
+
 /** Cells a second a worker walks at the usual pace. */
 const HAUL_SPEED = 1.1;
 /** Sacks and baskets: one material each for every rebuild of the people (never disposed). */
 const LOAD_MATS = {
-  sack: new THREE.MeshStandardMaterial({ color: 0xb08a58, roughness: 0.95, flatShading: true }),
+  // White: each sack takes its colour per copy (a sack of grain, a builder's stone).
+  sack: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
   basket: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.95, flatShading: true }),
 };
 
 /**
  * The people of the food buildings (haul.ts says who and where): harvest carriers with a sack on
  * the back to the granary and back empty-handed, the fisherman with his net basket at the river bank,
- * the gatherer with a basket on her head under a tree. Built with the people layer.
+ * the gatherer with a basket on her head under a tree; the builders of the Temple's works carrying
+ * stone from the piles and swinging their mallets where the stage rises. Built with the people layer.
  */
 export class Haulers {
   private list: Hauler[] = [];
@@ -690,7 +697,8 @@ export class Haulers {
     this.rng = createRng(s.week * 17 + 3);
     const jobs = haulJobs(s);
     const n = Math.max(1, jobs.length);
-    this.figures = new Figures(n, shadows);
+    const builds = jobs.some((j) => j.job === 'build');
+    this.figures = new Figures(n, shadows, builds ? ['hammer'] : []);
     const sack = new THREE.IcosahedronGeometry(0.075, 0);
     sack.scale(1, 1.25, 0.8);
     this.sacks = new THREE.InstancedMesh(sack, LOAD_MATS.sack, n);
@@ -705,6 +713,8 @@ export class Haulers {
       const i = this.list.length;
       const k = this.rng();
       this.figures.dress(i, figureLook(job === 'gather' ? 'f' : 'm', 'adult', k));
+      if (job === 'build') this.figures.carry(i, 'hammer');
+      this.sacks.setColorAt(i, job === 'build' ? STONE : SACK);
       this.list.push({ job, home, route: [], seg: 0, t: 0, out: true, wait: this.rng() * 2, phase: this.rng() * 6, pace: 0.9 + this.rng() * 0.2 });
       this.plan(this.list[i]);
     }
@@ -780,15 +790,19 @@ export class Haulers {
     const yaw = Math.atan2(dx, dz);
     const ph = time * 9 * h.pace + h.phase;
     const atWork = !walking && h.job !== 'harvest' && !h.out;
-    // Walking: a bob and sway; at work, casting or reaching now and then.
-    const lean = walking ? 0.06 : atWork ? Math.max(0, Math.sin(time * 1.6 + h.phase)) * (h.job === 'fish' ? 0.35 : -0.2) : 0;
-    const y = this.ground.height(x, z) + 0.04 + (walking ? Math.abs(Math.sin(ph)) * 0.022 : 0);
+    // Walking: a bob and sway; at work, casting or reaching now and then; a builder swings his mallet.
+    const swing = h.job === 'build' ? Math.max(0, Math.sin(time * LOOK.works.mallet + h.phase)) ** 3 * 0.5 : 0;
+    const lean = walking ? 0.06 : atWork ? (h.job === 'build' ? swing : Math.max(0, Math.sin(time * 1.6 + h.phase)) * (h.job === 'fish' ? 0.35 : -0.2)) : 0;
+    const up = (a.up ?? 0) + ((b.up ?? 0) - (a.up ?? 0)) * h.t;
+    const y = this.ground.height(x, z) + up + 0.04 + (walking ? Math.abs(Math.sin(ph)) * 0.022 : 0);
     this.figures.place(i, x, y, z, yaw, lean, walking ? Math.sin(ph) * 0.06 : 0);
     const size = this.figures.look(i).size;
     // A sack on the back of a carrier heading out; a basket on the gatherer's head; the fisher's at his hip.
     const sack = h.job === 'harvest' && h.out;
-    this.load(this.sacks, i, sack, x, y, z, yaw, 0, 0.3 * size, -0.09 * size);
-    const basket = h.job !== 'harvest';
+    // A builder carries his stone on the shoulder to where the stage rises.
+    const stone = h.job === 'build' && h.out && walking;
+    this.load(this.sacks, i, sack || stone, x, y, z, yaw, stone ? 0.07 * size : 0, (stone ? 0.42 : 0.3) * size, -0.09 * size);
+    const basket = h.job === 'fish' || h.job === 'gather';
     this.load(this.baskets, i, basket, x, y, z, yaw, h.job === 'fish' ? 0.09 * size : 0, h.job === 'fish' ? 0.18 * size : 0.48 * size, 0);
   }
 

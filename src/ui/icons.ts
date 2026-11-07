@@ -34,6 +34,8 @@ export const ICONS: Record<string, string> = {
   /** Profissões: a worker with a hammer over the shoulder. */
   jobs: svg('<circle cx="9" cy="6.5" r="3.4" fill="currentColor"/><path d="M2.5 21.5v-3.2a6.5 6.5 0 0 1 13 0v3.2z" fill="currentColor"/><path d="M14.5 15.5l6-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M17.2 4.2l4.6 3.4-1.6 2.2-4.6-3.4z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'),
   gear: svg('<path d="M12 2l1.6 2.6 3-.8.6 3 2.8 1.3-1.2 2.9 1.2 2.9-2.8 1.3-.6 3-3-.8L12 22l-1.6-2.6-3 .8-.6-3-2.8-1.3L5.2 13 4 10.1l2.8-1.3.6-3 3 .8z" fill="currentColor"/><circle cx="12" cy="12" r="3.4" fill="#24190e"/>'),
+  /** A Temple stage: a wall of dressed stones going up, a trowel on top. */
+  stage: svg('<path d="M3 21h18v-4H3zM3 17h8v-4H3zM11 17h10v-4H11zM6 13h9V9H6z" fill="#cfc4ae" stroke="#3b2a1a" stroke-width="1.4" stroke-linejoin="round"/><path d="M15.5 8.5l4-4.5M17 3.5l3.5 3" stroke="#3b2a1a" stroke-width="1.8" stroke-linecap="round"/>'),
   arrow: svg('<path d="M20 56L0 34h12V2h16v32h12z" fill="#ffd77a" stroke="#3b2a1a" stroke-width="3" stroke-linejoin="round"/>', '-2 0 44 58'),
 };
 

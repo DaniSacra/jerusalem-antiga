@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { extraOf, footprintOf, KILN, MIRRORED_KEYS, mirrorOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
 import { KIT_KEYS, type KitKey } from './kits';
+import { COURT, PEN, SITE_KEYS } from './works';
 import { paneMaterial, patch } from './shaders';
 import LOOK from './look3d.json';
 
@@ -584,6 +585,283 @@ function temple(): Piece[] {
       g.translate(-1.55, court + 0.27, 1.95);
       return { geo: g, color: dark };
     })(),
+  ];
+}
+
+// ------------------------------------------------------------------ the Temple in stages (works.ts)
+
+/**
+ * The Temple's stages, front +z, built like the consecrated `temple()` but without its gold, sea and
+ * altar: the platform (Alicerce), the court, its wall and gatehouse and the roofless sanctuary
+ * (Paredes), the porch, the columns and the roofs (Pórtico e telhado). Drawn as one part each (the
+ * colours in the vertices, see ONE_PART), so a stage costs one draw call.
+ */
+const SITE = {
+  white: 0xf4ecdc,
+  /** Fresh-cut stone of the works (paler than the weathered limestone). */
+  fresh: 0xe9dcc0,
+  /** Scaffold poles and planks: light new timber, so they read against the stone. */
+  timber: 0xa07a4e,
+  rope: 0xcdb48a,
+} as const;
+
+function templePlatform(): Piece[] {
+  const { limestone: stone, limestoneDark: dark } = COLORS;
+  return [
+    box(5.95, 0.22, 5.95, 0, 0, 0, dark),
+    box(5.6, 0.23, 5.0, 0, 0.22, -0.3, stone),
+    box(1.4, 0.115, 0.4, 0, 0.22, 2.4, stone),
+    box(1.4, 0.23, 0.2, 0, 0.22, 2.3, stone),
+    ...[-1.6, -0.5, 0.6, 1.7].map((z) => box(5.4, 0.006, 0.035, 0, COURT, z, dark)),
+    ...[-1.9, -0.65, 0.65, 1.9].map((x) => box(0.035, 0.006, 4.8, x, COURT, -0.3, dark)),
+  ];
+}
+
+/** Paredes: the court's wall and gatehouse, the hall's walls open to the sky, the side chambers. */
+function templeWalls(): Piece[] {
+  const { limestone: stone, limestoneDark: dark } = COLORS;
+  const back = (p: Piece) => (p.geo.translate(0, 0, -0.3), p);
+  const at = (z: number) => (p: Piece) => (p.geo.translate(0, 0, z), p);
+  return [
+    ...walls(5.6, 5.0, 0.5, 0.16, stone, COURT, 1.4).map(back),
+    ...[-0.95, 0.95].map((x) => box(0.5, 1.25, 0.5, x, COURT, 2.0, SITE.white)),
+    box(1.9, 0.28, 0.42, 0, COURT + 0.97, 2.0, SITE.white),
+    // The hall: four walls and nothing over them yet (the floor inside is the court's).
+    ...walls(1.9, 2.6, 2.0, 0.18, SITE.white, COURT).map(at(-1.35)),
+    ...[-0.95, 0.95].flatMap((x) => [-2.2, -1.35, -0.5].map((z) => box(0.04, 0.38, 0.13, x, COURT + 1.42, z, COLORS.dark))),
+    ...[-1.18, 1.18].flatMap((x) => [box(0.45, 1.25, 2.4, x, COURT, -1.4, stone), box(0.49, 0.06, 2.44, x, COURT + 1.25, -1.4, dark)]),
+  ];
+}
+
+/** Pórtico e telhado: the tall porch with its pilasters and doors, the two columns, the roofs (no gold yet). */
+function templePorch(): Piece[] {
+  const { limestone: stone, limestoneDark: dark } = COLORS;
+  const roof = (w: number, d: number, y: number, z: number): Piece[] => [
+    box(w + 0.06, 0.08, d + 0.06, 0, y, z, stone),
+    ...walls(w + 0.1, d + 0.1, 0.1, 0.07, dark, y + 0.04).map((p) => (p.geo.translate(0, 0, z), p)),
+  ];
+  return [
+    ...roof(1.9, 2.6, COURT + 2.0, -1.35),
+    box(2.3, 2.8, 0.7, 0, COURT, 0.25, SITE.white),
+    ...roof(2.3, 0.7, COURT + 2.8, 0.25),
+    ...[-1.08, -0.42, 0.42, 1.08].map((x) => box(0.14, 2.8, 0.05, x, COURT, 0.62, stone)),
+    box(2.3, 0.1, 0.06, 0, COURT + 1.38, 0.62, stone),
+    box(0.62, 1.15, 0.04, 0, COURT, 0.61, COLORS.wood),
+    ...[-0.78, 0.78].flatMap((x) => [cyl(0.13, 0.15, 1.95, 10, x, COURT, 1.0, COLORS.ochre), cyl(0.23, 0.14, 0.3, 10, x, COURT + 1.95, 1.0, COLORS.ochre)]),
+  ];
+}
+
+/** A stack of cut blocks (n courses of k, each a little smaller), centred on (x, z). */
+function blocks(x: number, z: number, k: number, n: number, y = 0, color: number = SITE.fresh, rot = 0): Piece[] {
+  const out: Piece[] = [];
+  for (let c = 0; c < n; c++)
+    for (let i = 0; i < k - c; i++) {
+      const dx = (i - (k - c - 1) / 2) * 0.3;
+      out.push(box(0.27, 0.17, 0.2, x + Math.cos(rot) * dx, y + c * 0.17, z - Math.sin(rot) * dx, c % 2 ? COLORS.limestone : color, rot));
+    }
+  return out;
+}
+
+/** A pile of rough stones (for the core of the walls). */
+const rubble = (x: number, z: number, y = 0): Piece[] => [
+  blob(0.22, x, y + 0.06, z, COLORS.rock, 0.6),
+  blob(0.15, x + 0.2, y + 0.05, z + 0.12, COLORS.rubble, 0.6),
+  blob(0.13, x - 0.18, y + 0.05, z + 0.1, COLORS.limestoneDark, 0.6),
+  blob(0.12, x + 0.02, y + 0.2, z + 0.03, COLORS.rubble, 0.6),
+];
+
+/** A stone sledge on rollers. */
+const sledge = (x: number, z: number, y = 0, rot = 0): Piece[] => [
+  box(0.7, 0.05, 0.32, x, y + 0.06, z, COLORS.wood, rot),
+  ...[-0.22, 0.22].map((d) => rod([x + Math.cos(rot) * d, y + 0.03, z - Math.sin(rot) * d - 0.2], [x + Math.cos(rot) * d, y + 0.03, z - Math.sin(rot) * d + 0.2], 0.03, SITE.timber)),
+  box(0.3, 0.18, 0.22, x, y + 0.11, z, SITE.fresh, rot),
+];
+
+/** A stack of squared timbers along x. */
+const timbers = (x: number, z: number, y = 0, len = 1.3): Piece[] =>
+  [0, 1, 2, 3, 4].map((k) => box(len, 0.09, 0.09, x, y + (k > 2 ? 0.09 : 0), z + (k > 2 ? (k - 3.5) * 0.1 : (k - 1) * 0.1), k % 2 ? COLORS.wood : SITE.timber));
+
+/**
+ * A treadwheel crane standing on (x, z): a tall wooden wheel on its frame (a man walks inside it),
+ * a leaning jib with a rope and a block hanging under its head, toward -x.
+ */
+function crane(x: number, z: number, y: number, reach = 1.1, high = 2.6): Piece[] {
+  const r = 0.42;
+  const wheel = new THREE.TorusGeometry(r, 0.035, 4, 14);
+  wheel.rotateY(Math.PI / 2);
+  wheel.translate(x + 0.15, y + r + 0.06, z);
+  const wheel2 = wheel.clone();
+  wheel2.translate(-0.3, 0, 0);
+  const top: [number, number, number] = [x - reach, y + high, z];
+  return [
+    { geo: wheel, color: SITE.timber },
+    { geo: wheel2, color: SITE.timber },
+    ...[0, 1, 2, 3].map((k) => rod([x + 0.15, y + r + 0.06 + Math.sin(k * 0.785) * r, z + Math.cos(k * 0.785) * r], [x + 0.15, y + r + 0.06 - Math.sin(k * 0.785) * r, z - Math.cos(k * 0.785) * r], 0.015, COLORS.wood)),
+    rod([x, y + r + 0.06, z], [x + 0.3, y + r + 0.06, z], 0.03, COLORS.wood),
+    ...[-0.2, 0.2].flatMap((dz) => [rod([x - 0.05, y, z + dz * 2], [x, y + r + 0.06, z], 0.03, COLORS.wood), rod([x + 0.35, y, z + dz * 2], [x + 0.3, y + r + 0.06, z], 0.03, COLORS.wood)]),
+    box(0.6, 0.06, 0.95, x + 0.15, y, z, COLORS.wood),
+    // The jib from the frame up to its head, braced back, the rope down to a block.
+    rod([x - 0.1, y + 0.06, z - 0.12], top, 0.04, SITE.timber),
+    rod([x - 0.1, y + 0.06, z + 0.12], top, 0.04, SITE.timber),
+    rod([x + 0.4, y + 0.1, z], top, 0.02, SITE.rope),
+    rod(top, [top[0], y + high * 0.45, z], 0.012, SITE.rope),
+    box(0.26, 0.16, 0.2, top[0], y + high * 0.45 - 0.17, z, SITE.fresh),
+  ];
+}
+
+/** Scaffold along a wall: poles from `y0` to `y1` at `xs` (z fixed), planks every `step` up. */
+function scaffold(xs: number[], z: number, y0: number, y1: number, along: 'x' | 'z', at = 0): Piece[] {
+  const p = (u: number, y: number): [number, number, number] => (along === 'x' ? [u, y, z] : [at, y, u]);
+  const out: Piece[] = [];
+  for (const u of xs) out.push(rod(p(u, y0), p(u, y1), 0.022, SITE.timber));
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  for (let y = y0 + 0.65; y < y1 - 0.05; y += 0.65) {
+    const len = hi - lo + 0.15;
+    out.push(along === 'x' ? box(len, 0.03, 0.2, (lo + hi) / 2, y, z, COLORS.wood) : box(0.2, 0.03, len, at, y, (lo + hi) / 2, COLORS.wood));
+    out.push(rod(p(lo, y - 0.6), p(hi, y), 0.012, SITE.timber));
+  }
+  return out;
+}
+
+/** The altar's works: stacked new stones at its corners, a sledge and rough stones. */
+function altarWorks(): Piece[] {
+  return [...blocks(-1.55, 1.6, 3, 2, 0, SITE.fresh, 0.2), ...blocks(1.6, -1.5, 3, 2, 0, SITE.fresh, -0.4), ...blocks(1.55, 1.55, 2, 2), ...sledge(-1.5, -1.3, 0, 0.5), ...rubble(0.9, 1.75)];
+}
+
+/** The restored altar: a low wall of new stone around its court, open at the front, with steps and corner stones. */
+function altarNew(): Piece[] {
+  const fresh = SITE.fresh;
+  return [
+    ...walls(3.85, 3.85, 0.26, 0.18, fresh, 0, 1.1),
+    ...[-1.84, 1.84].flatMap((x) => [-1.84, 1.84].map((z) => box(0.28, 0.36, 0.28, x, 0, z, COLORS.limestone))),
+    box(1.1, 0.08, 0.36, 0, 0, 1.75, COLORS.limestone),
+    box(0.9, 0.08, 0.26, 0, 0.08, 1.7, fresh),
+    // A border of new paving inside the wall.
+    ...walls(3.5, 3.5, 0.03, 0.22, COLORS.limestone),
+    // The pen of the offerings' flock in a back corner (PEN; its sheep and goats are the ambient's).
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 1], [1, 0]].map(([i, j]) => box(0.05, 0.3, 0.05, PEN.x + (i * PEN.w) / 2, 0, PEN.z + (j * PEN.d) / 2, COLORS.wood)),
+    ...[0.12, 0.24].flatMap((h) => [
+      box(PEN.w, 0.03, 0.03, PEN.x, h, PEN.z + PEN.d / 2, SITE.timber),
+      box(0.03, 0.03, PEN.d, PEN.x + PEN.w / 2, h, PEN.z, SITE.timber),
+    ]),
+    box(0.3, 0.08, 0.14, PEN.x - 0.2, 0, PEN.z - 0.2, COLORS.mudDark),
+  ];
+}
+
+/** Alicerce: blocks being laid on the rising platform, stacks waiting, rough stones for the core. */
+function works2(): Piece[] {
+  return [
+    ...blocks(-2.2, 1.6, 4, 2), ...blocks(2.2, -2.2, 3, 2, 0, SITE.fresh, Math.PI / 2), ...blocks(-2.3, -2.2, 3, 1),
+    ...[[-0.6, -0.4, 0.3], [0.5, 0.8, -0.2], [1.4, -1.2, 0.6], [-1.2, 0.9, 1.2], [0.2, -2.0, 0]].map(([x, z, r]) => box(0.3, 0.17, 0.21, x, 0, z, SITE.fresh, r)),
+    ...rubble(1.9, 1.3), ...rubble(-0.3, 1.7), ...sledge(0.9, 1.9, 0, 0.2),
+    // The builder's line still along the sanctuary's place.
+    ...walls(2.3, 3.3, 0.01, 0.012, SITE.rope, 0.2).map((p) => (p.geo.translate(0, 0, -1.0), p)),
+  ];
+}
+
+/** Paredes: scaffolds around the hall, the treadwheel crane by it, stacks of blocks in the court. */
+function works3(): Piece[] {
+  const y = COURT;
+  return [
+    ...scaffold([-1.15, -0.4, 0.4, 1.15], -2.85, y, y + 2.3, 'x'),
+    ...scaffold([-2.5, -1.6, -0.6], 0, y + 1.25, y + 2.3, 'z', 1.48),
+    ...scaffold([-2.5, -1.6, -0.6], 0, y + 1.25, y + 2.3, 'z', -1.48),
+    ...crane(2.25, -0.2, y, 1.15, 2.7),
+    ...blocks(-1.9, 1.3, 4, 2, y), ...blocks(1.6, 1.4, 3, 2, y, SITE.fresh, 0.3), ...rubble(-2.1, -1.4, y),
+  ];
+}
+
+/** Pórtico e telhado: scaffold only up high (on the side chambers and the porch top), the crane, timbers for the roof. */
+function works4(): Piece[] {
+  const y = COURT;
+  return [
+    ...scaffold([-1.0, 0, 1.0], 0.72, y + 1.9, y + 3.3, 'x'),
+    ...scaffold([-2.4, -1.4, -0.4], 0, y + 1.31, y + 2.6, 'z', 1.2),
+    ...scaffold([-2.4, -1.4, -0.4], 0, y + 1.31, y + 2.6, 'z', -1.2),
+    ...crane(2.25, -0.4, y, 1.1, 3.4),
+    ...timbers(-1.7, 1.4, y), ...timbers(1.6, 1.7, y, 1.0),
+  ];
+}
+
+/** Consagração: oil jars, rolls of cloth and a little wood in the court, a ladder at the porch. */
+function works5(): Piece[] {
+  const y = COURT;
+  return [
+    ...jars(4, -1.7, y, 1.3, [COLORS.mudDark, COLORS.red, COLORS.ochre, COLORS.mud]),
+    ...[0, 1, 2].map((k) => cyl(0.08, 0.08, 0.5, 6, 1.4 + k * 0.18, y, 1.5, k % 2 ? COLORS.blue : COLORS.cloth)),
+    ...timbers(1.7, 0.9, y, 0.8),
+    rod([-0.7, y, 1.05], [-0.7, y + 2.6, 0.66], 0.022, SITE.timber),
+    rod([-0.4, y, 1.05], [-0.4, y + 2.6, 0.66], 0.022, SITE.timber),
+    ...[0.5, 1.0, 1.5, 2.0].map((h) => box(0.3, 0.025, 0.03, -0.55, y + h, 1.05 - (h / 2.6) * 0.39, SITE.timber)),
+  ];
+}
+
+/** Tools left on the ground while nobody works: two mallets, a chisel, a basket, a plank. */
+function tools(): Piece[] {
+  const mallet = (x: number, z: number, r: number): Piece[] => [
+    box(0.12, 0.08, 0.08, x, 0, z, COLORS.wood, r),
+    box(0.03, 0.03, 0.26, x + Math.sin(r) * 0.15, 0.025, z + Math.cos(r) * 0.15, SITE.timber, r),
+  ];
+  return [
+    ...mallet(-1.1, 1.3, 0.4), ...mallet(1.3, 0.75, -1.1),
+    box(0.02, 0.02, 0.16, -0.85, 0, 1.45, COLORS.rock, 1.2),
+    cyl(0.1, 0.08, 0.1, 7, -0.75, 0, 1.15, COLORS.ochre),
+    box(0.7, 0.03, 0.14, 0.9, 0, 1.25, SITE.timber, 0.3),
+  ];
+}
+
+/**
+ * The ruins of the old Temple on its old platform: a worn platform broken at the corners, a broken
+ * stair, stubs of the court wall and of the sanctuary, fallen blocks and column drums, rubble and
+ * dry weeds in the cracks.
+ */
+function templeRuin(): Piece[] {
+  const old = 0xb9a989;
+  const worn = 0xa69676;
+  const soot = 0x6d6250;
+  const weed = (x: number, z: number, y: number): Piece[] => [blob(0.12, x, y + 0.05, z, COLORS.dryBush, 0.7), blob(0.08, x + 0.1, y + 0.04, z + 0.06, COLORS.hedge, 0.8)];
+  const y = 0.3;
+  return [
+    // The old platform, lower than the new one, with its front corners fallen.
+    box(5.7, 0.18, 5.2, 0, 0, -0.3, worn),
+    box(4.6, 0.12, 4.3, 0.2, 0.18, -0.6, old),
+    box(1.2, 0.09, 0.5, -0.2, 0, 2.5, worn, 0.08),
+    box(0.6, 0.09, 0.3, 0.4, 0.09, 2.2, old, -0.15),
+    // Stubs of the court wall and of the sanctuary, broken to different heights.
+    ...[
+      // The court wall (x, z, along x, along z, height).
+      [-2.0, -2.7, 1.2, 0.18, 0.5], [-0.6, -2.7, 0.9, 0.18, 0.3], [1.6, -2.7, 1.4, 0.18, 0.65], [2.6, -1.2, 0.18, 1.4, 0.45], [-2.6, 0.2, 0.18, 1.0, 0.35],
+      // The sanctuary's walls.
+      [-0.95, -2.0, 0.2, 0.9, 0.9], [-0.95, -0.8, 0.2, 0.7, 0.55], [0.95, -1.7, 0.2, 0.9, 0.7], [0.95, -0.4, 0.2, 0.6, 0.35], [0, -2.55, 1.2, 0.2, 0.6],
+    ].map(([x, z, w, d, h]) => box(w, h, d, x, y, z, old)),
+    // A burnt lintel, a fallen block or two leaning, column drums lying in the court.
+    tilted(1.1, 0.22, 0.3, 0.2, y + 0.18, 0.4, soot, 0.25, 0.5),
+    tilted(0.4, 0.3, 0.32, -1.6, y + 0.12, -1.3, old, 0.5, 0.3),
+    ...[[-0.8, 1.0, 0.2], [-0.35, 1.25, 0.9], [1.0, 0.9, 1.6]].map(([x, z, r]) => {
+      const g = new THREE.CylinderGeometry(0.17, 0.17, 0.32, 8);
+      g.rotateZ(Math.PI / 2);
+      g.rotateY(r);
+      g.translate(x, y + 0.17, z);
+      return { geo: g, color: worn };
+    }),
+    cyl(0.17, 0.18, 0.5, 8, 0.78, y, 1.6, old),
+    ...rubble(-1.9, 1.3, y), ...rubble(1.8, 0.0, y), ...rubble(0.2, -1.4, y), ...rubble(-2.3, -2.2, 0.18),
+    ...weed(-1.2, 1.9, y), ...weed(2.1, 1.5, y), ...weed(-0.2, -0.7, y), ...weed(1.4, -2.2, y), ...weed(-2.2, -0.6, y),
+  ];
+}
+
+/** The ruined altar: its rough stones scattered and blackened around a low mound, no fire. */
+function altarRuin(): Piece[] {
+  const soot = 0x5c5446;
+  return [
+    box(3.2, 0.1, 3.2, 0, 0, 0, 0xa69676),
+    blob(0.75, 0, 0.1, -0.2, COLORS.rock, 0.45),
+    ...[[0.5, -0.6, 0.32], [-0.6, 0.1, 0.28], [0.2, 0.55, 0.24], [-0.3, -0.9, 0.3]].map(([x, z, r]) => blob(r, x, 0.32, z, soot, 0.7)),
+    ...[[-1.2, 0.9, 0.4], [1.1, 0.8, -0.6], [1.3, -1.0, 1.0], [-1.1, -1.2, 0.2], [0.1, 1.3, 0.8]].map(([x, z, r]) => box(0.3, 0.2, 0.24, x, 0.06, z, (x * z > 0 ? soot : COLORS.rock), r)),
+    tilted(0.28, 0.28, 0.28, 0.9, 0.2, -0.2, COLORS.rock, 0.6, 0.4),
+    blob(0.1, -0.9, 0.12, 0.4, COLORS.dryBush, 0.7),
+    blob(0.09, 0.7, 0.12, 1.1, COLORS.dryBush, 0.7),
   ];
 }
 
@@ -1312,6 +1590,8 @@ function addMirrors(out: Record<ModelKey, Prototype>) {
 /** Code-built model of each key except the additions, the kits and the mirrored houses. */
 const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>, () => Piece[]> = {
   'house-0': plot,
+  // Placeholder until the sprite-artist draws the pasture (fence, shelter, herd).
+  pasture: plot,
   'house-1': tent,
   'house-2': mudHouse,
   'house-3': stoneHouse,
@@ -1331,6 +1611,20 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   workshop,
   altar,
   temple,
+  'temple-0': templeRuin,
+  'altar-ruin': altarRuin,
+  'temple-1': templePlatform,
+  'temple-2': () => [...templePlatform(), ...templeWalls()],
+  'temple-3': () => [...templePlatform(), ...templeWalls(), ...templePorch()],
+  'rise-3': templeWalls,
+  'rise-4': templePorch,
+  'works-1': altarWorks,
+  'works-2': works2,
+  'works-3': works3,
+  'works-4': works4,
+  'works-5': works5,
+  'altar-new': altarNew,
+  tools,
   olive,
   almond,
   fig,
@@ -1369,7 +1663,7 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
  * Code models drawn as one part, their colours in the vertices like the kits: the empty plot's
  * building site is many small pieces in three colours, and the city can hold many plots.
  */
-const ONE_PART: readonly ModelKey[] = ['house-0'];
+const ONE_PART: readonly ModelKey[] = ['house-0', ...SITE_KEYS];
 
 let built: Record<ModelKey, Prototype> | null = null;
 

@@ -20,6 +20,7 @@ import {
   type Person,
   type Rng,
   type Sex,
+  TEMPLE_STAGES,
 } from '../src/core';
 
 /** A goal no test city reaches by accident (the first one asking for 100 residents): tests of goals set goalIndex. */
@@ -187,4 +188,10 @@ export function noColdDeaths(): () => void {
   const saved = { tent: C.tent, tentCold: C.tentCold, houseCold: C.houseCold };
   Object.assign(C, { tent: [0, 0], tentCold: [0, 0], houseCold: [0, 0] });
   return () => Object.assign(C, saved);
+}
+
+/** Marks every stage of the Temple built (consecrated): its coverage and happiness count. */
+export function consecrate(s: GameState) {
+  s.temple = { done: TEMPLE_STAGES.length, active: false, progress: 0 };
+  refreshCity(s);
 }

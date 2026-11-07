@@ -1,9 +1,9 @@
-import { HOUSE_LEVELS, RULES, statOf } from './data';
+import { HOUSE_LEVELS, storageOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import { ageBand, foodOf } from './people';
 import type { Building, BuildingKind, GameState, Material } from './types';
-import { crewCounts, idleShare, staffOf, upkeepPaid } from './work';
+import { crewCounts, idleShare, jobsAt, staffOf, upkeepPaid } from './work';
 
 export interface Economy {
   /** People living in the city (not those on the way). */
@@ -25,6 +25,8 @@ export interface Economy {
   /** Wood and stone made this week (lumbers and quarries, by their crews), up to the store cap. */
   wood: number;
   stone: number;
+  /** Livestock the pastures made this week (by their crews), up to the pens' cap. */
+  livestock: number;
   /** Share of the made wood and stone that fits the store (1: all of it; 0: the store is full). */
   stored: Record<Material, number>;
   /** Weekly silver balance: taxes - upkeep. */
@@ -77,7 +79,7 @@ export function computeEconomy(s: GameState): Economy {
   const crews = crewCounts(s);
   let foodProd = 0;
   let harvest = 0;
-  const made: Record<Material, number> = { wood: 0, stone: 0 };
+  const made: Record<Material, number> = { wood: 0, stone: 0, livestock: 0 };
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const bonus = fieldBonus(s);
   for (const b of s.buildings) {
@@ -85,7 +87,7 @@ export function computeEconomy(s: GameState): Economy {
     const cost = upkeepPaid(b, crews);
     if (cost) upkeep[b.kind] = round2((upkeep[b.kind] ?? 0) + cost);
     if (!b.connected) continue;
-    const n = statOf(b, 'jobs');
+    const n = jobsAt(b);
     yearJobs += n;
     if (!isWorking(b, s.week)) continue;
     jobs += n;
@@ -107,12 +109,12 @@ export function computeEconomy(s: GameState): Economy {
     moods[moodOf(h)]++;
   }
   const efficiency = jobs === 0 ? 1 : filled / jobs;
-  // The store keeps at most materialStorage of each material: production stops at it (never cut).
+  // The store keeps at most `storageOf` each material: production stops at it (never cut).
   const fits = (m: Material) => {
     const n = made[m];
-    return n > 0 ? Math.min(1, Math.max(0, RULES.materialStorage - s[m]) / n) : 1;
+    return n > 0 ? Math.min(1, Math.max(0, storageOf(m) - s[m]) / n) : 1;
   };
-  const stored: Record<Material, number> = { wood: fits('wood'), stone: fits('stone') };
+  const stored: Record<Material, number> = { wood: fits('wood'), stone: fits('stone'), livestock: fits('livestock') };
   const sum = (r: Partial<Record<BuildingKind, number>>) => Object.values(r).reduce((a, v) => a + v, 0);
   return {
     residents,
@@ -126,6 +128,7 @@ export function computeEconomy(s: GameState): Economy {
     foodEaten: round2(eaten),
     wood: round2(made.wood * stored.wood),
     stone: round2(made.stone * stored.stone),
+    livestock: round2(made.livestock * stored.livestock),
     stored,
     silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),

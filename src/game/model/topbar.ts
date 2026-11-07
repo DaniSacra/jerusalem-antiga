@@ -15,7 +15,6 @@ import {
   nextFieldTurn,
   RULES,
   seasonOf,
-  templeSavings,
   type CityReadout,
   type GameState,
   type Material,
@@ -23,6 +22,7 @@ import {
   type Season,
 } from '../../core';
 import { fmt, fmtInt, signed, T } from '../strings';
+import { stageStatus } from './temple';
 
 /** A role, not a colour: each view turns it into its palette. */
 export type Tone = 'text' | 'good' | 'bad' | 'warn' | 'muted' | 'gold';
@@ -33,7 +33,7 @@ export type Part = { text: string; tone?: Tone; size?: Size } | { bar: number } 
 
 export interface Pill {
   /** Stable key (the HTML keeps one element per pill). */
-  key: 'silver' | 'food' | 'wood' | 'stone' | 'people' | 'joy';
+  key: 'silver' | 'food' | 'wood' | 'stone' | 'livestock' | 'people' | 'joy';
   icon: string;
   parts: Part[];
   /** Blinks (debt, famine). */
@@ -95,9 +95,11 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
   });
   // Wood (and stone once the quarry is unlocked): red with ⚠ while a house waits for it.
   const waiting = housesWaiting(s);
-  const made: Record<Material, number> = { wood: eco.wood, stone: eco.stone };
+  const made: Record<Material, number> = { wood: eco.wood, stone: eco.stone, livestock: eco.livestock };
   const bad = (m: Material) => waiting[m] > 0 || (m === 'wood' && (s.cold || firewoodShort(s, { wood: made.wood }) > 0));
-  const mats: Material[] = s.unlocked.includes('quarry') || s.stone > 0 ? ['wood', 'stone'] : ['wood'];
+  const mats: Material[] = ['wood'];
+  if (s.unlocked.includes('quarry') || s.stone > 0) mats.push('stone');
+  if (s.unlocked.includes('pasture') || s.livestock > 0) mats.push('livestock');
   for (const m of mats)
     pills.push({
       key: m,
@@ -132,13 +134,13 @@ export function goalParts(s: GameState, phone: boolean): Part[] {
   if (!goal) return [{ text: T.allGoals, tone: 'gold' }];
   const p = goalProgress(s, goal);
   const progress = N.goalProgress(goal, p, goalTarget(s, goal));
-  const save = templeSavings(s);
+  const stage = stageStatus(s);
   return [
     { text: phone ? N.goal : N.goalOf(s.goalIndex + 1, goalCount()), tone: 'gold', size: 'small' },
     { text: N.goalText(goal) },
     ...(phone ? [] : [{ bar: goalFraction(s) } as Part]),
     ...(progress ? [{ text: progress, tone: 'gold' } as Part] : []),
-    ...(save ? [{ text: '· ' + N.templeSavingsPill(save.silver, save.cost), tone: (save.silver >= save.cost ? 'good' : 'gold') as Tone }] : []),
+    ...(stage ? [{ text: '· ' + stage.text, tone: stage.tone as Tone }] : []),
   ];
 }
 

@@ -18,8 +18,11 @@ export const madeByCrew = (kind: BuildingKind) => {
   return d.jobs > 0 && !!(d.gather || d.harvest || d.fieldBonus || RULES.staffedServices.includes(kind));
 };
 
+/** Jobs a building has: its level's, or the builders' while a stage of the Temple is built there. */
+export const jobsAt = (b: Building) => b.builders ?? statOf(b, 'jobs');
+
 /** Jobs a building offers: 0 while it is off the road. */
-export const seatsOf = (b: Building) => (b.connected ? statOf(b, 'jobs') : 0);
+export const seatsOf = (b: Building) => (b.connected ? jobsAt(b) : 0);
 
 /** How many people work at each building (by id). */
 export function crewCounts(s: GameState): Map<number, number> {
@@ -37,7 +40,7 @@ export const crewOf = (s: GameState, b: Pick<Building, 'id'>) => s.people.filter
  */
 export function staffOf(b: Building, crews: Map<number, number>): number {
   const seats = seatsOf(b);
-  if (statOf(b, 'jobs') === 0) return 1;
+  if (jobsAt(b) === 0) return 1;
   return seats === 0 ? 0 : Math.min(1, (crews.get(b.id) ?? 0) / seats);
 }
 
@@ -62,9 +65,15 @@ const rank = (kind: BuildingKind) => {
   return k < 0 ? RULES.jobPriority.length : k;
 };
 
-/** Workplaces in the order free adults fill them: `jobPriority`, then the oldest (lowest id). */
-const workplaces = (s: GameState) =>
-  s.buildings.filter((b) => seatsOf(b) > 0).sort((a, b) => rank(a.kind) - rank(b.kind) || a.id - b.id);
+/**
+ * Workplaces in the order free adults fill them: professions with a number target first (the
+ * player asked for them: a worker freed by − elsewhere goes there), then `jobPriority`, then the
+ * oldest (lowest id). With no targets this is the order before the Profissões panel.
+ */
+const workplaces = (s: GameState) => {
+  const asked = (b: Building) => (s.jobTargets[b.kind] !== undefined ? 0 : 1);
+  return s.buildings.filter((b) => seatsOf(b) > 0).sort((a, b) => asked(a) - asked(b) || rank(a.kind) - rank(b.kind) || a.id - b.id);
+};
 
 /** Distance from a person's house to a building (Manhattan, top-left corners). */
 function distance(p: Person, b: Building, houses: Map<number, Building>): number {
@@ -74,7 +83,7 @@ function distance(p: Person, b: Building, houses: Map<number, Building>): number
 
 /** Jobs of every building of a kind, connected or not (what a profession's target is capped by when demolishing). */
 export const jobsBuilt = (s: GameState, kind: BuildingKind) =>
-  s.buildings.reduce((a, b) => a + (b.kind === kind ? statOf(b, 'jobs') : 0), 0);
+  s.buildings.reduce((a, b) => a + (b.kind === kind ? jobsAt(b) : 0), 0);
 
 /** Jobs the connected workplaces of a kind offer now. */
 export const seatsOfKind = (s: GameState, kind: BuildingKind) =>
@@ -101,8 +110,8 @@ export const loweredTarget = (target: number | undefined, crew: number) => Math.
  * Frees the jobs nobody can hold (a child grown old, a person gone, a workplace demolished or off
  * the road, more crew than jobs: the newest by id go), then the workers above a profession's target
  * (`jobTargets`: whoever lives farthest from the workplace goes, ties by the higher id), then fills
- * each free job: workplaces by `jobPriority` and age, each job to the free adult living nearest
- * (ties by id), skipping professions at their target. With no targets set this is the game before
+ * each free job: professions with a number target first, then by `jobPriority` and age, each job
+ * to the free adult living nearest (ties by id), skipping professions at their target. With no targets set this is the game before
  * the Profissões panel, to the digit.
  */
 export function assignJobs(s: GameState): void {

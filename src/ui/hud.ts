@@ -18,6 +18,8 @@ import { Toasts } from './toasts';
 import { TopBar } from './topbar';
 import { Tools } from './tools';
 import { Tutorial, type ArrowTarget } from './tutorial';
+import { NextStepLine } from './nextStep';
+import { nextStep, type NextStep } from '../game/model/nextStep';
 import './ui.css';
 
 /** What the interface asks of the 3D game around it. */
@@ -64,6 +66,8 @@ export class Hud {
   private noticeKeys = new Set<string>();
   private toasts = new Toasts();
   private tutorial: Tutorial;
+  /** "O que fazer agora", under the top bar (hidden during the tutorial). */
+  private next: NextStepLine;
   private modal: Modal;
   private settings: SettingsPanel;
   private tag = h('div.anchor.tag.panel.hidden');
@@ -91,7 +95,7 @@ export class Hud {
     this.balloon = new CardBalloon(s, this.anchors, () => this.free, () => this.phone, (id) => {
       this.panels.close();
       this.sheet.show(id, true);
-    }, (dx) => host.nudge(dx));
+    }, (dx) => host.nudge(dx), () => this.openPanel('jobs'));
     this.panels = new Panels(s, () => this.phone, (id) => this.showHouse(id), () => this.closeTop());
     // Objetivos opens from the level ring and the goal (top bar).
     for (const [kind, icon, label] of [['alerts', 'alert', T.nova.buttons.alerts], ['stats', 'stats', T.nova.buttons.stats], ['jobs', 'jobs', T.nova.buttons.jobs]] as const) {
@@ -106,8 +110,9 @@ export class Hud {
     onTap(this.jobsTool, () => this.togglePanel('jobs'));
     this.tools.tools.append(this.jobsTool);
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
+    this.next = new NextStepLine(this.anchors, (t) => this.tools.arrowFor(t), () => s.tool, (step) => this.actOn(step));
     this.modal = new Modal(root);
-    root.append(this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.settings.el);
+    root.append(this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.next.el, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.next.arrow, this.settings.el);
     parent.append(root);
     this.toasts.setPhone(this.phone);
     addEventListener('resize', this.onResize);
@@ -117,13 +122,18 @@ export class Hud {
     this.root.setAttribute('data-form', formOf());
     this.toasts.setPhone(this.phone);
     this.tutorial.remeasure();
+    this.next.update(this.next.shown ? nextStep(this.host.session.state, this.host.session.city) : null);
     this.measureFree();
   };
 
-  /** Below the top bar, left of the column, above the tools (8 px clear of each). */
+  /** Below the top bar (and the "O que fazer agora" line), left of the column, above the tools (8 px clear of each). */
   private measureFree() {
     const bottomOf = (els: Iterable<Element>) => Math.max(0, ...[...els].map((e) => e.getBoundingClientRect().bottom));
-    const top = bottomOf(this.top.el.querySelectorAll('.pill, .level, button'));
+    let top = bottomOf(this.top.el.querySelectorAll('.pill, .level, button'));
+    // The line sits right under the bar; the map's free area starts below it.
+    const lineTop = `${Math.round(top + 4)}px`;
+    if (this.next.el.style.top !== lineTop) this.next.el.style.top = lineTop;
+    if (this.next.shown) top = this.next.el.getBoundingClientRect().bottom;
     const col = this.tools.column.getBoundingClientRect();
     const tools = this.tools.tools.getBoundingClientRect();
     const right = col.width ? col.left : innerWidth;
@@ -164,6 +174,8 @@ export class Hud {
 
   update() {
     this.top.update(this.phone);
+    const s = this.host.session;
+    this.next.update(this.tutorial.open ? null : nextStep(s.state, s.city));
     this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);
     this.measureFree();
     // The toasts end left of the tool balloon (its cost line explains a failure).
@@ -204,6 +216,23 @@ export class Hud {
     }
   }
 
+  /** A tap on "O que fazer agora": the stage's site (camera and balloon) or its panel. */
+  private actOn(step: NextStep) {
+    const s = this.host.session;
+    if ('panel' in step.open) return this.openPanel(step.open.panel);
+    const r = step.open.building;
+    this.panels.close();
+    this.sheet.close();
+    if (s.tool !== 'view') s.selectTool('view');
+    s.select({ x: r.x, y: r.y });
+    this.host.glideTo(r);
+  }
+
+  /** Opens a panel (open already: it stays). */
+  private openPanel(kind: PanelKind) {
+    if (this.panels.open !== kind) this.togglePanel(kind);
+  }
+
   private togglePanel(kind: PanelKind) {
     this.sheet.close();
     this.host.session.deselect();
@@ -233,6 +262,7 @@ export class Hud {
   /** Per frame: time for the toasts, and what is pinned to the world follows the camera. */
   frame(dtMs: number) {
     this.toasts.frame(dtMs);
+    this.next.frame(dtMs);
     this.anchors.frame(dtMs);
   }
 

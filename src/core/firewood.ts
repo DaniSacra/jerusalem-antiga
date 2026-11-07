@@ -1,7 +1,7 @@
-import { HOUSE_LEVELS, RULES } from './data';
+import { HOUSE_LEVELS, RULES, storageOf } from './data';
 import { round2, type Economy } from './economy';
 import { seasonOf } from './seasons';
-import type { GameEvent, GameState } from './types';
+import type { GameEvent, GameState, Material } from './types';
 
 /**
  * Firewood (P4): in every winter week each house with people burns `firewood` of its level from
@@ -62,4 +62,4 @@ export function keepsFirewood(s: GameState, wood: number, woodPerWeek: number): 
 }
 
 /** A material stock at its cap: its maker stops. */
-export const storageFull = (s: GameState, m: 'wood' | 'stone'): boolean => s[m] >= RULES.materialStorage;
+export const storageFull = (s: GameState, m: Material): boolean => s[m] >= storageOf(m);

@@ -26,11 +26,11 @@ import {
   stepWeek,
   templeRoadSpot,
   templeSpotsNear,
-  templeWaitsForGoal,
   upgradeBuilding,
   madeByCrew,
   setJob,
   changeJobTarget,
+  startStage,
   autoJobs,
   type ActionResult,
   type BuildableKind,
@@ -372,6 +372,16 @@ export class Session {
     return true;
   }
 
+  /** "Começar" in the altar's or the Temple's balloon: pays the next stage and opens its builders' jobs. */
+  startStage(): ActionResult {
+    const events: GameEvent[] = [];
+    const r = startStage(this.state, events);
+    if (!r.ok) this.say(T.fail[r.reason], 'bad');
+    this.handleEvents(events);
+    this.refresh();
+    return r;
+  }
+
   /** − / + on a profession in the Profissões panel (see `changeJobTarget`). */
   changeJobTarget(kind: BuildingKind, delta: 1 | -1): boolean {
     if (!changeJobTarget(this.state, kind, delta)) return false;
@@ -519,8 +529,6 @@ export class Session {
         if (drag) drag.toastedCrew = true;
         this.say(T.noCrewBuilt(built.kind), 'bad');
       }
-      // A temple built before goal 9: the victory waits for it (and says what it is).
-      if (this.tool === 'temple' && templeWaitsForGoal(s)) this.say(T.templeEarly, 'good');
       if (this.spots && this.tool !== 'road') {
         this.spots = null;
         this.drawSpots();

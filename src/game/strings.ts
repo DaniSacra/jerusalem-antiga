@@ -1,13 +1,16 @@
-import { BUILDINGS, dimsOf, HOUSE_LEVELS, RULES, TEMPLE_GOAL, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, dimsOf, HOUSE_LEVELS, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
-const PRODUCT: Record<Product, string> = { food: 'comida', wood: 'madeira', stone: 'pedra' };
+const PRODUCT: Record<Product, string> = { food: 'comida', wood: 'madeira', stone: 'pedra', livestock: 'gado' };
 
 /** The building that makes each material, with its article ("um lenhador", "uma pedreira"). */
-const MAKER: Record<Material, string> = { wood: 'um lenhador', stone: 'uma pedreira' };
+const MAKER: Record<Material, string> = { wood: 'um lenhador', stone: 'uma pedreira', livestock: 'um pasto' };
 /** Buildings named with a feminine article ("a Coletora", "a Oficina"). */
 const FEMININE: ReadonlySet<BuildingKind> = new Set<BuildingKind>(['gatherer', 'quarry', 'workshop', 'plaza']);
+
+/** House levels in the plural, after "perto das" (tents to stone houses). */
+const HOUSE_PLURAL = ['', 'tendas', 'casas de barro', 'casas de pedra', 'casas grandes'];
 
 /** "10 de pedra e 5 de madeira": a materials cost in words (empty when none). */
 const materialsText = (m: Materials) => (['stone', 'wood'] as const).filter((k) => m[k]).map((k) => `${m[k]} de ${PRODUCT[k]}`).join(' e ');
@@ -100,8 +103,6 @@ export const T = {
   /** A family left its tent: famine, or the tent lost its road. */
   familyLeft: (reason: LeaveReason, name: string) =>
     `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
-  /** The temple was built before the goal the victory waits for (500 and 8 read from goals.json). */
-  templeEarly: `Templo erguido! A vitória vem com ${TEMPLE_GOAL.goal.text.replace(/^Chegue a /, '')}`,
   famine: 'Falta comida: construa pescador ou coletora',
   coldStart: 'Frio! Acabou a lenha: construa um lenhador',
   coldEnd: 'A lenha voltou: as casas se aquecem',
@@ -265,7 +266,7 @@ export const T = {
     residents: 'Moradores',
     happiness: 'Alegria',
     /** Materials pill (PC: one pill per material, with its name). */
-    material: { wood: 'Madeira', stone: 'Pedra' } satisfies Record<Material, string>,
+    material: { wood: 'Madeira', stone: 'Pedra', livestock: 'Gado' } satisfies Record<Material, string>,
     perWeek: '/sem',
     /** The season the food runs out in at this pace (PC food pill). */
     foodEnds: { spring: 'acaba na primavera', summer: 'acaba no verão', autumn: 'acaba no outono', winter: 'acaba no inverno' } satisfies Record<Season, string>,
@@ -306,6 +307,7 @@ export const T = {
     category: { home: 'Moradia', supply: 'Comida', work: 'Trabalho', special: 'Especiais' } satisfies Record<BuildingCategory, string>,
     /** Pieces of the cost line ("25 prata · 10 madeira"), each red when the city lacks it. */
     silverCost: (n: number) => `${n} prata`,
+    free: 'Grátis',
     materialCost: (n: number, m: Material) => `${n} ${PRODUCT[m]}`,
     /** After a cost piece the city lacks: how much it has. */
     have: (n: number) => ` (tem ${Math.floor(n)})`,
@@ -319,9 +321,9 @@ export const T = {
     foodAfter: (n: number) => `Comida depois: ${signed(n)}/sem`,
     /** What each building is for, in one sentence. */
     effect: {
-      house: 'Abriga uma família. Com madeira vira barro; com praça e pedra, pedra; com mercado e parque, grande.',
+      house: 'Abriga uma família. Com madeira vira barro; com praça, altar com ofertas e pedra, pedra; com mercado e parque, grande.',
       field: 'Dá comida o ano todo, menos no inverno, quando congela. Arraste para fazer vários.',
-      plaza: 'Casas de barro perto de uma praça viram casas de pedra, com pedra da pedreira.',
+      plaza: 'Casas de barro perto de uma praça e do altar com ofertas viram casas de pedra, com pedra da pedreira.',
       granary: 'Guarda comida da colheita. Sem celeiro, a comida que passa do limite estraga.',
       fisher: 'Pesca no rio: dá comida o ano todo.',
       gatherer: 'Junta frutos das árvores: dá comida o ano todo.',
@@ -330,7 +332,8 @@ export const T = {
       market: 'Lugar de troca: casas de pedra com mercado e parque por perto viram casas grandes.',
       workshop: `Dá trabalho e ${WORKSHOP_BONUS}.`,
       park: 'Casas de pedra perto de um parque viram casas grandes.',
-      temple: `Vence o jogo com o objetivo ${TEMPLE_GOAL.number} cumprido. Encoste numa rua ligada ao altar.`,
+      temple: 'O Templo em ruínas: toque nele para ver a próxima etapa.',
+      pasture: 'Rende gado pelo capim livre em volta. O altar restaurado queima gado toda semana.',
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {
@@ -407,6 +410,7 @@ export const T = {
         market: 'Mercadores',
         workshop: 'Artesãos',
         temple: 'Construtores',
+        altar: 'Construtores',
       } as Partial<Record<BuildingKind, string>>,
     },
     goals: {
@@ -416,11 +420,71 @@ export const T = {
       reward: (reward: number) => `+${reward} prata`,
       victory: 'vitória',
       unlocks: (kind: Placeable) => `libera ${toolName(kind)}`,
-      /** Silver saved for the temple while it is unlocked and not built. */
-      templeSavings: (silver: number, cost: number) => `Junte ${cost} para o Templo: ${Math.min(silver, cost)}/${cost}`,
     },
-    /** The same, short, at the end of the goal pill. */
-    templeSavingsPill: (silver: number, cost: number) => `Templo ${Math.min(silver, cost)}/${cost}`,
+    /** The Temple's stage that is the goal now (see `stageStatus`). */
+    stage: {
+      started: (name: string) => `Começou: ${name}. Ponha construtores em Profissões`,
+      done: (name: string) => `${name} pronto!`,
+      mark: 'Marque o lugar do Templo',
+      start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} para começar`,
+      lacking: (name: string, what: string) => `${name}: junte ${what}`,
+      debt: (name: string) => `${name}: pague a dívida antes`,
+      noRoad: (site: 'altar' | 'temple') => `Ligue ${site === 'altar' ? 'o altar' : 'o Templo'} à rua`,
+      building: (name: string, progress: number, work: number) => `${name} ${progress}/${work}`,
+      weeks: (n: number) => `~${n} sem`,
+      idle: 'sem construtores',
+      /** "30 prata, 50 pedra": what the stage still needs. */
+      need: (parts: [number, 'silver' | Product][]) => parts.map(([n, k]) => `${n} ${k === 'silver' ? 'prata' : PRODUCT[k]}`).join(', '),
+      /** The site's balloon: "Etapa 2 de 5: Alicerce". */
+      head: (n: number, of: number, name: string) => `Etapa ${n} de ${of}: ${name}`,
+      /** Before it starts: its builders and the shortest time with all of them. */
+      plan: (builders: number, weeks: number) => `${builders} construtores · ~${weeks} sem de obra`,
+      builders: (n: number, of: number) => `Construtores: ${n} de ${of}`,
+      /** The progress bar's number. */
+      progress: (p: number, work: number) => `${p}/${work}`,
+      stopped: 'Obra parada: ninguém trabalha nela',
+      left: (n: number) => `Pronto em ~${n} sem`,
+      begin: (name: string) => `Começar: ${name}`,
+      /** Not its goal yet: the goal that comes first. */
+      first: (n: number, text: string) => `Antes: objetivo ${n}, ${text}`,
+      /** A stage already built, on its site's balloon. */
+      built: (name: string) => `${name}: pronto`,
+      /** The goals list: the stage goals' mark. */
+      ofStages: (n: number, of: number) => `etapa ${n}/${of}`,
+    },
+    /** "O que fazer agora": one short line under the top bar (see `nextStep`). */
+    next: {
+      debt: (w: number) => `Dívida: ${weeks(w)} para perder. Demolir corta gastos`,
+      famine: 'Fome! Construa um pescador perto do rio',
+      food: (w: number) => `Comida acaba em ${weeks(w)}: construa um pescador perto do rio`,
+      cold: 'Frio! Sem lenha: construa um lenhador',
+      firewood: (n: number) => `Lenha não dura o inverno: faltam ${n}. Construa um lenhador`,
+      mark: 'Templo: escolha o lugar (é grátis)',
+      gather: (name: string, what: 'silver' | Material, has: number, need: number) => `${name}: junte ${need} ${what === 'silver' ? 'prata' : PRODUCT[what]} · ${Math.floor(Math.max(0, has))}/${need}`,
+      road: (name: string, site: 'altar' | 'temple') => `${name}: ligue ${site === 'altar' ? 'o altar' : 'o Templo'} à rua`,
+      start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} e comece`,
+      builders: (name: string, n: number, of: number) => `${name}: ponha construtores · ${n} de ${of}`,
+      going: (name: string, p: number, work: number, left: number) => `${name} ${p}/${work} · pronto em ~${left} sem`,
+      /** A built goal's building off the road ("Oficina: ligue à rua"). */
+      offRoad: (kind: BuildingKind) => `${BUILDINGS[kind].name}: ligue à rua`,
+      /** Houses of a level: the service the house nearest to climbing lacks. */
+      service: (kind: Exclude<NeedKind, 'road'>, level: number) => `Construa ${({ plaza: 'uma praça', market: 'um mercado', park: 'um parque' } as const)[kind]} perto das ${HOUSE_PLURAL[level]}`,
+      locked: (kind: NeedKind, goal: number) => `${T.need[kind]} libera no objetivo ${goal}`,
+      houseRoad: 'Ligue as casas à rua',
+      material: (n: number, m: Material) => `Faltam ${n} de ${PRODUCT[m]} para as casas subirem`,
+      moreHouses: (have: number, target: number) => `Construa mais casas: ${have} de ${target}`,
+      climbing: (n: number) => `As casas sobem em ~${weeks(n)}`,
+      couples: 'Construa uma casa: casais esperam casa',
+      caravan: (missing: number, w: number) => (missing ? `Deixe ${missing === 1 ? '1 casa vazia' : `${missing} casas vazias`}: caravana em ${w} sem` : `Caravana em ${w} sem: há casa para todos`),
+      caravanSoon: 'Deixe 1 casa vazia: a caravana vem logo',
+      noBirths: 'Mais comida guardada: só assim nascem crianças',
+      grow: 'As crianças crescem: enquanto isso, suba as casas',
+      wedding: 'Jovens vão se casar: deixe uma casa vazia',
+      winter: 'Passe o inverno: guarde comida e lenha',
+      foodUntilSpring: (p: number, t: number) => `Comida até a primavera: ${Math.min(p, t)}/${t} sem. Pesque e colete`,
+      year: (y: number) => `Este objetivo abre no Ano ${y}`,
+      calm: 'Tudo em ordem: aproveite a cidade',
+    },
     /** A goal's text, with the year it opens ("a partir do Ano 8"). */
     goalText: (g: GoalDef) => (g.fromYear ? `${g.text} a partir do Ano ${g.fromYear}` : g.text),
     noAlerts: 'Nenhum aviso. A cidade vai bem.',
@@ -596,7 +660,7 @@ export const T = {
       frozen: (weeks: number) => `Congelado no inverno: volta em ${weeks} sem`,
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
       droughtDry: 'Ano seco: longe do rio, colhe menos',
-      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra' } satisfies Record<GatherSource, string>,
+      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra', grass: 'Pouco capim livre aqui' } satisfies Record<GatherSource, string>,
       happiness: (value: number, mood: Mood, why: string) => `Alegria ${value}, ${T.mood[mood]}${why ? ` (${why})` : ''}`,
       serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
       upkeep: (n: number) => `${fmt2(n)} por semana`,

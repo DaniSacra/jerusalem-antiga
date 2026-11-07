@@ -1,4 +1,4 @@
-import { HOUSE_LEVELS, RULES } from './data';
+import { HOUSE_LEVELS, RULES, TEMPLE_STAGES } from './data';
 import { computeEconomy, round2, type Economy } from './economy';
 import { foodCapacity } from './harvest';
 import { stepCaravans } from './caravans';
@@ -12,6 +12,7 @@ import { rollLook } from './looks';
 import { refreshCity } from './refresh';
 import { lackingMaterial, levelMaterials, payMaterials } from './materials';
 import { cutTrees, regrowTrees } from './trees';
+import { buildersAtWork, nextStage, stageSite } from './temple';
 import { coldDeaths, coldDeathsSince } from './cold';
 import { burnFirewood, keepsFirewood } from './firewood';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
@@ -178,6 +179,40 @@ function record(s: GameState, eco: Economy) {
   if (s.history.length > RULES.historyWeeks) s.history.splice(0, s.history.length - RULES.historyWeeks);
 }
 
+/**
+ * The restored altar burns its offering (`offering` of the last stage built) from the pens, after the
+ * week's livestock came in: with enough it covers its sacred radius this week (`s.offered`); without,
+ * it burns nothing and covers nothing (`offeringsMissing` once per episode, `offeringsBack` after).
+ */
+function offer(s: GameState, events: GameEvent[]) {
+  const built = TEMPLE_STAGES[s.temple.done - 1];
+  if (!built) return;
+  const was = s.offered;
+  s.offered = s.livestock >= built.offering;
+  if (s.offered) s.livestock = round2(s.livestock - built.offering);
+  const altar = stageSite(s, TEMPLE_STAGES[0])!;
+  if (was && !s.offered) events.push({ type: 'offeringsMissing', x: altar.x, y: altar.y });
+  if (!was && s.offered) events.push({ type: 'offeringsBack' });
+}
+
+/**
+ * The stage of the Temple under way gains 1 a week per builder at work; at its `work` it is built:
+ * the site's builders' jobs close and a `stageDone` event goes out (the goal follows in `checkGoal`).
+ */
+function advanceTemple(s: GameState, events: GameEvent[]) {
+  const st = nextStage(s);
+  if (!st || !s.temple.active) return;
+  s.temple.progress += buildersAtWork(s);
+  if (s.temple.progress < st.work) return;
+  const site = stageSite(s, st)!;
+  s.temple = { done: s.temple.done + 1, active: false, progress: 0 };
+  site.builders = undefined;
+  delete s.jobTargets[site.kind]; // the next stage asks for its own builders
+  if (s.temple.done === 1) s.offered = true; // the restored altar burns from next week (a lack says so then)
+  refreshCity(s);
+  events.push({ type: 'stageDone', stage: s.temple.done, x: site.x, y: site.y });
+}
+
 /** Advances the simulation by one week and returns what happened. Nothing happens once lost. */
 export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   const events: GameEvent[] = [];
@@ -203,6 +238,8 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   s.silver = round2(s.silver + eco.silverDelta);
   s.wood = round2(s.wood + eco.wood);
   s.stone = round2(s.stone + eco.stone);
+  s.livestock = round2(s.livestock + eco.livestock);
+  offer(s, events);
   burnFirewood(s, events);
   if (s.cold) s.winterLoss = true;
   coldDeaths(s, rng, events);
@@ -210,6 +247,7 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   // back this week is not felled before it is seen.
   cutTrees(s, eco, events);
   regrowTrees(s, events);
+  advanceTemple(s, events);
 
   for (const b of s.buildings) if (b.kind === 'house') updateHouse(s, b, rng, events, eco.wood);
 

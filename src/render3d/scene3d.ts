@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { BuildableKind, Building, Cell, GameState, Rect } from '../core';
+import { TEMPLE_STAGES, type BuildableKind, type Building, type Cell, type GameState, type Rect } from '../core';
 import VISUAL from '../data/visual.json';
 import type { GameOut } from '../game/events';
 import { C } from '../game/palette';
@@ -255,6 +255,12 @@ export class Scene3D {
         break;
       case 'milestone':
         fx.milestone(o.building);
+        this.stage.world.walkers.gather(o.building);
+        break;
+      case 'stageDone':
+        // A stage of the Temple: the site shines like a milestone and people gather; the Consagração celebrates.
+        fx.milestone(o.building, o.building.kind === 'temple' ? TEMPLE_TOP : undefined);
+        if (o.building.kind === 'temple' && o.stage >= TEMPLE_STAGES.length) fx.celebrate(o.building);
         this.stage.world.walkers.gather(o.building);
         break;
       case 'leave':

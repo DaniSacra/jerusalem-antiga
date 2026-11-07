@@ -4,9 +4,11 @@
  *   npm run sim -- --bots comum --seeds 100      # one bot, more seeds
  *   npm run sim -- --brief | --json | --rows     # one line per bot, raw results, one line per run
  *   npm run sim -- --trace comum:1:80            # week by week of one game (bot:seed:weeks)
- *   npm run sim -- --profile savesTemple=true   # changes a bot profile field for this run
+ *   npm run sim -- --profile stageAhead=1       # changes a bot profile field for this run
  *   npm run sim -- --set rules.people.birthChance=0.04 --drop-goal 4
  *        # tries balance numbers in memory only (src/data is not touched); --drop-goal is 1-based
+ *   npm run sim -- --scale temple.work=0.8 --add temple.builders=1
+ *        # the same for a field of every row of a list table (the Temple's stages), rounded
  */
 import {
   computeEconomy,
@@ -17,6 +19,8 @@ import {
   foodForecast,
   GOALS,
   RULES,
+  TEMPLE_STAGES,
+  buildersAtWork,
   seasonOf,
   stepWeek,
   ageOf,
@@ -30,7 +34,7 @@ const args = process.argv.slice(2);
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const ov = applyOverrides(args);
 const bots = opt('bots', Object.keys(PROFILES).join(',')).split(',');
-// --profile key=json: changes a profile field of every bot run (e.g. savesTemple=true).
+// --profile key=json: changes a profile field of every bot run (e.g. stageAhead=1).
 args.forEach((a, i) => {
   if (a !== '--profile') return;
   const [k, raw] = args[i + 1].split('=');
@@ -87,7 +91,6 @@ function materialLines(rs: Result[]): string[] {
     ` | houses waiting: runs ${pc(rs.filter((r) => r.mat.waitWeeks[k] > 0).length, n)} weeks med ${m((r) => r.mat.waitWeeks[k])} p75 ${f(qt(rs.map((r) => r.mat.waitWeeks[k]), 0.75))}` +
     ` | builds blocked wks med ${m((r) => r.mat.blocked[k])} | made ${m((r) => r.mat.made[k])} spent build ${m((r) => r.mat.spentBuild[k])} levels ${m((r) => r.mat.spentLevel[k])} | end ${m((r) => r.mat.end[k])} per 100 made ${m((r) => (100 * r.mat.end[k]) / Math.max(1, r.mat.made[k]))} p75 ${f(qt(rs.map((r) => (100 * r.mat.end[k]) / Math.max(1, r.mat.made[k])), 0.75))}`;
   const food = (k: 'field' | 'fisher' | 'gatherer') => rs.reduce((a, r) => a + r.food[k], 0);
-  const last = (k: string) => rs.filter((r) => r.mat.templeLast === k).length;
   const anyWait = rs.filter((r) => r.mat.waitWeeks.wood + r.mat.waitWeeks.stone > 0).length;
   return [
     line('wood', 'lumbers', (r) => r.mat.lumbers),
@@ -95,7 +98,7 @@ function materialLines(rs: Result[]): string[] {
     `  W1 any house waiting ${pc(anyWait, n)} | W2 longest house wait med ${m((r) => r.mat.houseWaitMax)} p75 ${f(qt(rs.map((r) => r.mat.houseWaitMax), 0.75))} >52 ${rs.filter((r) => r.mat.houseWaitMax > 52).length}` +
       ` | W3 Y1 wood-blocked wks med ${m((r) => r.mat.woodBlockedY1)} | W4 >300 for >52 wk ${rs.filter((r) => r.mat.idle300 > 52).length} | W5 idle w200 med ${m((r) => r.mat.unemployed200)}` +
       ` | W6 gatherer ${f((100 * food('gatherer')) / (food('field') + food('fisher') + food('gatherer')))}% | stumps w260 ${m((r) => r.mat.stumps260)} w520 ${m((r) => r.mat.stumps520)} cut ${m((r) => r.mat.cut)}` +
-      ` | temple last silver/wood/stone ${last('silver')}/${last('wood')}/${last('stone')} unlock→temple med ${m((r) => r.mat.templeWait)}`,
+      ` | unlock→temple marked med ${m((r) => r.mat.templeWait)}`,
   ];
 }
 /** Package B1 (plano-sobrevivencia 7): S1-S4, cold, wood in year 1, the firewood hold, year-1 losses. */
@@ -166,6 +169,32 @@ function b3Lines(rs: Result[]): string[] {
       ` | D2 in wins med ${f(med(won.map((r) => r.b3.coldAll)))} p90 ${f(qt(won.map((r) => r.b3.coldAll), 0.9))} max ${won.length ? Math.max(...won.map((r) => r.b3.coldAll)) : '-'}`,
   ];
 }
+/** Temple in stages (plano-desafio 2.7): E1-E7, per stage its wait to be paid and its length, the builders. */
+function templeLines(rs: Result[]): string[] {
+  const n = rs.length;
+  const m = (v: number[], d = 0) => f(med(v), d);
+  const won = rs.filter((r) => r.won).map((r) => r.weeks);
+  const lost = rs.filter((r) => r.lost).length;
+  const stages = TEMPLE_STAGES.map((st, k) => {
+    const pay = rs.map((r) => (r.tp.stages[k].start ?? (r.tp.stages[k].goal !== null ? r.weeks : NaN)) - (r.tp.stages[k].goal ?? NaN));
+    const len = rs.map((r) => (r.tp.stages[k].done ?? NaN) - (r.tp.stages[k].start ?? NaN));
+    const min = Math.ceil(st.work / st.builders);
+    const last = ['silver', 'wood', 'stone'].map((x) => rs.filter((r) => r.tp.last[k] === x).length).join('/');
+    return `    s${k + 1} ${st.name.slice(0, 10).padEnd(10)} goal wk ${m(rs.map((r) => r.tp.stages[k].goal ?? NaN))} paid ${rs.filter((r) => r.tp.stages[k].start !== null).length} built ${rs.filter((r) => r.tp.stages[k].done !== null).length}` +
+      ` | E4 wait to pay p50 ${m(pay)} p90 ${f(qt(pay, 0.9))} (last silver/wood/stone ${last}) | E3 length p50 ${m(len)} p90 ${f(qt(len, 0.9))} min ${min} (x${f(med(len) / min, 2)})`;
+  });
+  const gaps = GOALS.map((_, i) => med(rs.map((r) => (r.goalWeeks[i] ?? NaN) - (i ? (r.goalWeeks[i - 1] ?? NaN) : 0))));
+  const worst = gaps.reduce((b, g, k) => (g > gaps[b] ? k : b), 0);
+  const logKeys = [...new Set(rs.flatMap((r) => Object.keys(r.tp.log)))].sort();
+  return [
+    `  E1 win med ${m(won)} wk = ${f(mins(med(won)), 1)} min (p10-p90 ${f(mins(qt(won, 0.1)), 1)}-${f(mins(qt(won, 0.9)), 1)}) | E2 won ${pc(won.length, n)} lost ${pc(lost, n)} unfinished ${pc(n - won.length - lost, n)}` +
+      ` | E5 worst goal gap (per-goal p50) ${f(gaps[worst])} wk (g${worst + 1}) longest wait per run p50 ${m(rs.map((r) => r.goalWait))} | E6 altar restored wk p50 ${m(rs.map((r) => r.tp.stages[0].done ?? NaN))} p10-p90 ${f(qt(rs.map((r) => r.tp.stages[0].done ?? NaN), 0.1))}-${f(qt(rs.map((r) => r.tp.stages[0].done ?? NaN), 0.9))} in 30-80 ${pc(rs.filter((r) => (r.tp.stages[0].done ?? -1) >= 30 && (r.tp.stages[0].done ?? -1) <= 80).length, n)}`,
+    `  E7 stage paid & 0 builders >26 wk: ${pc(rs.filter((r) => r.tp.idleRun > 26).length, n)} (longest p50 ${m(rs.map((r) => r.tp.idleRun))} p90 ${f(qt(rs.map((r) => r.tp.idleRun), 0.9))} max ${Math.max(...rs.map((r) => r.tp.idleRun))})` +
+      ` | marked wk p50 ${m(rs.map((r) => r.tp.marked ?? NaN))} | builders per active wk ${f(rs.reduce((a, r) => a + r.tp.builderWeeks, 0) / Math.max(1, rs.reduce((a, r) => a + r.tp.activeWeeks, 0)), 2)} short wks p50 ${m(rs.map((r) => r.tp.shortWeeks))} | famine wks in stages p50 ${m(rs.map((r) => r.tp.famineActive))} runs>0 ${pc(rs.filter((r) => r.tp.famineActive > 0).length, n)}` +
+      ` | builders from (sum/run): ${logKeys.map((k) => `${k} ${f(rs.reduce((a, r) => a + (r.tp.log[k] ?? 0), 0) / n, 1)}`).join(', ') || '-'}`,
+    ...stages,
+  ];
+}
 /** A5 read per goal: the median wait for each goal (from the goal before; runs that reached it) and the worst of them. */
 function worstGoalGap(rs: Result[]): string {
   const gaps = GOALS.map((_, i) => med(rs.map((r) => (r.goalWeeks[i] ?? NaN) - (i ? (r.goalWeeks[i - 1] ?? NaN) : 0))));
@@ -194,6 +223,7 @@ for (const name of bots) {
     for (const l of b1Lines(rs)) console.log(l);
     for (const l of b2Lines(rs)) console.log(l);
     for (const l of b3Lines(rs)) console.log(l);
+    for (const l of templeLines(rs)) console.log(l);
     if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
     continue;
   }
@@ -220,6 +250,7 @@ for (const name of bots) {
   for (const l of b1Lines(rs)) console.log(l);
   for (const l of b2Lines(rs)) console.log(l);
   for (const l of b3Lines(rs)) console.log(l);
+  for (const l of templeLines(rs)) console.log(l);
   if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
   console.log(`end people med child/adult/elder ${['child', 'adult', 'elder'].map((k) => f(med(rs.map((r) => r.endBands[k as 'child'])))).join('/')} | unemployed ${f(med(rs.map((r) => r.endUnemployed)))} | death age med ${f(med(rs.map((r) => r.deathAge)))} | couples left med ${f(med(rs.map((r) => r.couplesLeft)))} (runs with any ${rs.filter((r) => r.couplesLeft > 0).length}) | couple wait max med ${f(med(rs.map((r) => r.coupleWaitMax)))} | caravans arrived ${rs.reduce((a, r) => a + r.caravansArrived, 0)} all housed ${rs.reduce((a, r) => a + r.caravansAll, 0)} some ${rs.reduce((a, r) => a + r.caravansSome, 0)}`);
   console.log(`caravans: families stayed ${rs.reduce((a, r) => a + r.caravanHoused, 0)} went on ${rs.reduce((a, r) => a + r.caravanLeft, 0)} | granaries max at once med ${f(med(rs.map((r) => r.maxGranaries)))} max ${Math.max(...rs.map((r) => r.maxGranaries))}`);
@@ -271,7 +302,7 @@ if (args.includes('--trace')) {
     const bands = bandCounts(s);
     const single = (sex: 'm' | 'f') => s.people.filter((p) => p.sex === sex && p.houseId !== null && p.spouseId === null && ageOf(p, s.week) >= RULES.people.marriageAges[0] && ageOf(p, s.week) <= RULES.people.marriageAges[1]).length;
     const ppl = `ppl ${bands.child}/${bands.adult}/${bands.elder} single ${single('m')}/${single('f')} wait ${waitingCouples(s).length}`;
-    console.log(`w${s.week} ${ppl} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) wood ${s.wood} (+${eco.wood}) stone ${s.stone} (+${eco.stone}) res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} res ${eco.residents} births ${birthBlock(s, eco) ?? 'open'} g${s.goalIndex + 1}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
+    console.log(`w${s.week} ${ppl} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) wood ${s.wood} (+${eco.wood}) stone ${s.stone} (+${eco.stone}) res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} res ${eco.residents} births ${birthBlock(s, eco) ?? 'open'} g${s.goalIndex + 1} T${s.temple.done}${s.temple.active ? `*${s.temple.progress} b${buildersAtWork(s)}` : ''} tg ${JSON.stringify(s.jobTargets)}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
     prevB = bl;
     stepWeek(s, rng);
   }

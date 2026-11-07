@@ -165,6 +165,97 @@ async function maquete3dScenario(page) {
   await page.evaluate(() => window.view3d.quality('high'));
 }
 
+/**
+ * The Temple in stages (plano Desafio 2.5): the ruins, the altar's works and the altar restored with
+ * its flock, each stage of the Temple under way with its builders (and one stopped, tools on the
+ * ground), the consecrated Temple; by night too and from afar (≤ 120 draw calls at the works).
+ */
+async function templeStages3dScenario(page, phone) {
+  await open3dGame(page);
+  const n = (name) => `templestages3d-${phone ? 'phone' : 'pc'}-${name}`;
+  const at = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.unlocked = [...new Set([...s.unlocked, 'temple'])];
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    let t = s.buildings.find((b) => b.kind === 'temple');
+    if (!t) {
+      let best = null;
+      for (let y = 1; y < s.rows - 7; y++)
+        for (let x = 1; x < s.cols - 7; x++) {
+          const d = Math.hypot(x - altar.x, y - altar.y);
+          if ((!best || d < best.d) && core.checkPlace(s, 'temple', x, y).ok) best = { x, y, d };
+        }
+      if (!best || !core.place(s, 'temple', best.x, best.y).ok) return null;
+      t = s.buildings.find((b) => b.kind === 'temple');
+    }
+    core.refreshCity(s);
+    window.session.refresh();
+    return { temple: { x: t.x + t.w / 2, z: t.y + t.h / 2 }, altar: { x: altar.x + altar.w / 2, z: altar.y + altar.h / 2 } };
+  });
+  assert(at, 'the Temple has a place');
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  // Sets the stages built, the one under way (its share of work done) and its builders at work.
+  const stage = (done, active, share, crew) =>
+    page.evaluate(([done, active, share, crew]) => {
+      const { state: s, core } = window;
+      const st = core.TEMPLE_STAGES[done];
+      s.temple = { done, active: active && !!st, progress: st ? Math.floor(st.work * share) : 0 };
+      for (const b of s.buildings) if (b.kind === 'altar' || b.kind === 'temple') b.builders = undefined;
+      s.people = s.people.filter((p) => p.houseId !== -7);
+      const site = st && s.buildings.find((b) => b.kind === st.site);
+      if (active && site) {
+        site.builders = st.builders;
+        for (let k = 0; k < crew; k++) core.addPerson(s, { sex: 'm', age: 30, houseId: -7, caravan: 0, clan: 1 }, () => 0.5);
+      }
+      core.refreshCity(s);
+      if (active && site) for (const p of s.people.filter((p) => p.houseId === -7)) p.jobId = site.id;
+      s.livestock = done >= 1 ? 4 : 0;
+      window.session.refresh();
+      window.view3d.cityChanged?.();
+      return core.buildersAtWork(s);
+    }, [done, active, share, crew]);
+  const look = async (name, where, day = 0.32, cam = {}) => {
+    await page.evaluate(([where, day, cam]) => {
+      window.view3d.view({ day, pos: 30.5, weather: { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false } });
+      window.view3d.rig.set({ x: where.x, z: where.z, dist: 13, pitch: 0.62, ...cam });
+    }, [where, day, cam]);
+    await page.waitForTimeout(1600);
+    await shot(page, n(name));
+    return page.evaluate(() => window.view3d.info());
+  };
+  await stage(0, false, 0, 0);
+  await look('ruins', at.temple, 0.32, { dist: 18 });
+  if (!phone) {
+    const busy = await stage(0, true, 0.5, 2);
+    assert(busy === 2, `two builders at the altar (${busy})`);
+    const w = await look('altar-works', at.altar, 0.32, { dist: 10 });
+    assert(w.haulers >= 2, `the altar's builders are drawn (${w.haulers})`);
+  }
+  await stage(1, false, 0, 0);
+  await look('altar-restored', at.altar, 0.32, { dist: 10 });
+  await stage(1, true, 0.5, 4);
+  await look('alicerce', at.temple);
+  await stage(2, true, 0.5, 5);
+  const walls = await look('paredes', at.temple);
+  assert(walls.haulers >= 5, `the builders of the walls are drawn (${walls.haulers})`);
+  const far = await look('paredes-far', at.temple, 0.32, { dist: 34 });
+  assert(far.calls <= 120, `the works from afar: at most 120 draw calls (${far.calls})`);
+  if (!phone) {
+    await stage(2, true, 0.5, 0);
+    await look('paredes-stopped', at.temple);
+  }
+  await stage(3, true, 0.6, 6);
+  await look('portico', at.temple);
+  if (!phone) {
+    await look('portico-night', at.temple, 0.72);
+    await stage(4, true, 0.5, 4);
+    await look('consagracao', at.temple);
+  }
+  await stage(5, false, 0, 0);
+  await look('consecrated', at.temple, 0.32, { dist: 15 });
+}
+
 /** The Temple drawn in code (plano beleza C8): close by day from the front and the side, at night, and from the opening view. */
 async function sanctuary3dScenario(page) {
   await open3dGame(page);
@@ -181,7 +272,9 @@ async function sanctuary3dScenario(page) {
         const d = Math.hypot(x - altar.x, y - altar.y);
         if ((!best || d < best.d) && core.checkPlace(s, 'temple', x, y).ok) best = { x, y, d };
       }
-    if (!best || !core.place(s, 'temple', best.x, best.y).ok) return null;
+    if (!s.buildings.some((b) => b.kind === 'temple') && (!best || !core.place(s, 'temple', best.x, best.y).ok)) return null;
+    // Consecrated: the whole Temple (the stages are templestages3d).
+    s.temple = { done: core.TEMPLE_STAGES.length, active: false, progress: 0 };
     core.refreshCity(s);
     window.session.refresh();
     const t = s.buildings.find((b) => b.kind === 'temple');
@@ -1186,9 +1279,9 @@ async function hud3dScenario(page, name) {
       const W = innerWidth;
       const H = innerHeight;
       // Each control (button, pill, toast, the tutorial bubble) by its group; two groups must not overlap.
-      const GROUPS = ['header.top', 'nav.side', 'nav.tools', 'nav.column', '.toasts', '.tutorial', '.balloon', '.settings', '.arrow'];
+      const GROUPS = ['header.top', 'nav.side', 'nav.tools', 'nav.column', '.toasts', '.tutorial', '.balloon', '.settings', '.arrow', '.nextstep'];
       const items = [];
-      for (const el of hud.querySelectorAll('button, .pill, .level, .toast, .tutorial, .balloon, .settings, .arrow')) {
+      for (const el of hud.querySelectorAll('button, .pill, .level, .toast, .tutorial, .balloon, .settings, .arrow, .nextstep')) {
         if (!shown(el)) continue;
         const g = GROUPS.find((q) => el.closest(q));
         if (!g) continue;
@@ -1223,6 +1316,7 @@ async function hud3dScenario(page, name) {
   await page.screenshot({ path: `${OUT}/hud3d-${name}.png` });
   assert(a.bad.length === 0, `tutorial and toast: ${a.bad.join('; ')}`);
   assert(await page.evaluate(() => !document.querySelector('.tutorial').classList.contains('hidden')), 'the tutorial bubble shows on a first game');
+  assert(await page.evaluate(() => document.querySelector('.nextstep').classList.contains('hidden')), '"O que fazer agora" waits while the tutorial speaks');
   // A balloon open on the altar: it stays clear of the controls.
   await page.evaluate(() => {
     window.session.skipTutorial();
@@ -2018,6 +2112,121 @@ async function jobs3dScenario(page, name) {
   assert(!(await page.$(panel)), `${phone ? '✕' : 'a click on the map'} closes Profissões`);
 }
 
+/**
+ * "O que fazer agora" and the Temple's stage balloon (plan "Desafio" 2.3/2.4): the line under the top
+ * bar (one line, under the bar and clear of it; 28 px on the phone; hidden in the tutorial, see hud3d);
+ * a tap opens the altar's balloon with "Começar: Altar restaurado" and Profissões and points the arrow;
+ * Começar pays it (the bar and the builders show), the line asks for builders and opens Profissões;
+ * short of stone the button is grey and says what is missing; a debt comes first (Avisos and Demolir);
+ * Objetivos marks the five stages.
+ */
+async function nextstep3dScenario(page, name) {
+  const phone = name === 'phone';
+  await open3dGame(page);
+  const n = (k) => `nextstep3d-${name}${k ? `-${k}` : ''}`;
+  const set = (f) => page.evaluate(f);
+  await set(() => {
+    const { state: s, core } = window;
+    s.goalIndex = core.GOALS.findIndex((g) => g.type === 'templeStage' && g.stage === 1);
+    s.silver = 500;
+    s.wood = 100;
+    s.stone = 100;
+    s.food = 200;
+    window.session.refresh();
+  });
+  await page.waitForTimeout(300);
+  const line = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('.nextstep');
+      const r = el.getBoundingClientRect();
+      const top = Math.max(...[...document.querySelectorAll('header.top .pill, header.top .level, header.top button')].map((e) => e.getBoundingClientRect().bottom));
+      const txt = el.querySelector('.txt');
+      return {
+        shown: !el.classList.contains('hidden'),
+        text: el.textContent,
+        kind: el.dataset.kind,
+        box: [r.left, r.top, r.right, r.bottom].map(Math.round),
+        h: Math.round(r.height),
+        oneLine: txt.getBoundingClientRect().height <= parseFloat(getComputedStyle(txt).lineHeight || '20') + 2 || txt.getBoundingClientRect().height < 24,
+        font: parseFloat(getComputedStyle(el).fontSize),
+        below: r.top >= top,
+        mid: Math.round((r.left + r.right) / 2 - innerWidth / 2),
+      };
+    });
+  const v = await line();
+  await shot(page, n(''));
+  assert(v.shown && v.kind === 'stage' && v.text.includes('toque no altar'), `the line says to start the altar's stage (${JSON.stringify(v)})`);
+  assert(v.below && v.oneLine && v.font >= 12, `one line under the top bar, text 12 px or more (${JSON.stringify(v)})`);
+  if (phone) assert(v.h === 28, `28 px on the phone (${v.h})`);
+  else assert(Math.abs(v.mid) <= 2, `centred on PC (${v.mid})`);
+  // A tap opens the altar's balloon and the arrow points at the altar.
+  await page.click('[data-spot="next-step"]');
+  await page.waitForSelector('[data-spot="balloon-stage"]', { timeout: 5000 });
+  await page.waitForTimeout(600);
+  const opened = await page.evaluate(() => {
+    const altar = window.state.buildings.find((b) => b.kind === 'altar');
+    const arrows = [...document.querySelectorAll('.arrow')].filter((a) => !a.classList.contains('hidden'));
+    return { altar: window.session.selected?.x === altar.x && window.session.selected?.y === altar.y, arrows: arrows.length, start: document.querySelector('[data-spot="balloon-stage"]').textContent, jobs: !!document.querySelector('[data-spot="balloon-jobs"]'), text: document.querySelector('.balloon').textContent };
+  });
+  await shot(page, n('stage'));
+  assert(opened.altar && opened.arrows === 1, `the tap opens the altar and points the arrow (${JSON.stringify(opened)})`);
+  assert(opened.start === 'Começar: Altar restaurado' && opened.jobs, `Começar and Profissões in the balloon (${JSON.stringify(opened)})`);
+  assert(/Etapa 1 de 5: Altar restaurado/.test(opened.text) && /prata/.test(opened.text), `the stage, its cost (${opened.text})`);
+  // Começar pays it: the builders and the bar show.
+  await page.click('[data-spot="balloon-stage"]');
+  await page.waitForFunction(() => window.state.temple.active, null, { timeout: 5000 });
+  await page.waitForTimeout(400);
+  const work = await page.evaluate(() => ({ bar: !!document.querySelector('.balloon .barline .bar'), text: document.querySelector('.balloon').textContent, line: document.querySelector('.nextstep').textContent }));
+  await shot(page, n('work'));
+  assert(work.bar && /Construtores: \d de 2/.test(work.text), `under way: builders and the bar (${work.text})`);
+  // Short of builders: the line opens Profissões (with its builders' row).
+  if (/ponha construtores/.test(work.line)) {
+    await page.keyboard.press('Escape');
+    await page.click('[data-spot="next-step"]');
+    await page.waitForSelector('.panelbox.jobs:not(.hidden)', { timeout: 5000 });
+    assert(await page.$('.jobrow[data-job="altar"]'), 'Profissões shows the altar builders');
+    await shot(page, n('jobs'));
+    await page.keyboard.press('Escape');
+  }
+  // Short of stone: the button is grey and says what is missing; the line says how much.
+  await set(() => {
+    const s = window.state;
+    s.temple.active = false;
+    s.temple.progress = 0;
+    s.stone = 4;
+    window.session.refresh();
+  });
+  await page.evaluate(() => {
+    const altar = window.state.buildings.find((b) => b.kind === 'altar');
+    window.session.select({ x: altar.x, y: altar.y });
+  });
+  await page.waitForTimeout(300);
+  const lack = await page.evaluate(() => ({ dim: document.querySelector('[data-spot="balloon-stage"]').classList.contains('dim'), label: document.querySelector('[data-spot="balloon-stage"]').textContent, line: document.querySelector('.nextstep').textContent }));
+  await shot(page, n('lack'));
+  assert(lack.dim && lack.label.startsWith('Falta pedra') && /junte 20 pedra · 4\/20/.test(lack.line), `short of stone (${JSON.stringify(lack)})`);
+  // A debt comes first: red, Avisos opens and the arrow points at Demolir.
+  await page.keyboard.press('Escape');
+  await set(() => {
+    window.state.silver = -10;
+    window.session.refresh();
+  });
+  await page.waitForTimeout(200);
+  const debt = await line();
+  assert(debt.kind === 'crisis' && debt.text.startsWith('Dívida'), `a debt comes first (${debt.text})`);
+  await page.click('[data-spot="next-step"]');
+  await page.waitForTimeout(400);
+  const crisis = await page.evaluate(() => ({ alerts: !document.querySelector('.panelbox').classList.contains('hidden'), arrows: [...document.querySelectorAll('.arrow')].filter((a) => !a.classList.contains('hidden')).length }));
+  await shot(page, n('crisis'));
+  assert(crisis.alerts && crisis.arrows === 1, `the debt opens Avisos and points at Demolir (${JSON.stringify(crisis)})`);
+  // Objetivos: the five stages with the construction mark.
+  await page.keyboard.press('Escape');
+  await page.click('[data-spot="panel-goals"]');
+  await page.waitForTimeout(300);
+  const stages = await page.evaluate(() => document.querySelectorAll('.panelbox .withicon svg').length);
+  await shot(page, n('goals'));
+  assert(stages === 5, `Objetivos marks the five stages (${stages})`);
+}
+
 const scenarios = {
   /** The HTML title: start and, once the tutorial was seen, the tutorial again; the install button when the browser offers it. */
   async title(page) {
@@ -2080,6 +2289,8 @@ const scenarios = {
   'maquete3d-pc': { context: PC, run: (page) => maquete3dScenario(page) },
   'crafts3d-pc': { context: PC, run: (page) => crafts3dScenario(page) },
   'sanctuary3d-pc': { context: PC, run: (page) => sanctuary3dScenario(page) },
+  'templestages3d-pc': { context: PC, run: (page) => templeStages3dScenario(page, false) },
+  'templestages3d-phone': { context: PHONE, run: (page) => templeStages3dScenario(page, true) },
   'trees3d-pc': { context: PC, run: (page) => trees3dScenario(page) },
   'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },
   'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },
@@ -2093,6 +2304,8 @@ const scenarios = {
   'ui3d-pc': { context: PC, run: (page) => ui3dScenario(page, 'pc') },
   'jobs3d-phone': { context: PHONE, run: (page) => jobs3dScenario(page, 'phone') },
   'jobs3d-pc': { context: PC, run: (page) => jobs3dScenario(page, 'pc') },
+  'nextstep3d-phone': { context: PHONE, run: (page) => nextstep3dScenario(page, 'phone') },
+  'nextstep3d-pc': { context: PC, run: (page) => nextstep3dScenario(page, 'pc') },
   'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },
   'hud3d-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => hud3dScenario(page, 'wide') },
   'hud3d-small-phone': { context: { ...PHONE, viewport: { width: 667, height: 375 } }, run: (page) => hud3dScenario(page, 'small-phone') },

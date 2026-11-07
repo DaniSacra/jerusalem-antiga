@@ -1,6 +1,6 @@
 import { dimsOf, RULES } from './data';
 import { between } from './rng';
-import type { Cell, Feature, Ground, Rng } from './types';
+import type { Cell, Feature, Ground, Rect, Rng } from './types';
 
 /** Features the map is drawn with (stumps only come from cutting). */
 type MapFeature = Exclude<Feature, 'stump'>;
@@ -51,6 +51,15 @@ export const startRoad = (): Cell[] => [
   ...Array.from({ length: rows - ROAD_Y0 - 1 }, (_, k) => ({ x: ROAD_X, y: ROAD_Y0 + 1 + k })),
 ];
 export const entranceCell = (): Cell => ({ x: ROAD_X, y: rows - 1 });
+
+/**
+ * The Temple in ruins, there from the start (plan "ruínas" 1.1): 6 x 6 east of the altar, touching
+ * its road ring, so it is connected from the first week and inside the cleared ground.
+ */
+export function templeRuin(): Rect {
+  const d = dimsOf('temple');
+  return { x: altar.x + ALTAR.w + 1, y: altar.y - 1, ...d };
+}
 
 /** Chebyshev distance from a cell to the altar footprint (0 inside it). */
 export const altarDistance = (x: number, y: number) =>

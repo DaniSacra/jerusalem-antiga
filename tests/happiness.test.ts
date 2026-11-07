@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, happinessOn, computeEconomy, birthFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, taxFactor } from '../src/core';
 import { GOALS, unlockingGoal } from '../src/core';
-import { atHarvest, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, consecrate, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
 const kinds = (h: { parts: { kind: string }[] }) => h.parts.map((p) => p.kind);
@@ -36,11 +36,13 @@ describe('house happiness', () => {
     expect(alone(null, 40).value).toBe(H.base); // out of the altar's radius: nothing
   });
 
-  it('the temple cheers like the altar, within its radius', () => {
+  it('the temple cheers like the altar, within its radius, only once consecrated', () => {
     const s = emptyGame();
     const b = put(s, 'house', ROADSIDE, 40, 1);
     expect(kinds(houseHappiness(s, b, 0))).toEqual([]);
     put(s, 'temple', EAST, 36);
+    expect(kinds(houseHappiness(s, b, 0))).toEqual([]); // marked: no cheer yet
+    consecrate(s);
     expect(houseHappiness(s, b, 0)).toMatchObject({ value: H.base + H.sacred, parts: [{ kind: 'sacred', value: H.sacred }] });
   });
 
@@ -187,9 +189,9 @@ describe('happiness before the park', () => {
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 9), not before', () => {
+  it('turns on with the goal that unlocks the park (goal 10), not before', () => {
     const n = unlockingGoal('park')!;
-    expect(n).toBe(9);
+    expect(n).toBe(10);
     expect(RULES.startUnlocked).not.toContain('park');
     const s = emptyGame();
     s.unlocked = [...RULES.startUnlocked];

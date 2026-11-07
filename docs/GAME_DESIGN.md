@@ -88,7 +88,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 | Mercado | 60 + 10 madeira | 2/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
 | Parque | 60 + 5 pedra | 1/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
-| Templo | 800 + 300 pedra + 200 madeira | – | 6 x 6 | 2 | – | 12 | liberado pelo Objetivo 16 (100 moradores); sem manutenção; a vitória ainda pede o Objetivo 18 (160 moradores); não pode ser demolido; o raio só dá Alegria |
+| Templo | grátis (o lugar); as etapas pagam | – | 6 x 6 | – (construtores na obra) | – | 12 | lugar liberado pelo Objetivo 9 (30 moradores); sem manutenção; erguido em 5 etapas (ver Objetivos); protegido depois do Alicerce; o raio só dá Alegria, e só depois da Consagração |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -129,7 +129,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   Lenhadores e Pedreiras ligados × a lotação de cada um (`Economy.wood`, `Economy.stone`, o "+N/sem").
   Demolir não devolve material.
 - **Custo de obra** (`materials` em `buildings.json`, além da prata): Casa 10 madeira; Celeiro,
-  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; Templo 300 pedra + 200 madeira. **Não
+  Mercado, Oficina e Pedreira 10 madeira; Parque 5 pedra; o Templo paga por etapa (ver Objetivos). **Não
   custam material:** Rua, Campo, Praça, Pescador, Coletora e Lenhador (comida e madeira nunca
   travam por material). Construir exige prata **e** material e paga os dois; sem material, falha
   com a razão `materials` sem gastar nada (a prata é conferida antes). `missingMaterial(s, kind)`
@@ -584,20 +584,61 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 3 | Primeiro nascimento | marco | +40 | – |
 | 4 | Passe o primeiro inverno | marco `firstSpring` | +30 | Pedreira |
 | 5 | Tenha 5 casas de barro | 5 | +40 | Praça |
-| 6 | Receba a primeira caravana | marco | +50 | Oficina |
-| 7 | Construa uma oficina | 1 | +40 | Mercado |
-| 8 | Chegue a 30 moradores | 30 | +50 | – |
-| 9 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
-| 10 | Uma criança da cidade virou adulta | marco | +80 | – |
-| 11 | Chegue a 45 moradores | 45 | +80 | – |
-| 12 | Tenha 4 casas grandes | 4 | +80 | – |
-| 13 | Terceira geração | marco | +100 | – |
-| 14 | Chegue a 65 moradores | 65 | +100 | – |
-| 15 | Chegue a 85 moradores | 85 | +120 | – |
-| 16 | Chegue a 100 moradores | 100 | +120 | Templo |
-| 17 | Chegue a 130 moradores | 130 | +175 | – |
-| 18 | Chegue a 160 moradores | 160 | +200 | – |
-| 19 | Construa o Templo | 1 | vitória | – |
+| 6 | **Restaure o altar** | etapa 1 | +50 | – |
+| 7 | Receba a primeira caravana | marco | +50 | Oficina |
+| 8 | Construa uma oficina | 1 | +40 | Mercado |
+| 9 | Chegue a 30 moradores | 30 | +50 | Templo (o lugar) |
+| 10 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
+| 11 | **Alicerce do Templo** | etapa 2 | +80 | – |
+| 12 | Uma criança da cidade virou adulta | marco | +80 | – |
+| 13 | Chegue a 45 moradores | 45 | +80 | – |
+| 14 | Tenha 4 casas grandes | 4 | +80 | – |
+| 15 | **Paredes do Templo** | etapa 3 | +100 | – |
+| 16 | Terceira geração | marco | +100 | – |
+| 17 | Chegue a 65 moradores | 65 | +100 | – |
+| 18 | Chegue a 85 moradores | 85 | +120 | – |
+| 19 | **Pórtico e telhado** | etapa 4 | +150 | – |
+| 20 | Chegue a 120 moradores | 120 | +175 | – |
+| 21 | **Consagração do Templo** | etapa 5 | vitória | – |
+
+**Templo em etapas** (plano Desafio 2, `src/data/temple.json`, `src/core/temple.ts`): a meta do jogo
+inteiro. Cinco etapas, cada uma um objetivo (`templeStage`):
+
+| # | Etapa | Lugar | Prata | Pedra | Madeira | Construtores | Obra (sem-construtor) |
+|---|---|---|---|---|---|---|---|
+| 1 | Altar restaurado | altar | 40 | 20 | 20 | 2 | 12 |
+| 2 | Alicerce | Templo | 150 | 80 | 0 | 4 | 40 |
+| 3 | Paredes | Templo | 200 | 120 | 40 | 5 | 60 |
+| 4 | Pórtico e telhado | Templo | 250 | 60 | 120 | 6 | 72 |
+| 5 | Consagração | Templo | 200 | 0 | 40 | 4 | 32 |
+
+- Uma etapa só começa quando é o objetivo atual (`stageIsGoal`), no balão do altar (etapa 1) ou do
+  Templo (2–5): paga na hora a prata e os materiais (`startStage`; recusa sem eles, em dívida, fora
+  da rua ou sem o lugar marcado).
+- Em obra, o lugar tem as vagas de **Construtores** da etapa (`Building.builders`; no painel
+  Profissões, por último na `jobPriority`: `altar`, `temple`); uma meta em número para eles cresce
+  com as vagas novas. Fora da obra, 0 vagas.
+- Toda semana a obra soma 1 por construtor trabalhando (`advanceTemple`), o ano inteiro; sem
+  construtor ela para sem perder nada. No `work` a etapa termina: as vagas fecham, evento `stageDone`
+  e o objetivo se cumpre com o prêmio.
+- O **lugar do Templo** (6 x 6, encostado numa rua ligada) é liberado no Objetivo 9 e marcado **de
+  graça** (sem vagas e sem manutenção). Pode ser demolido até o Alicerce começar; depois fica
+  protegido (`templeLaid`).
+- O Templo só cobre (raio 12, Alegria +10) depois da Consagração (`templeDone`); as etapas não mudam
+  outra regra. A vitória é a Consagração terminada.
+- **Balão do altar e do Templo** (`stageCard` em `src/game/model/card.ts`): as etapas já prontas ali
+  ("✓ Altar restaurado: pronto") e a próxima, "Etapa 2 de 5: Alicerce". Enquanto ela é o objetivo:
+  antes de começar, o custo ("150 prata · 80 pedra", o que falta em vermelho com "(tem N)"), "4
+  construtores · ~10 sem de obra" e o botão dourado **"Começar: Alicerce"** (`session.startStage()`;
+  cinza com o que falta, "Falta pedra: 80 (tem 30)", e o toque diz o motivo); em obra,
+  "Construtores: 2 de 4" (vermelho com 0, laranja abaixo), a **barra "18/40"** e "Pronto em ~6 sem"
+  (ou "Obra parada: ninguém trabalha nela"). Ao lado, o botão **Profissões** (abre o painel). Fora do
+  objetivo, "Antes: objetivo 9, Chegue a 30 moradores".
+- **Objetivos:** as cinco etapas em dourado com o ícone de obra (muro de pedras e colher de pedreiro) e
+  "etapa 2/5".
+- Pílula do objetivo e lista de objetivos (`stageStatus`): "Marque o lugar do Templo"; "Alicerce:
+  junte 30 prata, 50 pedra"; "Alicerce: toque no Templo para começar"; "Alicerce 18/40 · ~6 sem"
+  (ou "· sem construtores").
 
 Ordem do Pacote B1 (sobreviver primeiro): comida, casamento e o primeiro inverno vêm antes de
 qualquer serviço; o marco `firstSpring` ("Primeiro inverno passado") chega no começo da primeira
@@ -610,7 +651,8 @@ o Comum cumpre os objetivos 5 a 17 nas semanas ~76, 96, 122, 194, 211, 221, 275,
 ordem do Pacote B1; o sim-tester mede de novo.)
 
 Tipos de objetivo no core: `milestone` (cumpre quando o marco foi alcançado, mesmo antes de o
-objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
+objetivo chegar), `foodUntilSpring`, `houses`, `residents`, `build` e `templeStage` (a etapa
+`stage` do Templo terminada).
 
 - **Objetivo 1** (`foodUntilSpring`): progresso = semanas que a comida dura (pela previsão), até as
   semanas que faltam para a primavera do Ano 1; a pílula mostra a unidade ("12/26 sem"); na
@@ -618,12 +660,7 @@ objetivo chegar), `foodUntilSpring`, `houses`, `residents` e `build`.
   Na primavera, cumpre se a cidade não está com fome; com fome, espera a comida voltar. O alvo
   nunca é 0. Uma cidade sem moradores tem progresso 0, mesmo com uma família a caminho.
 - **`fromYear`** (opcional, nenhum objetivo usa agora): o objetivo só se cumpre a partir desse ano
-  (`goalOpen`). O Templo libera no Objetivo 16, para o jogador juntar prata e construí-lo antes (a
-  pílula do objetivo termina com "· Templo 312/800" e a lista de objetivos com "Junte 800 para o
-  Templo: 312/800"; `templeSavings`); a vitória vem quando os objetivos 18 (160 moradores) e 19 (o
-  Templo) se cumprem. Um objetivo por semana, menos a vitória: com o Templo já erguido, ela vem na
-  mesma semana do Objetivo 18 (`checkGoal`, `TEMPLE_GOAL` = o objetivo antes da vitória). Erguido
-  antes (`templeWaitsForGoal`), um toast diz o que falta.
+  (`goalOpen`). Um objetivo por semana (`checkGoal`).
 - Objetivos de casas e de construir contam só construções **conectadas** à rede.
 - Vitória: tela com o tempo ("N anos e N semanas") e os moradores, e botão "Continuar construindo".
 
@@ -1098,6 +1135,29 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - os avisos de casais e de nascimentos ("Casal esperando casa", "Sem nascimentos: …") não viram
     toast enquanto o tutorial roda (o balão do tutorial já fala do casal).
 - **Tamanhos de teste:** 844 x 390, 915 x 412 e 1366 x 768.
+
+### "O que fazer agora" (plano Desafio 2.3)
+- Uma **linha fixa** logo abaixo da barra do topo, sempre visível fora do tutorial (no tutorial ela
+  some: a frase do tutorial é a ajuda): um ícone e uma frase curta (`nextStep` em
+  `src/game/model/nextStep.ts`, lê o core, sem regra própria). Celular: 28 px de altura (o toque pega
+  44 px), corta com reticências; os toasts continuam abaixo do meio da tela. PC: centrada sob a barra,
+  numa linha. A área livre do mapa (balões) começa abaixo dela.
+- Ordem: 1) **crise** (vermelha, borda vermelha): dívida ("Dívida: N semanas para perder. Demolir corta
+  gastos"), fome ou comida que não chega à colheita ("Comida acaba em N semanas: construa um
+  pescador perto do rio"), frio ou lenha que não dura o inverno; 2) **a etapa do Templo** quando é o
+  objetivo (borda dourada): "Altar restaurado: toque no altar e comece", "Alicerce: junte 80 pedra ·
+  30/80", "Alicerce: ligue o Templo à rua", "Alicerce: ponha construtores · 1 de 4", "Alicerce 18/40 ·
+  pronto em ~6 sem"; 3) **o objetivo atual**: a primeira coisa que falta (construir: o próprio
+  objetivo, ou "Oficina: ligue à rua"; casas de nível N: a exigência da casa mais perto de subir,
+  "Construa uma praça perto das casas de barro", "Praça libera no objetivo 5", "Faltam 8 de pedra para
+  as casas subirem", "Construa mais casas: 2 de 5", "As casas sobem em ~3 semanas"; moradores: caravana
+  ou casais sem casa vazia, material, comida para nascer, depois o nível das casas; marcos: "Deixe 1
+  casa vazia: caravana em 5 sem", "As crianças crescem: enquanto isso, suba as casas"); 4) "Tudo em
+  ordem: aproveite a cidade".
+- **Tocar na linha** abre o balão da etapa (a câmera vai ao altar ou ao Templo), Profissões (faltam
+  construtores), Avisos (crise) ou Objetivos, e mostra por 8 s a **seta do tutorial** onde agir: a
+  ferramenta (some quando ela é escolhida), a construção no mapa (a Pedreira que já existe) ou o lugar
+  da etapa.
 
 ### Mapa e mensagens
 

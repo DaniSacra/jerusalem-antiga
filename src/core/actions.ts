@@ -7,6 +7,7 @@ import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
 import { lackingMaterial, materialsOf, missingMaterial, payMaterials } from './materials';
+import { checkStartStage, nextStage, stageSite, templeLaid } from './temple';
 import { clearStump } from './trees';
 import type { ActionResult, BuildableKind, BuildingKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
 import { canWork, crewByKind, jobOptions, jobsBuilt, loweredTarget } from './work';
@@ -186,7 +187,7 @@ export function checkClear(s: GameState, x: number, y: number): ActionResult {
   if (!inBounds(s, x, y)) return fail('invalid');
   const i = indexOf(s, x, y);
   const b = s.grid[i];
-  if (b) return BUILDINGS[b.kind].protected ? fail('protected') : OK;
+  if (b) return BUILDINGS[b.kind].protected || (b.kind === 'temple' && templeLaid(s)) ? fail('protected') : OK;
   if (s.roads[i]) return OK;
   if (s.feature[i] !== 'palm' && s.feature[i] !== 'olive') return fail('invalid');
   if (s.silver < 0) return fail('debt');
@@ -305,4 +306,26 @@ export function changeJobTarget(s: GameState, kind: BuildingKind, delta: 1 | -1)
 export function autoJobs(s: GameState): void {
   s.jobTargets = {};
   refreshCity(s);
+}
+
+/**
+ * Begins the next stage of the Temple (its goal is the current one): pays its silver and materials
+ * at once and opens its builders' jobs at the site, with a number target of all of them: free
+ * adults go there before the automatic professions. Pushes a `stageStart` event.
+ */
+export function startStage(s: GameState, events: GameEvent[] = []): ActionResult {
+  const r = checkStartStage(s);
+  if (!r.ok) return r;
+  const st = nextStage(s)!;
+  const site = stageSite(s, st)!;
+  s.silver -= st.cost;
+  payMaterials(s, st.materials);
+  s.temple.active = true;
+  s.temple.progress = 0;
+  site.builders = st.builders;
+  // The builders are asked for: they come before the automatic professions (see `assignJobs`).
+  s.jobTargets[site.kind] = st.builders;
+  refreshCity(s);
+  events.push({ type: 'stageStart', stage: s.temple.done + 1 });
+  return r;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, cellsInRadius, indexOf } from '../src/core';
-import { EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { consecrate, EAST, emptyGame, put, ROADSIDE } from './helpers';
 
 describe('coverage', () => {
   it('uses a square radius 4 from every cell of a connected 2x2 plaza', () => {
@@ -45,9 +45,12 @@ describe('coverage', () => {
     expect(s.coverage.sacred[indexOf(s, 24, 25 + r + 1)]).toBe(false);
   });
 
-  it('measures the temple radius 12 from any of its 6x6 cells', () => {
+  it('measures the temple radius 12 from any of its 6x6 cells, once consecrated', () => {
     const s = emptyGame();
     put(s, 'temple', EAST, 30); // occupies 25..30 x 30..35, touches the road at x = 24
+    expect(s.coverage.sacred[indexOf(s, 42, 47)]).toBe(false); // marked, not consecrated: no radius
+    s.temple = { done: 4, active: true, progress: 0 }; // under its last stage: still none
+    consecrate(s);
     const sac = s.coverage.sacred;
     expect(sac[indexOf(s, 42, 47)]).toBe(true); // 12 right of x=30, 12 below y=35
     expect(sac[indexOf(s, 13, 18)]).toBe(true); // 12 left of x=25, 12 above y=30
