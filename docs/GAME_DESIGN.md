@@ -845,19 +845,23 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - **Engrenagem** (alto à direita): "Dia e noite: ligado/desligado" (desligado = sempre meio-dia;
     fica salvo), "Música: ligado/desligado" e "Volume − 50% +" (passos de 10%; salvos). Esc fecha.
   - **Música** (`src/game/music/score.ts` e `mix.ts`, puros; `src/app/music.ts`, Web Audio): fundo
-    calmo gerado no navegador, original por construção. Peças de 16 compassos (forma AABA) em Ré,
-    Sol, Fá ou Dó maior, 86–100 batidas por minuto (calma, mas com passo: a primeira versão, de
-    60–76, dava sono), com progressões escritas à mão, um motivo de 2 compassos repetido e variado,
-    melodia na pentatônica (notas do acorde nos tempos fortes) e final no I; harpa ou flauta na
-    melodia, um dedilhado em colcheias (1-5-3-5), baixo andando (fundamental, quinta e nota de
-    passagem), tambor de mão suave e chocalho (entram na segunda frase, param no último compasso) e
-    fundo de acordes baixinho (no máximo 8 vozes), com eco; 6–12 s de silêncio entre as peças. O
-    clima segue o jogo a cada peça: primavera e verão na harpa, outono e inverno na flauta, um pouco
-    mais lentos e graves; à noite mais baixa (−25%), 8 batidas mais lenta e mais esparsa; na chuva um
-    pouco mais baixa. Ligada por padrão a 50% (curva volume²); começa no primeiro toque, clique ou
-    tecla (regra dos navegadores), toca no título e com o jogo pausado; aba escondida: some em 0,3 s
-    e o áudio é suspenso, volta em 4 s. Tecla **M** liga e desliga no PC. A chave de silêncio do
-    iPhone cala a música.
+    calmo gerado no navegador, original por construção. **Uma música por estação** (pedido do usuário
+    em 2026-11-07), sempre em **piano sobre sintetizadores suaves** (sem flauta nem harpa): primavera
+    em Ré maior, 96 batidas por minuto, tema que sobe, acordes quebrados subindo e um arpejo de
+    sintetizador (a cidade acordando); verão em Sol maior, 100 bpm, tema sincopado e agudo, acordes
+    em contratempo, arpejo cheio, tambor de mão e chocalho (dias longos e quentes); outono em Fá
+    maior, 90 bpm, tema que suspira e desce começando no vi, acordes em semínimas e fundo mais escuro
+    (colheita e fim de tarde); inverno em Dó maior, 84 bpm, notas longas e agudas sobre acordes
+    arpejados e sustentados, fundo largo, mais eco, sem tambor, final plagal IV–I (o silêncio junto do
+    fogo). Peças de 16 compassos (AABA): a primeira frase é sempre o tema da estação, nota por nota;
+    a semente varia a segunda frase, a ponte e os enfeites. Melodia na pentatônica (notas do acorde
+    nos tempos fortes), final no I, baixo (fundamental, quinta e nota de passagem; no inverno só a
+    fundamental longa), fundo de acordes, no máximo 10 vozes, 6–12 s de silêncio entre as peças. A
+    estação é lida a cada peça; à noite a mesma música mais baixa (−25%), 6 batidas mais lenta, mais
+    esparsa e sem tambor; na chuva um pouco mais baixa. Ligada por padrão a 50% (curva volume²);
+    começa no primeiro toque, clique ou tecla (regra dos navegadores), toca no título e com o jogo
+    pausado; aba escondida: some em 0,3 s e o áudio é suspenso, volta em 4 s. Tecla **M** liga e
+    desliga no PC. A chave de silêncio do iPhone cala a música.
   - **Tela inicial em HTML**: nome, como jogar, controles, "Começar" (Enter no
     PC) e, depois do tutorial visto, "Rever o tutorial"; "Instalar app" quando dá. Abre na hora
     sobre um fundo quente; o Three.js baixa e **a cidade da partida abre atrás dela**: o fundo

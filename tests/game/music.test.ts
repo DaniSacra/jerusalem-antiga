@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FADE, MASTER, stepVolume, targetGain } from '../../src/game/music/mix';
-import { chordOf, DRUM, MAJOR, MAX_VOICES, mood, piece, polyphony, RANGE, silenceAfter, TONICS, type Note } from '../../src/game/music/score';
+import { chordOf, DRUM, MAJOR, MAX_VOICES, mood, piece, polyphony, RANGE, silenceAfter, STYLE, TONICS, type Note } from '../../src/game/music/score';
 
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
 const pcOf = (n: Note, tonic: number) => (((n.midi - tonic) % 12) + 12) % 12;
@@ -19,7 +19,7 @@ describe('music score (generated, original by construction)', () => {
       expect(TONICS).toContain(p.tonic);
       for (const n of p.notes) {
         if (n.voice !== 'drum') expect(MAJOR).toContain(pcOf(n, p.tonic));
-        const [lo, hi] = RANGE[n.voice];
+        const [lo, hi] = n.voice === 'piano' ? [RANGE.piano[0] - 3, RANGE.piano[1] + 7] : RANGE[n.voice];
         expect(n.midi).toBeGreaterThanOrEqual(lo - 3);
         expect(n.midi).toBeLessThanOrEqual(hi + 2);
         expect(n.vel).toBeGreaterThan(0);
@@ -28,7 +28,7 @@ describe('music score (generated, original by construction)', () => {
     }
   });
 
-  it('16 bars (64 beats), at most 6 voices at once, nothing past the end', () => {
+  it('16 bars (64 beats), at most 10 voices at once, nothing past the end', () => {
     for (const p of pieces) {
       expect(p.beats).toBe(64);
       expect(polyphony(p.notes)).toBeLessThanOrEqual(MAX_VOICES);
@@ -40,21 +40,46 @@ describe('music score (generated, original by construction)', () => {
     for (const p of pieces) {
       const lastBar = p.notes.filter((n) => n.voice === 'pad' && n.beat === 60).map((n) => pcOf(n, p.tonic)).sort((a, b) => a - b);
       expect(lastBar).toEqual([...chordOf(0)].sort((a, b) => a - b));
-      const lead = p.notes.filter((n) => n.voice === 'harp' || n.voice === 'flute');
+      const lead = p.notes.filter((n) => n.voice === 'piano');
       expect(pcOf(lead[lead.length - 1], p.tonic)).toBe(0);
     }
   });
 
-  it('a plucked eighth-note ostinato on the chord, a walking bass and a soft drum that rests in the first phrase and the last bar', () => {
-    for (const p of pieces) {
-      const pluck = p.notes.filter((n) => n.voice === 'pluck');
-      expect(pluck.length).toBeGreaterThan(32);
-      expect(pluck.every((n) => (n.beat * 2) % 1 === 0)).toBe(true);
-      const drums = p.notes.filter((n) => n.voice === 'drum');
-      expect(drums.length).toBeGreaterThan(0);
-      expect(drums.every((n) => n.beat >= 16 && n.beat < 60 && (n.midi === DRUM.low || n.midi === DRUM.shaker))).toBe(true);
-      expect(p.notes.filter((n) => n.voice === 'bass').length).toBeGreaterThanOrEqual(32);
+  it('one piece per season: its own key, and the first phrase is the theme note for note whatever the seed', () => {
+    expect(SEASONS.map((s) => STYLE[s].tonic)).toEqual(TONICS);
+    for (const s of SEASONS) {
+      const m = mood({ season: s, night: false, rain: false });
+      const theme = (seed: number) => piece(seed, m).notes.filter((n) => n.voice === 'piano' && n.beat < 16);
+      expect(piece(3, m).tonic).toBe(STYLE[s].tonic);
+      expect(theme(3)).toEqual(theme(99));
     }
+    // The four themes differ from each other.
+    const first = SEASONS.map((s) => JSON.stringify(piece(1, mood({ season: s, night: false, rain: false })).notes.filter((n) => n.voice === 'piano' && n.beat < 16).map((n) => [n.beat, n.dur])));
+    expect(new Set(first).size).toBe(4);
+  });
+
+  it('piano over synths, no flute: each season has its accompaniment', () => {
+    const day = (s: (typeof SEASONS)[number]) => piece(5, mood({ season: s, night: false, rain: false }));
+    for (const s of SEASONS) {
+      const p = day(s);
+      expect(new Set(p.notes.map((n) => n.voice)).has('piano')).toBe(true);
+      expect(p.notes.filter((n) => n.voice === 'keys').length).toBeGreaterThan(16);
+      expect(p.notes.filter((n) => n.voice === 'bass').length).toBeGreaterThanOrEqual(16);
+      expect(p.notes.filter((n) => n.voice === 'pad').length).toBe(48);
+      const drums = p.notes.filter((n) => n.voice === 'drum');
+      expect(drums.every((n) => n.beat >= 16 && n.beat < 60 && (n.midi === DRUM.low || n.midi === DRUM.shaker))).toBe(true);
+    }
+    // Spring and summer: the synth arpeggio and the drum; winter: neither, chords rolled and held.
+    expect(day('summer').notes.filter((n) => n.voice === 'arp').length).toBeGreaterThan(day('spring').notes.filter((n) => n.voice === 'arp').length);
+    expect(day('spring').notes.some((n) => n.voice === 'arp' && n.beat < 16)).toBe(false);
+    expect(day('autumn').notes.some((n) => n.voice === 'arp')).toBe(false);
+    expect(day('winter').notes.some((n) => n.voice === 'arp' || n.voice === 'drum')).toBe(false);
+    expect(day('summer').notes.filter((n) => n.voice === 'drum').length).toBeGreaterThan(day('autumn').notes.filter((n) => n.voice === 'drum').length);
+    expect(day('winter').notes.filter((n) => n.voice === 'keys').every((n) => n.dur >= 3.5)).toBe(true);
+    expect(day('spring').notes.filter((n) => n.voice === 'keys' && n.beat < 60).every((n) => n.dur === 0.5)).toBe(true);
+    // Darker pad and more echo in autumn and winter.
+    expect(day('autumn').pad).toBeLessThan(day('summer').pad);
+    expect(day('winter').echo).toBeGreaterThan(day('summer').echo);
     const rng = () => 0.5;
     expect(silenceAfter(rng)).toBeGreaterThanOrEqual(6);
     expect(silenceAfter(() => 0.999)).toBeLessThanOrEqual(12);
@@ -62,27 +87,28 @@ describe('music score (generated, original by construction)', () => {
 
   it('the melody puts chord tones on the strong beats', () => {
     for (const p of pieces) {
-      for (const n of p.notes.filter((o) => (o.voice === 'harp' || o.voice === 'flute') && o.beat % 2 === 0)) {
+      for (const n of p.notes.filter((o) => o.voice === 'piano' && o.beat % 2 === 0)) {
         const chordPcs = p.notes.filter((o) => o.voice === 'pad' && o.beat === Math.floor(n.beat / 4) * 4).map((o) => pcOf(o, p.tonic));
         expect(chordPcs).toContain(pcOf(n, p.tonic));
       }
     }
   });
 
-  it('mood: spring and summer on harp and faster; autumn and winter on flute, slower and lower; night softer, slower and sparser', () => {
+  it('mood: summer the fastest, winter the slowest; night softer, slower, sparser and without drum', () => {
     const m = (season: (typeof SEASONS)[number], night = false, rain = false) => mood({ season, night, rain });
-    expect([m('spring').lead, m('summer').lead, m('autumn').lead, m('winter').lead]).toEqual(['harp', 'harp', 'flute', 'flute']);
-    expect(m('winter').bpm).toBeLessThan(m('spring').bpm);
-    expect(m('winter').register).toBeLessThan(m('spring').register);
+    expect(m('winter').bpm).toBeLessThan(m('autumn').bpm);
+    expect(m('autumn').bpm).toBeLessThan(m('spring').bpm);
+    expect(m('spring').bpm).toBeLessThan(m('summer').bpm);
     for (const s of SEASONS) {
       // Calm but with a step (the first 60–76 bpm version was sleepy): 78–100 bpm, night included.
       expect(m(s, true).bpm).toBeGreaterThanOrEqual(78);
       expect(m(s).bpm).toBeLessThanOrEqual(100);
       expect(m(s, true).bpm).toBeLessThan(m(s).bpm);
       expect(m(s, true).gain).toBeCloseTo(m(s).gain * 0.75);
-      expect(m(s, true).lead).toBe('flute');
+      expect(m(s, true).drums).toBe(0);
       expect(m(s, true).density).toBeLessThan(m(s).density);
       expect(m(s, false, true).gain).toBeLessThan(m(s).gain);
+      expect(piece(2, m(s, true)).notes.some((n) => n.voice === 'drum')).toBe(false);
     }
   });
 });

@@ -1,5 +1,5 @@
 // Renders samples of the background music to WAV files for listening (the real test of the music):
-// one per season by day and one at night, `SECONDS` each, in music-samples/ (kept between visual runs).
+// one per season (the four pieces), by day, `SECONDS` each, in music-samples/ (kept between visual runs).
 // Usage: node scripts/music-render.mjs [seconds]   (default 90)
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -13,7 +13,6 @@ const SAMPLES = [
   ['verao', { season: 'summer', night: false, rain: false }],
   ['outono', { season: 'autumn', night: false, rain: false }],
   ['inverno', { season: 'winter', night: false, rain: false }],
-  ['noite', { season: 'summer', night: true, rain: false }],
 ];
 
 const server = await createServer({ server: { port: PORT, strictPort: true, hmr: false, watch: null }, logLevel: 'error' });

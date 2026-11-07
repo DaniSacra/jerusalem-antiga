@@ -5,7 +5,7 @@ import { settings } from '../game/settings';
 
 /**
  * The background music (the only Web Audio code): plays the pieces of `game/music/score.ts` with
- * small synthesized voices, a soft echo and quiet between pieces. The audio context starts on the
+ * small synthesized voices (piano over soft synths), a soft echo and quiet between pieces. The audio context starts on the
  * first tap, click or key (browsers allow sound only after a gesture); notes are scheduled about a
  * second ahead every 250 ms (never per frame); a hidden tab fades out and suspends it.
  * See docs/arquitetura-3d.md section 12.
@@ -36,6 +36,7 @@ export class Music {
   private rng = createRng(1);
   private mood: Mood | null = null;
   private target = 0;
+  private padHz = 1400;
   private unlock = () => this.start();
   private onVisible = () => this.apply(document.hidden ? FADE.hide : FADE.in);
 
@@ -91,6 +92,8 @@ export class Music {
       const spb = 60 / p.bpm;
       const at = Math.max(now + 0.1, this.nextAt);
       this.queue = p.notes.map((n) => ({ at: at + n.beat * spb, n, spb }));
+      this.padHz = p.pad;
+      this.wet!.gain.setTargetAtTime(p.echo, at, 1);
       this.nextAt = at + p.beats * spb + silenceAfter(this.rng);
     }
     while (this.queue.length && this.queue[0].at < now + AHEAD) {
@@ -100,7 +103,7 @@ export class Music {
   }
 
   private voice(at: number, n: Note, spb: number) {
-    voice(this.ctx!, this.dry!, this.wet!, at, n, spb);
+    voice(this.ctx!, this.dry!, this.wet!, at, n, spb, this.padHz);
   }
 
   /** Dev and tests: what the music is doing. */
@@ -117,8 +120,8 @@ export class Music {
   }
 }
 
-/** Each voice's loudness under the master (the pad and bass stay under the melody). */
-const LEVEL: Record<Voice, number> = { harp: 0.5, flute: 0.36, pad: 0.08, bass: 0.34, pluck: 0.22, drum: 0.32 };
+/** Each voice's loudness under the master (the pad, keys and bass stay under the melody). */
+const LEVEL: Record<Voice, number> = { piano: 0.4, keys: 0.2, arp: 0.07, pad: 0.035, bass: 0.34, drum: 0.28 };
 
 /** Half a second of white noise per context, made once (the shaker). */
 const NOISE = new WeakMap<BaseAudioContext, AudioBuffer>();
@@ -169,72 +172,77 @@ function drum(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at: number,
   src.onended = () => env.disconnect();
 }
 
-/** One note: harp (plucked triangle), flute (sine with vibrato), pad (two detuned sines) or bass. */
-export function voice(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at: number, n: Note, spb: number) {
+/** One note: piano (melody and left hand), a soft synth arpeggio, a synth pad (filtered at `padHz`), the bass or the drum. */
+export function voice(ctx: BaseAudioContext, dry: AudioNode, wet: AudioNode, at: number, n: Note, spb: number, padHz = 1400) {
   if (n.voice === 'drum') return drum(ctx, dry, wet, at, n);
   const dur = n.dur * spb;
+  const f = hz(n.midi);
   const env = ctx.createGain();
   const peak = n.vel * LEVEL[n.voice];
   const g = env.gain;
   g.setValueAtTime(0, at);
   let end: number;
   const oscs: OscillatorNode[] = [];
-  const osc = (type: OscillatorType, detune = 0) => {
+  const osc = (type: OscillatorType, freq = f, detune = 0) => {
     const o = ctx.createOscillator();
     o.type = type;
-    o.frequency.value = hz(n.midi);
+    o.frequency.value = freq;
     o.detune.value = detune;
     oscs.push(o);
     return o;
   };
-  if (n.voice === 'harp') {
+  const lowpass = (hzFrom: number, q = 0.7) => {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(3200, at);
-    filter.frequency.exponentialRampToValueAtTime(900, at + 1.2);
-    osc('triangle').connect(filter).connect(env);
-    end = at + dur + 1.6;
-    g.linearRampToValueAtTime(peak, at + 0.006);
+    filter.frequency.setValueAtTime(hzFrom, at);
+    filter.Q.value = q;
+    return filter;
+  };
+  if (n.voice === 'piano' || n.voice === 'keys') {
+    // A soft electric-acoustic piano: a sine frequency-modulated at the same pitch, the modulation
+    // (the hammer's brightness) fading fast, a quiet octave partial, a long natural decay (shorter
+    // higher up) and a short release when the key lifts.
+    const car = osc('sine');
+    const mod = osc('sine');
+    const index = ctx.createGain();
+    index.gain.setValueAtTime(f * (0.5 + 1.4 * n.vel), at);
+    index.gain.setTargetAtTime(f * 0.12, at, 0.22);
+    mod.connect(index).connect(car.frequency);
+    const filter = lowpass(4200);
+    car.connect(filter);
+    const octave = ctx.createGain();
+    octave.gain.setValueAtTime(0.18, at);
+    octave.gain.setTargetAtTime(0, at, 0.35);
+    osc('sine', f * 2, 3).connect(octave).connect(filter);
+    filter.connect(env);
+    const tau = Math.min(2.4, Math.max(0.7, 2.4 - (n.midi - 48) * 0.035));
+    g.linearRampToValueAtTime(peak, at + 0.005);
+    g.setTargetAtTime(0, at + 0.005, tau);
+    g.setTargetAtTime(0, at + dur, 0.18);
+    end = at + dur + 1;
+  } else if (n.voice === 'arp') {
+    // A short synth pluck: two detuned saws in a resonant low-pass that closes quickly.
+    const filter = lowpass(2400, 2);
+    filter.frequency.exponentialRampToValueAtTime(500, at + 0.22);
+    osc('sawtooth', f, -6).connect(filter);
+    osc('sawtooth', f, 6).connect(filter);
+    filter.connect(env);
+    end = at + 0.5;
+    g.linearRampToValueAtTime(peak, at + 0.004);
     g.exponentialRampToValueAtTime(0.0001, end);
-  } else if (n.voice === 'flute') {
-    const o = osc('sine');
-    const lfo = ctx.createOscillator();
-    const depth = ctx.createGain();
-    lfo.frequency.value = 5;
-    depth.gain.value = 4; // cents
-    lfo.connect(depth).connect(o.detune);
-    lfo.start(at);
-    o.connect(env);
-    end = at + dur + 0.45;
-    g.linearRampToValueAtTime(peak, at + 0.09);
-    g.setValueAtTime(peak, at + dur);
-    g.linearRampToValueAtTime(0, end);
-    lfo.stop(end);
   } else if (n.voice === 'pad') {
-    osc('sine', -5).connect(env);
-    osc('sine', 5).connect(env);
+    // A warm synth pad: two saws detuned apart, low-passed by the season (darker in autumn), slow in and out.
+    const filter = lowpass(padHz, 0.5);
+    osc('sawtooth', f, -7).connect(filter);
+    osc('sawtooth', f, 7).connect(filter);
+    filter.connect(env);
     end = at + dur + 1.5;
     g.linearRampToValueAtTime(peak, at + Math.min(1.2, dur * 0.5));
     g.setValueAtTime(peak, at + dur);
     g.linearRampToValueAtTime(0, end);
-  } else if (n.voice === 'pluck') {
-    // A short pluck: triangle and a quiet square, closing filter, quick decay.
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2600, at);
-    filter.frequency.exponentialRampToValueAtTime(700, at + 0.3);
-    osc('triangle').connect(filter);
-    const sq = osc('square', 3);
-    const quiet = ctx.createGain();
-    quiet.gain.value = 0.18;
-    sq.connect(quiet).connect(filter);
-    filter.connect(env);
-    end = at + Math.max(0.35, dur) + 0.25;
-    g.linearRampToValueAtTime(peak, at + 0.004);
-    g.exponentialRampToValueAtTime(0.0001, end);
   } else {
     osc('sine').connect(env);
-    osc('triangle').connect(env); // a little body so the walking bass reads on phone speakers
+    osc('triangle').connect(env); // a little body so the bass reads on phone speakers
     end = at + dur + 0.3;
     g.linearRampToValueAtTime(peak, at + 0.02);
     g.exponentialRampToValueAtTime(0.0001, end);
@@ -280,7 +288,8 @@ export async function renderOffline(input: MoodInput, seconds: number, seed = 1,
   for (let k = 0; at < seconds; k++) {
     const p = piece(seed + k, m);
     const spb = 60 / p.bpm;
-    for (const n of p.notes) if (at + n.beat * spb < seconds) voice(ctx, bus.dry, bus.wet, at + n.beat * spb, n, spb);
+    bus.wet.gain.setValueAtTime(p.echo, at);
+    for (const n of p.notes) if (at + n.beat * spb < seconds) voice(ctx, bus.dry, bus.wet, at + n.beat * spb, n, spb, p.pad);
     at += p.beats * spb + quiet;
   }
   return ctx.startRendering();

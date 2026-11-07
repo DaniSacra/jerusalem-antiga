@@ -154,7 +154,7 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   ligada; toasts cobrindo o mapa no celular (máx. 2); barra de cima em duas linhas no PC; "· 3" na coluna
 - (b) Ganhos rápidos, ~13–14 h: vento em árvores e campos (shader), fumaça macia, fogo do altar e
   faíscas, vinheta CSS, grão do chão, margem do rio, toasts e FOME calmos, relevo dos botões
-- (c) Pacotes, em ordem: C1 Música (architect; **feito 2026-11-06**: gerada no navegador, falta o usuário ouvir `music-samples/*.wav` e aprovar o timbre) → C2 Vida na rua (**feito 2026-11-06**) → C3 Casas variadas (**feito 2026-11-06**: kit por código, 6 por nível, e casa espelhada) → C4 Chão e ruas (**feito 2026-11-06**: chão pisado, tufos e seixos, rua com borda escura, sulcos e lajes) →
+- (c) Pacotes, em ordem: C1 Música (architect; **feito 2026-11-06**, refeita em 2026-11-07 com uma música por estação em piano e sintetizadores, **aprovada pelo usuário em 2026-11-07**) → C2 Vida na rua (**feito 2026-11-06**) → C3 Casas variadas (**feito 2026-11-06**: kit por código, 6 por nível, e casa espelhada) → C4 Chão e ruas (**feito 2026-11-06**: chão pisado, tufos e seixos, rua com borda escura, sulcos e lajes) →
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
@@ -174,7 +174,9 @@ de aventura (Zelda só como clima; composição original), com desligar e volume
 2026-11-06**: pacote C1 do plano "Beleza e calma", forma em `docs/arquitetura-3d.md` seção 12.
 No mesmo dia o usuário achou a primeira versão (60–76 bpm, 15–40 s de pausa) com sono: refeita
 calma mas com vontade de jogar (86–100 bpm, dedilhado, baixo andando, tambor de mão e chocalho
-suaves, 6–12 s de pausa).
+suaves, 6–12 s de pausa). Em 2026-11-07 o usuário achou a flauta chata e pediu **quatro músicas, uma
+por estação**, em piano com sintetizadores, calmas e com vontade de jogar, cada uma dizendo o que a
+estação é: refeita assim (tema fixo por estação) e **aprovada pelo usuário no mesmo dia** (C1 fechado).
 
 ## Estado atual (2026-11-04)
 Os números e as regras completas estão em `docs/GAME_DESIGN.md` e em `src/data`. O que vale hoje

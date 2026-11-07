@@ -840,6 +840,14 @@ passa-alta), suaves. Eco: um `ConvolverNode` com resposta gerada uma vez (ruído
 pesar no celular, um atraso com realimentação e passa-baixa. **Silêncio entre peças** (6–12 s): um respiro
 sem perder o passo.
 
+**Revisão de 2026-11-07 (usuário):** a flauta ficou chata; agora são **quatro músicas, uma por
+estação**, em piano (seno modulado em frequência na mesma altura, brilho do martelo que some rápido,
+oitava baixinha, decaimento natural) sobre sintetizadores (fundo de duas serras desafinadas num
+passa-baixa por estação; arpejo curto de serras num passa-baixa ressonante que fecha). Cada estação
+tem tom, andamento, tema, progressões, mão esquerda (subindo, contratempo, semínimas, acorde
+arpejado), arpejo, tambor, cor do fundo e eco próprios (`STYLE` em `score.ts`); a primeira frase é
+sempre o tema. O texto abaixo descreve a primeira versão.
+
 **Clima (barato, só na fronteira de frase):** `mood({ season, night, rain })` muda andamento,
 instrumento da melodia, registro, densidade de notas e volume alvo. Primavera/verão: harpa, mais
 notas; outono: flauta, mais grave; inverno: mais lento, fundo e poucas notas; noite: -30 % de volume,
