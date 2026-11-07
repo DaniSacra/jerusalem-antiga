@@ -17,7 +17,7 @@ import {
   unemployed,
   unemploymentAlert,
 } from '../src/core';
-import { hire, atHarvest, besideRiver, EAST, emptyGame, person, put, ROADSIDE, westOf } from './helpers';
+import { hire, atHarvest, besideRiver, EAST, emptyGame, person, put, restoreAltar, ROADSIDE, westOf } from './helpers';
 
 const W = RULES.weeksPerSeason;
 /** Weeks of the year a field gives food (all but winter). */
@@ -29,6 +29,7 @@ const ADULT = RULES.people.food.adult;
 describe('economy', () => {
   it('is 100% efficient without jobs', () => {
     const s = emptyGame();
+    restoreAltar(s);
     put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content even without a job, plain tax
     const e = computeEconomy(s);
     expect(e).toMatchObject({ residents: T.capacity, workers: T.capacity, jobs: 0, yearJobs: 0, efficiency: 1, silverDelta: T.tax });
@@ -53,6 +54,7 @@ describe('economy', () => {
 
   it('ignores jobs and food of disconnected buildings, but still charges their upkeep (half while empty)', () => {
     const s = emptyGame();
+    restoreAltar(s); // the stone house is content by the altar: plain tax
     put(s, 'house', ROADSIDE, 27, 3);
     const tax = HOUSE_LEVELS[3].tax;
     put(s, 'field', 1, 1);
@@ -89,6 +91,7 @@ describe('economy', () => {
       gatherer: 0.5,
       lumber: 0.5,
       quarry: 1,
+      pasture: 0.5,
       granary: 1,
       market: 2,
       workshop: 1,

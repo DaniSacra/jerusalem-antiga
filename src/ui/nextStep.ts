@@ -39,15 +39,21 @@ export class NextStepLine {
   }
 
   get shown() {
-    return !!this.step;
+    return this.visible;
   }
 
-  /** After each refresh: the step now (null hides the line). */
-  update(step: NextStep | null) {
+  private visible = false;
+
+  /**
+   * After each refresh: the step now (null: none, the tutorial speaks), and whether the line shows (a
+   * panel opened from it hides it; its arrow stays).
+   */
+  update(step: NextStep | null, visible = true) {
     this.step = step;
-    this.el.classList.toggle('hidden', !step);
+    this.visible = !!step && visible;
+    this.el.classList.toggle('hidden', !this.visible);
     if (!step) return;
-    this.el.className = `nextstep panel hit t-${step.tone}`;
+    this.el.className = `nextstep panel hit t-${step.tone}${this.visible ? '' : ' hidden'}`;
     this.el.dataset.kind = step.kind;
     keyed(this.icon, step.icon, () => [iconEl(step.icon)]);
     setText(this.text, step.text);

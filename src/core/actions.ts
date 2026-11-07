@@ -7,7 +7,7 @@ import { refreshCity } from './refresh';
 import { rollLook } from './looks';
 import { createRng } from './rng';
 import { lackingMaterial, materialsOf, missingMaterial, payMaterials } from './materials';
-import { checkStartStage, nextStage, stageSite, templeLaid } from './temple';
+import { checkStartStage, nextStage, stageSite } from './temple';
 import { clearStump } from './trees';
 import type { ActionResult, BuildableKind, BuildingKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
 import { canWork, crewByKind, jobOptions, jobsBuilt, loweredTarget } from './work';
@@ -187,7 +187,7 @@ export function checkClear(s: GameState, x: number, y: number): ActionResult {
   if (!inBounds(s, x, y)) return fail('invalid');
   const i = indexOf(s, x, y);
   const b = s.grid[i];
-  if (b) return BUILDINGS[b.kind].protected || (b.kind === 'temple' && templeLaid(s)) ? fail('protected') : OK;
+  if (b) return BUILDINGS[b.kind].protected ? fail('protected') : OK;
   if (s.roads[i]) return OK;
   if (s.feature[i] !== 'palm' && s.feature[i] !== 'olive') return fail('invalid');
   if (s.silver < 0) return fail('debt');

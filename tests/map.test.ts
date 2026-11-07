@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { altarDistance, altarRing, between, campPlazaSpot, campRoad, caravanSpots, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, type Feature, type Terrain } from '../src/core';
+import { altarDistance, altarRing, between, campPlazaSpot, campRoad, caravanSpots, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, templeRuin, type Feature, type Terrain } from '../src/core';
 
 const { cols, rows, clearRadius, river, denseGrove, rockOutcrop } = RULES.map;
 const SEEDS = Array.from({ length: 100 }, (_, k) => k + 1);
@@ -180,12 +180,45 @@ describe('map generation', () => {
     expect(near.some((n) => n.grove >= 17)).toBe(true);
   });
 
+  it.each(Array.from({ length: 1000 }, (_, k) => k + 1))('places the Temple in ruins north of the altar, protected, connected and on free land (seed %i)', (seed) => {
+    const s = createGame(createRng(seed));
+    const ruins = s.buildings.filter((b) => b.kind === 'temple');
+    expect(ruins).toEqual([expect.objectContaining({ x: 21, y: 15, w: 6, h: 6, connected: true })]);
+    const [ruin] = ruins;
+    const camp = new Set([...startRoad(), ...campRoad(), s.entrance].map((c) => indexOf(s, c.x, c.y)));
+    for (let y = ruin.y; y < ruin.y + ruin.h; y++) {
+      for (let x = ruin.x; x < ruin.x + ruin.w; x++) {
+        const i = indexOf(s, x, y);
+        expect(isReserved(x, y)).toBe(true); // the generator never puts a rock or tree here
+        expect(s.ground[i]).not.toBe('river');
+        expect(s.feature[i]).toBeNull();
+        expect(s.roads[i]).toBe(false);
+        expect(camp.has(i)).toBe(false);
+        expect(s.grid[i]).toBe(ruin); // no tent or other building on it
+      }
+    }
+    // Its south side runs along the ring's north row (connected from week 0), on the entrance's axis.
+    for (let x = ruin.x; x < ruin.x + ruin.w; x++) expect(s.network[indexOf(s, x, ruin.y + ruin.h)]).toBe(true);
+    expect(ruin.x <= s.entrance.x && s.entrance.x < ruin.x + ruin.w).toBe(true);
+    // It is protected: nothing is placed over it.
+    s.unlocked = [...s.unlocked, 'plaza'];
+    expect(checkPlace(s, 'house', ruin.x + 2, ruin.y + 2).ok).toBe(false);
+  });
+
+  it('keeps the ruin inside the cleared ground, where the river never comes', () => {
+    const r = templeRuin();
+    expect(r).toEqual({ x: 21, y: 15, w: 6, h: 6 });
+    expect(Math.max(altarDistance(r.x, r.y), altarDistance(r.x + r.w - 1, r.y))).toBeLessThan(river.distance[0]);
+    expect(altarDistance(r.x, r.y)).toBeLessThanOrEqual(clearRadius);
+  });
+
   it('starts with a 4x4 altar at the center, the caravan tents and a road to the south edge (the entrance)', () => {
     const s = createGame(createRng(5));
     expect(s.silver).toBe(RULES.startSilver);
     expect(s.unlocked).toEqual(RULES.startUnlocked);
     expect(s.buildings.filter((b) => b.kind === 'altar')).toEqual([expect.objectContaining({ kind: 'altar', x: 22, y: 22, w: 4, h: 4, connected: true })]);
-    const tents = s.buildings.filter((b) => b.kind !== 'altar');
+    expect(s.buildings.filter((b) => b.kind === 'temple')).toHaveLength(1); // the ruin
+    const tents = s.buildings.filter((b) => b.kind !== 'altar' && b.kind !== 'temple');
     expect(tents.length).toBe(s.start.families);
     for (const b of tents) expect(b).toEqual(expect.objectContaining({ kind: 'house', level: 1 }));
     expect(s.grid[indexOf(s, 25, 25)]?.kind).toBe('altar');

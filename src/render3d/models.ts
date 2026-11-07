@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { extraOf, footprintOf, KILN, MIRRORED_KEYS, mirrorOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
+import { extraOf, footprintOf, hash as hashOf, KILN, SHELTER_AT, MIRRORED_KEYS, mirrorOf, MODEL_KEYS, type ExtraKey, type ModelKey } from './plan';
 import { KIT_KEYS, type KitKey } from './kits';
 import { COURT, PEN, SITE_KEYS } from './works';
 import { paneMaterial, patch } from './shaders';
@@ -739,13 +739,14 @@ function altarNew(): Piece[] {
     box(0.9, 0.08, 0.26, 0, 0.08, 1.7, fresh),
     // A border of new paving inside the wall.
     ...walls(3.5, 3.5, 0.03, 0.22, COLORS.limestone),
-    // The pen of the offerings' flock in a back corner (PEN; its sheep and goats are the ambient's).
-    ...[[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 1], [1, 0]].map(([i, j]) => box(0.05, 0.3, 0.05, PEN.x + (i * PEN.w) / 2, 0, PEN.z + (j * PEN.d) / 2, COLORS.wood)),
+    // The pen of the offerings' lambs in a front corner (PEN; the lambs are the ambient's): the altar's
+    // wall closes it on two sides, rails of new timber on the other two, a trough of straw.
+    ...[[-1, -1], [1, -1], [1, 1], [0, -1], [1, 0]].map(([i, j]) => box(0.05, 0.3, 0.05, PEN.x + (i * PEN.w) / 2, 0, PEN.z + (j * PEN.d) / 2, COLORS.wood)),
     ...[0.12, 0.24].flatMap((h) => [
-      box(PEN.w, 0.03, 0.03, PEN.x, h, PEN.z + PEN.d / 2, SITE.timber),
+      box(PEN.w, 0.03, 0.03, PEN.x, h, PEN.z - PEN.d / 2, SITE.timber),
       box(0.03, 0.03, PEN.d, PEN.x + PEN.w / 2, h, PEN.z, SITE.timber),
     ]),
-    box(0.3, 0.08, 0.14, PEN.x - 0.2, 0, PEN.z - 0.2, COLORS.mudDark),
+    box(0.14, 0.08, 0.34, PEN.x - 0.18, 0, PEN.z, COLORS.reed),
   ];
 }
 
@@ -862,6 +863,47 @@ function altarRuin(): Piece[] {
     tilted(0.28, 0.28, 0.28, 0.9, 0.2, -0.2, COLORS.rock, 0.6, 0.4),
     blob(0.1, -0.9, 0.12, 0.4, COLORS.dryBush, 0.7),
     blob(0.09, 0.7, 0.12, 1.1, COLORS.dryBush, 0.7),
+  ];
+}
+
+/**
+ * The pasture (3x3): a low dry-stone fence with a wooden gate at the front, the shepherd's straw
+ * shelter in a back corner (SHELTER_AT, where the flock huddles in winter), a trough of water and a
+ * white salt stone. Its sheep and goats graze the grass around it (ambient.ts). One part (ONE_PART).
+ */
+function pasture(): Piece[] {
+  const stones: Piece[] = [];
+  const w = 2.8;
+  // The fence: rough stones in a course, a little uneven, open at the gate.
+  for (let k = 0; k < 14; k++) {
+    const t = -w / 2 + 0.1 + (k * (w - 0.2)) / 13;
+    const h = 0.2 + hashOf(k, 1) * 0.08;
+    stones.push(box(0.22, h, 0.16, t, 0, -w / 2 + 0.08, k % 3 ? COLORS.rubble : COLORS.rock, hashOf(k, 2) * 0.3));
+    stones.push(box(0.16, h, 0.22, -w / 2 + 0.08, 0, t, k % 2 ? COLORS.rubble : COLORS.limestoneDark, hashOf(k, 3) * 0.3));
+    stones.push(box(0.16, h, 0.22, w / 2 - 0.08, 0, t, k % 3 ? COLORS.rock : COLORS.rubble, hashOf(k, 4) * 0.3));
+    if (Math.abs(t) > 0.4) stones.push(box(0.22, h, 0.16, t, 0, w / 2 - 0.08, k % 2 ? COLORS.rock : COLORS.rubble, hashOf(k, 5) * 0.3));
+  }
+  const [sx, sz] = SHELTER_AT;
+  return [
+    ...stones,
+    // The gate: two posts and a hurdle of poles, swung half open.
+    box(0.07, 0.42, 0.07, -0.4, 0, w / 2 - 0.08, COLORS.wood),
+    box(0.07, 0.42, 0.07, 0.4, 0, w / 2 - 0.08, COLORS.wood),
+    ...[0.12, 0.26].map((h) => box(0.7, 0.035, 0.035, -0.12, h, w / 2 + 0.15, COLORS.wood, 0.6)),
+    // The shelter: four posts and a sloped roof of straw over a bed of straw.
+    ...[[-0.45, -0.4], [0.45, -0.4], [-0.45, 0.4], [0.45, 0.4]].map(([x, z]) => box(0.06, z < 0 ? 0.62 : 0.48, 0.06, sx + x, 0, sz + z, COLORS.wood)),
+    (() => {
+      const g = new THREE.BoxGeometry(1.1, 0.07, 1.0);
+      g.rotateX(0.15);
+      g.translate(sx, 0.58, sz);
+      return { geo: g, color: COLORS.reed };
+    })(),
+    box(0.8, 0.04, 0.7, sx, 0, sz, COLORS.barley),
+    // The trough of water and the salt stone.
+    box(0.5, 0.13, 0.18, 0.75, 0, 0.55, COLORS.wood),
+    box(0.44, 0.02, 0.12, 0.75, 0.12, 0.55, COLORS.water),
+    box(0.16, 0.12, 0.14, 0.35, 0, -0.2, 0xf3efe6, 0.4),
+    blob(0.1, 0.9, 0.06, -0.6, COLORS.dryBush, 0.6),
   ];
 }
 
@@ -1590,8 +1632,7 @@ function addMirrors(out: Record<ModelKey, Prototype>) {
 /** Code-built model of each key except the additions, the kits and the mirrored houses. */
 const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>, () => Piece[]> = {
   'house-0': plot,
-  // Placeholder until the sprite-artist draws the pasture (fence, shelter, herd).
-  pasture: plot,
+  pasture,
   'house-1': tent,
   'house-2': mudHouse,
   'house-3': stoneHouse,
@@ -1661,9 +1702,10 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
 
 /**
  * Code models drawn as one part, their colours in the vertices like the kits: the empty plot's
- * building site is many small pieces in three colours, and the city can hold many plots.
+ * building site and the pasture are many small pieces in a few colours, and the city can hold many;
+ * the Temple's stages and works (works.ts) cost one draw call each.
  */
-const ONE_PART: readonly ModelKey[] = ['house-0', ...SITE_KEYS];
+const ONE_PART: readonly ModelKey[] = ['house-0', 'pasture', ...SITE_KEYS];
 
 let built: Record<ModelKey, Prototype> | null = null;
 

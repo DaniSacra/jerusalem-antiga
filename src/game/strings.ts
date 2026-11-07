@@ -257,7 +257,7 @@ export const T = {
   ground: { sand: 'Areia', grass: 'Grama seca', river: 'Rio' } satisfies Record<Ground, string>,
   /** Olive cells are drawn as olive, almond or fig trees (see treeKind). */
   feature: { rock: 'Rocha', palm: 'Palmeira', olive: 'Oliveira', stump: 'Toco', almond: 'Amendoeira', fig: 'Figueira' } satisfies Record<Feature | 'almond' | 'fig', string>,
-  need: { road: 'Rua', plaza: 'Praça', market: 'Mercado', park: 'Parque' } satisfies Record<NeedKind, string>,
+  need: { road: 'Rua', plaza: 'Praça', market: 'Mercado', park: 'Parque', sacred: 'Altar com ofertas' } satisfies Record<NeedKind, string>,
   /** Interface Nova (drafts for the copywriter). */
   nova: {
     level: 'NÍVEL',
@@ -425,7 +425,6 @@ export const T = {
     stage: {
       started: (name: string) => `Começou: ${name}. Ponha construtores em Profissões`,
       done: (name: string) => `${name} pronto!`,
-      mark: 'Marque o lugar do Templo',
       start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} para começar`,
       lacking: (name: string, what: string) => `${name}: junte ${what}`,
       debt: (name: string) => `${name}: pague a dívida antes`,
@@ -435,6 +434,7 @@ export const T = {
       idle: 'sem construtores',
       /** "30 prata, 50 pedra": what the stage still needs. */
       need: (parts: [number, 'silver' | Product][]) => parts.map(([n, k]) => `${n} ${k === 'silver' ? 'prata' : PRODUCT[k]}`).join(', '),
+      ruins: 'Ruínas do Templo',
       /** The site's balloon: "Etapa 2 de 5: Alicerce". */
       head: (n: number, of: number, name: string) => `Etapa ${n} de ${of}: ${name}`,
       /** Before it starts: its builders and the shortest time with all of them. */
@@ -452,14 +452,29 @@ export const T = {
       /** The goals list: the stage goals' mark. */
       ofStages: (n: number, of: number) => `etapa ${n}/${of}`,
     },
+    /** The restored altar's weekly offering of livestock. */
+    offerings: {
+      missing: 'O altar ficou sem ofertas: as casas de pedra vão cair',
+      back: 'As ofertas voltaram',
+      none: 'Sem ofertas',
+      /** Altar balloon. */
+      ruins: 'Altar em ruínas: restaure para as casas de pedra',
+      burns: (n: number, houses: number) => `Ofertas: ${fmt2(n)} gado/sem · cobre ${houses} ${houses === 1 ? 'casa' : 'casas'}`,
+      empty: 'Sem ofertas: não cobre as casas',
+      /** A house's missing need "Altar". */
+      needRuins: 'Altar em ruínas',
+      needNone: 'altar sem ofertas',
+      needFar: 'longe do altar',
+    },
     /** "O que fazer agora": one short line under the top bar (see `nextStep`). */
     next: {
       debt: (w: number) => `Dívida: ${weeks(w)} para perder. Demolir corta gastos`,
       famine: 'Fome! Construa um pescador perto do rio',
       food: (w: number) => `Comida acaba em ${weeks(w)}: construa um pescador perto do rio`,
       cold: 'Frio! Sem lenha: construa um lenhador',
+      offerings: 'O altar está sem ofertas: construa um pasto no capim',
+      livestock: (w: number) => `Gado acaba em ${weeks(w)}: construa um pasto no capim`,
       firewood: (n: number) => `Lenha não dura o inverno: faltam ${n}. Construa um lenhador`,
-      mark: 'Templo: escolha o lugar (é grátis)',
       gather: (name: string, what: 'silver' | Material, has: number, need: number) => `${name}: junte ${need} ${what === 'silver' ? 'prata' : PRODUCT[what]} · ${Math.floor(Math.max(0, has))}/${need}`,
       road: (name: string, site: 'altar' | 'temple') => `${name}: ligue ${site === 'altar' ? 'o altar' : 'o Templo'} à rua`,
       start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} e comece`,
@@ -468,9 +483,12 @@ export const T = {
       /** A built goal's building off the road ("Oficina: ligue à rua"). */
       offRoad: (kind: BuildingKind) => `${BUILDINGS[kind].name}: ligue à rua`,
       /** Houses of a level: the service the house nearest to climbing lacks. */
-      service: (kind: Exclude<NeedKind, 'road'>, level: number) => `Construa ${({ plaza: 'uma praça', market: 'um mercado', park: 'um parque' } as const)[kind]} perto das ${HOUSE_PLURAL[level]}`,
+      service: (kind: Exclude<NeedKind, 'road'>, level: number) =>
+        kind === 'sacred' ? `Restaure o altar e mantenha as ofertas de gado: as ${HOUSE_PLURAL[level]} precisam dele` : `Construa ${({ plaza: 'uma praça', market: 'um mercado', park: 'um parque' } as const)[kind]} perto das ${HOUSE_PLURAL[level]}`,
       locked: (kind: NeedKind, goal: number) => `${T.need[kind]} libera no objetivo ${goal}`,
       houseRoad: 'Ligue as casas à rua',
+      altarRuins: 'Casas de pedra pedem o altar: restaure o altar',
+      nearAltar: 'Casas de pedra só perto do altar: construa perto dele',
       material: (n: number, m: Material) => `Faltam ${n} de ${PRODUCT[m]} para as casas subirem`,
       moreHouses: (have: number, target: number) => `Construa mais casas: ${have} de ${target}`,
       climbing: (n: number) => `As casas sobem em ~${weeks(n)}`,

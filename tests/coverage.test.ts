@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, cellsInRadius, indexOf } from '../src/core';
-import { consecrate, EAST, emptyGame, put, ROADSIDE } from './helpers';
+import { ALTAR_RADIUS, consecrate, EAST, emptyGame, put, restoreAltar, ROADSIDE } from './helpers';
 
 describe('coverage', () => {
   it('uses a square radius 4 from every cell of a connected 2x2 plaza', () => {
@@ -36,9 +36,12 @@ describe('coverage', () => {
     expect(s.coverage.market.some(Boolean)).toBe(false);
   });
 
-  it('covers the altar radius around the 4x4 altar (22..25) as sacred', () => {
+  it('covers nothing from the altar in ruins; restored, its stage-1 radius around the 4x4 altar (22..25) as sacred', () => {
     const s = emptyGame();
-    const r = BUILDINGS.altar.radius!;
+    expect(s.coverage.sacred.some(Boolean)).toBe(false); // in ruins
+    expect(BUILDINGS.altar.radius).toBeUndefined(); // the radius comes from the stage
+    restoreAltar(s);
+    const r = ALTAR_RADIUS;
     expect(s.coverage.sacred[indexOf(s, 22 - r, 22 - r)]).toBe(true);
     expect(s.coverage.sacred[indexOf(s, 25 + r, 25 + r)]).toBe(true);
     expect(s.coverage.sacred[indexOf(s, 22 - r - 1, 24)]).toBe(false);

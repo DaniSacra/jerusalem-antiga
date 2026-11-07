@@ -23,7 +23,7 @@ export type Placeable = BuildableKind | 'road';
 /** Area services; "sacred" is the radius of the altar or a temple (happiness only). */
 export type ServiceKind = 'plaza' | 'market' | 'sacred' | 'park';
 /** What a house level asks for: a road and the services around it (the altar is not one). */
-export type NeedKind = 'road' | Exclude<ServiceKind, 'sacred'>;
+export type NeedKind = 'road' | ServiceKind;
 /** What a building's balloon can point out: a missing need, a workplace with no workers or a sad house. */
 export type BalloonKind = NeedKind | 'workers' | 'sad' | 'noSource';
 

@@ -107,7 +107,8 @@ function buildLeg(s: GameState, b: Building, out: boolean, prev: readonly Pt[], 
   const pt = ([lx, lz]: [number, number], h = up): Pt => ({ x: mid.x + lx, y: mid.y + lz, up: h });
   const pick = <T>(list: readonly T[]) => list[Math.floor(rng() * list.length) % list.length];
   const door = doorsOf(s, b)[0];
-  const from: Pt = prev.length ? prev[prev.length - 1] : door ? { ...centre(door), up: 0 } : pt(spots.piles[0]);
+  // The first leg: some come in from the road, the others are already at a pile.
+  const from: Pt = prev.length ? prev[prev.length - 1] : door && rng() < LOOK.works.fromRoad ? { ...centre(door), up: 0 } : pt(pick(spots.piles));
   return [from, pt(pick(spots.piles)), pt(pick(spots.work))];
 }
 

@@ -14,6 +14,8 @@ const NEED: Record<BalloonKind, string> = {
   workers: svg('<circle cx="12" cy="7" r="3.4" fill="#e9c39a" stroke="#3b2a1a" stroke-width="1.4"/><path d="M6 21v-5a6 6 0 0 1 12 0v5z" fill="#7fa6c9" stroke="#3b2a1a" stroke-width="1.4" stroke-linejoin="round"/>' + CROSS),
   // Nothing to take from: a fish, struck out.
   noSource: svg('<path d="M3 12c3-4.5 9-5.5 13.5-1.5L21 7v10l-4.5-3.5C12 17.5 6 16.5 3 12z" fill="#8fb3c8" stroke="#3b2a1a" stroke-width="1.4" stroke-linejoin="round"/><circle cx="7.4" cy="11.2" r="1.1" fill="#3b2a1a"/><path d="M6 13.6c2 1.4 5 1.6 7.4.6" stroke="#d6e8f2" stroke-width="1.2" fill="none" stroke-linecap="round"/>' + CROSS),
+  // The altar: a block of stones with its fire.
+  sacred: svg('<path d="M4 21v-8h16v8z" fill="#cdb89a" stroke="#3b2a1a" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 17h16M9 13v4M15 17v4" stroke="#8a7458" stroke-width="1.1"/><path d="M12 3c2.6 3 3.4 5.2 1.6 8.6H10.4C8.6 8.2 10 6 12 3z" fill="#e2862c" stroke="#3b2a1a" stroke-width="1.2" stroke-linejoin="round"/>'),
   // A plaza: a bench under an awning on the paving.
   plaza: svg('<path d="M2.5 20l3-6h13l3 6z" fill="#eadfc8" stroke="#3b2a1a" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 8.5h12l-1.4-4H7.4z" fill="#d29a3a" stroke="#3b2a1a" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 8.5v7M16.5 8.5v7" stroke="#6e4a2c" stroke-width="1.5"/><rect x="8.5" y="14" width="7" height="2" rx="0.6" fill="#8a5a32" stroke="#3b2a1a" stroke-width="1"/>'),
   // A market stall with its striped awning.

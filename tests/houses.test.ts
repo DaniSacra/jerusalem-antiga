@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, needLocked, clearCell, HOUSE_LEVELS, indexOf, refreshCity, houseHappiness, houseInfo, idleShare, RULES, stepWeek, unlockingGoal, weeksToNextLevel, type GameState } from '../src/core';
-import { atHarvest, consecrate, constRng, EAST, hire, emptyGame, put, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
+import { atHarvest, consecrate, constRng, EAST, hire, emptyGame, put, restoreAltar, road, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = UP_WEEKS;
@@ -30,6 +30,8 @@ describe('house evolution', () => {
 
   it('is served when any cell of its footprint is covered', () => {
     const s = emptyGame();
+    put(s, 'temple', EAST, 38); // consecrated: its radius 12 is the sacred need of the stone house
+    consecrate(s);
     const b = put(s, 'house', ROADSIDE, 36, 2); // rows 36..37
     put(s, 'plaza', ROADSIDE, 27); // radius 4 covers rows 23..32 only
     run(s, UP);
@@ -64,6 +66,7 @@ describe('house evolution', () => {
 
   it('a need back before weeksToDowngrade weeks keeps the level and restarts the drop count', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 30, 3);
     put(s, 'plaza', ROADSIDE, 32);
     clearCell(s, ROADSIDE, 32);
@@ -80,8 +83,9 @@ describe('house evolution', () => {
   });
 
   it('a big house needs a park: the altar radius is not enough', () => {
-    expect(HOUSE_LEVELS.map((l) => l.needs)).toEqual([[], ['road'], ['road'], ['road', 'plaza'], ['road', 'plaza', 'market', 'park']]);
+    expect(HOUSE_LEVELS.map((l) => l.needs)).toEqual([[], ['road'], ['road'], ['road', 'plaza', 'sacred'], ['road', 'plaza', 'market', 'park', 'sacred']]);
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 27, 3); // by the altar
     put(s, 'plaza', ROADSIDE, 29);
     put(s, 'market', westOf('market'), 31);
@@ -113,6 +117,7 @@ describe('house evolution', () => {
 
   it('a big house that loses its park drops to a stone house', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 27, 4);
     put(s, 'plaza', ROADSIDE, 29);
     put(s, 'market', westOf('market'), 31);
@@ -135,9 +140,13 @@ describe('house evolution', () => {
     run(s, tent.upWeeks + 1);
     expect(tent.level).toBe(2); // market, park and altar without a plaza: still mud-brick
     put(s, 'plaza', ROADSIDE, 32);
+    run(s, tent.upWeeks + 1);
+    expect(tent.level).toBe(2); // a plaza, but the altar in ruins: still mud-brick
+    restoreAltar(s);
     run(s, tent.upWeeks);
-    expect(tent.level).toBe(3); // the plaza makes a stone house
+    expect(tent.level).toBe(3); // the plaza and the restored altar make a stone house
     const t = emptyGame();
+    restoreAltar(t);
     const stone = put(t, 'house', ROADSIDE, 30, 3);
     put(t, 'plaza', ROADSIDE, 32);
     put(t, 'park', EAST, 30);
@@ -179,6 +188,7 @@ describe('house evolution', () => {
 
   it('losing a need of the next level resets the climb', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 30, 2);
     put(s, 'plaza', ROADSIDE, 32);
     run(s, UP - 1);
@@ -195,6 +205,7 @@ describe('house evolution', () => {
 
   it('losing a need of its own level resets the climb too', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 30, 3);
     put(s, 'plaza', ROADSIDE, 32);
     s.coverage.market.fill(true);
@@ -253,6 +264,7 @@ describe('house evolution', () => {
 describe('weeks to the next level', () => {
   it('counts down from weeksToUpgrade while the next needs are met', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 30, 2);
     expect(weeksToNextLevel(s, b)).toBeNull(); // no plaza
     put(s, 'plaza', ROADSIDE, 32);
@@ -280,6 +292,7 @@ describe('weeks to the next level', () => {
 
   it('is null at the top, on a plot, for other buildings and when the house misses its own needs', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const top = put(s, 'house', ROADSIDE, 27, HOUSE_LEVELS.length - 1);
     const plot = put(s, 'house', ROADSIDE, 29, 0);
     const field = put(s, 'field', EAST, 27);
@@ -306,6 +319,7 @@ describe('weeks to the next level', () => {
 describe('house info and balloons', () => {
   it('lists next-level needs including the road', () => {
     const s = emptyGame();
+    restoreAltar(s);
     const b = put(s, 'house', ROADSIDE, 30, 2);
     put(s, 'plaza', ROADSIDE, 32);
     expect(houseInfo(s, b)).toEqual({
@@ -320,6 +334,7 @@ describe('house info and balloons', () => {
         needs: [
           { kind: 'road', ok: true },
           { kind: 'plaza', ok: true },
+          { kind: 'sacred', ok: true },
         ],
         materials: { stone: 10 },
       },
@@ -338,6 +353,9 @@ describe('house info and balloons', () => {
     b.level = 2;
     expect(balloonNeed(s, b)).toBe('plaza');
     put(s, 'plaza', ROADSIDE, 42);
+    expect(balloonNeed(s, b)).toBe('sacred'); // the altar in ruins: nothing sacred near
+    put(s, 'temple', westOf('temple'), 27); // consecrated, its radius 12 reaches the house
+    consecrate(s);
     expect(balloonNeed(s, b)).toBeNull();
     b.level = 3;
     s.unlocked.push('market', 'park');
@@ -354,6 +372,7 @@ describe('house info and balloons', () => {
 
   it('house info lists a locked need too, and the goal that unlocks it', () => {
     const s = emptyGame({ unlocked: ['road', 'house', 'plaza'] });
+    restoreAltar(s);
     put(s, 'plaza', ROADSIDE, 32);
     const stone = put(s, 'house', ROADSIDE, 30, 3);
     expect(houseInfo(s, stone)!.next!.needs).toEqual([
@@ -361,10 +380,11 @@ describe('house info and balloons', () => {
       { kind: 'plaza', ok: true },
       { kind: 'market', ok: false },
       { kind: 'park', ok: false },
+      { kind: 'sacred', ok: true },
     ]);
     expect(s.unlocked).not.toContain('park');
-    expect(unlockingGoal('market')).toBe(8);
-    expect(unlockingGoal('park')).toBe(10);
+    expect(unlockingGoal('market')).toBe(9);
+    expect(unlockingGoal('park')).toBe(11);
   });
 
   it('needLocked: only a service need whose building is still locked', () => {

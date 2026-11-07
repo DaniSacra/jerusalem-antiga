@@ -25,7 +25,7 @@ import {
   unemployed,
   type GameState,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, fill, hire, LIFE_YEAR, person, put, ROADSIDE, westOf } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, fill, hire, LIFE_YEAR, person, put, ROADSIDE, westOf, restoreAltar } from './helpers';
 
 const never = constRng(0.99);
 const jobOf = (s: GameState, id: number) => s.people.find((p) => p.id === id)!.jobId ?? null;
@@ -258,6 +258,7 @@ describe('an empty workplace pays half its upkeep (B2 measured)', () => {
 
   it('balanceAfter: with free adults a new lumber counts in full; with nobody free, half', () => {
     const s = emptyGame();
+    restoreAltar(s); // the tent is content by the altar: plain tax whatever the jobs
     const tent = put(s, 'house', ROADSIDE, 27, 1, false, 0);
     fill(s, tent, 2);
     refreshCity(s);

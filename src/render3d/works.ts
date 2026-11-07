@@ -13,7 +13,8 @@ import LOOK from './look3d.json';
  * The stage under way rises on it with its work (`grow`, in steps), with its works around it (stone
  * piles, scaffolds, the treadwheel crane); stopped (nobody at work), its tools lie on the ground.
  * The altar starts ruined (scattered blackened stones, no fire); restored, it is the altar with new
- * stone steps, a low wall, a pen for the offerings' flock (ambient.ts) and a bigger fire.
+ * stone steps, a low wall and a pen of lambs for the offerings (ambient.ts), and its fire burns
+ * while the offerings are made (out, cold stones, without them: the crisis reads from afar).
  */
 
 /** The Temple's model by the stages of it built (0 the ruins .. 3 roofed, before the Consagração). */
@@ -52,7 +53,7 @@ export interface SiteLook {
   works: boolean;
   /** Light dust over the works while they go on (by day, as a quarry's). */
   dust: boolean;
-  /** Size of the altar's fire (0 ruined and for the Temple; bigger once restored). */
+  /** Size of the altar's fire: lit once restored and only while its offerings are made (`s.offered`); 0 ruined, without offerings and for the Temple. */
   fire: number;
   /** The Temple is consecrated: its court altar smokes. */
   smokes: boolean;
@@ -81,7 +82,7 @@ export function siteLook(s: GameState, b: Pick<Building, 'kind'>): SiteLook | nu
     if (restored) adds.push({ key: 'altar-new', y: 0, sy: 1 });
     if (here) adds.push({ key: 'altar-new', y: 0, sy: grow }, { key: 'works-1', y: 0, sy: 1 });
     if (here && !builders) adds.push({ key: 'tools', y: 0, sy: 1 });
-    return { key: restored ? 'altar' : 'altar-ruin', sy: 1, adds, builders, works: here, dust: here && builders > 0, fire: restored ? LOOK.works.restoredFire : 0, smokes: false };
+    return { key: restored ? 'altar' : 'altar-ruin', sy: 1, adds, builders, works: here, dust: here && builders > 0, fire: restored && s.offered ? LOOK.works.restoredFire : 0, smokes: false };
   }
   const built = templeBuilt(s);
   const key = built >= TEMPLE_STAGES.length - 1 ? 'temple' : (`temple-${built}` as TempleKey);
@@ -90,7 +91,8 @@ export function siteLook(s: GameState, b: Pick<Building, 'kind'>): SiteLook | nu
   if (here) {
     const rise: SiteKey | null = stage === 2 ? 'temple-1' : stage === 3 ? 'rise-3' : stage === 4 ? 'rise-4' : null;
     if (rise) adds.push({ key: rise, y: 0, sy: grow });
-    adds.push({ key: `works-${stage as 2 | 3 | 4 | 5}`, y: 0, sy: 1 });
+    // The Alicerce's blocks lie on the platform as it rises; the later works stand on the court.
+    adds.push({ key: `works-${stage as 2 | 3 | 4 | 5}`, y: stage === 2 ? COURT * grow : 0, sy: 1 });
     // The tools lie on the court once there is one, else on the ground by the ruins.
     if (!builders) adds.push({ key: 'tools', y: built >= 1 ? COURT : 0, sy: 1 });
   }
@@ -101,7 +103,7 @@ export function siteLook(s: GameState, b: Pick<Building, 'kind'>): SiteLook | nu
 export function siteKey(s: GameState): string {
   const st = nextStage(s);
   const at = st && s.temple.active ? `${growOf(s.temple.progress, st.work)}:${buildersAtWork(s) > 0 ? 1 : 0}` : '-';
-  return `${s.temple.done}:${s.temple.active ? 1 : 0}:${at}:${penAnimals(s)}`;
+  return `${s.temple.done}:${s.temple.active ? 1 : 0}:${at}:${penAnimals(s)}:${s.offered ? 1 : 0}`;
 }
 
 /** A point of a site's model (x, z from its middle, front +z) and how high a builder stands there. */
@@ -128,9 +130,9 @@ export function builderFloor(s: GameState): number {
 }
 
 /** Sheep and goats in the restored altar's pen (model space of the altar, see `altarNew` in models.ts): its middle and size. */
-export const PEN = { x: -1.3, z: -1.25, w: 0.9, d: 0.9, max: 4 } as const;
+export const PEN = { x: -1.45, z: 1.2, w: 0.65, d: 0.9, max: 4 } as const;
 
-/** Animals kept in the altar's pen for the offerings: the city's flock (`livestock`, when the core keeps one), only once restored. */
-export function penAnimals(s: GameState & { livestock?: number }): number {
-  return s.temple.done >= 1 ? Math.max(0, Math.min(PEN.max, Math.floor(s.livestock ?? 0))) : 0;
+/** Lambs kept in the restored altar's pen for the offerings: from the city's livestock (empty without it). */
+export function penAnimals(s: Pick<GameState, 'temple' | 'livestock'>): number {
+  return s.temple.done >= 1 ? Math.max(0, Math.min(PEN.max, Math.floor(s.livestock))) : 0;
 }

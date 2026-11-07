@@ -1,17 +1,18 @@
-import { indexOf, type GameState } from '../core';
+import { crewCounts, indexOf, RULES, seasonOf, type Building, type GameState } from '../core';
 import type { HerdKind } from './animals';
 import LOOK from './look3d.json';
-import { hash } from './plan';
+import { facing, hash, SHELTER_AT } from './plan';
 import { PEN, penAnimals } from './works';
 
 /**
  * The life around the town, as plain data (no Three.js): where the animals, boats and washerwomen
  * stay. Goats and chickens by the tents, a donkey tied at each market, flocks of sheep on the open
- * grass near the altar, pigeons on the altar court, the offerings' flock in the restored altar's pen, fishing boats and washerwomen on the river
+ * grass near the altar, each pasture's flock on the grass around it (huddled at its shelter in
+ * winter) with its shepherd, pigeons on the altar court, the offerings' flock in the restored altar's pen, fishing boats and washerwomen on the river
  * nearest the town. Only a sight; tested in tests/render3d/ambient.test.ts. `pasture.ts` draws and
  * moves them.
  */
-export type AmbientKind = HerdKind | 'washer';
+export type AmbientKind = HerdKind | 'washer' | 'shepherd';
 
 export interface AmbientSpot {
   kind: AmbientKind;
@@ -27,6 +28,45 @@ export interface AmbientSpot {
 }
 
 const A = LOOK.ambient;
+/** The kinds drawn as people (figures), not as a herd. */
+export const PEOPLE: readonly AmbientKind[] = ['washer', 'shepherd'];
+
+/** Sheep and goats around each pasture: the city's livestock as a share of the most it keeps, up to `pastureFlock`. */
+export function pastureFlock(s: Pick<GameState, 'livestock'>): number {
+  return s.livestock > 0 ? Math.ceil(Math.min(1, s.livestock / RULES.livestockStorage) * A.pastureFlock) : 0;
+}
+
+/** What the pastures' flocks look like now (the city is drawn again when it changes; diff.ts). */
+export const herdKey = (s: GameState) => (s.buildings.some((b) => b.kind === 'pasture') ? `${pastureFlock(s)}:${seasonOf(s.week) === 'winter' ? 1 : 0}` : '');
+
+/**
+ * A pasture's flock and its shepherd (one with a crew): on the free grass cells of its radius, in a
+ * stable order; in winter all of them under the shelter.
+ */
+function pastureSpots(s: GameState, b: Building, n: number, staffed: boolean, add: (o: AmbientSpot) => void) {
+  const rot = facing(s, b);
+  const mx = b.x + b.w / 2;
+  const mz = b.y + b.h / 2;
+  const sx = mx + SHELTER_AT[0] * Math.cos(rot) + SHELTER_AT[1] * Math.sin(rot);
+  const sz = mz - SHELTER_AT[0] * Math.sin(rot) + SHELTER_AT[1] * Math.cos(rot);
+  const winter = seasonOf(s.week) === 'winter';
+  const grass: { x: number; y: number }[] = [];
+  for (let y = b.y - 2; y < b.y + b.h + 2; y++) for (let x = b.x - 2; x < b.x + b.w + 2; x++) if (free(s, x, y) && s.ground[indexOf(s, x, y)] === 'grass') grass.push({ x, y });
+  grass.sort((p, q) => hash(p.x, p.y, 56) - hash(q.x, q.y, 56));
+  // Inside the fence when the grass around is grazed out (or none).
+  const spots = grass.length ? grass.map((g) => ({ x: g.x + 0.5, z: g.y + 0.5, range: 0.4 })) : [{ x: mx + 0.4, z: mz + 0.3, range: 0.6 }];
+  for (let k = 0; k < n; k++) {
+    const g = spots[k % spots.length];
+    const kind = k % 4 === 3 ? 'goat' : 'sheep';
+    const j = (hash(b.id, k, 57) - 0.5) * 0.5;
+    if (winter) add({ kind, x: sx + j, z: sz + (hash(b.id, k, 58) - 0.5) * 0.5, range: 0.08, yaw: hash(b.id, k, 59) * 6.28, k: hash(b.id, k, 60) });
+    else add({ kind, x: g.x + j * 0.6, z: g.z + (hash(b.id, k, 58) - 0.5) * 0.4, range: g.range, yaw: hash(b.id, k, 59) * 6.28, k: hash(b.id, k, 60) });
+  }
+  if (!staffed) return;
+  // The shepherd stands with his flock (by the shelter in winter), his staff in hand.
+  const at = winter || !n ? { x: sx + 0.5, z: sz + 0.5 } : spots[0];
+  add({ kind: 'shepherd', x: at.x + 0.3, z: at.z + 0.2, range: winter ? 0 : 0.6, yaw: hash(b.id, 1, 61) * 6.28, k: hash(b.id, 2, 61) });
+}
 const N4: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 /** A cell nobody uses: no building, road, tree or rock, and not the river. */
@@ -41,19 +81,24 @@ export function ambientPlan(s: GameState): AmbientSpot[] {
   const altar = s.buildings.find((b) => b.kind === 'altar');
   const cx = altar ? altar.x + altar.w / 2 : s.cols / 2;
   const cz = altar ? altar.y + altar.h / 2 : s.rows / 2;
-  const animals = () => out.filter((o) => o.kind !== 'boat' && o.kind !== 'washer').length;
+  const animals = () => out.filter((o) => o.kind !== 'boat' && !PEOPLE.includes(o.kind)).length;
   const add = (o: AmbientSpot) => {
-    if (o.kind !== 'boat' && o.kind !== 'washer' && animals() >= A.maxAnimals) return;
+    if (!PEOPLE.includes(o.kind) && o.kind !== 'boat' && animals() >= A.maxAnimals) return;
     out.push(o);
   };
 
   // Pigeons on the altar court.
   if (altar) for (let k = 0; k < A.pigeons; k++) add({ kind: 'pigeon', x: cx + (hash(k, 1, 40) - 0.5) * 3, z: cz + (hash(k, 2, 40) - 0.5) * 3, range: 0.5, yaw: hash(k, 3, 40) * 6.28, k: hash(k, 4, 40) });
 
-  // The offerings' flock in the restored altar's pen (works.ts), sheep and a goat.
+  // The lambs of the offerings in the restored altar's pen (works.ts).
   if (altar)
     for (let k = 0; k < penAnimals(s); k++)
-      add({ kind: k % 3 === 2 ? 'goat' : 'sheep', x: cx + PEN.x + (hash(k, 1, 52) - 0.5) * PEN.w * 0.6, z: cz + PEN.z + (hash(k, 2, 52) - 0.5) * PEN.d * 0.6, range: 0.2, yaw: hash(k, 3, 52) * 6.28, k: hash(k, 4, 52) });
+      add({ kind: 'sheep', x: cx + PEN.x + (hash(k, 1, 52) - 0.5) * PEN.w * 0.6, z: cz + PEN.z + (hash(k, 2, 52) - 0.5) * PEN.d * 0.6, range: 0.2, yaw: hash(k, 3, 52) * 6.28, k: hash(k, 4, 52) });
+
+  // Each pasture's flock first (the cap leaves them whole), with its shepherd.
+  const flock = pastureFlock(s);
+  const crews = crewCounts(s);
+  for (const b of s.buildings) if (b.kind === 'pasture') pastureSpots(s, b, flock, !!crews.get(b.id), add);
 
   for (const b of s.buildings) {
     // Every other lived-in tent keeps a goat and two chickens on the free ground beside it.
@@ -124,7 +169,7 @@ function besideOf(s: GameState, b: { x: number; y: number; w: number; h: number 
 
 /** How many of each kind (for the meshes' sizes). */
 export function ambientCounts(spots: AmbientSpot[]): Record<AmbientKind, number> {
-  const out = { donkey: 0, sheep: 0, goat: 0, chicken: 0, pigeon: 0, boat: 0, washer: 0 } as Record<AmbientKind, number>;
+  const out = { donkey: 0, sheep: 0, goat: 0, chicken: 0, pigeon: 0, boat: 0, washer: 0, shepherd: 0 } as Record<AmbientKind, number>;
   for (const o of spots) out[o.kind]++;
   return out;
 }
@@ -141,7 +186,7 @@ export interface AmbientPose {
 }
 
 /** Wander speed (radians a second along its loop) of the grazing kinds. */
-const WANDER: Partial<Record<AmbientKind, number>> = { sheep: 0.07, goat: 0.12, chicken: 0.25, pigeon: 0.3 };
+const WANDER: Partial<Record<AmbientKind, number>> = { sheep: 0.07, goat: 0.12, chicken: 0.25, pigeon: 0.3, shepherd: 0.05 };
 
 /**
  * The motion of each spot: grazers walk a slow loop around their place, heads down now and then
@@ -163,6 +208,8 @@ export function ambientPose(o: AmbientSpot, time: number): AmbientPose {
   const z = o.z + Math.sin(a * 2) * o.range * 0.5;
   // Heading along the loop (its derivative).
   const yaw = Math.atan2(Math.cos(a), Math.cos(a * 2));
+  // The shepherd walks his slow loop upright, leaning on the staff.
+  if (o.kind === 'shepherd') return { x, z, y: 0, yaw, pitch: 0.06, roll: 0 };
   const peck = o.kind === 'chicken' || o.kind === 'pigeon';
   const pitch = peck ? Math.max(0, Math.sin(time * 5 + ph * 3)) * 0.6 : Math.sin(time * 0.6 + ph * 5) > 0.3 ? 0.35 : 0;
   if (o.kind === 'pigeon') {

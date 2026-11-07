@@ -17,7 +17,7 @@ import {
   weeksToHarvest,
   WEEKS_PER_YEAR,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, person, put, ROADSIDE, weeksOfFood, westOf } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, person, put, restoreAltar, ROADSIDE, weeksOfFood, westOf } from './helpers';
 
 const never = constRng(0.99);
 const W = RULES.weeksPerSeason;
@@ -34,10 +34,11 @@ describe('target level of a house', () => {
     const stone = put(s, 'house', ROADSIDE, 31, 3);
     expect(targetLevel(s, stone)).toBe(2); // no plaza: drops to mud-brick
     put(s, 'plaza', EAST, 27);
-    expect(targetLevel(s, tent)).toBe(3); // climbs with a plaza
+    expect(targetLevel(s, tent)).toBe(2); // a plaza, but the altar in ruins: stone needs the sacred
+    restoreAltar(s);
+    expect(targetLevel(s, tent)).toBe(3); // climbs with a plaza and the restored altar
     s.coverage.market.fill(true);
-    s.coverage.sacred.fill(true);
-    expect(targetLevel(s, tent)).toBe(3); // the altar's radius is not a need: stops at stone
+    expect(targetLevel(s, tent)).toBe(3); // no park: stops at stone
     s.coverage.park.fill(true);
     expect(targetLevel(s, tent)).toBe(4); // climbs every level it can
   });

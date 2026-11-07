@@ -359,3 +359,6 @@
 .balloon .barline .bar { width: 120px; height: 10px; flex: none; }
 /* Objetivos: a Temple stage's construction mark before its text. */
 .pline .withicon svg { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 4px; }
+/* "Começar: Alicerce" on one line: the stage's buttons wrap to a second row instead. */
+.balloon .acts { flex-wrap: wrap; }
+.balloon [data-spot='balloon-stage'] { white-space: nowrap; padding: 0 14px 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }

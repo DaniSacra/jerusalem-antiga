@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balloonNeed, happinessOn, computeEconomy, birthFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, taxFactor } from '../src/core';
-import { GOALS, unlockingGoal } from '../src/core';
-import { atHarvest, consecrate, EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { GOALS, refreshCity, unlockingGoal } from '../src/core';
+import { atHarvest, consecrate, EAST, emptyGame, put, restoreAltar, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
 const kinds = (h: { parts: { kind: string }[] }) => h.parts.map((p) => p.kind);
@@ -16,6 +16,8 @@ describe('house happiness', () => {
     put(s, 'plaza', ROADSIDE, 29);
     put(s, 'park', EAST, 27);
     put(s, 'market', EAST, 29);
+    expect(kinds(houseHappiness(s, near, 0))).toEqual(['park', 'plaza', 'market']); // the altar in ruins cheers nobody
+    restoreAltar(s);
     const h = houseHappiness(s, near, 0);
     expect(kinds(h)).toEqual(['sacred', 'park', 'plaza', 'market']);
     expect(h.value).toBe(H.base + H.sacred + H.park + H.plaza + H.market);
@@ -26,6 +28,7 @@ describe('house happiness', () => {
     expect([H.plaza, H.park, H.sacred, H.market]).toEqual([5, 20, 10, 5]);
     const alone = (kind: 'plaza' | 'park' | null, y: number) => {
       const s = emptyGame();
+      restoreAltar(s);
       const b = put(s, 'house', ROADSIDE, y, 1);
       if (kind) put(s, kind, EAST, y);
       return houseHappiness(s, b, 0);
@@ -92,6 +95,7 @@ describe('happiness effects', () => {
   it('a happy house pays more tax and a sad one less', () => {
     const tax = HOUSE_LEVELS[1].tax;
     const happy = emptyGame();
+    restoreAltar(happy);
     put(happy, 'house', ROADSIDE, 27, 1);
     put(happy, 'park', EAST, 27);
     put(happy, 'workshop', EAST, 30); // jobs for everyone
@@ -110,6 +114,7 @@ describe('happiness effects', () => {
 
   it('the city happiness is the average of houses with a family (50 with none)', () => {
     const s = emptyGame();
+    restoreAltar(s);
     expect(computeEconomy(s).happiness).toBe(50);
     put(s, 'house', ROADSIDE, 34); // empty plot: ignored
     put(s, 'house', ROADSIDE, 27, 1); // sacred
@@ -158,17 +163,21 @@ describe('happiness on screen (core data)', () => {
 
   it('a sad house shows a sad balloon once no next-level need is missing', () => {
     const s = emptyGame({ famine: true });
-    const b = put(s, 'house', ROADSIDE, 40, 2);
+    const b = put(s, 'house', ROADSIDE, 27, 2); // within the restored altar's radius
     expect(balloonNeed(s, b)).toBe('plaza'); // the missing need comes first
-    put(s, 'plaza', ROADSIDE, 42);
+    put(s, 'plaza', ROADSIDE, 29);
+    expect(balloonNeed(s, b)).toBe('sacred'); // the altar in ruins: a stone house needs it restored
+    restoreAltar(s);
     expect(balloonNeed(s, b)).toBe('sad'); // the house has what a stone house needs: nothing else to point at
     s.famine = false;
-    put(s, 'workshop', EAST, 40);
-    put(s, 'workshop', EAST, 43); // enough jobs for a big house too
+    put(s, 'workshop', EAST, 27);
+    put(s, 'workshop', EAST, 30); // enough jobs for a big house too
     expect(balloonNeed(s, b)).toBeNull();
     b.level = 4;
     expect(balloonNeed(s, b)).toBeNull();
     s.famine = true;
+    s.offered = false; // the altar without its offering: its cheer is gone too
+    refreshCity(s);
     expect(balloonNeed(s, b)).toBe('sad'); // also at the top level
   });
 });
@@ -189,9 +198,9 @@ describe('happiness before the park', () => {
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 10), not before', () => {
+  it('turns on with the goal that unlocks the park (goal 11), not before', () => {
     const n = unlockingGoal('park')!;
-    expect(n).toBe(10);
+    expect(n).toBe(11);
     expect(RULES.startUnlocked).not.toContain('park');
     const s = emptyGame();
     s.unlocked = [...RULES.startUnlocked];

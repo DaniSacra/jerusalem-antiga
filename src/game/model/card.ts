@@ -36,6 +36,8 @@ import {
   personById,
   regrowLeft,
   altarRadius,
+  cellsInRadius,
+  cellsOf,
   seasonOf,
   storageOf,
   statOf,
@@ -60,7 +62,6 @@ import {
   type Materials,
   currentGoal,
   TEMPLE_STAGES,
-  templeLaid,
 } from '../../core';
 import { stagePlan } from './temple';
 import { treeKind } from '../seasons';
@@ -159,13 +160,16 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
   let action: CardAction | null = null;
   const def = BUILDINGS[b.kind];
   const craft = craftOf(b);
-  lines.push({ text: craft ? `${def.name} (${T.craft[craft]})` : def.name, big: true });
+  // The Temple stands in ruins until its foundation is built.
+  const name = b.kind === 'temple' && s.temple.done < 2 ? T.nova.stage.ruins : craft ? `${def.name} (${T.craft[craft]})` : def.name;
+  lines.push({ text: name, big: true });
   const stage = stageCard(s, b);
   if (b.kind === 'altar') {
-    lines.push({ text: N.altar, plain: true }, { text: T.nova.reach(altarRadius(s)), tone: 'muted', plain: true }, ...stage.lines);
+    lines.push(...altarLines(s, b), ...stage.lines);
     return { lines, foot, building: b, action: stage.action, demolish: false, aside: [], jobs: stage.jobs };
   }
-  lines.push({ text: T.nova.effect[b.kind], plain: true });
+  // The Temple's balloon is its stages (what it does comes with the consecration).
+  if (b.kind !== 'temple') lines.push({ text: T.nova.effect[b.kind], plain: true });
   lines.push(ok(b.connected, b.connected ? N.connected : N.disconnected));
   lines.push(...stage.lines);
   if (!b.connected) action = { label: N.where.road, kind: 'road', target: b };
@@ -207,7 +211,7 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
   }
   if (!def.protected) levels.push(...lossLine(s, c));
   // The Temple stays once its foundation began.
-  const demolish = !def.protected && !(b.kind === 'temple' && templeLaid(s));
+  const demolish = !def.protected;
   // Phone: a building with levels shows them in a second column, with the buttons under it (the screen is short).
   if (phone && def.levels) return { lines, foot, building: b, action, demolish, aside: levels };
   return { lines: [...lines, ...levels], foot, building: b, action, demolish, aside: [], jobs: stage.jobs };
@@ -260,6 +264,8 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     // A missing service still locked says which goal unlocks it.
     const label = (kind: NeedKind, has: boolean) => {
       if (kind === 'road' && !has) return N.noRoad;
+      // The altar: in ruins, without its offering, or the house out of its radius.
+      if ((kind as string) === 'sacred' && !has) return s.temple.done === 0 ? T.nova.offerings.needRuins : !s.offered ? T.nova.offerings.needNone : T.nova.offerings.needFar;
       const goal = needLocked(s, kind) ? unlockingGoal(kind as BuildableKind) : null;
       return goal ? N.lockedNeed(T.need[kind], goal) : T.need[kind];
     };
@@ -292,12 +298,23 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     const miss = h.next.needs.find((n) => !n.ok);
     const maker = wait ? makerOf(wait) : null;
     if (miss?.kind === 'road') action = { label: N.where.road, kind: 'road', target: b };
-    else if (miss && s.unlocked.includes(miss.kind)) action = { label: N.where[miss.kind], kind: miss.kind, target: b };
+    else if (miss && miss.kind !== 'sacred' && s.unlocked.includes(miss.kind)) action = { label: N.where[miss.kind], kind: miss.kind, target: b };
     else if (!miss && maker && s.unlocked.includes(maker)) action = { label: N.where[maker], kind: maker, target: b };
   } else if (!b.connected) level.push(ok(false, N.noRoad));
   // Phone: the level beside the people (the screen is short); PC: under them.
   if (phone && family.length) level[0].gap = 4;
   return phone ? { lines, foot, building: b, action, demolish: true, aside: [...family, ...level] } : { lines: [...lines, ...family, ...level], foot, building: b, action, demolish: true, aside: [] };
+}
+
+/** The altar: in ruins, or its weekly offering and the houses it covers (none without its livestock). */
+function altarLines(s: GameState, b: Building): CardLine[] {
+  const O = T.nova.offerings;
+  if (s.temple.done === 0) return [{ text: O.ruins, tone: 'warn', plain: true }];
+  if (!s.offered) return [ok(false, O.empty)];
+  const r = altarRadius(s);
+  const area = new Set(cellsInRadius(s, b.x, b.y, r, b.w, b.h));
+  const houses = s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
+  return [{ text: O.burns(TEMPLE_STAGES[s.temple.done - 1].offering, houses), tone: 'good' }, { text: T.nova.reach(r), tone: 'muted', plain: true }];
 }
 
 /**

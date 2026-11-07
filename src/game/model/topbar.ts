@@ -22,7 +22,6 @@ import {
   type Season,
 } from '../../core';
 import { fmt, fmtInt, signed, T } from '../strings';
-import { stageStatus } from './temple';
 
 /** A role, not a colour: each view turns it into its palette. */
 export type Tone = 'text' | 'good' | 'bad' | 'warn' | 'muted' | 'gold';
@@ -134,13 +133,11 @@ export function goalParts(s: GameState, phone: boolean): Part[] {
   if (!goal) return [{ text: T.allGoals, tone: 'gold' }];
   const p = goalProgress(s, goal);
   const progress = N.goalProgress(goal, p, goalTarget(s, goal));
-  const stage = stageStatus(s);
   return [
     { text: phone ? N.goal : N.goalOf(s.goalIndex + 1, goalCount()), tone: 'gold', size: 'small' },
     { text: N.goalText(goal) },
     ...(phone ? [] : [{ bar: goalFraction(s) } as Part]),
     ...(progress ? [{ text: progress, tone: 'gold' } as Part] : []),
-    ...(stage ? [{ text: '· ' + stage.text, tone: stage.tone as Tone }] : []),
   ];
 }
 

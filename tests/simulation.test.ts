@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { advanceClock, BUILDINGS, HOUSE_LEVELS, RULES, stepWeek } from '../src/core';
-import { atHarvest, constRng, emptyGame, put, ROADSIDE, westOf } from './helpers';
+import { atHarvest, constRng, emptyGame, put, ROADSIDE, westOf, restoreAltar } from './helpers';
 
 const never = constRng(0.99);
 
 describe('stepWeek: resources', () => {
   it('updates food, silver and the week', () => {
     const s = emptyGame({ silver: 0, food: 10 });
-    put(s, 'house', ROADSIDE, 27, 1); // next to the altar: content, plain tax
+    restoreAltar(s);
+    put(s, 'house', ROADSIDE, 27, 1); // next to the restored altar: content, plain tax
     stepWeek(s, never);
     const tent = HOUSE_LEVELS[1];
     expect(s.food).toBeCloseTo(10 - tent.capacity * RULES.people.food.adult);

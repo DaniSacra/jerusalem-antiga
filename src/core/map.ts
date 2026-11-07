@@ -22,27 +22,27 @@ export function altarRing(): Cell[] {
   return cells;
 }
 
-/** Column of the short road north of the ring that the caravan tents stand along. */
-const CAMP_X = altar.x + 1;
+/** Row of the short road west of the ring that the caravan tents stand along (north of the ring is the Temple's ruin). */
+const CAMP_Y = altar.y + 1;
 const HOUSE = dimsOf('house');
-/** Rows of the caravan tents north of the ring: the first row touches it, the others go up. */
-const CAMP_ROWS = [1, 2, 3].map((k) => altar.y - 1 - k * HOUSE.h);
+/** Columns of the caravan tents west of the ring: the first column touches it, the others go west. */
+const CAMP_COLS = [1, 2, 3].map((k) => altar.x - 1 - k * HOUSE.w);
 
-/** The road stub north of the ring, between the two columns of caravan tents. */
-export const campRoad = (): Cell[] => Array.from({ length: CAMP_ROWS.length * HOUSE.h }, (_, k) => ({ x: CAMP_X, y: altar.y - 2 - k }));
+/** The road stub west of the ring, between the two rows of caravan tents. */
+export const campRoad = (): Cell[] => Array.from({ length: CAMP_COLS.length * HOUSE.w }, (_, k) => ({ x: altar.x - 2 - k, y: CAMP_Y }));
 
 /**
- * Tent spots for the caravan (up to 6): two columns on both sides of the camp road, the row by
- * the ring first, west before east.
+ * Tent spots for the caravan (up to 6): two rows on both sides of the camp road, the column by
+ * the ring first, north before south.
  */
 export const caravanSpots = (): Cell[] =>
-  CAMP_ROWS.flatMap((y) => [
-    { x: CAMP_X - HOUSE.w, y },
-    { x: CAMP_X + 1, y },
+  CAMP_COLS.flatMap((x) => [
+    { x, y: CAMP_Y - HOUSE.h },
+    { x, y: CAMP_Y + 1 },
   ]);
 
-/** A free 2 x 2 spot by the ring, east of the camp, where one plaza reaches every caravan tent. */
-export const campPlazaSpot = (): Cell => ({ x: CAMP_X + 1 + HOUSE.w, y: CAMP_ROWS[0] });
+/** A free 2 x 2 spot by the ring, south of the camp, where one plaza reaches every caravan tent. */
+export const campPlazaSpot = (): Cell => ({ x: CAMP_COLS[0], y: CAMP_Y + 1 + HOUSE.h });
 
 /** Starting roads: the ring around the altar, the camp road and a straight road south to the map edge. */
 export const startRoad = (): Cell[] => [
@@ -53,24 +53,31 @@ export const startRoad = (): Cell[] => [
 export const entranceCell = (): Cell => ({ x: ROAD_X, y: rows - 1 });
 
 /**
- * The Temple in ruins, there from the start (plan "ruínas" 1.1): 6 x 6 east of the altar, touching
- * its road ring, so it is connected from the first week and inside the cleared ground.
+ * The Temple in ruins, there from the start (plan "ruínas" 1.1): 6 x 6 north of the altar, its
+ * south side along the ring's north row, so the entrance, the starting road, the altar and the
+ * ruin stand on one axis. It is connected from the first week and lies inside the cleared ground
+ * (at most 7 cells from the altar, closer than the river ever comes), so it never has river, rock
+ * or tree.
  */
 export function templeRuin(): Rect {
   const d = dimsOf('temple');
-  return { x: altar.x + ALTAR.w + 1, y: altar.y - 1, ...d };
+  return { x: altar.x - 1, y: altar.y - 1 - d.h, ...d };
 }
 
 /** Chebyshev distance from a cell to the altar footprint (0 inside it). */
 export const altarDistance = (x: number, y: number) =>
   Math.max(altar.x - x, x - (altar.x + ALTAR.w - 1), altar.y - y, y - (altar.y + ALTAR.h - 1), 0);
 
+const RUIN = templeRuin();
+
 /**
- * Cells kept free of rocks and trees: around the altar (the caravan's tents are in there too) and
- * a strip along the starting road down to the entrance.
+ * Cells kept free of rocks and trees: around the altar (the caravan's tents and the Temple's ruin
+ * are in there too, the ruin listed on its own so it stays clear whatever the radius) and a strip
+ * along the starting road down to the entrance.
  */
 export function isReserved(x: number, y: number): boolean {
-  return altarDistance(x, y) <= clearRadius || (Math.abs(x - ROAD_X) <= ROAD_CLEAR && y >= ROAD_Y0);
+  const onRuin = x >= RUIN.x && x < RUIN.x + RUIN.w && y >= RUIN.y && y < RUIN.y + RUIN.h;
+  return onRuin || altarDistance(x, y) <= clearRadius || (Math.abs(x - ROAD_X) <= ROAD_CLEAR && y >= ROAD_Y0);
 }
 
 export interface Terrain {

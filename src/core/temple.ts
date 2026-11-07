@@ -20,12 +20,9 @@ export const templeDone = (s: GameState) => s.temple.done >= TEMPLE_STAGES.lengt
 /** The altar's sacred radius now: the last stage built's, while it had its offering; 0 in ruins or without. */
 export const altarRadius = (s: GameState): number => (s.offered ? (TEMPLE_STAGES[s.temple.done - 1]?.sacredRadius ?? 0) : 0);
 
-/** The altar, or the Temple once its place is marked: where a stage is built. */
+/** The altar (stage 1) or the Temple's ruin (stages 2–5): where a stage is built. */
 export const stageSite = (s: GameState, stage: TempleStageDef | undefined = nextStage(s)): Building | undefined =>
   stage && s.buildings.find((b) => b.kind === stage.site);
-
-/** The foundation began: the marked Temple can no longer be demolished. */
-export const templeLaid = (s: GameState) => s.temple.done >= 2 || (s.temple.done === 1 && s.temple.active);
 
 /** The current goal is the next stage of the Temple (only then can it begin). */
 export function stageIsGoal(s: GameState): boolean {

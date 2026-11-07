@@ -12,6 +12,7 @@ import {
   makerOf,
   MATERIALS,
   readCity,
+  TEMPLE_STAGES,
   unlockingGoal,
   waitingCouples,
   weeksToNextLevel,
@@ -70,20 +71,29 @@ function crisis(s: GameState, city: CityReadout): NextStep | null {
     if (a.kind === 'foodShort') return one(s.famine || !city.forecast ? N().famine : N().food(city.forecast.weeks), 'food', toolAim(s, 'fisher'));
     if (a.kind === 'firewood') return one(a.cold ? N().cold : N().firewood(Math.ceil(a.missing)), 'wood', toolAim(s, 'lumber'));
   }
-  return s.famine ? one(N().famine, 'food', toolAim(s, 'fisher')) : null;
+  if (s.famine) return one(N().famine, 'food', toolAim(s, 'fisher'));
+  // The restored altar without its offering (it covers no house), or its livestock about to end.
+  if (s.temple.done >= 1) {
+    if (!s.offered) return one(N().offerings, 'livestock', toolAim(s, 'pasture'));
+    const net = city.eco.livestock - TEMPLE_STAGES[s.temple.done - 1].offering;
+    const left = net < 0 ? Math.floor(s.livestock / -net) : Infinity;
+    if (left <= LIVESTOCK_WARN_WEEKS) return one(N().livestock(left), 'livestock', toolAim(s, 'pasture'));
+  }
+  return null;
 }
+
+/** Weeks of livestock left for the offerings under which the line warns. */
+const LIVESTOCK_WARN_WEEKS = 8;
 
 /** 2. The Temple's stage, while it is the goal. */
 function stageStep(s: GameState): NextStep | null {
   const p = stagePlan(s);
   if (!p) return null;
   const name = p.stage.name;
-  const site = p.site ? rectOf(p.site) : null;
-  const one = (text: string, tone: NextStep['tone'], aim: StepAim, open: StepOpen = site ? { building: site } : GOALS_PANEL): NextStep => ({ kind: 'stage', text, tone, icon: 'stage', aim, open });
-  const at = site ? { rect: site } : null;
+  const site = rectOf(p.site);
+  const one = (text: string, tone: NextStep['tone'], aim: StepAim, open: StepOpen = { building: site }): NextStep => ({ kind: 'stage', text, tone, icon: 'stage', aim, open });
+  const at = { rect: site };
   switch (p.at) {
-    case 'mark':
-      return one(N().mark, 'gold', toolAim(s, 'temple'));
     case 'road':
       return one(N().road(name, p.stage.site), 'warn', { tool: 'road' });
     case 'debt':
@@ -102,7 +112,7 @@ function stageStep(s: GameState): NextStep | null {
 /** Short of what the stage costs: the first thing missing, and where it comes from (its maker on the map, else its tool). */
 function lackStep(s: GameState, p: StagePlan & { at: 'lack' }, one: (text: string, tone: NextStep['tone'], aim: StepAim) => NextStep): NextStep {
   const [n, what] = p.need[0];
-  if (what === 'silver') return one(N().gather(p.stage.name, 'silver', s.silver, p.stage.cost), 'gold', p.site ? { rect: rectOf(p.site) } : null);
+  if (what === 'silver') return one(N().gather(p.stage.name, 'silver', s.silver, p.stage.cost), 'gold', { rect: rectOf(p.site) });
   const need = p.stage.materials[what] ?? n;
   const maker = makerOf(what);
   const built = s.buildings.find((b) => b.kind === maker && b.connected);
@@ -166,6 +176,13 @@ function housesStep(s: GameState, level: number, target: number, have: number, o
 
 function needStep(s: GameState, need: NeedKind, level: number, one: One): NextStep {
   if (need === 'road') return one(N().houseRoad, { tool: 'road' }, 'warn');
+  // The altar: restore it, feed it, or build nearer it.
+  if (need === 'sacred') {
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    const at = altar ? { rect: rectOf(altar) } : null;
+    if (s.temple.done === 0) return one(N().altarRuins, at);
+    return s.offered ? one(N().nearAltar, at) : one(N().offerings, toolAim(s, 'pasture'), 'bad');
+  }
   if (!s.unlocked.includes(need)) return one(N().locked(need, unlockingGoal(need) ?? 0), null);
   return one(N().service(need, level), { tool: need });
 }

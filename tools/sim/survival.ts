@@ -227,10 +227,14 @@ interface Stats {
 }
 
 type ServiceBuilding = 'plaza' | 'market' | 'park';
-/** What a family house of each level waits for to climb: the services its next level adds (from houses.json; none for a tent). */
+/**
+ * What a family house of each level waits for to climb: the services its next level adds (from
+ * houses.json; none for a tent). The sacred need is no building: the bot meets it by restoring the
+ * altar (`temple`) and keeping it fed (the pastures in `materials`).
+ */
 const EVOLUTION: [number, ServiceBuilding][] = HOUSE_LEVELS.slice(1, -1).flatMap((def, k) =>
   HOUSE_LEVELS[k + 2].needs
-    .filter((n) => !def.needs.includes(n))
+    .filter((n) => !def.needs.includes(n) && n !== 'sacred')
     .map((need): [number, ServiceBuilding] => {
       if (need !== 'plaza' && need !== 'market' && need !== 'park') throw new Error(`no service the bot builds for house level ${k + 1}: ${need}`);
       return [k + 1, need];

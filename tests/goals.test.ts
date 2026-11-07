@@ -50,19 +50,20 @@ describe('goals', () => {
       ['foodUntilSpring', 1, null, 30, 'granary'],
       ['milestone', 1, 'firstWedding', 20, null],
       ['milestone', 1, 'firstBirth', 40, null],
-      ['milestone', 1, 'firstSpring', 30, 'quarry'],
+      ['milestone', 1, 'firstSpring', 30, 'pasture'],
+      ['build', 1, 'pasture', 40, 'quarry'],
       ['houses', 5, 2, 40, 'plaza'],
       ['templeStage', 1, 1, 50, null],
       ['milestone', 1, 'firstCaravan', 50, 'workshop'],
       ['build', 1, 'workshop', 40, 'market'],
-      ['residents', 30, null, 50, 'temple'],
+      ['residents', 30, null, 50, null],
       ['houses', 6, 3, 60, 'park'],
       ['templeStage', 1, 2, 80, null],
       ['milestone', 1, 'firstGrownUp', 80, null],
       ['residents', 45, null, 80, null],
       ['houses', 4, 4, 80, null],
       ['templeStage', 1, 3, 100, null],
-      ['milestone', 1, 'thirdGeneration', 100, null],
+      ['build', 2, 'pasture', 100, null],
       ['residents', 65, null, 100, null],
       ['residents', 85, null, 120, null],
       ['templeStage', 1, 4, 150, null],
@@ -74,6 +75,9 @@ describe('goals', () => {
     expect(GOALS.at(-1)!.victory).toBe(true);
     expect(GOALS.filter((g) => g.victory)).toHaveLength(1);
     expect(GOALS.some((g) => g.fromYear)).toBe(false); // no goal waits for a year any more
+    expect(GOALS).toHaveLength(22);
+    // "Terceira geração" is no goal any more (it stays a milestone in the statistics).
+    expect(GOALS.some((g) => g.milestone === 'thirdGeneration')).toBe(false);
   });
 
   it('the goals file uses no harvest or water goal any more', () => {
@@ -83,33 +87,35 @@ describe('goals', () => {
 
   it('knows which goal unlocks each placeable', () => {
     expect(unlockingGoal('granary')).toBe(1);
-    expect(unlockingGoal('quarry')).toBe(4);
-    expect(unlockingGoal('plaza')).toBe(5);
-    expect(unlockingGoal('workshop')).toBe(7);
-    expect(unlockingGoal('market')).toBe(8);
-    expect(unlockingGoal('temple')).toBe(9); // its place, before the Alicerce (goal 11)
-    expect(unlockingGoal('park')).toBe(10);
-    expect(GOALS.findIndex((g) => g.type === 'templeStage' && g.stage === 2)).toBeGreaterThan(unlockingGoal('temple')! - 1);
+    expect(unlockingGoal('pasture')).toBe(4); // the first winter passed
+    expect(unlockingGoal('quarry')).toBe(5); // the first pasture built
+    expect(unlockingGoal('plaza')).toBe(6);
+    expect(unlockingGoal('workshop')).toBe(8);
+    expect(unlockingGoal('market')).toBe(9);
+    expect(unlockingGoal('park')).toBe(11);
+    expect(unlockingGoal('temple')).toBeNull(); // the ruin stands from the start: no tool to unlock
+    // The pasture comes before the first stage (the restored altar burns livestock).
+    expect(unlockingGoal('pasture')!).toBeLessThan(GOALS.findIndex((g) => g.type === 'templeStage') + 1);
     for (const k of RULES.startUnlocked) expect(unlockingGoal(k)).toBeNull();
     GOALS.forEach((g, i) => {
       if (g.unlock) expect(unlockingGoal(g.unlock)).toBe(i + 1);
     });
   });
 
-  it('the plaza waits for goal 5 (5 mud-brick houses); goal 10 (6 stone houses) unlocks the park', () => {
+  it('the plaza waits for goal 6 (5 mud-brick houses); goal 11 (6 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).not.toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).not.toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
-    expect(GOALS[4]).toMatchObject({ type: 'houses', target: 5, level: 2, unlock: 'plaza' });
-    const goal = GOALS[9];
+    expect(GOALS[5]).toMatchObject({ type: 'houses', target: 5, level: 2, unlock: 'plaza' });
+    const goal = GOALS[10];
     expect(goal).toMatchObject({ type: 'houses', target: 6, level: 3, unlock: 'park' });
-    const s = emptyGame({ goalIndex: 9, silver: 0, unlocked: [...RULES.startUnlocked] });
+    const s = emptyGame({ goalIndex: 10, silver: 0, unlocked: [...RULES.startUnlocked] });
     for (let k = 0; k < goal.target; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 3);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events[0]).toEqual({ type: 'goal', index: 9, reward: goal.reward, unlock: 'park' });
+    expect(events[0]).toEqual({ type: 'goal', index: 10, reward: goal.reward, unlock: 'park' });
     expect(s.unlocked).toContain('park');
   });
 
@@ -264,16 +270,16 @@ describe('goals', () => {
 
   it('completes one goal per check, even when the next one is already met', () => {
     // Six big houses meet "30 residents" and "6 stone houses" at once.
-    const s = emptyGame({ goalIndex: 8 });
+    const s = emptyGame({ goalIndex: 9 });
     for (const y of [27, 29, 31, 33, 35, 37]) put(s, 'house', ROADSIDE, y, TOP);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(9);
+    expect(s.goalIndex).toBe(10);
     checkGoal(s, events);
-    expect(s.goalIndex).toBe(10);
+    expect(s.goalIndex).toBe(11);
     checkGoal(s, events); // the Alicerce is not built
-    expect(s.goalIndex).toBe(10);
-    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([8, 9]);
+    expect(s.goalIndex).toBe(11);
+    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([9, 10]);
   });
 });
 

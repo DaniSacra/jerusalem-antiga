@@ -24,7 +24,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `street.ts` | **puro e testado** (`tests/render3d/street.test.ts`): a vida parada da rua (`streetPlan`: vizinhos na porta que crescem com o nível da casa, compradores no mercado com equipe, colhedores de oliva no outono; no máximo `look3d.json` > `street.max`, em ordem de quem sai primeiro, `idleShown`), os gestos de cada um (`idlePose`) e a família que vai embora (`leavers`, `leavePath`, `leaveLead`) |
 | `townsfolk.ts` | desenha a vida parada (`Idlers`, feita com a cidade e com as pessoas; menos à noite e na chuva, metade na qualidade baixa, nenhuma na mínima nem de longe) e as famílias saindo a pé até a entrada (`Leavers`, pela saída `leave` de `familyLeft`, guardadas entre as reconstruções) |
 | `animals.ts` | bichos e barcos low-poly instanciados, com a cor nos vértices (jumento, ovelha, cabra, galinha, pomba, barco com pescador): uma chamada por tipo |
-| `ambient.ts` | **puro e testado**: onde ficam os bichos, os barcos e as lavadeiras (`ambientPlan`) e como se mexem (`ambientPose`) |
+| `ambient.ts` | **puro e testado**: onde ficam os bichos, os barcos e as lavadeiras (`ambientPlan`; o rebanho de cada pasto no capim do raio pela fração do gado, `pastureFlock`, até `pastureFlock` de `look3d.json`, junto ao abrigo no inverno, e o pastor com cajado quando há quem trabalhe; os cordeiros no cercado do altar restaurado) e como se mexem (`ambientPose`) |
 | `pasture.ts` | desenha e mexe a vida em volta da cidade a cada quadro (feita com a cidade) |
 | `world.ts` | a cidade a partir do `plan`: chão, rio, construções e árvores instanciadas, fumaça, fogueiras, gente nos campos, moradores e famílias chegando |
 | `models.ts` | modelos low-poly feitos por código, por chave; carregador do pacote .glb |
@@ -57,7 +57,8 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `house-4` casa grande | 2x2 | `granary` celeiro | 3x3 |
 | `field-0`…`field-3` trigo, cevada, lentilha, linho | 2x2 | `altar` (restaurado), `altar-ruin`, `altar-new`, `works-1` | 4x4 |
 | `fisher` pescador, `gatherer` coletora | 2x2 | `temple` templo consagrado, `temple-0..3` etapas, `rise-3/4`, `works-2..5` | 6x6 |
-| `lumber` lenhador, `quarry` pedreira | 2x2 | `road` rua | 1x1 |
+| `lumber` lenhador, `quarry` pedreira | 2x2 | `pasture` pasto (cerca de pedra solta com porteira, abrigo de palha, cocho, pedra de sal; por código) | 3x3 |
+| | | `road` rua | 1x1 |
 | `olive`, `palm`, `rock`, `shrub`, `stump` toco, `sapling` muda, `closed` portão trancado | 1x1 | `up-<tipo>-2`/`-3` acréscimos | área do prédio |
 | `trail`/`trail-arm` trilha e braço até a rua ao lado, `kerb` borda de pedra, `loose`/`loose-arm` rua fora da rede (tracejada), `pane` vidro aceso, `yard-1`/`yard-2` quintal (jarros, varal) | 1x1 | `stock-1..3` estoque no pátio | 3x3 (celeiro) |
 | | | `craft-1..5` ofício no pátio (ferraria, carpintaria, tecelagem, tinturaria, curtume) | 3x3 (oficina) |

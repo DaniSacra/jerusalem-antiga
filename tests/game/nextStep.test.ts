@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOALS, refreshCity, startStage, TEMPLE_STAGES, type GameState } from '../../src/core';
+import { GOALS, refreshCity, startStage, TEMPLE_STAGES, type BuildableKind, type GameState } from '../../src/core';
 import { nextStep } from '../../src/game/model/nextStep';
 import { T } from '../../src/game/strings';
 import { EAST, emptyGame, hire, person, put, ROADSIDE } from '../helpers';
@@ -50,6 +50,27 @@ describe('nextStep: what to do now', () => {
     });
   });
 
+  describe('1b. the altar\'s offerings (after the crises that kill)', () => {
+    it('the restored altar without its offering: a pasture', () => {
+      const s = game();
+      s.unlocked.push('pasture');
+      s.temple.done = 1;
+      s.offered = false;
+      expect(nextStep(s)).toMatchObject({ kind: 'crisis', text: N.offerings, icon: 'livestock', aim: { tool: 'pasture' } });
+    });
+
+    it('its livestock about to end: in how many weeks', () => {
+      const s = game();
+      s.temple.done = 1;
+      s.offered = true;
+      s.livestock = 2;
+      const left = Math.floor(2 / TEMPLE_STAGES[0].offering);
+      expect(nextStep(s)).toMatchObject({ kind: 'crisis', text: N.livestock(left) });
+      s.livestock = 100;
+      expect(nextStep(s).kind).not.toBe('crisis');
+    });
+  });
+
   describe('2. the Temple stage that is the goal', () => {
     it('can start: tap the altar (opens its balloon, the arrow on it)', () => {
       const s = game({ goalIndex: STAGE1 });
@@ -88,7 +109,7 @@ describe('nextStep: what to do now', () => {
 
     it('the Temple off the road: Rua', () => {
       const s = game({ goalIndex: goalAt((g) => g.type === 'templeStage' && g.stage === 2) });
-      s.temple.done = 1;
+      Object.assign(s, { temple: { done: 1, active: false, progress: 0 }, offered: true, livestock: 100 });
       const t = put(s, 'temple', ROADSIDE - 4, 28);
       t.connected = false;
       expect(nextStep(s)).toMatchObject({ kind: 'stage', text: N.road(TEMPLE_STAGES[1].name, 'temple'), aim: { tool: 'road' } });
@@ -99,10 +120,12 @@ describe('nextStep: what to do now', () => {
     it('build: the goal itself and its tool; off the road, Rua', () => {
       const i = goalAt((g) => g.type === 'build');
       const s = game({ goalIndex: i });
-      expect(nextStep(s)).toMatchObject({ kind: 'goal', text: GOALS[i].text, aim: { tool: GOALS[i].kind }, open: { panel: 'goals' } });
-      const w = put(s, 'workshop', 2, 2);
+      const kind = GOALS[i].kind as BuildableKind;
+      s.unlocked.push(kind);
+      expect(nextStep(s)).toMatchObject({ kind: 'goal', text: GOALS[i].text, aim: { tool: kind }, open: { panel: 'goals' } });
+      const w = put(s, kind, 2, 2);
       expect(w.connected).toBe(false);
-      expect(nextStep(s)).toMatchObject({ text: N.offRoad('workshop'), aim: { tool: 'road' } });
+      expect(nextStep(s)).toMatchObject({ text: N.offRoad(kind), aim: { tool: 'road' } });
     });
 
     it('stone houses: the plaza the mud houses lack (or the goal that unlocks it)', () => {
@@ -112,6 +135,14 @@ describe('nextStep: what to do now', () => {
       expect(nextStep(s)).toMatchObject({ text: N.service('plaza', 2), aim: { tool: 'plaza' } });
       s.unlocked = s.unlocked.filter((k) => k !== 'plaza');
       expect(nextStep(s)).toMatchObject({ text: N.locked('plaza', GOALS.findIndex((g) => g.unlock === 'plaza') + 1), aim: null });
+    });
+
+    it('stone houses with the plaza but the altar in ruins: restore it (the arrow on the altar)', () => {
+      const s = game({ goalIndex: goalAt((g) => g.type === 'houses' && g.level === 3) });
+      s.food = 1e4;
+      put(s, 'plaza', EAST, 27);
+      put(s, 'house', ROADSIDE, 27, 2, false, 2);
+      expect(nextStep(s)).toMatchObject({ text: N.altarRuins, aim: { rect: rect(altarOf(s)) } });
     });
 
     it('a house off the road: Rua', () => {
@@ -125,6 +156,7 @@ describe('nextStep: what to do now', () => {
       const s = game({ goalIndex: goalAt((g) => g.type === 'houses' && g.level === 3) });
       s.food = 1e4;
       s.unlocked.push('quarry');
+      Object.assign(s, { temple: { done: 1, active: false, progress: 0 }, offered: true, livestock: 100 });
       put(s, 'plaza', EAST, 27);
       const h = put(s, 'house', ROADSIDE, 27, 2, false, 2);
       h.waiting = 'stone';

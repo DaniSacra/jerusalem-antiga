@@ -210,30 +210,46 @@ async function templeStages3dScenario(page, phone) {
       }
       core.refreshCity(s);
       if (active && site) for (const p of s.people.filter((p) => p.houseId === -7)) p.jobId = site.id;
-      s.livestock = done >= 1 ? 4 : 0;
+      // Stopped works: nobody at them (the town's own people would fill the jobs).
+      if (active && site && !crew) for (const p of s.people) if (p.jobId === site.id) p.jobId = null;
+      s.livestock = done >= 1 ? 20 : 0;
+      s.offered = done >= 1;
       window.session.refresh();
       window.view3d.cityChanged?.();
       return core.buildersAtWork(s);
     }, [done, active, share, crew]);
+  // The builders walk and hammer only while the game runs: the clock runs for less than a week per shot.
   const look = async (name, where, day = 0.32, cam = {}) => {
     await page.evaluate(([where, day, cam]) => {
       window.view3d.view({ day, pos: 30.5, weather: { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false } });
       window.view3d.rig.set({ x: where.x, z: where.z, dist: 13, pitch: 0.62, ...cam });
+      window.session.setSpeed(1);
     }, [where, day, cam]);
     await page.waitForTimeout(1600);
     await shot(page, n(name));
-    return page.evaluate(() => window.view3d.info());
+    return page.evaluate(() => {
+      window.session.setSpeed(0);
+      return window.view3d.info();
+    });
   };
   await stage(0, false, 0, 0);
   await look('ruins', at.temple, 0.32, { dist: 18 });
   if (!phone) {
     const busy = await stage(0, true, 0.5, 2);
-    assert(busy === 2, `two builders at the altar (${busy})`);
+    assert(busy >= 2, `builders at the altar (${busy})`);
     const w = await look('altar-works', at.altar, 0.32, { dist: 10 });
     assert(w.haulers >= 2, `the altar's builders are drawn (${w.haulers})`);
   }
   await stage(1, false, 0, 0);
   await look('altar-restored', at.altar, 0.32, { dist: 10 });
+  if (!phone) {
+    // Without the week's offering the restored altar's fire is out.
+    await page.evaluate(() => {
+      window.state.offered = false;
+      window.session.refresh();
+    });
+    await look('altar-cold', at.altar, 0.72, { dist: 10 });
+  }
   await stage(1, true, 0.5, 4);
   await look('alicerce', at.temple);
   await stage(2, true, 0.5, 5);
@@ -254,6 +270,43 @@ async function templeStages3dScenario(page, phone) {
   }
   await stage(5, false, 0, 0);
   await look('consecrated', at.temple, 0.32, { dist: 15 });
+  if (phone) return;
+  // A pasture on grass with its shepherd and flock (half the most livestock), then in winter at the shelter.
+  const pasture = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.unlocked = [...new Set([...s.unlocked, 'pasture'])];
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    // On the map's own grass (the flock grazes the grass around it), nearest the altar.
+    const grass = (x, y) => {
+      let k = 0;
+      for (let j = y - 2; j < y + 5; j++) for (let i = x - 2; i < x + 5; i++) if (s.ground[j * s.cols + i] === 'grass') k++;
+      return k;
+    };
+    let best = null;
+    for (let y = 3; y < s.rows - 6; y++)
+      for (let x = 3; x < s.cols - 6; x++) {
+        const d = Math.hypot(x - altar.x, y - altar.y);
+        if ((!best || d < best.d) && core.checkPlace(s, 'pasture', x, y).ok && grass(x, y) >= 30) best = { x, y, d };
+      }
+    if (!best) return null;
+    core.place(s, 'pasture', best.x, best.y);
+    const b = s.grid[best.y * s.cols + best.x];
+    core.addPerson(s, { sex: 'm', age: 30, houseId: -7, caravan: 0, clan: 1 }, () => 0.5).jobId = b.id;
+    s.livestock = core.RULES.livestockStorage / 2;
+    core.refreshCity(s);
+    for (const p of s.people.filter((p) => p.houseId === -7)) p.jobId = b.id;
+    window.session.refresh();
+    return { x: b.x + 1.5, z: b.y + 1.5 };
+  });
+  assert(pasture, 'room for a pasture');
+  const p = await look('pasture', pasture, 0.32, { dist: 9 });
+  assert(p.ambient > 0, 'the flock is drawn');
+  await page.evaluate(() => {
+    const s = window.state;
+    for (let w = s.week; w < s.week + 60; w++) if (window.core.seasonOf(w) === 'winter') { s.week = w; break; }
+    window.session.refresh();
+  });
+  await look('pasture-winter', pasture, 0.32, { dist: 9 });
 }
 
 /** The Temple drawn in code (plano beleza C8): close by day from the front and the side, at night, and from the opening view. */
@@ -2114,7 +2167,7 @@ async function jobs3dScenario(page, name) {
 
 /**
  * "O que fazer agora" and the Temple's stage balloon (plan "Desafio" 2.3/2.4): the line under the top
- * bar (one line, under the bar and clear of it; 28 px on the phone; hidden in the tutorial, see hud3d);
+ * bar (one line, clear of it; 28 px on the phone, beside the goal pill when it fits; hidden in the tutorial, see hud3d);
  * a tap opens the altar's balloon with "Começar: Altar restaurado" and Profissões and points the arrow;
  * Começar pays it (the bar and the builders show), the line asks for builders and opens Profissões;
  * short of stone the button is grey and says what is missing; a debt comes first (Avisos and Demolir);
@@ -2128,6 +2181,8 @@ async function nextstep3dScenario(page, name) {
   await set(() => {
     const { state: s, core } = window;
     s.goalIndex = core.GOALS.findIndex((g) => g.type === 'templeStage' && g.stage === 1);
+    if (!s.unlocked.includes('pasture')) s.unlocked.push('pasture'); // the Gado pill shows
+    s.livestock = 12;
     s.silver = 500;
     s.wood = 100;
     s.stone = 100;
@@ -2139,7 +2194,9 @@ async function nextstep3dScenario(page, name) {
     page.evaluate(() => {
       const el = document.querySelector('.nextstep');
       const r = el.getBoundingClientRect();
-      const top = Math.max(...[...document.querySelectorAll('header.top .pill, header.top .level, header.top button')].map((e) => e.getBoundingClientRect().bottom));
+      const bar = [...document.querySelectorAll('header.top .pill, header.top .level, header.top button')].map((e) => e.getBoundingClientRect());
+      const top = Math.max(...bar.map((b) => b.bottom));
+      const hits = bar.filter((b) => r.left < b.right - 1 && b.left < r.right - 1 && r.top < b.bottom - 1 && b.top < r.bottom - 1).length;
       const txt = el.querySelector('.txt');
       return {
         shown: !el.classList.contains('hidden'),
@@ -2150,14 +2207,20 @@ async function nextstep3dScenario(page, name) {
         oneLine: txt.getBoundingClientRect().height <= parseFloat(getComputedStyle(txt).lineHeight || '20') + 2 || txt.getBoundingClientRect().height < 24,
         font: parseFloat(getComputedStyle(el).fontSize),
         below: r.top >= top,
+        clear: hits === 0 && r.right <= document.querySelector('nav.column').getBoundingClientRect().left,
         mid: Math.round((r.left + r.right) / 2 - innerWidth / 2),
       };
     });
   const v = await line();
   await shot(page, n(''));
   assert(v.shown && v.kind === 'stage' && v.text.includes('toque no altar'), `the line says to start the altar's stage (${JSON.stringify(v)})`);
-  assert(v.below && v.oneLine && v.font >= 12, `one line under the top bar, text 12 px or more (${JSON.stringify(v)})`);
+  // PC: under the bar; the phone: under it or beside the goal pill, clear of the bar and the column.
+  assert((phone || v.below) && v.clear && v.oneLine && v.font >= 12, `one line clear of the top bar, text 12 px or more (${JSON.stringify(v)})`);
   if (phone) assert(v.h === 28, `28 px on the phone (${v.h})`);
+  // The Gado pill is in: the PC bar's pills stay on one row.
+  const rows = await page.evaluate(() => new Set([...document.querySelectorAll('header.top [data-pill]')].map((e) => Math.round(e.getBoundingClientRect().top))).size);
+  const gado = await page.evaluate(() => !!document.querySelector('[data-pill="livestock"]'));
+  assert(gado && (phone || rows === 1), `the Gado pill shows${phone ? '' : ' and the PC pills stay on one row'} (${gado}, ${rows} rows)`);
   else assert(Math.abs(v.mid) <= 2, `centred on PC (${v.mid})`);
   // A tap opens the altar's balloon and the arrow points at the altar.
   await page.click('[data-spot="next-step"]');

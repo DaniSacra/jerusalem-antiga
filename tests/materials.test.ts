@@ -48,7 +48,7 @@ import {
   type GameState,
   type Placeable,
 } from '../src/core';
-import { constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS, westOf } from './helpers';
+import { constRng, EAST, emptyGame, put, restoreAltar, ROADSIDE, UP_WEEKS, westOf } from './helpers';
 
 const never = constRng(0.99);
 const UP = UP_WEEKS;
@@ -106,21 +106,29 @@ describe('materials data', () => {
     expect(upgradeGain(3)!.materials).toEqual({ stone: 10, wood: 5 });
   });
 
-  it('the caravan brings 40 wood and no stone; the lumber is open from the start, the quarry from goal 4 (first birth)', () => {
+  it('the caravan brings 40 wood, no stone and no livestock; the lumber is open from the start, the quarry from goal 5 (a pasture)', () => {
     const s = createGame(createRng(7));
-    expect([s.wood, s.stone]).toEqual([40, 0]);
+    expect([s.wood, s.stone, s.livestock]).toEqual([40, 0, 0]);
     expect(s.stumps).toEqual([]);
     expect(s.unlocked).toContain('lumber');
     expect(s.unlocked).not.toContain('quarry');
-    expect(unlockingGoal('quarry')).toBe(4);
+    expect(unlockingGoal('quarry')).toBe(5);
     expect(checkPlace(s, 'quarry', 0, 0).ok).toBe(false);
   });
 
-  it('goal 4 (the first winter passed) unlocks the quarry', () => {
+  it('goal 4 (the first winter passed) unlocks the pasture; goal 5 (a pasture on the road) the quarry', () => {
     const s = emptyGame({ goalIndex: 3, unlocked: ['road', 'house'] });
     s.milestones.push('firstSpring');
     checkGoal(s, []);
     expect(s.goalIndex).toBe(4);
+    expect(s.unlocked).toContain('pasture');
+    expect(s.unlocked).not.toContain('quarry');
+    put(s, 'pasture', 1, 1); // off the road: does not count
+    checkGoal(s, []);
+    expect(s.goalIndex).toBe(4);
+    put(s, 'pasture', westOf('pasture'), 30);
+    checkGoal(s, []);
+    expect(s.goalIndex).toBe(5);
     expect(s.unlocked).toContain('quarry');
   });
 });
@@ -341,6 +349,7 @@ describe('houses waiting for material', () => {
   /** Two mud-brick houses with a plaza around (ready to become stone houses), oldest first; a market too. */
   function street() {
     const s = city();
+    restoreAltar(s); // a stone house needs the altar restored and fed
     const a = put(s, 'house', EAST, 27, 2);
     const b = put(s, 'house', EAST, 29, 2);
     put(s, 'plaza', ROADSIDE, 29);
@@ -354,7 +363,7 @@ describe('houses waiting for material', () => {
     expect(a.level).toBe(2);
     expect(a.upStreak).toBe(UP);
     expect(a.waiting).toBe('stone');
-    expect(housesWaiting(s)).toEqual({ wood: 2, stone: 2 }); // the city's two tents wait for wood
+    expect(housesWaiting(s)).toEqual({ wood: 2, stone: 2, livestock: 0 }); // the city's two tents wait for wood
     s.stone = 12;
     s.wood = 50; // firewood, should the week be a winter one
     const events = run(s, 1);
@@ -622,6 +631,7 @@ describe('waiting houses: edge cases', () => {
   const MARKET_X = westOf('market');
   function street() {
     const s = city();
+    restoreAltar(s);
     const a = put(s, 'house', EAST, 27, 2);
     put(s, 'plaza', ROADSIDE, 29);
     put(s, 'market', MARKET_X, 31);

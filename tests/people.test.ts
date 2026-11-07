@@ -23,7 +23,7 @@ import {
   type GameState,
   type Person,
 } from '../src/core';
-import { constRng, EAST, emptyGame, LIFE_YEAR, person, put, ROADSIDE } from './helpers';
+import { constRng, EAST, emptyGame, LIFE_YEAR, person, put, ROADSIDE, restoreAltar } from './helpers';
 
 const P = RULES.people;
 const W = RULES.weeksPerSeason;
@@ -326,6 +326,7 @@ describe('births', () => {
   /** A married couple in a stone house (6 places) with food for years. */
   function family(motherAge = 25) {
     const s = emptyGame();
+    restoreAltar(s); // the stone house keeps its level (and the altar cheers it)
     put(s, 'granary', EAST, 36);
     put(s, 'fisher', EAST, 30);
     s.food = foodCapacity(s);

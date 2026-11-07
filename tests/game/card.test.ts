@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, indexOf, readCity, refreshCity, RULES } from '../../src/core';
+import { BUILDINGS, GOALS, indexOf, readCity, refreshCity, RULES, startStage, TEMPLE_STAGES } from '../../src/core';
 import { cardOf, levelStatOf } from '../../src/game/model/card';
 import { T } from '../../src/game/strings';
 import { EAST, emptyGame, put, ROADSIDE } from '../helpers';
@@ -28,14 +28,59 @@ describe('the card of a tapped cell (2D and 3D balloons)', () => {
     expect(cardOf(s, e, readCity(s), false)!.lines[0].tone).toBe('text');
   });
 
-  it('the altar: its name big, what it does, no action and never Demolir', () => {
+  it('the altar: its name big, in ruins until restored, never Demolir; restored, its offering (or none)', () => {
     const s = emptyGame();
     const a = s.buildings.find((b) => b.kind === 'altar')!;
     const c = cardOf(s, a, readCity(s), false)!;
     expect(c.lines[0]).toEqual({ text: BUILDINGS.altar.name, big: true });
-    expect(c.lines[1].text).toBe(N.altar);
+    expect(c.lines[1].text).toBe(T.nova.offerings.ruins);
     expect(c.action).toBeNull();
     expect(c.demolish).toBe(false);
+    Object.assign(s, { temple: { done: 1, active: false, progress: 0 }, offered: true });
+    expect(cardOf(s, a, readCity(s), false)!.lines[1].text).toBe(T.nova.offerings.burns(TEMPLE_STAGES[0].offering, 0));
+    s.offered = false;
+    expect(cardOf(s, a, readCity(s), false)!.lines[1]).toMatchObject({ text: `✗ ${T.nova.offerings.empty}`, tone: 'bad' });
+  });
+
+  describe('the stage balloon (altar and Temple)', () => {
+    const STAGE1 = GOALS.findIndex((g) => g.type === 'templeStage' && g.stage === 1);
+    const texts = (c: ReturnType<typeof cardOf>) => c!.lines.map((l) => l.text);
+
+    it('its goal: the stage, its cost and Começar beside Profissões', () => {
+      const s = emptyGame({ goalIndex: STAGE1 });
+      const a = s.buildings.find((b) => b.kind === 'altar')!;
+      const c = cardOf(s, a, readCity(s), false)!;
+      const st = TEMPLE_STAGES[0];
+      expect(texts(c)).toContain(T.nova.stage.head(1, TEMPLE_STAGES.length, st.name));
+      expect(c.action).toMatchObject({ kind: 'stage', label: T.nova.stage.begin(st.name), dim: false });
+      expect(c.jobs).toBe(true);
+    });
+
+    it('short of stone: grey, with what is missing in red on the cost line', () => {
+      const s = emptyGame({ goalIndex: STAGE1 });
+      s.stone = 3;
+      const a = s.buildings.find((b) => b.kind === 'altar')!;
+      const c = cardOf(s, a, readCity(s), false)!;
+      expect(c.action).toMatchObject({ kind: 'stage', dim: true, label: T.lackingAmount('stone', TEMPLE_STAGES[0].materials.stone!, 3) });
+      expect(c.lines.find((l) => l.parts)!.parts!.some((p) => p.tone === 'bad')).toBe(true);
+    });
+
+    it('under way: its builders, a bar and how long (or that it stopped)', () => {
+      const s = emptyGame({ goalIndex: STAGE1 });
+      startStage(s);
+      const a = s.buildings.find((b) => b.kind === 'altar')!;
+      const c = cardOf(s, a, readCity(s), false)!;
+      expect(c.action).toBeNull();
+      expect(c.jobs).toBe(true);
+      expect(c.lines.some((l) => l.bar === 0)).toBe(true);
+      expect(texts(c)).toContain(T.nova.stage.stopped);
+    });
+
+    it('not its goal yet: the goal that comes first', () => {
+      const s = emptyGame({ goalIndex: 0 });
+      const a = s.buildings.find((b) => b.kind === 'altar')!;
+      expect(texts(cardOf(s, a, readCity(s), false))).toContain(T.nova.stage.first(1, T.nova.goalText(GOALS[0])));
+    });
   });
 
   it('a building off the road asks for Rua as its main action', () => {

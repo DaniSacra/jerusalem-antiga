@@ -36,7 +36,7 @@ import {
   type GameEvent,
   type GoalDef,
 } from '../src/core';
-import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS, weeksOfFood, westOf } from './helpers';
+import { besideRiver, constRng, EAST, emptyGame, put, ROADSIDE, UP_WEEKS, weeksOfFood, westOf, restoreAltar } from './helpers';
 
 const W = RULES.weeksPerSeason; // 13
 const YEAR = 4 * W;
@@ -366,6 +366,7 @@ describe('milestones', () => {
 
   it('the first mud-brick and stone houses: once each', () => {
     const t = emptyGame({ food: RULES.baseFoodStorage }); // enough for the house all along
+    restoreAltar(t); // a stone house needs the altar
     put(t, 'plaza', EAST, 27);
     put(t, 'market', EAST, 30);
     const h = put(t, 'house', ROADSIDE, 27, 1);
@@ -702,13 +703,13 @@ describe('caravan (layout)', () => {
       expect(s.silver).toBe(RULES.startSilver);
       expect(s.families).toEqual([]);
       const tents = s.buildings.filter((b) => b.kind === 'house');
-      const spots = [{ x: 21, y: 19 }, { x: 24, y: 19 }, { x: 21, y: 17 }, { x: 24, y: 17 }, { x: 21, y: 15 }].slice(0, tents.length);
+      const spots = [{ x: 19, y: 21 }, { x: 19, y: 24 }, { x: 17, y: 21 }, { x: 17, y: 24 }, { x: 15, y: 21 }].slice(0, tents.length);
       expect(tents.map((t) => ({ x: t.x, y: t.y }))).toEqual(spots);
       for (const t of tents) {
         expect(s.grid[t.y * s.cols + t.x]).toBe(t);
         expect(t.connected).toBe(true);
       }
-      for (let y = 15; y <= 20; y++) expect(s.network[indexOf(s, 23, y)]).toBe(true); // the camp road
+      for (let x = 15; x <= 20; x++) expect(s.network[indexOf(s, x, 23)]).toBe(true); // the camp road
     }
   });
 

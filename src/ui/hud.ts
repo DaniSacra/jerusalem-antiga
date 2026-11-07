@@ -38,6 +38,9 @@ export interface HudHost {
   nudge(dx: number): void;
 }
 
+/** Room (px) the phone needs beside the goal pill to put the "O que fazer agora" line there. */
+const NEXT_BESIDE_MIN = 220;
+
 /** How long a floating text lasts (ms). */
 const FLOAT_MS = 1600;
 
@@ -122,7 +125,6 @@ export class Hud {
     this.root.setAttribute('data-form', formOf());
     this.toasts.setPhone(this.phone);
     this.tutorial.remeasure();
-    this.next.update(this.next.shown ? nextStep(this.host.session.state, this.host.session.city) : null);
     this.measureFree();
   };
 
@@ -130,18 +132,31 @@ export class Hud {
   private measureFree() {
     const bottomOf = (els: Iterable<Element>) => Math.max(0, ...[...els].map((e) => e.getBoundingClientRect().bottom));
     let top = bottomOf(this.top.el.querySelectorAll('.pill, .level, button'));
-    // The line sits right under the bar; the map's free area starts below it.
-    const lineTop = `${Math.round(top + 4)}px`;
-    if (this.next.el.style.top !== lineTop) this.next.el.style.top = lineTop;
-    if (this.next.shown) top = this.next.el.getBoundingClientRect().bottom;
     const col = this.tools.column.getBoundingClientRect();
     const tools = this.tools.tools.getBoundingClientRect();
     const right = col.width ? col.left : innerWidth;
+    this.placeNext(top, right);
+    if (this.next.shown) top = Math.max(top, this.next.el.getBoundingClientRect().bottom);
     const side = this.tools.turns.getBoundingClientRect();
     this.free = { left: (side.width ? side.right : 0) + 8, top: top + 8, right: right - 8, bottom: (tools.height ? tools.top : innerHeight) - 8 };
     // Panels and the person sheet end above the tools too.
     const below = `${Math.round(innerHeight - this.free.bottom)}px`;
     if (below !== this.below) this.root.style.setProperty('--free-bottom', (this.below = below));
+  }
+
+  /**
+   * "O que fazer agora": centred right under the bar; on the phone beside the goal pill when there is
+   * room before the column (the short screen keeps its map), else under it.
+   */
+  private placeNext(barBottom: number, colLeft: number) {
+    const el = this.next.el;
+    if (!this.next.shown) return;
+    let style = { left: '50%', top: `${Math.round(barBottom + 4)}px`, transform: 'translateX(-50%)', maxWidth: '' };
+    const goal = this.phone ? this.top.el.querySelector('.goal')?.getBoundingClientRect() : null;
+    const room = goal ? colLeft - 8 - (goal.right + 6) : 0;
+    if (goal && goal.width && room >= NEXT_BESIDE_MIN)
+      style = { left: `${Math.round(goal.right + 6)}px`, top: `${Math.round(goal.top + (goal.height - el.offsetHeight) / 2)}px`, transform: 'none', maxWidth: `${Math.floor(room)}px` };
+    Object.assign(el.style, style);
   }
 
   dispose() {
@@ -175,7 +190,8 @@ export class Hud {
   update() {
     this.top.update(this.phone);
     const s = this.host.session;
-    this.next.update(this.tutorial.open ? null : nextStep(s.state, s.city));
+    // It waits while the tutorial speaks, or a panel or the person sheet covers the map (they open from it).
+    this.next.update(this.tutorial.open ? null : nextStep(s.state, s.city), !this.panels.open && !this.sheet.open);
     this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);
     this.measureFree();
     // The toasts end left of the tool balloon (its cost line explains a failure).

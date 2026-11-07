@@ -65,7 +65,7 @@
   },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
   "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
-  "ambient": { "maxAnimals": 40, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
+  "ambient": { "maxAnimals": 56, "pastureFlock": 8, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
   "night": { "window": 2.3, "door": 0.7, "tentPool": 0.85, "doorRadius": [0, 0.75, 0.9, 1.0, 1.15], "workRadius": 1.5 },
   "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
   "wind": { "calm": 0, "trees": 0.06, "crops": 0.7 },
@@ -78,7 +78,7 @@
   "fields": { "moistNear": 2, "moistFar": 6, "dryCrop": "0xb08a52" },
   "detail": { "tuftShare": 0.8, "tuftsMax": 3, "pebbleShare": 0.3, "wornOut": 0.35, "farDist": 48, "bankReach": 22, "reedShare": 0.6, "reedScale": 2.6, "stoneShare": 0.5, "stoneScale": 2.4 },
   "finish": { "blur": 2.6, "band": 0.16, "fade": 0.3, "warm": 0.035, "contrast": 1.05, "samples": 4, "contactSun": 0.12, "contactDim": 0.35 },
-  "works": { "restoredFire": 1.45, "mallet": 5.5, "workSeconds": [3, 6], "pileSeconds": [0.6, 1.4], "stone": "0xd9cdb4", "dustAt": [[-1.6, 1.9], [1.7, -1.2]], "altarDustAt": [[-1.4, 1.5]] },
+  "works": { "restoredFire": 1.2, "mallet": 5.5, "workSeconds": [3, 6], "pileSeconds": [0.6, 1.4], "fromRoad": 0.35, "stone": "0xd9cdb4", "dustAt": [[-1.6, 1.9], [1.7, -1.2]], "altarDustAt": [[-1.4, 1.5]] },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
     "quarryDust": { "color": "0xe0cfae", "rise": 0.35, "size": 1.9, "opacity": 0.6 },

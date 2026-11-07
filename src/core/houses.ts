@@ -108,6 +108,7 @@ export const countHousesAtLeast = (s: GameState, level: number) =>
 
 /** A service need whose building the city cannot build yet (the balloon shows it with a lock). */
 export const needLocked = (s: GameState, need: BalloonKind): boolean =>
-  need !== 'road' && (SERVICE_NEEDS as readonly BalloonKind[]).includes(need) && !s.unlocked.includes(need as Exclude<NeedKind, 'road'>);
+  need !== 'road' && (SERVICE_NEEDS as readonly BalloonKind[]).includes(need) && !s.unlocked.includes(need as (typeof SERVICE_NEEDS)[number]);
 
-const SERVICE_NEEDS: readonly Exclude<NeedKind, 'road'>[] = ['plaza', 'market', 'park'];
+/** Needs met by a building the player places (the altar is restored, never placed). */
+const SERVICE_NEEDS = ['plaza', 'market', 'park'] as const satisfies readonly NeedKind[];

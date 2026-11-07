@@ -17,11 +17,11 @@ import { T } from '../strings';
 export type StageNeed = [number, 'silver' | Material];
 
 /**
- * Where the Temple's stage that is the current goal stands (pure, reads the core): its place to mark,
- * what it is short of, its road, the debt, ready to start, or under way with its builders.
+ * Where the Temple's stage that is the current goal stands (pure, reads the core): what it is short
+ * of, its road, the debt, ready to start, or under way with its builders. Its site (the altar, the
+ * Temple's ruins) stands from the start of the game.
  */
-export type StagePlan = { stage: TempleStageDef; number: number; site: Building | undefined } & (
-  | { at: 'mark' }
+export type StagePlan = { stage: TempleStageDef; number: number; site: Building } & (
   | { at: 'road' }
   | { at: 'debt' }
   | { at: 'lack'; need: StageNeed[] }
@@ -33,9 +33,10 @@ export type StagePlan = { stage: TempleStageDef; number: number; site: Building 
 export function stagePlan(s: GameState): StagePlan | null {
   const stage = nextStage(s);
   if (!stage || !stageIsGoal(s)) return null;
-  const base = { stage, number: s.temple.done + 1, site: stageSite(s, stage) };
+  const site = stageSite(s, stage);
+  if (!site) return null;
+  const base = { stage, number: s.temple.done + 1, site };
   if (s.temple.active) return { ...base, at: 'work', builders: buildersAtWork(s), progress: Math.floor(s.temple.progress), weeksLeft: stageWeeksLeft(s) };
-  if (!base.site) return { ...base, at: 'mark' };
   const r = checkStartStage(s);
   if (r.ok) return { ...base, at: 'ready' };
   if (r.reason === 'noRoad') return { ...base, at: 'road' };
@@ -58,8 +59,7 @@ export interface StageStatus {
 }
 
 /**
- * The goal pill's and the goals list's line for the stage that is the goal (null otherwise): mark the
- * place, gather what it costs ("junte 30 prata, 50 pedra"), start it by tapping its site, or how far
+ * The goal pill's and the goals list's line for the stage that is the goal (null otherwise): gather what it costs ("junte 30 prata, 50 pedra"), start it by tapping its site, or how far
  * it has come ("Alicerce 18/40 · ~6 sem"; "sem construtores" when nobody works there).
  */
 export function stageStatus(s: GameState): StageStatus | null {
@@ -70,8 +70,6 @@ export function stageStatus(s: GameState): StageStatus | null {
   switch (p.at) {
     case 'work':
       return { text: `${N.building(name, p.progress, p.stage.work)} · ${p.weeksLeft === null ? N.idle : N.weeks(p.weeksLeft)}`, tone: p.weeksLeft === null ? 'warn' : 'good' };
-    case 'mark':
-      return { text: N.mark, tone: 'gold' };
     case 'ready':
       return { text: N.start(name, p.stage.site), tone: 'good' };
     case 'road':

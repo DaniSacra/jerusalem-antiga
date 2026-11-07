@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRng, TEMPLE_STAGES, type GameState } from '../../src/core';
+import { TEMPLE_STAGES, type GameState } from '../../src/core';
 import { haulJobs, legOf, waitAfter } from '../../src/render3d/haul';
 import { cityPlan, footprintOf, MODEL_KEYS } from '../../src/render3d/plan';
 import { cityKeys } from '../../src/render3d/diff';
@@ -54,16 +54,22 @@ describe('the Temple in stages (3D, as data)', () => {
 
   it('a restored altar burns bigger, with its new steps and wall, and keeps the city\'s flock in its pen', () => {
     const { s } = town(1);
+    s.offered = true;
     const look = siteLook(s, { kind: 'altar' })!;
     expect(look).toMatchObject({ key: 'altar', fire: LOOK.works.restoredFire, works: false });
     expect(look.fire).toBeGreaterThan(1);
     expect(look.adds).toEqual([{ key: 'altar-new', y: 0, sy: 1 }]);
     expect(penAnimals(s)).toBe(0);
-    Object.assign(s, { livestock: 9 });
+    s.livestock = 9;
     expect(penAnimals(s)).toBe(PEN.max);
     const altar = s.buildings.find((b) => b.kind === 'altar')!;
     const pen = ambientPlan(s).filter((o) => Math.hypot(o.x - (altar.x + 2 + PEN.x), o.z - (altar.y + 2 + PEN.z)) < PEN.w);
     expect(pen.filter((o) => o.kind === 'sheep' || o.kind === 'goat')).toHaveLength(PEN.max);
+    // Without the week's offering the fire is out, cold stones; the city is drawn again.
+    const lit = siteKey(s);
+    s.offered = false;
+    expect(siteLook(s, { kind: 'altar' })!.fire).toBe(0);
+    expect(siteKey(s)).not.toBe(lit);
     // Not before it is restored.
     s.temple.done = 0;
     expect(penAnimals(s)).toBe(0);
@@ -138,7 +144,9 @@ describe('the Temple in stages (3D, as data)', () => {
     const { s, temple } = town(2, true, 3);
     const jobs = haulJobs(s).filter((j) => j.job === 'build');
     expect(jobs).toEqual([1, 2, 3].map(() => ({ job: 'build', home: temple.id })));
-    const rng = createRng(4);
+    // A low draw: this one comes in from the road (a share of them, `fromRoad`); a high one is already at a pile.
+    const rng = () => 0.1;
+    expect(legOf(s, 'build', temple, true, [], () => 0.99)[0].up).toBe(COURT);
     const out = legOf(s, 'build', temple, true, [], rng);
     expect(out).toHaveLength(3);
     const mid = { x: temple.x + 3, y: temple.y + 3 };

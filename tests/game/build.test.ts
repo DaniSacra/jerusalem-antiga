@@ -20,9 +20,9 @@ describe('building column as data', () => {
 
   it('locked buildings say which goal unlocks them and are never "short"', () => {
     const s = emptyGame();
-    s.unlocked = s.unlocked.filter((k) => k !== 'temple');
+    s.unlocked = s.unlocked.filter((k) => k !== 'park');
     s.silver = 0;
-    const t = buildColumn(s, 'view', false).find((b) => b.kind === 'temple')!;
+    const t = buildColumn(s, 'view', false).find((b) => b.kind === 'park')!;
     expect(t.locked).toBe(true);
     expect(t.short).toBe(false);
     expect(t.line).toMatch(/objetivo/i);

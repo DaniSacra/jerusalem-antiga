@@ -106,6 +106,13 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
           if (site) out.push({ do: 'stageDone', building: site, stage: e.stage });
         }
         break;
+      case 'offeringsMissing':
+        toast(T.nova.offerings.missing, 'bad');
+        out.push({ do: 'floatBad', x: e.x, y: e.y, text: T.nova.offerings.none });
+        break;
+      case 'offeringsBack':
+        toast(T.nova.offerings.back, 'good');
+        break;
       case 'victory':
         out.push({ do: 'victory', week: e.week, residents: e.residents, births: tally.births, weddings: tally.weddings });
         break;

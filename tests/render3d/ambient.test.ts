@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { indexOf } from '../../src/core';
-import { ambientCounts, ambientPlan, ambientPose } from '../../src/render3d/ambient';
+import { indexOf, RULES, seasonOf } from '../../src/core';
+import { ambientCounts, ambientPlan, ambientPose, herdKey, pastureFlock } from '../../src/render3d/ambient';
 import LOOK from '../../src/render3d/look3d.json';
-import { emptyGame, put } from '../helpers';
+import { emptyGame, hire, put, ROADSIDE } from '../helpers';
 
 const A = LOOK.ambient;
 
@@ -84,5 +84,39 @@ describe('the life around the town', () => {
     expect(ambientPose(donkey, 50)).toMatchObject({ x: 3, z: 4, y: 0 });
     const washer = { kind: 'washer' as const, x: 3, z: 4, range: 0, yaw: 1, k: 0.5 };
     expect(ambientPose(washer, 10).pitch).toBeGreaterThan(0.5);
+  });
+
+  it('grazes each pasture\'s flock by the city\'s livestock, on the grass around it, with its shepherd; in winter under the shelter', () => {
+    const s = emptyGame();
+    s.unlocked.push('pasture');
+    for (let y = 28; y < 35; y++) for (let x = ROADSIDE - 4; x < ROADSIDE + 4; x++) if (!s.roads[indexOf(s, x, y)]) s.ground[indexOf(s, x, y)] = 'grass';
+    const b = put(s, 'pasture', ROADSIDE - 1, 30);
+    s.livestock = 0;
+    expect(pastureFlock(s)).toBe(0);
+    s.livestock = RULES.livestockStorage / 2;
+    expect(pastureFlock(s)).toBe(A.pastureFlock / 2);
+    s.livestock = RULES.livestockStorage * 3;
+    expect(pastureFlock(s)).toBe(A.pastureFlock);
+    s.livestock = RULES.livestockStorage / 2;
+    const weekOf = (winter: boolean) => [...Array(60).keys()].find((w) => (seasonOf(w) === 'winter') === winter)!;
+    s.week = weekOf(false);
+    const near = (o: { x: number; z: number }) => o.x > b.x - 2 && o.x < b.x + b.w + 2 && o.z > b.y - 2 && o.z < b.y + b.h + 2;
+    const flock = ambientPlan(s).filter((o) => (o.kind === 'sheep' || o.kind === 'goat') && near(o));
+    expect(flock).toHaveLength(A.pastureFlock / 2);
+    // Out on the grass, off the fence.
+    for (const o of flock) expect(s.ground[indexOf(s, Math.floor(o.x), Math.floor(o.z))]).toBe('grass');
+    // Nobody tends it yet: no shepherd; one with its crew.
+    expect(ambientPlan(s).some((o) => o.kind === 'shepherd')).toBe(false);
+    hire(s, b, 1);
+    expect(ambientPlan(s).filter((o) => o.kind === 'shepherd')).toHaveLength(1);
+    const summer = herdKey(s);
+    s.week = weekOf(true);
+    expect(herdKey(s)).not.toBe(summer);
+    const huddled = ambientPlan(s).filter((o) => (o.kind === 'sheep' || o.kind === 'goat') && near(o));
+    for (const o of huddled) {
+      expect(o.x).toBeGreaterThan(b.x);
+      expect(o.x).toBeLessThan(b.x + b.w);
+      expect(o.range).toBeLessThan(0.2);
+    }
   });
 });

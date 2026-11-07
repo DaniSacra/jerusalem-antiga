@@ -36,9 +36,15 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
     a 14, palmeiras de 6 a 12), cada grupo novo começando a 5+ células de qualquer outro, com
     clareiras entre eles (`CLUMPS` em `map.ts`; forma do terreno, não equilíbrio).
 - Ficam livres de rochas e árvores: tudo a até 9 células da borda do altar (as tendas da caravana
-  ficam dentro disso) e uma faixa de 5 células (a rua inicial e 2 de cada lado) até a entrada.
-  Sempre existe lugar livre para o Templo 6 x 6 fora da área do altar (os testes pedem 3 ou mais
-  posições a até 12 células do altar, ligadas à rua, sem cortar árvores).
+  e a ruína do Templo ficam dentro disso) e uma faixa de 5 células (a rua inicial e 2 de cada lado)
+  até a entrada.
+- **Templo em ruínas** (plano Ruínas 1.1, `templeRuin` em `map.ts`): o prédio `temple` 6 x 6 já
+  está no mapa desde a semana 0, sempre no mesmo lugar, **ao norte do altar**, x 21–26 e y 15–20,
+  com o lado sul encostado na fila norte do anel (ligado desde o começo). Entrada, rua inicial,
+  altar e ruína ficam num eixo só, de sul a norte. As células dela são grama ou areia, sem rocha
+  nem árvore (reservadas mesmo que o raio livre mude); o rio nunca chega (fica a 8+ do altar, a
+  ruína a no máximo 7). Testado em 1000 sementes; nelas o rio fica a 5+ células da ruína, e o raio
+  12 do Templo pronto cobre toda a área livre do altar até y 32.
 
 ## Início
 
@@ -53,10 +59,11 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 - O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** (cerca de 6 construções).
 - **Caravana fundadora** (sorteada pela semente, `caravans.start` em `rules.json`): **3 a 5
   famílias** de pessoas com nome (veja Pessoas) já moram em tendas (casas comuns de nível 1, de
-  graça, uma família por tenda, no máximo 3 pessoas) em **filas de duas ao norte do anel**, dos
-  dois lados de uma rua curta (`campRoad`, 6 células) que sai do anel; a fila encostada no anel
-  enche primeiro, oeste antes de leste (a 5ª tenda abre a 3ª fila, a oeste). A fundadora nunca traz
-  um casal de noivos jovens (modelo `engaged`): o seu casal de noivos é o de `start.couple`. Ao lado, a leste, fica um lugar 2 x 2 livre (`campPlazaSpot`) onde **uma praça
+  graça, uma família por tenda, no máximo 3 pessoas) em **colunas de duas a oeste do anel** (ao
+  norte fica a ruína do Templo), dos dois lados de uma rua curta (`campRoad`, 6 células, y 23, x 15–20)
+  que sai do anel; a coluna encostada no anel enche primeiro, norte antes de sul (a 5ª tenda abre
+  a 3ª coluna, ao norte). A fundadora nunca traz
+  um casal de noivos jovens (modelo `engaged`): o seu casal de noivos é o de `start.couple`. Ao lado, ao sul, fica um lugar 2 x 2 livre (`campPlazaSpot`, 19,26) onde **uma praça
   alcança todas as tendas** (quando ela abrir). As duas primeiras famílias trazem um filho e uma filha de 18 ou 19
   anos **noivos** (`people.couple`, `start.couple`): o primeiro casamento espera só uma casa vazia.
   Os outros filhos alternam filho e filha entre as famílias. A comida inicial vale **18 a 24
@@ -295,7 +302,8 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `
 - **Metas das profissões** (`s.jobTargets`, core em `work.ts`/`actions.ts`): sem chave = automática
   (todas as vagas, o jogo de antes do painel, dígito a dígito); um número limita a equipe do tipo. Toda
   semana e a cada mudança, `assignJobs` solta quem passa da meta (quem mora mais longe do trabalho;
-  empate: id maior) e enche as vagas livres pela `jobPriority`, pulando os tipos na meta; o jogo não
+  empate: id maior) e enche as vagas livres primeiro nas profissões com meta em número (o jogador
+  pediu gente ali), depois pela `jobPriority`, pulando os tipos na meta; o jogo não
   move ninguém empregado para outro tipo. − = mín(meta, equipe) − 1 (nunca abaixo de 0); + soma 1 a
   uma meta em número, até as vagas construídas. Construir (ou melhorar) um local de um tipo com meta
   em número soma as vagas novas à meta; demolir corta a meta às vagas que sobram. Automático limpa
@@ -582,50 +590,71 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 1 | Comida até a primavera | comida até a primavera do Ano 1 | +30 | Celeiro |
 | 2 | Primeiro casamento | marco | +20 | – |
 | 3 | Primeiro nascimento | marco | +40 | – |
-| 4 | Passe o primeiro inverno | marco `firstSpring` | +30 | Pedreira |
-| 5 | Tenha 5 casas de barro | 5 | +40 | Praça |
-| 6 | **Restaure o altar** | etapa 1 | +50 | – |
-| 7 | Receba a primeira caravana | marco | +50 | Oficina |
-| 8 | Construa uma oficina | 1 | +40 | Mercado |
-| 9 | Chegue a 30 moradores | 30 | +50 | Templo (o lugar) |
-| 10 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
-| 11 | **Alicerce do Templo** | etapa 2 | +80 | – |
-| 12 | Uma criança da cidade virou adulta | marco | +80 | – |
-| 13 | Chegue a 45 moradores | 45 | +80 | – |
-| 14 | Tenha 4 casas grandes | 4 | +80 | – |
-| 15 | **Paredes do Templo** | etapa 3 | +100 | – |
-| 16 | Terceira geração | marco | +100 | – |
-| 17 | Chegue a 65 moradores | 65 | +100 | – |
-| 18 | Chegue a 85 moradores | 85 | +120 | – |
-| 19 | **Pórtico e telhado** | etapa 4 | +150 | – |
-| 20 | Chegue a 120 moradores | 120 | +175 | – |
-| 21 | **Consagração do Templo** | etapa 5 | vitória | – |
+| 4 | Passe o primeiro inverno | marco `firstSpring` | +30 | Pasto |
+| 5 | **Construa um pasto** | 1 | +40 | Pedreira |
+| 6 | Tenha 5 casas de barro | 5 | +40 | Praça |
+| 7 | **Restaure o altar** | etapa 1 | +50 | – |
+| 8 | Receba a primeira caravana | marco | +50 | Oficina |
+| 9 | Construa uma oficina | 1 | +40 | Mercado |
+| 10 | Chegue a 30 moradores | 30 | +50 | – |
+| 11 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
+| 12 | **Alicerce do Templo** | etapa 2 | +80 | – |
+| 13 | Uma criança da cidade virou adulta | marco | +80 | – |
+| 14 | Chegue a 45 moradores | 45 | +80 | – |
+| 15 | Tenha 4 casas grandes | 4 | +80 | – |
+| 16 | **Paredes do Templo** | etapa 3 | +100 | – |
+| 17 | **Tenha 2 pastos** | 2 | +100 | – |
+| 18 | Chegue a 65 moradores | 65 | +100 | – |
+| 19 | Chegue a 85 moradores | 85 | +120 | – |
+| 20 | **Pórtico e telhado** | etapa 4 | +150 | – |
+| 21 | Chegue a 120 moradores | 120 | +175 | – |
+| 22 | **Consagração do Templo** | etapa 5 | vitória | – |
 
-**Templo em etapas** (plano Desafio 2, `src/data/temple.json`, `src/core/temple.ts`): a meta do jogo
-inteiro. Cinco etapas, cada uma um objetivo (`templeStage`):
+**Templo em ruínas** (plano "ruínas" 2026-11-07, `src/data/temple.json`, `src/core/temple.ts`): a
+meta do jogo inteiro. A ruína do Templo (6 x 6) está no mapa desde a semana 0, ao norte do altar e
+encostada no anel (`templeRuin()`), protegida; o altar também começa em ruínas e não cobre nada.
+Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
 
-| # | Etapa | Lugar | Prata | Pedra | Madeira | Construtores | Obra (sem-construtor) |
-|---|---|---|---|---|---|---|---|
-| 1 | Altar restaurado | altar | 40 | 20 | 20 | 2 | 12 |
-| 2 | Alicerce | Templo | 150 | 80 | 0 | 4 | 40 |
-| 3 | Paredes | Templo | 200 | 120 | 40 | 5 | 60 |
-| 4 | Pórtico e telhado | Templo | 250 | 60 | 120 | 6 | 72 |
-| 5 | Consagração | Templo | 200 | 0 | 40 | 4 | 32 |
+| # | Etapa | Lugar | Prata | Pedra | Madeira | Construtores | Obra (sem-construtor) | Raio do altar | Oferta (gado/sem) |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Altar restaurado | altar | 40 | 20 | 20 | 2 | 12 | 6 | 0,5 |
+| 2 | Alicerce | ruína | 150 | 80 | 0 | 4 | 40 | 7 | 0,75 |
+| 3 | Paredes | ruína | 200 | 120 | 40 | 5 | 60 | 8 | 1,0 |
+| 4 | Pórtico e telhado | ruína | 250 | 60 | 120 | 6 | 72 | 10 | 1,25 |
+| 5 | Consagração | ruína | 200 | 0 | 40 | 4 | 32 | 10 | 1,5 |
+
+- **Ofertas** (`offer` em `simulation.ts`): toda semana, depois da produção, o altar restaurado
+  queima a oferta da última etapa pronta do estoque de gado. Com gado bastando, cobre o raio dela
+  (`altarRadius`, medido da borda; `s.offered`); sem, não queima nada e não cobre nada nesta semana
+  (evento `offeringsMissing` uma vez por episódio, `offeringsBack` ao voltar). As casas veem a falta
+  na semana seguinte (a cobertura é calculada antes das ofertas, como a do mercado).
+- **O altar vale:** a Casa de pedra e a Casa grande pedem `sacred` (o raio do altar com ofertas, ou o
+  do Templo consagrado). Sem altar restaurado, nenhuma casa passa do barro; sem ofertas, as casas de
+  pedra caem pela regra de sempre (`weeksToDowngrade` 3): o estoque de gado é o colchão.
+- **Gado** (`livestock`, um material): começa em 0, teto `livestockStorage` 40; o **Pasto** (3 x 3,
+  30 prata + 10 madeira, 1 Pastor, manutenção 0,5) rende 0,06 por célula de **capim livre** no raio
+  2 (chão `grass` sem construção, rua, árvore ou rocha), até 1,5/sem, × 0,5 no inverno; cheio, para.
+  Construir em cima do capim tira a célula.
 
 - Uma etapa só começa quando é o objetivo atual (`stageIsGoal`), no balão do altar (etapa 1) ou do
-  Templo (2–5): paga na hora a prata e os materiais (`startStage`; recusa sem eles, em dívida, fora
-  da rua ou sem o lugar marcado).
+  Templo (2–5): paga na hora a prata e os materiais (`startStage`; recusa sem eles, em dívida ou
+  fora da rua).
 - Em obra, o lugar tem as vagas de **Construtores** da etapa (`Building.builders`; no painel
-  Profissões, por último na `jobPriority`: `altar`, `temple`); uma meta em número para eles cresce
-  com as vagas novas. Fora da obra, 0 vagas.
+  Profissões: `altar`, `temple`). Começar a etapa põe a meta deles em número (todas as vagas), e as
+  profissões com meta em número enchem antes das automáticas: os adultos livres, e quem o − solta em
+  outra profissão, vão para a obra. Ao terminar, a meta sai. Fora da obra, 0 vagas.
 - Toda semana a obra soma 1 por construtor trabalhando (`advanceTemple`), o ano inteiro; sem
   construtor ela para sem perder nada. No `work` a etapa termina: as vagas fecham, evento `stageDone`
   e o objetivo se cumpre com o prêmio.
-- O **lugar do Templo** (6 x 6, encostado numa rua ligada) é liberado no Objetivo 9 e marcado **de
-  graça** (sem vagas e sem manutenção). Pode ser demolido até o Alicerce começar; depois fica
-  protegido (`templeLaid`).
 - O Templo só cobre (raio 12, Alegria +10) depois da Consagração (`templeDone`); as etapas não mudam
   outra regra. A vitória é a Consagração terminada.
+- **Balão do altar:** em ruínas, "Altar em ruínas: restaure para as casas de pedra"; restaurado,
+  "Ofertas: 0,5 gado/sem · cobre N casas" e o alcance; sem gado, em vermelho "✗ Sem ofertas: não
+  cobre as casas". O Templo, até o Alicerce ficar pronto, se chama **"Ruínas do Templo"** no balão (só
+  as etapas, sem a frase do que faz). A casa que não sobe por causa do altar diz o motivo: "Altar em
+  ruínas", "altar sem ofertas" ou "longe do altar". Toasts: "O altar ficou sem ofertas: as casas de
+  pedra vão cair" (e "Sem ofertas" subindo do altar) e "As ofertas voltaram". A coluna não tem mais o
+  Templo (ele está no mapa desde o começo) e ganha o Pasto, depois da Coletora.
 - **Balão do altar e do Templo** (`stageCard` em `src/game/model/card.ts`): as etapas já prontas ali
   ("✓ Altar restaurado: pronto") e a próxima, "Etapa 2 de 5: Alicerce". Enquanto ela é o objetivo:
   antes de começar, o custo ("150 prata · 80 pedra", o que falta em vermelho com "(tem N)"), "4
@@ -1140,17 +1169,22 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
 - Uma **linha fixa** logo abaixo da barra do topo, sempre visível fora do tutorial (no tutorial ela
   some: a frase do tutorial é a ajuda): um ícone e uma frase curta (`nextStep` em
   `src/game/model/nextStep.ts`, lê o core, sem regra própria). Celular: 28 px de altura (o toque pega
-  44 px), corta com reticências; os toasts continuam abaixo do meio da tela. PC: centrada sob a barra,
+  44 px), corta com reticências, ao lado da pílula do objetivo quando cabe antes da coluna (a pílula
+  do celular deixa de repetir a etapa: a linha já diz), senão embaixo; os toasts continuam abaixo do
+  meio da tela. PC: centrada sob a barra,
   numa linha. A área livre do mapa (balões) começa abaixo dela.
 - Ordem: 1) **crise** (vermelha, borda vermelha): dívida ("Dívida: N semanas para perder. Demolir corta
   gastos"), fome ou comida que não chega à colheita ("Comida acaba em N semanas: construa um
-  pescador perto do rio"), frio ou lenha que não dura o inverno; 2) **a etapa do Templo** quando é o
+  pescador perto do rio"), frio ou lenha que não dura o inverno, o altar restaurado sem ofertas ("O
+  altar está sem ofertas: construa um pasto no capim") ou com gado para 8 semanas ou menos ("Gado
+  acaba em N semanas: construa um pasto no capim"); 2) **a etapa do Templo** quando é o
   objetivo (borda dourada): "Altar restaurado: toque no altar e comece", "Alicerce: junte 80 pedra ·
   30/80", "Alicerce: ligue o Templo à rua", "Alicerce: ponha construtores · 1 de 4", "Alicerce 18/40 ·
   pronto em ~6 sem"; 3) **o objetivo atual**: a primeira coisa que falta (construir: o próprio
   objetivo, ou "Oficina: ligue à rua"; casas de nível N: a exigência da casa mais perto de subir,
   "Construa uma praça perto das casas de barro", "Praça libera no objetivo 5", "Faltam 8 de pedra para
-  as casas subirem", "Construa mais casas: 2 de 5", "As casas sobem em ~3 semanas"; moradores: caravana
+  as casas subirem", "Casas de pedra pedem o altar: restaure o altar", "Casas de pedra só perto do
+  altar: construa perto dele", "Construa mais casas: 2 de 5", "As casas sobem em ~3 semanas"; moradores: caravana
   ou casais sem casa vazia, material, comida para nascer, depois o nível das casas; marcos: "Deixe 1
   casa vazia: caravana em 5 sem", "As crianças crescem: enquanto isso, suba as casas"); 4) "Tudo em
   ordem: aproveite a cidade".

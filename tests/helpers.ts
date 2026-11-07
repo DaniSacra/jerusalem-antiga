@@ -195,3 +195,21 @@ export function consecrate(s: GameState) {
   s.temple = { done: TEMPLE_STAGES.length, active: false, progress: 0 };
   refreshCity(s);
 }
+
+/** Livestock `restoreAltar` keeps in the pens: offerings for every test week (the cap only stops the pastures). */
+export const PENS = 1000;
+
+/**
+ * Restores the altar (stage 1 built) with its offering this week and `livestock` in the pens, so it
+ * covers its sacred radius (`sacredRadius` of stage 1 from its edge): for tests of stone houses and
+ * the altar's happiness. `stages` builds more (the radius and the offering are the last one's).
+ */
+export function restoreAltar(s: GameState, stages = 1, livestock = PENS) {
+  s.temple = { done: stages, active: false, progress: 0 };
+  s.offered = true;
+  s.livestock = livestock;
+  refreshCity(s);
+}
+
+/** The altar's sacred radius once restored (stage 1). */
+export const ALTAR_RADIUS = TEMPLE_STAGES[0].sacredRadius;

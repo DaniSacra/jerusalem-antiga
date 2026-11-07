@@ -136,6 +136,8 @@ export const WINDOWS_AT: Partial<Record<number, [number, number, number, number]
 export function panesOf(look: Pick<BuildingLook, 'houseLevel' | 'vacant'>): [number, number, number, number][] {
   return look.vacant ? [] : (WINDOWS_AT[look.houseLevel] ?? []);
 }
+/** The pasture's straw shelter (model x, z; front +z): its flock huddles under it in winter (ambient.ts). */
+export const SHELTER_AT: [number, number] = [-0.7, -0.7];
 /** The workshop kiln (model x, z; the code and the Meshy model have it there): smoke, night fire and the level-3 chimney. */
 export const KILN: [number, number] = [0.8, -0.1];
 /** Per level of a service building (index = level): height and brightness (richer stone at the top). */
