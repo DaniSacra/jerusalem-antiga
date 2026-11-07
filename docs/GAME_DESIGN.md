@@ -264,17 +264,42 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `
 - **O campo no inverno** congela, mas os lavradores ficam nele, descansando (contam como empregados).
 - **Mudar a profissão** (`setJob`, jogador): na ficha da pessoa, "Mudar" abre uma lista curta com
   cada local ligado com vaga livre ("Pescador 0/1", "Lenhador 1/2", o mais perto da casa primeiro)
-  e "Sem trabalho". Grátis e na hora; a vaga deixada vai a quem estiver livre. "Sem trabalho" marca
-  `quitWeek`: a pessoa não volta sozinha na mesma semana (na seguinte, só se houver vaga). Lista
+  e "Sem trabalho". Grátis e na hora; as metas do painel Profissões acompanham (a profissão deixada
+  fica com uma pessoa a menos; a de destino, se for um número, abre lugar para quem chega sem passar das vagas e sem subir se já faltava gente), para o jogo não
+  desfazer a troca. "Sem trabalho" baixa a meta da profissão deixada; a pessoa pode ir para uma vaga
+  livre de uma profissão automática. Lista
   vazia: "Nenhuma vaga livre: construa um lenhador, campo ou oficina". Criança, idoso e quem está a
   caminho não têm o botão. Esc ou um toque no mapa fecha a lista.
 - **Balão do local de trabalho:** "Trabalhadores 1/2" e os nomes (tocar abre a ficha); vazio,
-  "Ninguém trabalha aqui: toque numa pessoa e mude a profissão" quando há alguém para mover (um adulto
+  "Ninguém trabalha aqui: abra Profissões" quando há alguém para mover (um adulto
   sem trabalho, ou num local com 2 ou mais: `anyoneToMove`); senão "Ninguém trabalha aqui: faltam
   adultos (N crianças na cidade)" (o balão sobre o mapa é o de "sem trabalhadores").
 - **Toasts:** construir um local que produz sem ninguém livre: "Ninguém livre para o Lenhador:
-  mude a profissão de alguém" (uma vez por arrasto); o mercado que perde o último trabalhador (na
+  abra Profissões" (uma vez por arrasto); o aviso de local vazio: "Lenhador sem trabalhadores: abra
+  Profissões"; o mercado que perde o último trabalhador (na
   semana, evento `serviceEmpty`, ou pelo "Mudar"): "Mercado vazio: não atende as casas".
+- **Painel Profissões** (`src/ui/jobs.ts`, modelo puro `src/game/model/jobs.ts`): abre pelo botão
+  Profissões (PC: na lateral, sob Estatísticas; celular: um disco com nome depois de Demolir, porque
+  cinco botões não cabem na lateral), pela pílula de Moradores e pela tecla **P**; fecha com ✕, Esc,
+  toque no mapa ou o mesmo botão. Cabeçalho com "Profissões", **Automático** (dourado quando alguma
+  meta é um número; cinza sem efeito quando tudo já é automático) e ✕. Primeira linha fixa: **Sem
+  trabalho N** e, pequeno, "N crianças, N idosos". Depois uma linha por profissão **construída**, na
+  ordem `jobPriority`: miniatura da construção, nome (Pescadores, Coletoras, Lavradores, Lenhadores,
+  Pedreiros, Celeireiros, Mercadores, Artesãos, Construtores), "2 de 4 vagas" (ou "sem rua"), em âmbar
+  "falta N" quando há menos gente que a meta, e **− [meta] +** (botões de 44 px). Meta automática:
+  o número é o das vagas, cinza, com o selo "auto"; + fica cinza (já quer todas). − tira na hora quem
+  mora mais longe; + com ninguém livre diz "Ninguém livre: tire de outra profissão" no cabeçalho do painel (enquanto
+  ninguém está livre e alguma profissão espera gente) e a linha fica com "falta 1" até alguém ficar livre. Celular deitado: duas
+  colunas que enchem de cima para baixo, o painel desce até a borda da tela (cobre as ferramentas
+  enquanto aberto, e os toasts esperam ele fechar) e cabe sem rolar; PC: uma coluna.
+- **Metas das profissões** (`s.jobTargets`, core em `work.ts`/`actions.ts`): sem chave = automática
+  (todas as vagas, o jogo de antes do painel, dígito a dígito); um número limita a equipe do tipo. Toda
+  semana e a cada mudança, `assignJobs` solta quem passa da meta (quem mora mais longe do trabalho;
+  empate: id maior) e enche as vagas livres pela `jobPriority`, pulando os tipos na meta; o jogo não
+  move ninguém empregado para outro tipo. − = mín(meta, equipe) − 1 (nunca abaixo de 0); + soma 1 a
+  uma meta em número, até as vagas construídas. Construir (ou melhorar) um local de um tipo com meta
+  em número soma as vagas novas à meta; demolir corta a meta às vagas que sobram. Automático limpa
+  todas as metas.
 - **Estatísticas:** aba Agora com adultos, vagas do ano, sem trabalho e vagas livres; aba Povo com
   "Trabalho: 8 de 10 adultos · 2 sem vaga".
 - **3D:** só anda quem trabalha: um local sem ninguém não manda moradores (`walkers.ts`) nem
@@ -730,7 +755,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     e o número da madeira e, depois de liberar a Pedreira, o ícone da pedra e o número (sem
     "+N/sem"); no PC uma pílula por material, "Madeira 20 +1,5/sem" (a Pedra só depois de liberar a
     Pedreira). O número fica **vermelho com "⚠"** enquanto alguma casa espera aquele material. A
-    pedra entra com um brilho dourado (3 piscadas) ao ser liberada. Tocar abre as Estatísticas.
+    pedra entra com um brilho dourado (3 piscadas) ao ser liberada. Tocar abre as Estatísticas (Moradores abre Profissões).
     Se a fileira não couber à esquerda da estação, as pílulas encurtam por etapas (`fitPills` em
     `src/game/model/topbar.ts`, que mede a largura sem desenhar; `src/ui/topbar.ts` mede o espaço): primeiro somem os rótulos dos materiais, depois todos os rótulos, depois o "+N/sem"
     dos materiais, depois o "/sem" da prata e da comida, e por fim a previsão da comida vira a curta
@@ -796,8 +821,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     ficam sob os moradores. Tocar num morador abre a **ficha** (parentes que abrem a ficha deles,
     "Voltar"; a casa leva a câmera até ela). O **anel do nível e a pílula do objetivo** abrem
     Objetivos; na lateral, sob os botões de girar, ficam **Avisos** (selo e pulso a cada
-    aviso novo, que também vira toast) e **Estatísticas** (Agora, Povo e Histórico; uma família do
-    Povo leva até a casa dela). Os painéis e a ficha terminam acima das ferramentas. Escolher uma
+    aviso novo, que também vira toast), **Estatísticas** (Agora, Povo e Histórico; uma família do
+    Povo leva até a casa dela) e **Profissões** (no celular, depois de Demolir; ver Trabalho). Os painéis e a ficha terminam acima das ferramentas. Escolher uma
     construção na coluna mostra o balão dela ao lado do botão (custo, manutenção, efeito, "Saldo
     depois", "Comida depois"); no celular ele some enquanto a pílula da prévia aparece, para o lugar
     ficar à vista. Os toasts terminam à esquerda desse balão. Painéis têm ✕. Sobre as construções com problema, um balão com o ícone da
@@ -886,7 +911,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     construções miram 90 px acima do dedo; Demolir age sob o dedo); pinça ou roda dá zoom em volta do dedo/cursor (a roda pelo quanto rolou: ~14% por dente,
     e o touchpad fica suave); dois dedos girando giram só depois de ~12° de torção (uma pinça de zoom
     não entorta o mapa); botão direito ou do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os
-    botões giram até a próxima das 4 vistas padrão (desfazem um giro livre). Tocar no mapa com um
+    botões giram até a próxima das 4 vistas padrão (desfazem um giro livre); **P** abre e fecha
+    Profissões. Tocar no mapa com um
     painel ou a ficha aberta só fecha o que está aberto. A
     inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
   - Começa centrada no altar, na vista padrão.

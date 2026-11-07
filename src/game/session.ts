@@ -30,9 +30,12 @@ import {
   upgradeBuilding,
   madeByCrew,
   setJob,
+  changeJobTarget,
+  autoJobs,
   type ActionResult,
   type BuildableKind,
   type Building,
+  type BuildingKind,
   type BuildingCategory,
   type Cell,
   type CityReadout,
@@ -367,6 +370,19 @@ export class Session {
     if (left && RULES.staffedServices.includes(left.kind) && !s.people.some((p) => p.jobId === left.id)) this.say(T.serviceEmpty(left.kind), 'bad');
     this.refresh();
     return true;
+  }
+
+  /** − / + on a profession in the Profissões panel (see `changeJobTarget`). */
+  changeJobTarget(kind: BuildingKind, delta: 1 | -1): boolean {
+    if (!changeJobTarget(this.state, kind, delta)) return false;
+    this.refresh();
+    return true;
+  }
+
+  /** "Automático" in the Profissões panel: every profession fills all its jobs again. */
+  autoJobs() {
+    autoJobs(this.state);
+    this.refresh();
   }
 
   /** Raises the tapped granary, market or workshop one level (Melhorar in its balloon). */

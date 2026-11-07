@@ -31,6 +31,8 @@ export const ICONS: Record<string, string> = {
   flag: svg('<path d="M7 3v19" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7.5 4c4-2 7 2 12 0-2 3-2 5 0 8-5 2-8-2-12 0z" fill="#b5462f" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
   alert: svg('<path d="M12 3l10 18H2z" fill="#d9a93e" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v6" stroke="#2b1f14" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="#2b1f14"/>'),
   stats: svg('<path d="M3 21h18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 18v-6M12 18V5M17 18v-9" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>'),
+  /** Profissões: a worker with a hammer over the shoulder. */
+  jobs: svg('<circle cx="9" cy="6.5" r="3.4" fill="currentColor"/><path d="M2.5 21.5v-3.2a6.5 6.5 0 0 1 13 0v3.2z" fill="currentColor"/><path d="M14.5 15.5l6-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M17.2 4.2l4.6 3.4-1.6 2.2-4.6-3.4z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'),
   gear: svg('<path d="M12 2l1.6 2.6 3-.8.6 3 2.8 1.3-1.2 2.9 1.2 2.9-2.8 1.3-.6 3-3-.8L12 22l-1.6-2.6-3 .8-.6-3-2.8-1.3L5.2 13 4 10.1l2.8-1.3.6-3 3 .8z" fill="currentColor"/><circle cx="12" cy="12" r="3.4" fill="#24190e"/>'),
   arrow: svg('<path d="M20 56L0 34h12V2h16v32h12z" fill="#ffd77a" stroke="#3b2a1a" stroke-width="3" stroke-linejoin="round"/>', '-2 0 44 58'),
 };

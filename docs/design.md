@@ -6,8 +6,9 @@ Mantido pelo game-director. As regras e os números completos ficam em `docs/GAM
 Plano do usuário: `docs/revisoes/2026-11-04/plano-sobrevivencia.md`. Plano do diretor, com o
 roteiro e o Pacote 1 "Ritmo": `docs/revisoes/2026-11-04/plano.md`.
 - Partida de ~30 min (~10 anos de jogo, 1 ano = 2,5–3 min a 1x); cerca de 30% dos jogadores vencem
-- Vitória: o Templo com cerca de 150 moradores, umas 25 casas (no main ainda: 500 moradores a partir
-  do Ano 8; muda com o Pacote Povo)
+- Vitória: o Templo com cerca de 150 moradores, umas 25 casas (desde o plano "Desafio e rumo",
+  2026-11-07: a Consagração, 5ª etapa do Templo, depois de 120 moradores; o Templo é a espinha da
+  partida inteira)
 - Apego às famílias (2026-11-04, pedido do usuário): o jogador acompanha as mesmas famílias por
   gerações; a cidade cresce por dentro (casamentos e nascimentos) e o cuidado do jogador decide o
   ritmo. Famílias de fora só chegam em 2–3 caravanas anunciadas
@@ -113,6 +114,19 @@ Mantidos:
   Música e os pacotes de arte e interface. Música: Web Audio gerado (arquitetura 12), ligada por padrão
   a 50%, toca pausado e no título (depois do primeiro toque), a chave de silêncio do iPhone cala.
   Motivo: o jogo é contemplativo e o 3D perdeu o detalhe do 2D; nenhum item é mecânica nova
+- 2026-11-07 (usuário, escopo do diretor): plano **"Desafio e rumo"**
+  (`docs/revisoes/2026-11-07/plano-desafio.md`), aprovado inteiro e nesta ordem, commit + push por
+  parte: T0 Arrumação técnica → Profissões → Templo em etapas + "O que fazer agora" → Gado →
+  Dificuldade. Motivo: o usuário achou o jogo fácil demais (Comum vence ~90%, 0 derrotas) e se sentiu
+  perdido (objetivos do meio são espera sem ação). Decisões do diretor no mesmo plano (seção 0):
+  Profissões por **meta de trabalhadores por tipo** que o core honra toda semana (sem meta = automático,
+  o jogo de hoje); **só o Templo tem obra com tempo** (5 etapas, cada uma um objetivo, paga ao começar,
+  avança 1 por construtor por semana, o ano inteiro); lugar do Templo marcado de graça; vitória =
+  Consagração; saem `templeSavings`, `TEMPLE_GOAL`, `templeWaitsForGoal` e os objetivos de 100, 130 e
+  160 moradores (fica 120); "Chamar trabalhador" no balão FORA; gado pelo capim livre, sem comida no
+  inverno, com o objetivo "Construa um pasto"; Dificuldade escolhida no título (Normal padrão), com
+  casas maiores comendo e queimando mais e invernos que pioram do Ano 3. **A2 novo por dificuldade**:
+  Comum vence 80–95% (Tranquilo), 50–70% (Normal), 20–40% (Difícil), seção 4.6 do plano
 
 ## Feito: Pacote B "Primeiro ano de sobrevivência" (escopo 2026-11-06, fechado no mesmo dia)
 Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md`. Em ordem, cada um sozinho no main:
@@ -146,7 +160,25 @@ Casas sem fumaça no frio. "Parado: estoque cheio". Critérios novos F1–F4 (fr
 partidas do Comum, ≤ 15% no Ano 1) e W4b ≤ 15/100. Alavancas na seção 8 do plano. Fora: roupas,
 plantio, depósito, manutenção em pedra, frio na alegria e nos nascimentos.
 
-## Agora: plano "Beleza e calma" (2026-11-06)
+## Agora: plano "Desafio e rumo" (aprovado pelo usuário em 2026-11-07)
+Plano completo, com regra, números, telas, arte, testes, critérios, dono e horas de cada pacote:
+`docs/revisoes/2026-11-07/plano-desafio.md`. Em ordem, cada um sozinho no main (~89–121 h):
+- **T0 Arrumação técnica** (3–6 h): sai `temple.glb`; kit de obra do terreno vazio instanciado (≤ 120
+  chamadas com 10 terrenos); `town3d-pc` e `music3d-pc` estáveis.
+- **1 Profissões** (mecânica: metas de trabalhadores; 12–15,5 h): painel com cada profissão, − / +,
+  "Sem trabalho" e "Automático"; o core solta o que mora mais longe e puxa o mais perto. Sem toque no
+  painel = jogo de hoje (P1).
+- **2 Templo em etapas + "O que fazer agora"** (mecânica: obra do Templo; 33–44 h): Altar restaurado →
+  Alicerce → Paredes → Pórtico e telhado → Consagração (`temple.json`), cada etapa um objetivo, paga ao
+  começar e erguida por construtores; 21 objetivos; uma linha fixa sob a barra com o próximo passo e
+  a seta. Critérios E1–E7.
+- **3 Gado** (mecânica: pasto e gado; 23–31 h): seção 1 do `plano-backlog.md`, renumerado (22
+  objetivos, Pastor no painel). Critérios G1–G6.
+- **4 Dificuldade** (mecânica: multiplicadores; 18–24,5 h): Tranquilo / Normal / Difícil
+  (`difficulty.json`), `foodFactor` e lenha crescentes por nível, inverno que piora do Ano 3. A2 por
+  dificuldade (seção 4.6).
+
+## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.
 Sem mecânica nova e sem mudar números de economia. Medir `view3d-perf.mjs` em cada pacote (≥ 30 qps no
 celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
@@ -158,7 +190,15 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
-## Próximos candidatos (ordem do plano de sobrevivência, um pacote por vez)
+## Próximos candidatos (um pacote por vez)
+Desde 2026-11-07: primeiro o plano "Desafio e rumo" (acima, inclui o Gado). Depois, o
+`docs/revisoes/2026-11-07/plano-backlog.md` na ordem dele a partir do D1 Um dia na cidade (o B4,
+Recuperação e vitória, D2 Retratos, D3 Contemplar, Governo, D4 Festas, Oficina com ofícios, D5,
+Roupas, Doenças, Eventos, Alojamento, Incêndio, História), **sem o C** (feito no plano Desafio) e
+**sem "O Obras com tempo"** (absorvido só para o Templo; obra com tempo nas outras construções fica
+DEPOIS, se o playtest pedir). "Chamar trabalhador" no balão: FORA (o painel de Profissões substitui).
+
+Histórico da lista anterior:
 0. Pacote B "Primeiro ano de sobrevivência" (feito 2026-11-06) → ajuste "Fim sem frio" (feito
    2026-11-06: madeira do Templo 200, A2 do Comum 50–90%) → plano "Beleza e calma" (acima) até o C3 →
    Pacote C "Gado" (o Mercado passa a pedir gado); depois do C3, alterna um pacote de beleza e um de

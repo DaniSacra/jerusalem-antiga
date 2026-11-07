@@ -10,7 +10,8 @@ import { PersonSheet } from './sheet';
 import { ProblemLabels } from './labels';
 import { notices, type Notice } from '../game/notices';
 import { iconButton } from './parts';
-import { formOf, h, setText } from './dom';
+import { formOf, h, onTap, setText } from './dom';
+import { ICONS } from './icons';
 import { Modal } from './modal';
 import { SettingsPanel } from './settings';
 import { Toasts } from './toasts';
@@ -53,9 +54,11 @@ export class Hud {
   private panels: Panels;
   private sheet: PersonSheet;
   private labels: ProblemLabels;
-  /** Objetivos, Avisos (with the red selo of how many) and Estatísticas, under the turn buttons. */
+  /** Avisos (with the red selo of how many), Estatísticas and Profissões, under the turn buttons. */
   private sideButtons = new Map<PanelKind, HTMLButtonElement>();
   private badge = h('span.badge.hidden');
+  /** Phone: Profissões as a labelled disc after the tools (five side buttons do not fit above them). */
+  private jobsTool: HTMLButtonElement;
   /** The standing warnings, and the keys seen (a new one toasts once and the Avisos button pulses). */
   private notices: Notice[] = [];
   private noticeKeys = new Set<string>();
@@ -81,7 +84,7 @@ export class Hud {
     const s = host.session;
     this.anchors = new Anchors((r, top) => host.screenOf(r, top));
     this.settings = new SettingsPanel();
-    this.top = new TopBar(s, { settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats') });
+    this.top = new TopBar(s, { settings: () => this.settings.toggle(), goals: () => this.togglePanel('goals'), stats: () => this.togglePanel('stats'), jobs: () => this.togglePanel('jobs') });
     this.tools = new Tools(s, (d) => host.turn(d));
     this.sheet = new PersonSheet(s, (id) => this.showHouse(id));
     this.labels = new ProblemLabels(this.anchors, () => host.zoom, () => this.free);
@@ -91,12 +94,17 @@ export class Hud {
     }, (dx) => host.nudge(dx));
     this.panels = new Panels(s, () => this.phone, (id) => this.showHouse(id), () => this.closeTop());
     // Objetivos opens from the level ring and the goal (top bar).
-    for (const [kind, icon, label] of [['alerts', 'alert', T.nova.buttons.alerts], ['stats', 'stats', T.nova.buttons.stats]] as const) {
+    for (const [kind, icon, label] of [['alerts', 'alert', T.nova.buttons.alerts], ['stats', 'stats', T.nova.buttons.stats], ['jobs', 'jobs', T.nova.buttons.jobs]] as const) {
       const b = iconButton(icon, label, () => this.togglePanel(kind), `panel-${kind}`);
       if (kind === 'alerts') b.append(this.badge);
       this.sideButtons.set(kind, b);
       this.tools.turns.append(b);
     }
+    const disc = h('span.disc');
+    disc.innerHTML = ICONS.jobs;
+    this.jobsTool = h('button.tool.jobs', { 'data-spot': 'jobs-button', 'aria-label': T.nova.buttons.jobs }, disc, h('span.label', {}, T.nova.buttons.jobs));
+    onTap(this.jobsTool, () => this.togglePanel('jobs'));
+    this.tools.tools.append(this.jobsTool);
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.modal = new Modal(root);
     root.append(this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.settings.el);
@@ -151,6 +159,7 @@ export class Hud {
   setThumbs(urls: Partial<Record<BuildableKind, string>>) {
     this.tools.setThumbs(urls);
     this.balloon.setThumbs(urls);
+    this.panels.setThumbs(urls);
   }
 
   update() {
@@ -168,6 +177,11 @@ export class Hud {
     this.sheet.update();
     this.balloon.el.classList.toggle('under', this.sheet.open);
     for (const [k, b] of this.sideButtons) b.classList.toggle('on', this.panels.open === k);
+    this.jobsTool.classList.toggle('on', this.panels.open === 'jobs');
+    // The tutorial's bubble sits right of the tools on a phone: the disc waits for it (the Moradores pill still opens the panel).
+    this.jobsTool.classList.toggle('hidden', this.tutorial.open);
+    // The Profissões panel fills the phone's screen: the toasts wait until it closes.
+    this.toasts.hold(this.phone && this.panels.open === 'jobs');
     this.toasts.update();
     // A locked button may have opened up: buttons are measured again for the arrow.
     this.tutorial.remeasure();
@@ -195,6 +209,11 @@ export class Hud {
     this.host.session.deselect();
     this.panels.toggle(kind);
     this.update();
+  }
+
+  /** Key P: opens or closes Profissões. */
+  toggleJobs() {
+    this.togglePanel('jobs');
   }
 
   /** A resident tapped on the street: their sheet opens (panels close). */

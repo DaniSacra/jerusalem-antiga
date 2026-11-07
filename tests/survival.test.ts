@@ -804,7 +804,7 @@ describe('fields keep their farmers in winter (plan B2)', () => {
     s.food = 3; // enough for this winter week only
     expect(foodForecast(s)).toBeNull(); // the harvest comes in time and feeds the city
     for (const p of s.people) if (s.buildings.find((b) => b.id === p.jobId)?.kind === 'field') p.jobId = null;
-    s.people.forEach((p) => (p.quitWeek = s.week)); // nobody goes back this week
+    s.jobTargets.field = 0; // nobody goes back to the fields
     const spring = structuredClone(s);
     spring.week = SPRING;
     expect(computeEconomy(spring).harvest).toBe(0); // empty fields harvest nothing

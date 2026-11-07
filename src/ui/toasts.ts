@@ -13,6 +13,7 @@ export class Toasts {
   readonly el = h('div.toasts');
   private queue = new ToastQueue();
   private els = new Map<number, HTMLElement>();
+  private held = false;
 
   /** Phone: at most two at once (`TOAST_MAX_PHONE`). */
   setPhone(phone: boolean) {
@@ -22,6 +23,14 @@ export class Toasts {
 
   show(msg: string, t: Tone = 'info', opt: ToastOptions = {}) {
     this.queue.show(msg, t, opt);
+    this.draw();
+  }
+
+  /** Holds the toasts while something covers the screen (see `ToastQueue.hold`). */
+  hold(on: boolean) {
+    if (on === this.held) return;
+    this.held = on;
+    this.queue.hold(on);
     this.draw();
   }
 

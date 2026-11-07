@@ -216,6 +216,7 @@ describe('keys (PC)', () => {
     expect(keyCommand('R')).toEqual({ do: 'rotate' });
     expect(keyCommand('q')).toEqual({ turn: -1 });
     expect(keyCommand('Escape')).toEqual({ do: 'escape' });
+    expect(keyCommand('P')).toEqual({ do: 'jobs' });
     expect(keyCommand('w')).toBeNull();
     expect(keyCommand('w', true)).toHaveProperty('pan');
   });

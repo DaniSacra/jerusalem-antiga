@@ -126,7 +126,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
       const c = keyCommand(e.key, true);
       if (!c) return;
       e.preventDefault();
-      runKey(c, this.session, { closeTop: () => this.hud.closeTop(), turnMap: (d) => this.turn(d), panBy: (dx, dy) => this.panBy(dx, dy) });
+      runKey(c, this.session, { closeTop: () => this.hud.closeTop(), turnMap: (d) => this.turn(d), panBy: (dx, dy) => this.panBy(dx, dy), toggleJobs: () => this.hud.toggleJobs() });
     });
     on<Event>(window, 'resize', () => this.resize());
     // Any input on the page (map or interface) wakes the frame rate up (see `loop`).
@@ -389,6 +389,14 @@ export class Play3D implements SessionView, GestureView, HudHost {
         cellAt: (sx: number, sy: number) => g.cellAt(sx, sy),
         /** Screen points of the residents walking now (tests tap one). */
         residents: () => g.scene.residentPoints(),
+        /** No city layer waits to be drawn again: the walkers on screen stay (until the city changes). */
+        get settled() {
+          return stage.settled;
+        },
+        /** Holds the walkers still (true) or lets them walk on: a test finds one, then clicks it. */
+        holdWalkers: (on: boolean) => {
+          stage.holdWalkers = on;
+        },
         /** Who a mouse click on (sx, sy) picks (tests pick a walker no one else stands next to). */
         personAt: (sx: number, sy: number) => g.scene.personAt(sx, sy, PERSON_REACH_MOUSE),
       },

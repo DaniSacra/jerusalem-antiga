@@ -10,7 +10,8 @@ const FIT_SLACK = 10;
 
 /**
  * The top bar: level ring, resource pills, the goal, the season, speed and the gear. The
- * level ring and the goal open Objetivos (as in the 2D), the other pills Estatísticas; the goal
+ * level ring and the goal open Objetivos (as in the 2D), Moradores opens Profissões, the other
+ * pills Estatísticas; the goal
  * follows the pills on their row when it fits, else on the next one. On PC the pills shorten
  * (`fitPills`) so they stay on one row before the season.
  */
@@ -29,12 +30,12 @@ export class TopBar {
   /** The page's sizes for `fitPills`, read again when the window changes. */
   private metrics: { key: string; m: PillMetrics; measure: MeasureText } | null = null;
 
-  constructor(private s: Session, o: { settings: () => void; goals: () => void; stats: () => void }) {
+  constructor(private s: Session, o: { settings: () => void; goals: () => void; stats: () => void; jobs: () => void }) {
     this.speed = h('button.round.gold', { 'data-spot': 'speed', 'aria-label': T.nova.buttons.speed });
     onTap(this.speed, () => s.cycleSpeed());
     onTap(this.level, o.goals);
     onTap(this.goal, o.goals);
-    onTap(this.pills, o.stats);
+    onTap(this.pills, (e) => ((e.target as Element | null)?.closest?.('[data-pill="people"]') ? o.jobs() : o.stats()));
     onTap(this.season, o.stats);
     const group = h('div.speeds');
     for (const v of [0, 1, 3] as Speed[]) {

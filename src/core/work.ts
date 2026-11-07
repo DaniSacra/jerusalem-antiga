@@ -72,33 +72,85 @@ function distance(p: Person, b: Building, houses: Map<number, Building>): number
   return h ? Math.abs(h.x - b.x) + Math.abs(h.y - b.y) : Infinity;
 }
 
+/** Jobs of every building of a kind, connected or not (what a profession's target is capped by when demolishing). */
+export const jobsBuilt = (s: GameState, kind: BuildingKind) =>
+  s.buildings.reduce((a, b) => a + (b.kind === kind ? statOf(b, 'jobs') : 0), 0);
+
+/** Jobs the connected workplaces of a kind offer now. */
+export const seatsOfKind = (s: GameState, kind: BuildingKind) =>
+  s.buildings.reduce((a, b) => a + (b.kind === kind ? seatsOf(b) : 0), 0);
+
+/** Workers a profession can have now: its target (automatic = every job), never above the jobs on the road. */
+export function targetOf(s: GameState, kind: BuildingKind, seats = seatsOfKind(s, kind)): number {
+  const t = s.jobTargets[kind];
+  return t === undefined ? seats : Math.min(t, seats);
+}
+
+/** Workers in each profession (workplace kind). */
+export function crewByKind(s: GameState): Map<BuildingKind, number> {
+  const crews = crewCounts(s);
+  const out = new Map<BuildingKind, number>();
+  for (const b of s.buildings) out.set(b.kind, (out.get(b.kind) ?? 0) + (crews.get(b.id) ?? 0));
+  return out;
+}
+
+/** The target − leaves: one below the crew (or the target, when lower), never under 0. */
+export const loweredTarget = (target: number | undefined, crew: number) => Math.max(0, Math.min(target ?? Infinity, crew) - 1);
+
 /**
  * Frees the jobs nobody can hold (a child grown old, a person gone, a workplace demolished or off
- * the road, more crew than jobs: the newest by id go), then fills each free job: workplaces by
- * `jobPriority` and age, each job to the free adult living nearest (ties by id). An adult the
- * player left without work this week (`quitWeek`) waits for the next.
+ * the road, more crew than jobs: the newest by id go), then the workers above a profession's target
+ * (`jobTargets`: whoever lives farthest from the workplace goes, ties by the higher id), then fills
+ * each free job: workplaces by `jobPriority` and age, each job to the free adult living nearest
+ * (ties by id), skipping professions at their target. With no targets set this is the game before
+ * the Profissões panel, to the digit.
  */
 export function assignJobs(s: GameState): void {
   const byId = new Map(s.buildings.map((b) => [b.id, b]));
+  const houses = new Map(s.buildings.filter((b) => b.kind === 'house').map((b) => [b.id, b]));
   const kept = new Map<number, number>();
+  const perKind = new Map<BuildingKind, Person[]>();
   for (const p of [...s.people].sort((a, c) => a.id - c.id)) {
     if (p.jobId == null) continue;
     const b = byId.get(p.jobId);
     const n = kept.get(p.jobId) ?? 0;
-    if (!canWork(s, p) || !b || n >= seatsOf(b)) p.jobId = null;
-    else kept.set(p.jobId, n + 1);
+    if (!canWork(s, p) || !b || n >= seatsOf(b)) {
+      p.jobId = null;
+      continue;
+    }
+    kept.set(p.jobId, n + 1);
+    const crew = perKind.get(b.kind);
+    if (crew) crew.push(p);
+    else perKind.set(b.kind, [p]);
   }
-  const free = s.people.filter((p) => p.jobId == null && p.quitWeek !== s.week && canWork(s, p));
+  const seats = new Map<BuildingKind, number>();
+  for (const b of s.buildings) seats.set(b.kind, (seats.get(b.kind) ?? 0) + seatsOf(b));
+  const cap = (kind: BuildingKind) => targetOf(s, kind, seats.get(kind) ?? 0);
+  const count = new Map<BuildingKind, number>();
+  for (const [kind, crew] of perKind) {
+    const over = crew.length - cap(kind);
+    if (over > 0) {
+      const far = (p: Person) => distance(p, byId.get(p.jobId!)!, houses);
+      crew.sort((a, c) => far(c) - far(a) || c.id - a.id);
+      for (const p of crew.slice(0, over)) {
+        kept.set(p.jobId!, kept.get(p.jobId!)! - 1);
+        p.jobId = null;
+      }
+    }
+    count.set(kind, crew.length - Math.max(0, over));
+  }
+  const free = s.people.filter((p) => p.jobId == null && canWork(s, p));
   if (!free.length) return;
-  const houses = new Map(s.buildings.filter((b) => b.kind === 'house').map((b) => [b.id, b]));
   for (const b of workplaces(s)) {
-    for (let n = kept.get(b.id) ?? 0; n < seatsOf(b) && free.length; n++) {
+    const most = cap(b.kind);
+    for (let n = kept.get(b.id) ?? 0; n < seatsOf(b) && (count.get(b.kind) ?? 0) < most && free.length; n++) {
       let best = 0;
       for (let k = 1; k < free.length; k++) {
         const d = distance(free[k], b, houses) - distance(free[best], b, houses);
         if (d < 0 || (d === 0 && free[k].id < free[best].id)) best = k;
       }
       free.splice(best, 1)[0].jobId = b.id;
+      count.set(b.kind, (count.get(b.kind) ?? 0) + 1);
     }
     if (!free.length) return;
   }

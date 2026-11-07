@@ -278,7 +278,7 @@ function donor(s: GameState, target: Building, lowerCrew: number, sameOnly = fal
   const crews = crewCounts(s);
   const byId = new Map(s.buildings.map((b) => [b.id, b]));
   const adults = s.people.filter((p) => canWork(s, p)).sort((a, c) => a.id - c.id);
-  const idle = adults.find((p) => p.jobId == null && p.quitWeek !== s.week);
+  const idle = adults.find((p) => p.jobId == null);
   if (idle) return idle.id;
   const eaten = computeEconomy(s).foodEaten;
   const comfortable = !s.famine && s.food >= eaten * RULES.weeksPerSeason;

@@ -112,7 +112,7 @@ export const T = {
   /** A market lost its last worker. */
   serviceEmpty: (kind: BuildingKind) => `${BUILDINGS[kind].name} vazio: não atende as casas`,
   /** A workplace built with nobody free to work there. */
-  noCrewBuilt: (kind: BuildingKind) => `Ninguém livre para ${FEMININE.has(kind) ? 'a' : 'o'} ${BUILDINGS[kind].name}: mude a profissão de alguém`,
+  noCrewBuilt: (kind: BuildingKind) => `Ninguém livre para ${FEMININE.has(kind) ? 'a' : 'o'} ${BUILDINGS[kind].name}: abra Profissões`,
   noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
   /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
   noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
@@ -175,7 +175,7 @@ export const T = {
         ? `O inverno está chegando: na tenda, crianças pequenas e idosos podem morrer de frio. Suba para barro (${HOUSE_LEVELS[2].materials?.wood ?? 0} de madeira)`
         : 'O inverno está chegando: guarde comida e lenha';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
-    if (a.kind === 'noCrew') return `${BUILDINGS[a.building].name} sem trabalhadores: toque numa pessoa e mude a profissão`;
+    if (a.kind === 'noCrew') return `${BUILDINGS[a.building].name} sem trabalhadores: abra Profissões`;
     return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: faltam vagas. Construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo, lenhador ou oficina'}`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
@@ -374,7 +374,41 @@ export const T = {
       `+${each}% de comida dos campos (total ${total}%, ${total >= max ? 'no teto' : `teto ${max}%`})`,
     /** Workshop balloon when the cap is already reached: it only adds jobs. */
     workshopFull: (max: number) => `Campos já no teto (+${max}%): esta oficina só dá vagas`,
-    buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', settings: 'Configurações', speed: 'velocidade', paused: 'pausado' },
+    buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', jobs: 'Profissões', settings: 'Configurações', speed: 'velocidade', paused: 'pausado' },
+    /** The Profissões panel: one row per profession built, its crew, jobs and the target (− / +). */
+    professions: {
+      title: 'Profissões',
+      /** The button that gives every profession all its jobs again. */
+      auto: 'Automático',
+      /** The seal of a profession left to the game (every job filled). */
+      autoSeal: 'auto',
+      idle: 'Sem trabalho',
+      /** Beside "Sem trabalho": who does not work by age. */
+      others: (children: number, elders: number) =>
+        `${children} ${children === 1 ? 'criança' : 'crianças'}, ${elders} ${elders === 1 ? 'idoso' : 'idosos'}`,
+      /** The crew of a profession of the jobs on the road ("2 de 4 vagas"). */
+      crew: (crew: number, seats: number) => `${crew} de ${seats} ${seats === 1 ? 'vaga' : 'vagas'}`,
+      /** Fewer workers than the target. */
+      missing: (n: number) => `falta ${n}`,
+      /** Its workplaces are all off the road. */
+      noRoad: 'sem rua',
+      /** + with nobody free to take the job. */
+      nobodyFree: 'Ninguém livre: tire de outra profissão',
+      lower: (name: string) => `Menos ${name}`,
+      raise: (name: string) => `Mais ${name}`,
+      /** The profession of each workplace, plural (the row's name). */
+      name: {
+        fisher: 'Pescadores',
+        gatherer: 'Coletoras',
+        field: 'Lavradores',
+        lumber: 'Lenhadores',
+        quarry: 'Pedreiros',
+        granary: 'Celeireiros',
+        market: 'Mercadores',
+        workshop: 'Artesãos',
+        temple: 'Construtores',
+      } as Partial<Record<BuildingKind, string>>,
+    },
     goals: {
       done: '✓',
       current: '▶',
@@ -568,7 +602,7 @@ export const T = {
       upkeep: (n: number) => `${fmt2(n)} por semana`,
       connected: 'ligado à rua',
       disconnected: 'sem rua: não funciona, mas paga manutenção',
-      noWorkers: 'Ninguém trabalha aqui: toque numa pessoa e mude a profissão',
+      noWorkers: 'Ninguém trabalha aqui: abra Profissões',
       /** An empty workplace when no adult can be moved (B2 measured). */
       noAdults: (children: number) => `Ninguém trabalha aqui: faltam adultos${children ? ` (${children} ${children === 1 ? 'criança' : 'crianças'} na cidade)` : ''}`,
       /** The upkeep of an empty workplace (it pays a share). */

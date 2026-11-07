@@ -92,7 +92,7 @@ export class ToastQueue {
   }
 
   /**
-   * Holds the toasts while a panel or a tapped building's balloon is open: the ones on screen step out
+   * Holds the toasts while something covers the screen (today: the Profissões panel on a phone): the ones on screen step out
    * (they would sit behind it, half covered) and new ones wait. When it closes, at most one comes back:
    * the most important warning that still holds. Past news (a birth, a goal, a failed tap) is dropped;
    * it stays in the Avisos, Objetivos and Povo panels.

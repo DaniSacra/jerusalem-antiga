@@ -100,7 +100,7 @@ describe('work on screen (plan B2)', () => {
     put(s, 'lumber', EAST, 27);
     put(s, 'fisher', besideRiver(s, 32), 32);
     expect(alerts(s).filter((a) => a.kind === 'noCrew')).toEqual([{ kind: 'noCrew', building: 'lumber' }]);
-    expect(T.alert({ kind: 'noCrew', building: 'lumber' })).toBe(`${BUILDINGS.lumber.name} sem trabalhadores: toque numa pessoa e mude a profissão`);
+    expect(T.alert({ kind: 'noCrew', building: 'lumber' })).toBe(`${BUILDINGS.lumber.name} sem trabalhadores: abra Profissões`);
   });
 
   it('a market that loses its last worker says it covers nothing (week event and Mudar alike)', () => {

@@ -175,15 +175,14 @@ describe('setJob: the player moves people', () => {
     expect([child.jobId ?? null, elder.jobId ?? null]).toEqual([null, null]);
   });
 
-  it('"Sem trabalho" frees the job; the person does not go back the same week, and next week only to a free job', () => {
-    const { s, lumber, a } = city();
+  it('"Sem trabalho" frees the job and lowers the profession\'s target: the game does not hand it back', () => {
+    const { s, lumber, fisher, a } = city();
+    const crew = crewOf(s, lumber).length;
     expect(setJob(s, a.id, null)).toBe(true);
-    expect(a.jobId).toBeNull();
-    refreshCity(s);
-    expect(a.jobId).toBeNull(); // not the same week
-    expect(unemployed(s)).toBe(1);
+    expect(s.jobTargets.lumber).toBe(crew - 1);
+    expect(a.jobId).toBe(fisher.id); // free again, the free job of an automatic profession takes them
     stepWeek(s, never);
-    expect([lumber.id, s.buildings.find((b) => b.kind === 'fisher')!.id]).toContain(a.jobId); // a free job, next week
+    expect(crewOf(s, lumber)).toHaveLength(crew - 1);
   });
 });
 

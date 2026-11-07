@@ -155,6 +155,7 @@ async function maquete3dScenario(page) {
     return page.evaluate(() => window.view3d.info());
   };
   const sunny = await look('day', 0.3, 0);
+  assert(sunny.calls <= 120, `ten empty plots and houses: at most 120 draw calls (${sunny.calls})`);
   assert(sunny.finish === true, 'the finish is on at high quality');
   await look('overcast', 0.3, 1);
   await look('night', 0.72, 0);
@@ -382,7 +383,9 @@ async function music3dScenario(page, name) {
   assert((await st()).ctx === 'none', `no audio before the first gesture (${JSON.stringify(await st())})`);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
-  await page.waitForFunction(() => window.music.state().ctx === 'running', null, { timeout: 10000 }).catch(() => {});
+  // The audio starts with the first gesture, but its context resumes only when the page has time:
+  // the first frames compile the shaders (seconds on a busy machine). Wait for it, not a fixed time.
+  await page.waitForFunction(() => window.music.state().ctx === 'running', null, { timeout: 60000 }).catch(() => {});
   const on = await st();
   assert(on.ctx === 'running' && on.target > 0, `the music runs after the first gesture (${JSON.stringify(on)})`);
   const hitSpot = async (spot) => {
@@ -413,7 +416,7 @@ async function music3dScenario(page, name) {
   if (!phone) {
     await page.keyboard.press('Escape');
     await page.keyboard.press('m');
-    await page.waitForTimeout(150);
+    await page.waitForFunction(() => window.music.state().target > 0, null, { timeout: 10000 }).catch(() => {});
     assert((await st()).target > 0, 'M turns the music back on');
   } else await hitSpot('set-music');
   // A hidden tab fades out and suspends the audio.
@@ -422,8 +425,8 @@ async function music3dScenario(page, name) {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  // (The fade runs first; on a busy machine it may take longer than its nominal time.)
-  await page.waitForFunction(() => window.music.state().ctx === 'suspended', null, { timeout: 4000 }).catch(() => {});
+  // (The fade runs first; on a busy machine it may take much longer than its nominal 0.3 s.)
+  await page.waitForFunction(() => window.music.state().ctx === 'suspended', null, { timeout: 60000 }).catch(() => {});
   const hidden = await st();
   assert(hidden.target === 0 && hidden.ctx === 'suspended', `a hidden tab suspends the music (${JSON.stringify(hidden)})`);
   assert(!errors.length, `no page errors (${errors.join(' | ')})`);
@@ -1298,8 +1301,12 @@ async function town3dScenario(page) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${OUT}/town3d-pc-people.png` });
   await page.evaluate(() => window.session.setSpeed(0));
-  // Every walker is a resident: a click on one opens their sheet with their name.
-  await page.waitForTimeout(300);
+  // Every walker is a resident: a click on one opens their sheet with their name. The walkers go on
+  // walking while paused (a cell a second): once no redraw of the people is pending, they are held
+  // still, so the one found below is still under the cursor when the click lands on a slow machine.
+  await page.waitForFunction(() => window.view3d.settled, null, { timeout: 30000 });
+  await page.evaluate(() => window.view3d.holdWalkers(true));
+  await page.waitForFunction((f) => window.view3d.frames > f, await page.evaluate(() => window.view3d.frames), { timeout: 30000 });
   const free = (p) => p.sx > 120 && p.sx < 1100 && p.sy > 150 && p.sy < 620;
   // An adult (who can change job): the sheet shows "Mudar" (plan B2).
   const adult = (id) => window.core.canWork(window.state, window.state.people.find((p) => p.id === id));
@@ -1313,13 +1320,14 @@ async function town3dScenario(page) {
   assert(someone, 'a resident walks in view');
   const name = await page.evaluate((id) => window.session.nameOf(id), someone.id);
   await page.mouse.click(someone.sx, someone.sy);
-  await page.waitForTimeout(400);
+  await page.waitForFunction(() => document.querySelector('[data-spot="sheet"]:not(.hidden)'), null, { timeout: 10000 }).catch(() => {});
   const sheet = await page.evaluate(() => {
     const el = document.querySelector('[data-spot="sheet"]');
     return el && !el.classList.contains('hidden') ? el.textContent : null;
   });
   assert(sheet && sheet.includes(name), `a click on a walker opens ${name}'s sheet (${sheet?.slice(0, 60)})`);
   await page.screenshot({ path: `${OUT}/town3d-pc-person.png` });
+  await page.evaluate(() => window.view3d.holdWalkers(false));
   // "Mudar" opens the short list of free jobs (and "Sem trabalho"); Esc closes the list, then the sheet.
   if (someone.adult) {
     await page.click('[data-spot="sheet-job"]');
@@ -1898,6 +1906,118 @@ async function street3dScenario(page, form) {
   assert(far.idle === 0, `no still life from the farthest zoom (${far.idle})`);
 }
 
+/**
+ * The Profissões panel (plan "Desafio" 1.3): a town with eight professions built and a few targets
+ * set (one short of workers). Opened by its side button (P on PC), by the Moradores pill; the
+ * "Sem trabalho" row first, one row per profession, − and + of 44 px or more, the "auto" seal; two
+ * columns without scrolling on the phone, one on PC; + with nobody free says so in the head; − takes a worker off;
+ * Automático clears the targets; Esc, ✕ and a click on the map close it.
+ */
+async function jobs3dScenario(page, name) {
+  const phone = name === 'phone';
+  await open3dGame(page);
+  await setupPeople(page);
+  const built = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.unlocked.push('quarry', 'lumber');
+    s.silver = 2000;
+    // Each workplace on the nearest free spot that is on the road.
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    const out = [];
+    for (const kind of ['lumber', 'workshop', 'market', 'quarry', 'fisher', 'gatherer']) {
+      const cands = [];
+      for (let y = 1; y < s.rows - 4; y++) for (let x = 1; x < s.cols - 4; x++) if (core.checkPlace(s, kind, x, y).ok) cands.push({ x, y, d: Math.hypot(x - altar.x, y - altar.y) });
+      cands.sort((a, b) => a.d - b.d);
+      for (const c of cands.slice(0, 400)) {
+        if (!core.place(s, kind, c.x, c.y).ok) continue;
+        const b = s.grid[c.y * s.cols + c.x];
+        if (b.connected) {
+          out.push(kind);
+          break;
+        }
+        core.clearCell(s, c.x, c.y);
+      }
+    }
+    core.refreshCity(s);
+    window.session.refresh();
+    return out;
+  });
+  assert(built.length >= 4, `the town's workplaces are built (${built})`);
+  // A few targets: fewer farmers and craftsmen, one more lumberjack than people free (falta 1).
+  await page.evaluate(() => {
+    const g = window.session;
+    g.changeJobTarget('workshop', -1);
+    g.changeJobTarget('workshop', -1);
+    g.changeJobTarget('field', -1);
+    g.changeJobTarget('lumber', -1);
+    g.changeJobTarget('lumber', 1);
+    g.changeJobTarget('lumber', 1);
+  });
+  const panel = '.panelbox.jobs:not(.hidden)';
+  // The phone has it as a labelled disc after the tools; PC beside Estatísticas, and the key P.
+  if (phone) await page.click('[data-spot="jobs-button"]');
+  else await page.keyboard.press('p');
+  await page.waitForSelector(panel, { timeout: 5000 });
+  const look = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('.panelbox.jobs');
+      const rows = [...el.querySelectorAll('.jobrow')].map((r) => ({ kind: r.dataset.job, x: Math.round(r.getBoundingClientRect().left), h: r.getBoundingClientRect().height, text: r.textContent }));
+      const steps = [...el.querySelectorAll('.act.step, .jobshead .act')].map((b) => b.getBoundingClientRect()).map((r) => Math.min(r.width, r.height));
+      let min = 99;
+      for (const e of el.querySelectorAll('*')) if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) min = Math.min(min, parseFloat(getComputedStyle(e).fontSize));
+      const box = el.getBoundingClientRect();
+      return { rows, steps, min, scroll: el.scrollHeight - el.clientHeight, box: [box.left, box.top, box.right, box.bottom].map(Math.round), targets: { ...window.state.jobTargets } };
+    });
+  const v = await look();
+  await shot(page, `jobs3d-${name}`);
+  assert(v.rows[0].kind === 'idle' && v.rows[0].text.startsWith('Sem trabalho'), `"Sem trabalho" is the first row (${v.rows[0].text})`);
+  assert(v.rows.length >= 6, `one row per profession built (${v.rows.map((r) => r.kind)})`);
+  assert(v.rows.every((r) => r.h >= 44), 'rows of 44 px or more');
+  assert(v.steps.every((n) => n >= 44), `− , + and Automático of 44 px or more (${v.steps})`);
+  assert(v.min >= 12, `no text under 12 px (${v.min})`);
+  assert(new Set(v.rows.map((r) => r.x)).size === (phone ? 2 : 1), `${phone ? 'two columns' : 'one column'} of rows`);
+  assert(v.scroll <= 1, `the panel fits without scrolling (${v.scroll} px over)`);
+  assert(v.box[3] <= (phone ? 390 : 768) && v.box[2] <= (phone ? 844 : 1366), `the panel is on screen ${v.box}`);
+  const lumber = v.rows.find((r) => r.kind === 'lumber');
+  assert(lumber && lumber.text.includes('falta'), `the lumber camp short of its target says "falta" (${lumber?.text})`);
+  assert(v.rows.some((r) => r.text.includes('auto')), 'an automatic profession wears the "auto" seal');
+  // + with nobody free: the target goes up and the panel's head says why nobody came.
+  const free = await page.evaluate(() => window.core.unemployed(window.state));
+  if (free === 0 && (await page.$('[data-spot="job-workshop-plus"]:not(.dim)'))) {
+    await page.click('[data-spot="job-workshop-plus"]');
+    await page.waitForFunction(() => document.querySelector('.jobshead small')?.textContent.includes('Ninguém livre'), null, { timeout: 15000 }).catch(() => {});
+    const note = await page.evaluate(() => document.querySelector('.jobshead small')?.textContent ?? '');
+    assert(note.includes('Ninguém livre'), `+ with nobody free says so (${note})`);
+    await shot(page, `jobs3d-${name}-nobody`);
+  }
+  // − takes a farmer off the field at once (they go to a profession with free jobs, or to "Sem trabalho").
+  const farmers = () => page.evaluate(() => window.state.buildings.filter((b) => b.kind === 'field').reduce((n, b) => n + window.core.crewOf(window.state, b).length, 0));
+  const f0 = await farmers();
+  await page.click('[data-spot="job-field-minus"]');
+  await page.waitForTimeout(150);
+  assert((await farmers()) === f0 - 1, `− takes a farmer off at once (${f0} → ${await farmers()})`);
+  // Esc closes; the Moradores pill opens it again; Automático clears every target.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  assert(!(await page.$(panel)), 'Esc closes Profissões');
+  const pill = await page.evaluate(() => {
+    const r = document.querySelector('[data-pill="people"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (phone) await cdpTapPage(page, pill.x, pill.y);
+  else await page.mouse.click(pill.x, pill.y);
+  await page.waitForSelector(panel, { timeout: 5000 });
+  await page.click('[data-spot="jobs-auto"]');
+  await page.waitForTimeout(150);
+  assert((await page.evaluate(() => Object.keys(window.state.jobTargets).length)) === 0, 'Automático clears every target');
+  await shot(page, `jobs3d-${name}-auto`);
+  // A click on the map closes it (PC); on the phone the panel fills the map, its ✕ closes it.
+  if (phone) await page.click('.panelbox.jobs [data-spot="panel-close"]');
+  else await page.mouse.click(700, 500);
+  await page.waitForTimeout(200);
+  assert(!(await page.$(panel)), `${phone ? '✕' : 'a click on the map'} closes Profissões`);
+}
+
 const scenarios = {
   /** The HTML title: start and, once the tutorial was seen, the tutorial again; the install button when the browser offers it. */
   async title(page) {
@@ -1971,6 +2091,8 @@ const scenarios = {
   'temple3d-pc': { context: PC, run: (page) => temple3dScenario(page, 'pc') },
   'ui3d-phone': { context: PHONE, run: (page) => ui3dScenario(page, 'phone') },
   'ui3d-pc': { context: PC, run: (page) => ui3dScenario(page, 'pc') },
+  'jobs3d-phone': { context: PHONE, run: (page) => jobs3dScenario(page, 'phone') },
+  'jobs3d-pc': { context: PC, run: (page) => jobs3dScenario(page, 'pc') },
   'hud3d-phone': { context: PHONE, run: (page) => hud3dScenario(page, 'phone') },
   'hud3d-wide': { context: { ...PHONE, viewport: { width: 915, height: 412 } }, run: (page) => hud3dScenario(page, 'wide') },
   'hud3d-small-phone': { context: { ...PHONE, viewport: { width: 667, height: 375 } }, run: (page) => hud3dScenario(page, 'small-phone') },

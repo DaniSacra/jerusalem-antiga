@@ -75,7 +75,7 @@ export function balanceAfter(s: GameState, kind: BuildableKind): number {
 /** The people with a new building's jobs taken by the adults without a job (the first by id: who exactly changes nothing). */
 function crewFor(s: GameState, ghost: Building): GameState['people'] {
   let left = seatsOf(ghost);
-  return s.people.map((p) => (left > 0 && p.jobId == null && p.quitWeek !== s.week && canWork(s, p) && left-- ? { ...p, jobId: ghost.id } : p));
+  return s.people.map((p) => (left > 0 && p.jobId == null && canWork(s, p) && left-- ? { ...p, jobId: ghost.id } : p));
 }
 
 export interface FoodAfter {

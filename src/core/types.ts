@@ -85,8 +85,6 @@ export interface Person {
   end?: { week: number; cause: EndCause };
   /** The workplace (building id) the adult works at; missing or null: no job. */
   jobId?: number | null;
-  /** Week the player left the person without work: nobody hands a job back that same week. */
-  quitWeek?: number;
 }
 
 /** A later caravan, rolled when the game is created (see `rollCaravans`). */
@@ -521,6 +519,11 @@ export interface GameState {
   people: Person[];
   /** People who died or left, with `end`. */
   departed: Person[];
+  /**
+   * Workers the player wants per profession (workplace kind): a missing kind is automatic (every
+   * job filled, the game before the Profissões panel); a number caps the crew of that kind.
+   */
+  jobTargets: Partial<Record<BuildingKind, number>>;
   /** Later caravans, rolled at the start. */
   caravans: CaravanPlan[];
   /** Births, deaths (of age and of cold; `coldDeaths` of cold only) and weddings since the last autumn began. */

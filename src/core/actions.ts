@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, newBuilding, nextLevelOf, RULES } from './data';
+import { BUILDINGS, dimsOf, newBuilding, nextLevelOf, RULES, statOf } from './data';
 import { rollUpWeeks } from './houses';
 import { leaveHouse } from './people';
 import { borderCells, cellsOf, footprint, inBounds, indexOf } from './grid';
@@ -8,8 +8,8 @@ import { rollLook } from './looks';
 import { createRng } from './rng';
 import { lackingMaterial, materialsOf, missingMaterial, payMaterials } from './materials';
 import { clearStump } from './trees';
-import type { ActionResult, BuildableKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
-import { canWork, jobOptions } from './work';
+import type { ActionResult, BuildableKind, BuildingKind, Cell, Dims, FailReason, GameEvent, GameState, Placeable, Rng } from './types';
+import { canWork, crewByKind, jobOptions, jobsBuilt, loweredTarget } from './work';
 
 const fail = (reason: FailReason): ActionResult => ({ ok: false, reason });
 const OK: ActionResult = { ok: true };
@@ -176,6 +176,7 @@ export function place(s: GameState, kind: Placeable, x: number, y: number, rotat
     const r = rng ?? createRng(id);
     rollLook(s, b, r);
     if (kind === 'house') rollUpWeeks(b, r);
+    addJobsToTarget(s, b.kind, statOf(b, 'jobs'));
   }
   refreshCity(s);
   return r;
@@ -202,6 +203,8 @@ export function clearCell(s: GameState, x: number, y: number): ActionResult {
     if (b.kind === 'house') leaveHouse(s, b.id, 'demolished');
     s.buildings = s.buildings.filter((o) => o !== b);
     for (const c of cellsOf(b)) s.grid[indexOf(s, c.x, c.y)] = null;
+    const t = s.jobTargets[b.kind];
+    if (t !== undefined) s.jobTargets[b.kind] = Math.min(t, jobsBuilt(s, b.kind));
   } else if (s.roads[i]) {
     s.roads[i] = false;
   } else {
@@ -233,30 +236,73 @@ export function upgradeBuilding(s: GameState, x: number, y: number, events: Game
   const next = nextLevelOf(b)!;
   s.silver -= next.cost;
   payMaterials(s, next.materials ?? {});
+  const jobs = statOf(b, 'jobs');
   b.level++;
+  addJobsToTarget(s, b.kind, statOf(b, 'jobs') - jobs);
   refreshCity(s);
   events.push({ type: 'buildingUp', x: b.x, y: b.y, level: b.level });
   return r;
 }
 
+/** New jobs of a profession with a number as target join it: who builds a lumber camp wants lumberjacks. */
+function addJobsToTarget(s: GameState, kind: BuildingKind, jobs: number) {
+  const t = s.jobTargets[kind];
+  if (t !== undefined && jobs > 0) s.jobTargets[kind] = t + jobs;
+}
+
+/** One worker fewer in a profession: its target becomes a number one below the crew (or the target). */
+const lowerTarget = (s: GameState, kind: BuildingKind) => {
+  s.jobTargets[kind] = loweredTarget(s.jobTargets[kind], crewByKind(s).get(kind) ?? 0);
+};
+
+/** + in the panel: one worker more in a profession with a number as target (automatic already wants every job). */
+const raiseTarget = (s: GameState, kind: BuildingKind) => {
+  const t = s.jobTargets[kind];
+  if (t !== undefined) s.jobTargets[kind] = Math.min(t + 1, jobsBuilt(s, kind));
+};
+
 /**
  * The player moves an adult to a workplace with a free job (connected, not full), or leaves them
- * without work (`buildingId` null: nobody hands them a job back this week, see `assignJobs`).
- * Free and at once; the job left behind goes to someone free. False (nothing changes) for a
+ * without work (`buildingId` null). The professions' targets follow (`jobTargets`): the one left
+ * has one worker fewer, the one joined one more, so the game does not undo the move. Free and at
+ * once; a job left in an automatic profession goes to someone free. False (nothing changes) for a
  * child, an elder, someone on the way, or a workplace full, off the road or without jobs.
  */
 export function setJob(s: GameState, personId: number, buildingId: number | null): boolean {
   const p = s.people.find((o) => o.id === personId);
   if (!p || !canWork(s, p)) return false;
-  if (buildingId === null) {
-    p.jobId = null;
-    p.quitWeek = s.week;
-  } else {
-    if (p.jobId === buildingId) return true;
-    if (!jobOptions(s, personId).some((o) => o.buildingId === buildingId)) return false;
-    p.jobId = buildingId;
-    p.quitWeek = undefined;
+  if (p.jobId === buildingId) return true;
+  if (buildingId !== null && !jobOptions(s, personId).some((o) => o.buildingId === buildingId)) return false;
+  const from = s.buildings.find((b) => b.id === p.jobId)?.kind;
+  const to = s.buildings.find((b) => b.id === buildingId)?.kind;
+  if (from !== to) {
+    if (from && (buildingId === null || s.jobTargets[from] !== undefined)) lowerTarget(s, from);
+    // The one joined keeps room for the newcomer: a profession short of its target is not raised.
+    const t = to && s.jobTargets[to];
+    if (to && t !== undefined) s.jobTargets[to] = Math.min(Math.max(t, (crewByKind(s).get(to) ?? 0) + 1), jobsBuilt(s, to));
   }
+  p.jobId = buildingId;
   refreshCity(s);
   return true;
+}
+
+/**
+ * − / + on a profession in the Profissões panel: − frees the worker living farthest at once (the
+ * target becomes a number); + raises a number target by one, up to the jobs built, and the nearest
+ * free adult takes the job if there is one. False when nothing changes (+ on an automatic one, −
+ * with nobody there and a target of 0).
+ */
+export function changeJobTarget(s: GameState, kind: BuildingKind, delta: 1 | -1): boolean {
+  const was = s.jobTargets[kind];
+  if (delta < 0) lowerTarget(s, kind);
+  else raiseTarget(s, kind);
+  if (s.jobTargets[kind] === was) return false;
+  refreshCity(s);
+  return true;
+}
+
+/** "Automático" in the Profissões panel: every profession fills all its jobs again. */
+export function autoJobs(s: GameState): void {
+  s.jobTargets = {};
+  refreshCity(s);
 }

@@ -7,7 +7,7 @@ import { saveSettings, settings } from './settings';
 export type KeyCommand =
   | { tool: Tool }
   | { category: BuildingCategory }
-  | { do: 'speed' | 'rotate' | 'escape' | 'music' }
+  | { do: 'speed' | 'rotate' | 'escape' | 'music' | 'jobs' }
   | { turn: 1 | -1 }
   | { pan: { dx: number; dy: number } };
 
@@ -32,7 +32,8 @@ const PAN: Record<string, { dx: number; dy: number }> = {
 
 /**
  * The command of a key (`KeyboardEvent.key`): 1 Mover, 2 Rua, 0 Demolir, 3–6 the categories,
- * Space the speed, R turns the building, Q/E turn the map, M the music on/off, Esc closes or goes back to Mover.
+ * Space the speed, R turns the building, Q/E turn the map, M the music on/off, P the Profissões panel,
+ * Esc closes or goes back to Mover.
  * `pan`: WASD and the arrows move the camera (the 3D view; the 2D keeps them off).
  */
 export function keyCommand(key: string, pan = false): KeyCommand | null {
@@ -45,6 +46,7 @@ export function keyCommand(key: string, pan = false): KeyCommand | null {
   if (k === 'e') return { turn: 1 };
   if (k === 'escape') return { do: 'escape' };
   if (k === 'm') return { do: 'music' };
+  if (k === 'p') return { do: 'jobs' };
   if (pan && PAN[k]) return { pan: PAN[k] };
   return null;
 }
@@ -55,6 +57,8 @@ export interface KeyView {
   closeTop(): boolean;
   turnMap(dir: 1 | -1): void;
   panBy?(dx: number, dy: number): void;
+  /** Opens or closes the Profissões panel. */
+  toggleJobs?(): void;
 }
 
 /** Runs a key command. Esc closes the open panel or balloon first, then the tapped building, then goes back to Mover. */
@@ -65,6 +69,7 @@ export function runKey(c: KeyCommand, s: Session, v: KeyView) {
   else if ('pan' in c) v.panBy?.(c.pan.dx, c.pan.dy);
   else if (c.do === 'speed') s.cycleSpeed();
   else if (c.do === 'rotate') s.rotate();
+  else if (c.do === 'jobs') v.toggleJobs?.();
   else if (c.do === 'music') {
     settings.music = !settings.music;
     saveSettings();
