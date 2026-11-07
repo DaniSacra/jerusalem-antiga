@@ -242,8 +242,36 @@ export class Water {
       normalMap: this.normal,
       normalScale: new THREE.Vector2(0.6, 0.6),
     }));
+    // Sun glints (plano beleza C6): where a ripple mirrors the sun, a warm spark (strong when the sun is low).
+    material.onBeforeCompile = (sh) => {
+      sh.uniforms.uSunView = this.sunView;
+      sh.uniforms.uGlint = this.glint;
+      sh.uniforms.uTime = U.uTime;
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uSunView; uniform float uGlint; uniform float uTime;')
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          vec3 rv = reflect(-normalize(vViewPosition), normal);
+          float toSun = max(dot(rv, uSunView), 0.0);
+          // A soft sheen toward the sun, and sparks that flicker on the ripples (a few pixels, a few times a second).
+          vec2 cell = floor(gl_FragCoord.xy / 2.0) + floor(uTime * 5.0) * vec2(17.0, 31.0);
+          float flick = step(0.955, fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453));
+          float spark = pow(toSun, 40.0) * 0.8 + pow(toSun, 6.0) * flick * 4.5;
+          totalEmissiveRadiance += vec3(1.0, 0.88, 0.62) * spark * uGlint;`,
+        );
+    };
     this.mesh = new THREE.Mesh(g, material);
     this.mesh.receiveShadow = true;
+  }
+
+  private sunView = { value: new THREE.Vector3(0, 1, 0) };
+  private glint = { value: 0 };
+
+  /** The sun for the glints: its direction (world) seen from `camera`, and how strong they are (0..1). */
+  sun(dir: { x: number; y: number; z: number }, camera: THREE.Camera, glint: number) {
+    this.sunView.value.set(dir.x, dir.y, dir.z).normalize().transformDirection(camera.matrixWorldInverse);
+    this.glint.value = glint;
   }
 
   /**

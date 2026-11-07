@@ -12,10 +12,11 @@ describe('ground detail', () => {
     s.feature[indexOf(s, 3, 3)] = 'olive';
     const wear = wearMap(s);
     const d = groundDetail(s, wear);
-    const tufts = d.filter((p) => p.key === 'tuft');
+    // (Reeds by the river are tufts drawn big: see the test below.)
+    const tufts = d.filter((p) => p.key === 'tuft' && p.scale < LOOK.detail.reedScale * 0.7);
     expect(tufts.length).toBeGreaterThan(50);
     for (const p of tufts) expect(s.ground[indexOf(s, Math.floor(p.x), Math.floor(p.z))]).toBe('grass');
-    for (const p of d.filter((p) => p.key === 'pebbles')) expect(s.ground[indexOf(s, Math.floor(p.x), Math.floor(p.z))]).toBe('sand');
+    for (const p of d.filter((p) => p.key === 'pebbles')) expect(s.ground[indexOf(s, Math.floor(p.x), Math.floor(p.z))]).not.toBe('river');
     for (const p of d) {
       const i = indexOf(s, Math.floor(p.x), Math.floor(p.z));
       expect(s.roads[i] || s.grid[i] || s.feature[i] || s.ground[i] === 'river').toBeFalsy();
@@ -34,5 +35,21 @@ describe('ground detail', () => {
     const s = emptyGame();
     const wear = wearMap(s);
     expect(groundDetail(s, wear)).toEqual(groundDetail(s, wear));
+  });
+
+  it('puts reeds and stones at the edge of the water near the town, none far from it', () => {
+    const s = emptyGame();
+    const d = groundDetail(s, wearMap(s));
+    const reeds = d.filter((p) => p.key === 'tuft' && p.scale >= LOOK.detail.reedScale * 0.7);
+    expect(reeds.length).toBeGreaterThan(10);
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const river = (x: number, y: number) => s.ground[indexOf(s, x, y)] === 'river';
+    for (const p of reeds) {
+      const x = Math.floor(p.x);
+      const y = Math.floor(p.z);
+      expect(river(x, y)).toBe(false);
+      expect(river(x + 1, y) || river(x - 1, y) || river(x, y + 1) || river(x, y - 1)).toBe(true);
+      expect(Math.hypot(p.x - altar.x - altar.w / 2, p.z - altar.y - altar.h / 2)).toBeLessThanOrEqual(LOOK.detail.bankReach + 1);
+    }
   });
 });

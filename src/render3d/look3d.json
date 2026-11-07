@@ -76,7 +76,7 @@
     "path": { "gapMin": 1, "gapMax": 3, "width": 0.3, "strength": 0.6 }
   },
   "fields": { "moistNear": 2, "moistFar": 6, "dryCrop": "0xb08a52" },
-  "detail": { "tuftShare": 0.8, "tuftsMax": 3, "pebbleShare": 0.3, "wornOut": 0.35, "farDist": 48 },
+  "detail": { "tuftShare": 0.8, "tuftsMax": 3, "pebbleShare": 0.3, "wornOut": 0.35, "farDist": 48, "bankReach": 22, "reedShare": 0.6, "reedScale": 2.6, "stoneShare": 0.5, "stoneScale": 2.4 },
   "fog": { "near": 40, "far": 120, "clear": 20 },
   "fx": {
     "ring": { "seconds": 0.7, "start": 0.15, "lift": 0.06 },

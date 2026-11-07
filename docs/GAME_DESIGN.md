@@ -1324,6 +1324,11 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   amendoeira de tronco fino e galhos, flor branco-rosada no fim do inverno, folha na primavera e
   no verão, nua do fim do outono ao meio do inverno; figueira baixa de copa larga e chata, amarela
   no outono e nua no inverno; palmeira com folhas em arco que caem e cachos de tâmara.
+- **Rio** (só visual, plano beleza C6; `detail.ts`, `terrain.ts` `Water`): na beira do rio perto da
+  cidade (até 22 células do altar), touceiras de junco na linha da água e algumas pedras maiores
+  (os modelos de tufo e seixo, maiores: nenhuma chamada de desenho a mais). À tarde, com céu
+  limpo e o sol mais baixo, quem olha o rio na direção do sol vê um brilho suave e faíscas que
+  piscam nas ondas; de costas para o sol, nada.
 - **Andaime:** toda construção nova, menos campo, aparece primeiro com andaime de madeira e poeira
   por 1,5 s; ao subir de nível, a casa mostra o andaime por 0,6 s.
 - **Momentos** (`fx.ts`): ao construir, um anel de luz; o Templo dá anéis dourados, faíscas e

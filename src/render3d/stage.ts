@@ -268,6 +268,9 @@ export class Stage {
     materialOf(COLORS.soil).color.setHex(crop.soil);
     this.waterTint.setHex(mixColor(mixColor(0x3f8594, 0x6a7a84, w.rain * 0.6 + s3.snow * 0.3), 0x8a8a6a, s3.drought * 0.4));
     world.water.update(time, dt, w.rain, w.wind, s3.drought * LOOK.drought.river, this.waterTint);
+    // Glints on the river: a clear sky and a low sun, most in the afternoon.
+    const low = 1 - 0.75 * Math.min(1, Math.max(0, (L.sunDir.y - 0.45) / 0.45));
+    world.water.sun(L.sunDir, rig.camera, (1 - L.night) * (1 - L.clouds) * (1 - w.rain) * low * (t > LOOK.day.noon ? 1 : 0.35));
     U.uWaterY.value = WATER_Y + world.water.mesh.position.y;
     U.uWind.value = LOOK.wind.calm + (1 - LOOK.wind.calm) * w.wind;
 

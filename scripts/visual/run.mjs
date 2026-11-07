@@ -264,7 +264,8 @@ async function music3dScenario(page, name) {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await page.waitForTimeout(800);
+  // (The fade runs first; on a busy machine it may take longer than its nominal time.)
+  await page.waitForFunction(() => window.music.state().ctx === 'suspended', null, { timeout: 4000 }).catch(() => {});
   const hidden = await st();
   assert(hidden.target === 0 && hidden.ctx === 'suspended', `a hidden tab suspends the music (${JSON.stringify(hidden)})`);
   assert(!errors.length, `no page errors (${errors.join(' | ')})`);
@@ -1361,6 +1362,50 @@ async function houses3dScenario(page, form) {
 }
 
 /**
+ * The river by the town (plano beleza C6): reeds and stones at the water's edge up close, and the
+ * sun glinting on the ripples in the late afternoon (looking toward the sun; none with it behind).
+ */
+async function river3dScenario(page) {
+  await open3dGame(page);
+  const n = (name) => `river3d-pc-${name}`;
+  const at = await page.evaluate(() => {
+    const s = window.state;
+    const altar = s.buildings.find((b) => b.kind === 'altar');
+    let best = null;
+    for (let y = 1; y < s.rows - 1; y++)
+      for (let x = 1; x < s.cols - 1; x++) {
+        if (s.ground[y * s.cols + x] === 'river') continue;
+        const bank = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => s.ground[(y + dy) * s.cols + x + dx] === 'river');
+        const d = Math.hypot(x - altar.x, y - altar.y);
+        if (bank && (!best || d < best.d)) best = { x: x + 0.5, z: y + 0.5, d };
+      }
+    return best;
+  });
+  assert(at && at.d <= 22, `a river bank near the town (${JSON.stringify(at)})`);
+  const reeds = await page.evaluate(() => {
+    let n = 0;
+    window.view3d.game.scene.stage.world.detail.traverse((m) => (n += m.isInstancedMesh ? m.count : 0));
+    return n;
+  });
+  assert(reeds > 0, 'the ground detail is drawn');
+  await page.addStyleTag({ content: '.labels { display: none !important; }' });
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.4, snowing: false };
+  const look = async (name, day, cam) => {
+    await page.evaluate(([at, day, clear, cam]) => {
+      window.view3d.view({ day, pos: 30.5, weather: clear, force: { snow: false, drought: false } });
+      window.view3d.rig.set({ x: at.x, z: at.z, ...cam });
+    }, [at, day, clear, cam]);
+    await page.waitForTimeout(900);
+    await shot(page, n(name));
+  };
+  await look('bank', 0.3, { dist: 8, yaw: Math.PI / 4, pitch: 0.6 });
+  // Late afternoon, looking west toward the low sun over the water.
+  // Late afternoon: toward the sun the ripples sparkle; with the sun behind, none.
+  await look('glint', 0.44, { dist: 16, yaw: Math.PI, pitch: 0.42 });
+  await look('glint-away', 0.44, { dist: 16, yaw: 0, pitch: 0.42 });
+}
+
+/**
  * Trees (plano beleza C6): a grove of olive cells (drawn as olives, almonds and figs) with a row of
  * palms, up close through the year: almonds in white-pink bloom at the end of winter, everything in
  * leaf in summer, figs yellow and almonds bare in late autumn, both bare in winter.
@@ -1718,6 +1763,7 @@ const scenarios = {
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
+  'river3d-pc': { context: PC, run: (page) => river3dScenario(page) },
   'trees3d-pc': { context: PC, run: (page) => trees3dScenario(page) },
   'fields3d-pc': { context: PC, run: (page) => fields3dScenario(page) },
   'ground3d-pc': { context: PC, run: (page) => ground3dScenario(page, 'pc') },
