@@ -1,3 +1,4 @@
+import { theftTotal } from './theft';
 import { HOUSE_LEVELS, storageOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
@@ -17,6 +18,8 @@ export interface Economy {
   /** Share of this week's jobs that have someone (0..1; 1 with no jobs): for the statistics only, each workplace makes by its own crew. */
   efficiency: number;
   foodDelta: number;
+  /** Food stolen this week from unguarded granaries (theft.ts), taken out of foodDelta. */
+  theft: number;
   /** Food the fields harvest this week (by their crews; 0 outside spring). */
   harvest: number;
   /** Food made this week (by the crews) and eaten by the residents; foodDelta = made - eaten. */
@@ -109,6 +112,7 @@ export function computeEconomy(s: GameState): Economy {
     moods[moodOf(h)]++;
   }
   const efficiency = jobs === 0 ? 1 : filled / jobs;
+  const theft = theftTotal(s, crews);
   // The store keeps at most `storageOf` each material: production stops at it (never cut).
   const fits = (m: Material) => {
     const n = made[m];
@@ -122,7 +126,8 @@ export function computeEconomy(s: GameState): Economy {
     jobs,
     yearJobs,
     efficiency,
-    foodDelta: round2(foodProd - eaten),
+    foodDelta: round2(foodProd - eaten - theft),
+    theft,
     harvest: round2(harvest),
     foodMade: round2(foodProd),
     foodEaten: round2(eaten),

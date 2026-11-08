@@ -3,6 +3,7 @@ import {
   balanceAfter,
   bandCounts,
   madeByCrew,
+  theftAt,
   upkeepPaid,
   BUILDINGS,
   computeEconomy,
@@ -405,6 +406,9 @@ function foodLines(s: GameState, b: Building): CardLine[] {
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && staff > 0 && staff < 1) out.push({ text: N.inspect.fewWorkers(Math.round(staff * 100)), tone: 'warn' });
   if (def.storage) out.push({ text: N.stores(statOf(b, 'storage')), tone: b.connected ? 'text' : 'muted' });
+  // An unguarded granary is robbed every week (plano-dificuldade C).
+  const stolen = def.storage ? theftAt(s).get(b.id) : undefined;
+  if (stolen) out.push({ text: N.robbed(stolen), tone: 'bad' });
   return out;
 }
 

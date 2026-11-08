@@ -120,6 +120,15 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   80) **mais pedra** (20 no nível 2, 40 no nível 3, `materials` do nível; segura a pedra que sobrava
   no fim da partida) e passa a pagar a manutenção dele (Celeiro 3,5 / 5,5, Mercado 5 / 8, Oficina 3,5 / 5).
   Não dá em dívida, sem prata, sem a pedra (`materials`) ou no topo. Toast "Celeiro subiu para o nível 2".
+- **Roubo no celeiro** (`theft.ts`, `rules.json > theft`; peça C do `plano-dificuldade.md`, 2026-11-08):
+  a partir de **20 moradores**, todo celeiro na rua **sem celeireiro** perde **3% por semana** da comida
+  guardada nele (a comida acima do estoque base de 100, dividida entre os celeiros pela capacidade).
+  Com celeireiro, nada. O roubo sai do saldo de comida da semana (`Economy.theft`, dentro de
+  `foodDelta`), então a previsão já conta com ele. Toast uma vez por episódio: "Roubaram N de comida
+  do celeiro: ponha um celeireiro"; o balão do celeiro diz em vermelho "Sem guarda: roubam N de
+  comida/sem". O celeiro vem logo depois do campo na ordem em que o automático preenche as vagas
+  (`jobPriority`). Sim, 100 seeds: Comum vence 69% e perde 10%; roubo de 3,5% da comida produzida,
+  em 98% das partidas (com 5%: Comum 62% e 14% de derrotas).
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
   coluna mostra custo e manutenção. **Local de trabalho vazio paga a manutenção inteira** (`emptyUpkeepFactor`

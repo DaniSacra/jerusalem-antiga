@@ -1,3 +1,4 @@
+import { noteTheft, theftAt } from './theft';
 import { HOUSE_LEVELS, RULES, TEMPLE_STAGES } from './data';
 import { computeEconomy, round2, type Economy } from './economy';
 import { foodCapacity } from './harvest';
@@ -220,6 +221,7 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   refreshCity(s);
 
   const eco = computeEconomy(s);
+  noteTheft(s, theftAt(s), events);
   const wasFamine = s.famine;
   s.food = round2(s.food + eco.foodDelta);
   s.famine = s.food <= 0 && eco.foodDelta < 0;

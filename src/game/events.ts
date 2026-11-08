@@ -140,6 +140,9 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
         if (grown) toast(T.grownUp(grown.name, grown.sex === 'f'), 'good');
         break;
       }
+      case 'granaryRobbed':
+        toast(T.granaryRobbed(e.amount), 'bad');
+        break;
       case 'spoilStart':
         out.push({ do: 'spoil', building: spoilSite(s) });
         break;

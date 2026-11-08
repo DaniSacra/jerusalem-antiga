@@ -210,6 +210,13 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
     - crise na linha "O que fazer agora" quando a prata não dura 26 semanas;
     - sim: Comum igual (65%, perde 8%); o bot novo Exagerado perde 74% (64% antes);
     - o selo de poeira no local vazio ficou de fora (KISS: o balão e o aviso já dizem).
+  - **C. Roubo no celeiro** (2026-11-08):
+    - a partir de 20 moradores, o celeiro sem celeireiro perde 3% por semana da comida guardada nele;
+    - o celeiro vem logo depois do campo na `jobPriority`;
+    - toast, balão "Sem guarda" e a previsão de comida contam o roubo;
+    - sim: Comum vence 69% e perde 10%, roubo de 3,5% da comida em 98% das partidas;
+    - com os 5% do plano, o Comum perdia 14%;
+    - o vulto com o saco à noite ficou para a peça D (lamparinas).
 
 ## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.

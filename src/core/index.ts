@@ -34,3 +34,4 @@ export * from './firewood';
 export * from './cold';
 export * from './work';
 export * from './temple';
+export * from './theft';

@@ -328,6 +328,8 @@ export interface Rules {
   famineLeaveChance: number;
   /** A workplace with nobody working there pays this share of its upkeep (see `upkeepPaid`). */
   emptyUpkeepFactor: number;
+  /** Theft from unguarded granaries (plano-dificuldade C). */
+  theft: { minPeople: number; share: number };
   /**
    * Cold deaths in winter (Package B3), per resident and week; pairs are [vulnerable, others]
    * (vulnerable: up to `childAge` years old, or an elder). `tent`: a tent with firewood;
@@ -450,6 +452,8 @@ export interface Building {
   built: number;
   /** Altar or Temple while a stage of the Temple is being built there: the builders' jobs (see temple.ts). */
   builders?: number;
+  /** A granary robbed last week (theft.ts): the toast tells once per episode. */
+  robbed?: boolean;
   /** Lumber: wood made since its last cut tree (see trees.ts). */
   cutProgress?: number;
   /** House: ready to climb (13/13 weeks with the needs) but the city lacks this material. */
@@ -600,6 +604,7 @@ export type GameEvent =
   | { type: 'defeat'; week: number; peak: number }
   /** Food spoiled because the stores were full (once per stretch of spoiling weeks). */
   | { type: 'spoilStart' }
+  | { type: 'granaryRobbed'; amount: number; x: number; y: number }
   /** The first week of a spring harvest (food came in from the fields). */
   | { type: 'harvestStart'; amount: number }
   /** Winter began and the coming spring will be dry. */

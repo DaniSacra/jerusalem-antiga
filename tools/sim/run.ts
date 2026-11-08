@@ -110,7 +110,7 @@ function squeezeLine(rs: Result[]): string {
   const lostY1 = rs.filter((r) => r.lost && r.weeks <= 52).length;
   return `  SQ won ${pc(won.length, n)} lost ${pc(rs.filter((r) => r.lost).length, n)} (Y1 ${lostY1}) | win ${f(mins(med(won)), 1)} min p10-p90 ${f(mins(qt(won, 0.1)), 1)}-${f(mins(qt(won, 0.9)), 1)}` +
     ` | hunger|cold ${pc(rs.filter((r) => r.famineWeeks > 0 || r.b1.coldWeeks > 0).length, n)} hunger ${pc(hungry.length, n)} wks med ${m((r) => r.famineWeeks)} (of hungry ${f(med(hungry.map((r) => r.famineWeeks)))}) p90 ${f(qt(rs.map((r) => r.famineWeeks), 0.9))} Y1 ${pc(rs.filter((r) => r.famineY1 > 0).length, n)}` +
-    ` | spoiled ${f((100 * rs.reduce((a, r) => a + r.food.spoiled, 0)) / made)}% | silver unspent med ${m((r) => (100 * Math.max(0, r.endSilver)) / r.sq.silverIn)}% | stone cap wks med ${m((r) => (100 * r.sq.stoneCap) / Math.max(1, r.sq.weeks))}% | res52 ${m((r) => r.residents52)} res104 ${m((r) => r.residents104)} | food bldgs Y1-5 ${[0, 1, 2, 3, 4].map((y) => m((r) => r.sq.foodBuildings[y] ?? NaN)).join('/')}`;
+    ` | spoiled ${f((100 * rs.reduce((a, r) => a + r.food.spoiled, 0)) / made)}% stolen ${f((100 * rs.reduce((a, r) => a + r.food.stolen, 0)) / made, 1)}% (runs ${pc(rs.filter((r) => r.food.stolen > 0).length, n)}) | silver unspent med ${m((r) => (100 * Math.max(0, r.endSilver)) / r.sq.silverIn)}% | stone cap wks med ${m((r) => (100 * r.sq.stoneCap) / Math.max(1, r.sq.weeks))}% | res52 ${m((r) => r.residents52)} res104 ${m((r) => r.residents104)} | food bldgs Y1-5 ${[0, 1, 2, 3, 4].map((y) => m((r) => r.sq.foodBuildings[y] ?? NaN)).join('/')}`;
 }
 /** Package B1 (plano-sobrevivencia 7): S1-S4, cold, wood in year 1, the firewood hold, year-1 losses. */
 function b1Lines(rs: Result[]): string[] {

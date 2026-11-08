@@ -105,6 +105,8 @@ export const T = {
     `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
   famine: 'Falta comida: construa pescador ou coletora',
   coldStart: 'Frio! Acabou a lenha: construa um lenhador',
+  /** An unguarded granary robbed (once per episode). */
+  granaryRobbed: (n: number) => `Roubaram ${fmt(n)} de comida do celeiro: ponha um celeireiro`,
   coldEnd: 'A lenha voltou: as casas se aquecem',
   looseRoad: 'Rua solta: ligue-a ao altar',
   /** A dragged road reached a button or panel and stopped there. */
@@ -350,6 +352,8 @@ export const T = {
     cutsEvery: (weeks: number) => `Corta 1 árvore a cada ${weeks} sem`,
     /** A lumber or quarry whose material store is full. */
     storeFull: (cap: number) => `Parado: estoque cheio (${cap})`,
+    /** Granary balloon: robbed every week while nobody keeps it. */
+    robbed: (n: number) => `Sem guarda: roubam ${fmt2(n)} de comida/sem`,
     /** A house with people in autumn and winter: the firewood it burns; with cold, in red. */
     firewood: (n: number) => `Lenha no inverno: ${fmt(n)}/sem`,
     cold: 'Frio: falta lenha',

@@ -39,6 +39,7 @@ import {
   clearCell,
   seasonOf,
   stepWeek,
+  theftTotal,
   weeksToHarvest,
   unemployed,
   ageOf,
@@ -1091,7 +1092,7 @@ export interface Result {
   goalWeeks: (number | null)[];
   blocks: Record<string, number>;
   blocksY1: Record<string, number>;
-  food: { field: number; fisher: number; gatherer: number; spoiled: number };
+  food: { field: number; fisher: number; gatherer: number; spoiled: number; stolen: number };
   droughtYears: number;
   famineAfterDrought: number;
   debtLoss: boolean;
@@ -1311,7 +1312,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     bot: p.name, seed, families0: s.start.families, foodWeeks0: s.start.foodWeeks, riverDist: riverDistance(s), won: false, lost: false, weeks: maxWeeks,
     year1: false, residents52: 0, residents104: 0, lowestResidentsY1: Infinity, famineY1: 0, famineWeeks: 0, longestFamine: 0, left: 0, leftWinter1: 0, emptied: false,
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
-    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
+    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0, stolen: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
     sq: { silverIn: s.silver, stoneCap: 0, weeks: 0, foodBuildings: [] }, houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, clearSpent: 0, big260: 0, upkeepY3: {},
     endSilver: 0, endIncome: 0,
@@ -1493,6 +1494,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       if (k === 'tent_v' && s.week < 52) b3.tentVulnWeeksY1++;
     }
     const silverBefore = s.silver;
+    res.food.stolen += theftTotal(s);
     const events = stepWeek(s, rng);
     for (let k = doneBefore; k < s.temple.done; k++) tp.stages[k].done = s.week;
     // Ruins: weeks the restored altar had no offering (and the longest run), the herd at its cap, the pastures.
