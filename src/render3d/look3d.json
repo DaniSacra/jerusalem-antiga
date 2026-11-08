@@ -64,6 +64,7 @@
     "sky": "0x8e98a8",
     "sunCut": 0.75
   },
+  "routine": { "toWork": 0.12, "home": 0.85, "rush": 0.14, "calm": 0.65, "noonWalk": 0.8, "marketAt": 0.46, "marketWidth": 0.28, "marketLow": 0.25, "childrenIn": 0.82, "talkAt": 0.92, "talkWidth": 0.25, "talkLow": 0.7, "workFrom": 0.05, "workTo": 0.92, "workEdge": 0.08, "fieldsIdle": 0.15 },
   "crowd": { "night": 0.2, "rain": 0.35, "fieldHands": { "harvest": 2, "plow": 1, "other": 0.25 } },
   "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
   "ambient": { "maxAnimals": 56, "pastureFlock": 8, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },

@@ -1958,6 +1958,12 @@ async function street3dScenario(page, form) {
   assert(day.idle >= 10, `by day most of it is out (${day.idle} of ${day.idlePlanned})`);
   assert(day.calls <= 120, `at most 120 draw calls (${day.calls})`);
   await look({ day: 0.3, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 10, yaw: -Math.PI / 4, pitch: 0.75 }, 'doors-other-side');
+  // A day in the city (D1): early in the morning the market is thin and the doors quieter than at noon;
+  // by the end of the afternoon the children are in.
+  const early = await look({ day: 0.07, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 12, ...above }, 'morning');
+  assert(early.idle < day.idle, `fewer at the doors and the market early in the morning (${early.idle} < ${day.idle})`);
+  const evening = await look({ day: 0.6, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 12, ...above }, 'evening');
+  assert(evening.idle < day.idle, `the children are in by the evening (${evening.idle} < ${day.idle})`);
   await look({ day: 0.3, pos: summer, weather: clear }, { x: 23.5, z: 40, dist: 10, ...above }, 'market');
   // Autumn: two pickers under the olive tree, one beating the branches with a pole.
   await look({ day: 0.3, pos: autumn, weather: clear }, { x: 28, z: 31.5, dist: 9, ...above }, 'olives');

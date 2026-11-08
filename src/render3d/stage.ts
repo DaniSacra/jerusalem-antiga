@@ -10,6 +10,7 @@ import { Finish } from './finish';
 import { setColor, U } from './shaders';
 import { mixColor } from './time/color';
 import { fieldHands, frameLight, streetShare } from './time/light';
+import { routine } from './time/routine';
 import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
 import { nightness } from './time/day';
 import { WeatherClock, type WeatherNow } from './time/weather';
@@ -296,19 +297,21 @@ export class Stage {
     U.uWaterY.value = WATER_Y + world.water.mesh.position.y;
     U.uWind.value = LOOK.wind.calm + (1 - LOOK.wind.calm) * w.wind;
 
-    world.walkers.setShare(streetShare(L.night, w.rain));
+    // A day in the city: to work in the morning, the market at noon, home in the afternoon (time/routine.ts).
+    const day = routine(t);
+    world.walkers.setShare(streetShare(L.night, w.rain) * day.walkers);
     world.walkers.update(this.holdWalkers ? 0 : dt, time);
     world.families.update(gamePos);
     // The still life: like the walkers, fewer at night and in the rain; half at the low quality, none at
     // the minimum, thinning out from far away (specks there); the olive pickers in autumn.
     const idle = this.level === 'high' ? 1 : this.level === 'low' ? LOOK.street.lowShare : 0;
-    world.idlers.update(time, farFade(rig.distance, LOOK.street.farDist, LOOK.street.farBand) * streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn');
+    world.idlers.update(time, farFade(rig.distance, LOOK.street.farDist, LOOK.street.farBand) * streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn', day);
     world.leavers.update(time);
     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
-    world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain), MAX_HANDS);
+    world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain) * Math.max(day.work, LOOK.routine.fieldsIdle), MAX_HANDS);
     // A winter without firewood: no house smokes and the tent fires are out (the altar burns on).
     const cold = this.s.cold;
     world.smoke.update(time, smokeShare(look.smoke, L.night, cold), w.wind, SMOKE_OPACITY * (1 - 0.5 * w.rain), 1 - 0.7 * L.night);

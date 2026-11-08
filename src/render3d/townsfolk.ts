@@ -4,6 +4,7 @@ import { figureLook, groupLength, groupSlots, type Load, type Slot } from './cro
 import { along, Figures } from './figures';
 import LOOK from './look3d.json';
 import { hash } from './plan';
+import { actShare, type Routine } from './time/routine';
 import { idlePose, idleShown, leaveLead, leaveLoad, leavePath, leavers, streetPlan, type IdleSpot, type Placed } from './street';
 import type { Terrain } from './terrain';
 
@@ -38,23 +39,26 @@ export class Idlers {
     return this.spots.length;
   }
 
-  /** Figures out now. */
+  /** Figures out now (the ones hidden by the season or the hour not counted). */
   shown = 0;
 
   /**
    * Moves the figures out for a street `share` (0..1: fewer at night, in the rain, at the lower
-   * qualities, none from far away); the olive pickers only in `autumn`.
+   * qualities, none from far away); the olive pickers only in `autumn`; each act as the hour of the
+   * `day` says (buyers at noon, children in before the dark, neighbours talking in the evening).
    */
-  update(time: number, share: number, autumn: boolean) {
-    const n = (this.shown = idleShown(this.spots, share));
+  update(time: number, share: number, autumn: boolean, day?: Routine) {
+    const n = idleShown(this.spots, share);
     this.figures.count = n;
+    this.shown = 0;
     if (!n) return;
     for (let i = 0; i < n; i++) {
       const o = this.spots[i];
-      if (o.autumn && !autumn) {
+      if ((o.autumn && !autumn) || (day && o.show >= share * actShare(day, o.act))) {
         this.figures.hide(i);
         continue;
       }
+      this.shown++;
       const p = idlePose(o, time);
       this.figures.place(i, p.x, this.ground.height(p.x, p.z) + 0.04 + p.y, p.z, p.yaw, p.lean, p.roll);
     }

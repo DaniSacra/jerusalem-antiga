@@ -253,6 +253,14 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
+## Feito: D1 "Um dia na cidade" (2026-11-08, versão enxuta)
+Só desenho, sem mecânica: `src/render3d/time/routine.ts` dá, pela hora, a parte da rua de cada
+grupo (andarilhos na ida e volta do trabalho e ao meio-dia, compradores ao meio-dia, crianças até
+antes de escurecer, conversa na porta no fim da tarde, mãos no campo do nascer ao pôr do sol). As
+lamparinas já acendem à noite (peça D da dificuldade). Fora desta versão (KISS): cada andarilho
+escolher o destino pela hora (trabalho de manhã, casa à tarde) e o descanso no altar no fim de
+semana: entram se o playtest pedir mais rotina.
+
 ## Próximos candidatos (um pacote por vez)
 Desde 2026-11-07: primeiro o plano "Desafio e rumo" (acima; o Gado entrou no pacote 2 "Ruínas",
 `plano-ruinas.md`; o mercado com gado ficou como alavanca ou para o Difícil). Depois, o

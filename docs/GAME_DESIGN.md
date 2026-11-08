@@ -856,6 +856,13 @@ README de lá); o último desenho 2D está na tag `ultimo-2d`.
   tábua (carpintaria), rolo de pano (tecelagem), panos tingidos na cabeça (tinturaria) ou couro
   nas costas (curtume). O homem do jumento puxa um jumento com cestos e o pastor anda com uma
   ovelha, os dois ao lado dele (`companionOf`). Criança não leva nada.
+- **Um dia na cidade** (só desenho, `src/render3d/time/routine.ts`, números em `look3d.json`
+  `routine`): a hora do dia muda a vida da rua, além da noite e da chuva. De manhã e no fim da
+  tarde as ruas enchem (ida ao trabalho e volta para casa), no meio da manhã acalmam (65%) e ao
+  meio-dia voltam a encher com quem vai ao mercado; os compradores do mercado lotam ao meio-dia
+  e são poucos (25%) cedo e no fim do dia; as crianças brincam de dia e entram antes de escurecer;
+  os vizinhos conversam mais na porta no fim da tarde; quem trabalha no campo começa pouco depois
+  do nascer do sol e para perto do pôr do sol. O core não sabe a hora.
 - **Gente indo para casa** (`families`): a família anda em grupo, os adultos na frente, as crianças
   no meio e os idosos atrás. Uma família de caravana (alguém ainda sem casa) traz um jumento com
   duas cargas.
