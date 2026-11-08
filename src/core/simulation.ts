@@ -1,4 +1,5 @@
 import { noteTheft, theftAt } from './theft';
+import { stageOf } from './difficulty';
 import { HOUSE_LEVELS, RULES, TEMPLE_STAGES } from './data';
 import { computeEconomy, round2, type Economy } from './economy';
 import { foodCapacity } from './harvest';
@@ -189,7 +190,7 @@ function record(s: GameState, eco: Economy) {
  * it burns nothing and covers nothing (`offeringsMissing` once per episode, `offeringsBack` after).
  */
 function offer(s: GameState, events: GameEvent[]) {
-  const built = TEMPLE_STAGES[s.temple.done - 1];
+  const built = stageOf(s, s.temple.done - 1);
   if (!built) return;
   const was = s.offered;
   s.offered = s.livestock >= built.offering;

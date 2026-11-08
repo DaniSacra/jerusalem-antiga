@@ -1,4 +1,5 @@
 import { BUILDINGS, RULES } from './data';
+import { winterGrowth } from './difficulty';
 import { peopleEating, round2, type Economy } from './economy';
 import { byRiver, fieldBonus, fieldHarvest, foodCapacity, gatherFood, weeksToHarvest } from './harvest';
 import { seasonCount, seasonOf, SEASONS, WEEKS_PER_YEAR } from './seasons';
@@ -8,7 +9,7 @@ import { crewCounts, staffOf } from './work';
 const AUTUMN = SEASONS.indexOf('autumn');
 /** Any week out of winter and any week in winter (only the season matters for eating). */
 const SUMMER_WEEK = firstWeekOf('summer');
-const WINTER_WEEK = firstWeekOf('winter');
+const WINTER_WEEK = firstWeekOf('winter'); // of Year 1: no harder winter in it (eatenAt adds it)
 
 function firstWeekOf(season: Season): number {
   let w = 0;
@@ -53,7 +54,8 @@ export function foodForecast(
   const fields = s.buildings.filter((b) => BUILDINGS[b.kind].harvest && b.connected).map((b) => ({ b, river: byRiver(s, b), staff: staffOf(b, crews) }));
   const summer = peopleEating(s, SUMMER_WEEK);
   const winter = peopleEating(s, WINTER_WEEK);
-  const eatenAt = (w: number) => round2(seasonOf(w) === 'winter' ? winter.eaten : summer.eaten);
+  // Winters grow harder from Year 3 on Difícil (difficulty.ts): the forecast eats as the week will.
+  const eatenAt = (w: number) => round2(seasonOf(w) === 'winter' ? winter.eaten * (1 + winterGrowth(s, w)) : summer.eaten);
   // The reserve counts weeks of eating out of winter.
   const floor = (opts.reserveWeeks ?? 0) * summer.eaten;
   const cap = opts.unlimited ? Infinity : foodCapacity(s);

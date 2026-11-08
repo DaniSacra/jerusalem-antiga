@@ -56,7 +56,7 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   removê-las.
 - As junções das ruas são desenhadas só com ruas vizinhas; o altar não conta, então o anel aparece
   como um contorno com cantos e um T onde a rua sul encontra o anel.
-- O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** (cerca de 6 construções).
+- O jogo começa na **semana 1 do outono do Ano 1**. Prata **180** no Normal (cerca de 6 construções; Tranquilo 220, Difícil 160, ver Dificuldade).
 - **Caravana fundadora** (sorteada pela semente, `caravans.start` em `rules.json`): **3 a 5
   famílias** de pessoas com nome (veja Pessoas) já moram em tendas (casas comuns de nível 1, de
   graça, uma família por tenda, no máximo 3 pessoas) em **colunas de duas a oeste do anel** (ao
@@ -277,6 +277,43 @@ Código: `src/core/clothes.ts`, `tans` do curtume em `buildings.json`, `rules.js
   "Acabou a roupa…" uma vez por episódio. Balão da casa no inverno sem roupa: "Sem roupa: frio para
   crianças e idosos". Balão do curtume: "Faz N roupas/sem com N de gado" (ou "Parado: sem gado no
   curral"); balão do altar: "Curtume leva N gado/sem".
+
+## Dificuldade (peça F do `plano-dificuldade.md`, 2026-11-08)
+Código: `src/core/difficulty.ts`, números em `src/data/difficulty.json`.
+- No título, acima de "Começar", três cartões: **Tranquilo** ("Invernos leves, obras mais baratas"),
+  **Normal** ("O jogo como foi pensado") e **Difícil** ("Invernos cada vez mais duros e obras caras").
+  Vem marcado o último escolhido (Normal na primeira vez; guardado no navegador). Fica em
+  `s.difficulty` e não muda na partida; "Mesmo mapa" e "Tentar de novo" mantêm a escolha. O mapa da
+  semente é o mesmo em todas. A dificuldade aparece nas Estatísticas (embaixo do saldo de prata) e nos
+  cartões de vitória e derrota ("Dificuldade: Difícil.").
+
+| Chave | Tranquilo | Normal | Difícil |
+|---|---|---|---|
+| Prata inicial (`startSilver`) | 220 | 180 | 160 |
+| Comida comida (`food`) | × 0,9 | × 1 | × 1,05 |
+| Lenha (`firewood`) e roupas (`clothes`) | × 0,8 | × 1 | × 1,1 |
+| Manutenção (`upkeep`) | × 0,8 | × 1 | × 1,1 |
+| Local de trabalho vazio (`emptyUpkeep`, sobre `emptyUpkeepFactor`) | × 0,5 | × 1 | × 1 |
+| Roubo do celeiro (`theft`) | × 0,5 | × 1 | × 1,25 |
+| Oferta do altar (`offering`) | × 0,75 | × 1 | × 1,1 |
+| Etapas do Templo: prata e materiais (`templeCost`), obra (`templeWork`) | × 0,8 | × 1 | × 1,1 |
+| Inverno mais duro por ano, do Ano 3 (`winterGrowth`) | 0 | 0 | +2% |
+| Teto do inverno mais duro (`winterGrowthMax`) | 0 | 0 | +10% |
+
+- **Invernos mais duros** (só no Difícil): no inverno do Ano 3 em diante, a comida comida, a lenha e
+  as roupas do inverno sobem `winterGrowth` por ano depois do Ano 2, até o teto (Ano 3 +2%, Ano 4
+  +4%… até +10%). As previsões contam o inverno mais duro: a da comida, semana a semana, e as do
+  outono (lenha, roupas) o inverno que vem (`comingWinterGrowth`). Os balões mostram a manutenção e a
+  lenha como o jogo cobra (`upkeepOf`, `houseFirewood`).
+- A comida que as caravanas trazem ("comida para N semanas") é a mesma em todas as dificuldades: a
+  previsão do jogo já mostra quanto ela dura de fato.
+- As etapas do Templo do jogo vêm de `stageOf(s, k)` (arredondadas; obra no mínimo 1); no Normal são
+  os números de `temple.json` como estão.
+- Sim, 100 seeds (Comum / Eficiente / Distraído, vence-perde): Tranquilo 88/1, 95/3, 0/64; Normal
+  ~49/17, 69/12, 0/92; Difícil 19/29, 43/19, 0/90. O plano pedia invernos que crescem também no
+  Normal (+5% ao ano até +30%): com eles o Comum caía para 19% de vitórias e 27% de derrotas, e mesmo
+  com +2% até +10% para 34/26; ficaram só no Difícil, e o Difícil ficou mais brando que o do plano
+  (com os números do plano: Comum 0/54, Eficiente 9/41).
 
 ## Ruas e conexão
 

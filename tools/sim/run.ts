@@ -8,6 +8,7 @@
  *   npm run sim -- --set rules.people.birthChance=0.04 --drop-goal 4
  *        # tries balance numbers in memory only (src/data is not touched); --drop-goal is 1-based
  *   npm run sim -- --scale temple.work=0.8 --add temple.builders=1
+ *   npm run sim -- --difficulty easy               # plays Tranquilo (normal, hard)
  *        # the same for a field of every row of a list table (the Temple's stages), rounded
  */
 import {
@@ -26,13 +27,19 @@ import {
   ageOf,
   bandCounts,
   waitingCouples,
+  DIFFICULTIES,
 } from '../../src/core';
 import { applyOverrides } from './overrides';
-import { PROFILES, run, SurvivalBot, type Result } from './survival';
+import { PROFILES, run, simDifficulty, SurvivalBot, type Result } from './survival';
 
 const args = process.argv.slice(2);
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const ov = applyOverrides(args);
+if (args.includes('--difficulty')) {
+  const d = args[args.indexOf('--difficulty') + 1] as typeof simDifficulty.d;
+  if (!DIFFICULTIES.includes(d)) throw new Error(`--difficulty: one of ${DIFFICULTIES.join(', ')} (got ${d})`);
+  simDifficulty.d = d;
+}
 const bots = opt('bots', Object.keys(PROFILES).join(',')).split(',');
 // --profile key=json: changes a profile field of every bot run (e.g. stageAhead=1).
 args.forEach((a, i) => {
@@ -321,7 +328,7 @@ if (args.includes('--rows')) for (const r of all) console.log([r.bot, r.seed, r.
 if (args.includes('--trace')) {
   const [bn, sd, upto] = opt('trace', 'comum:1:80').split(':');
   const rng = createRng(Number(sd));
-  const s = createGame(rng);
+  const s = createGame(rng, simDifficulty.d);
   const bot = new SurvivalBot(PROFILES[bn], createRng(Number(sd) * 7919 + 13));
   let prevB = '';
   while (s.week < Number(upto) && !s.lost && !s.won) {

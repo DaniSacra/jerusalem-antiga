@@ -7,9 +7,10 @@ import { cellsOf, indexOf } from './grid';
 import { caravanSpots, entranceCell, generateTerrain, startRoad, templeRuin } from './map';
 import { refreshCity } from './refresh';
 import { between } from './rng';
-import type { GameState, Rng } from './types';
+import { DIFFICULTY } from './difficulty';
+import type { Difficulty, GameState, Rng } from './types';
 
-export function createGame(rng: Rng): GameState {
+export function createGame(rng: Rng, difficulty: Difficulty = 'normal'): GameState {
   const { cols, rows, altar } = RULES.map;
   const { ground, feature } = generateTerrain(rng);
   const s: GameState = {
@@ -25,7 +26,8 @@ export function createGame(rng: Rng): GameState {
     families: [],
     altar: { ...altar },
     entrance: entranceCell(),
-    silver: RULES.startSilver,
+    silver: DIFFICULTY[difficulty].startSilver,
+    difficulty,
     food: 0,
     wood: RULES.startMaterials.wood,
     stone: RULES.startMaterials.stone,

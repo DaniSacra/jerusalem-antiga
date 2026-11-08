@@ -1,4 +1,5 @@
 import { BUILDINGS, RULES, statOf } from './data';
+import { difficultyOf } from './difficulty';
 import { ageBand } from './people';
 import type { Building, BuildingKind, GameState, Person } from './types';
 
@@ -49,9 +50,12 @@ export function staffOf(b: Building, crews: Map<number, number>): number {
  * shows (`madeByCrew`) with nobody working there, connected or not (B2 measured: a careless city sank
  * in debt from empty places). A granary, the plaza and the park pay in full.
  */
-export function upkeepPaid(b: Building, crews: Map<number, number>): number {
-  const cost = statOf(b, 'upkeep');
-  return madeByCrew(b.kind) && !crews.get(b.id) ? Math.round(cost * RULES.emptyUpkeepFactor * 100) / 100 : cost;
+/** An upkeep of the data as this game pays it (the difficulty's multiplier). */
+export const upkeepOf = (s: Pick<GameState, 'difficulty'>, n: number) => Math.round(n * difficultyOf(s).upkeep * 100) / 100;
+
+export function upkeepPaid(s: Pick<GameState, 'difficulty'>, b: Building, crews: Map<number, number>): number {
+  const k = madeByCrew(b.kind) && !crews.get(b.id) ? RULES.emptyUpkeepFactor * difficultyOf(s).emptyUpkeep : 1;
+  return upkeepOf(s, statOf(b, 'upkeep') * k);
 }
 
 /** Someone could be moved to an empty workplace: an adult without a job, or one at a place with 2 or more workers. */

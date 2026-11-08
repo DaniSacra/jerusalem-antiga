@@ -1,5 +1,4 @@
 {
-  "startSilver": 180,
   "startUnlocked": ["road", "house", "field", "fisher", "gatherer", "lumber"],
   "startMaterials": { "wood": 40, "stone": 0, "livestock": 0 },
   "treeRegrowWeeks": 104,

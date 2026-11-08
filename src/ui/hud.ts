@@ -1,4 +1,4 @@
-import type { BuildableKind, Rect } from '../core';
+import type { BuildableKind, Difficulty, Rect } from '../core';
 import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
 import { NOVA_CSS, NOVA_FONT, TITLE_FONT } from '../game/palette';
@@ -338,17 +338,17 @@ export class Hud {
     );
   }
 
-  showVictory(week: number, residents: number, births: number, weddings: number) {
+  showVictory(week: number, residents: number, births: number, weddings: number, difficulty: Difficulty) {
     const m = T.medal;
-    this.modal.show(T.victoryTitle, T.victoryText(week, residents), [[T.keepBuilding, () => this.modal.close()]], [
+    this.modal.show(T.victoryTitle, T.victoryText(week, residents, difficulty), [[T.keepBuilding, () => this.modal.close()]], [
       [residents, m.residents(residents)],
       [births, m.births(births)],
       [weddings, m.weddings(weddings)],
     ]);
   }
 
-  showDefeat(week: number, peak: number) {
-    this.modal.show(T.defeatTitle, T.defeatText(week, peak), [
+  showDefeat(week: number, peak: number, difficulty: Difficulty) {
+    this.modal.show(T.defeatTitle, T.defeatText(week, peak, difficulty), [
       [T.sameMap, () => this.host.restart(true)],
       [T.retry, () => this.host.restart(false)],
     ], [

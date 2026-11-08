@@ -17,7 +17,7 @@ import {
   nextFieldTurn,
   RULES,
   seasonOf,
-  TEMPLE_STAGES,
+  stageOf,
   type CityReadout,
   type GameState,
   type Material,
@@ -98,7 +98,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
   // Wood (and stone once the quarry is unlocked): red with ⚠ while a house waits for it.
   const waiting = housesWaiting(s);
   // Livestock: what the pastures bring less the altar's weekly offering (red while the restored altar goes without).
-  const offering = s.temple.done >= 1 ? TEMPLE_STAGES[s.temple.done - 1].offering : 0;
+  const offering = s.temple.done >= 1 ? stageOf(s, s.temple.done - 1)!.offering : 0;
   const made: Record<Material, number> = { wood: eco.wood, stone: eco.stone, livestock: Math.round((eco.livestock - offering) * 100) / 100 };
   const bad = (m: Material) => waiting[m] > 0 || (m === 'wood' && (s.cold || firewoodShort(s, { wood: made.wood }) > 0)) || (m === 'livestock' && s.temple.done >= 1 && !s.offered);
   const mats: Material[] = ['wood'];
@@ -118,7 +118,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
   // Clothes (plano-dificuldade E), once the tannery is unlocked: the store and how many winters it dresses the city.
   if (s.unlocked.includes('tannery') || s.clothes > 0) {
     const short = s.ragged || clothesShort(s, eco) > 0;
-    const winter = clothesPerWeek(eco.residents) * RULES.weeksPerSeason;
+    const winter = clothesPerWeek(s, eco.residents) * RULES.weeksPerSeason;
     pills.push({
       key: 'clothes',
       icon: 'clothes',

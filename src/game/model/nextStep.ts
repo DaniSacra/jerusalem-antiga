@@ -15,7 +15,7 @@ import {
   makerOf,
   MATERIALS,
   readCity,
-  TEMPLE_STAGES,
+  stageOf,
   unlockingGoal,
   waitingCouples,
   weeksToNextLevel,
@@ -84,7 +84,7 @@ function crisis(s: GameState, city: CityReadout): NextStep | null {
   // The restored altar without its offering (it covers no house), or its livestock about to end.
   if (s.temple.done >= 1) {
     if (!s.offered) return make(N().offerings, 'livestock', 'pasture');
-    const net = city.eco.livestock - TEMPLE_STAGES[s.temple.done - 1].offering;
+    const net = city.eco.livestock - stageOf(s, s.temple.done - 1)!.offering;
     const left = net < 0 ? Math.floor(s.livestock / -net) : Infinity;
     if (left <= LIVESTOCK_WARN_WEEKS) return make(N().livestock(left), 'livestock', 'pasture');
   }

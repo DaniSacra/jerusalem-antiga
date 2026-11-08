@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
+import { DIFFICULTY,
   alerts,
   crewCounts,
   crewOf,
@@ -83,7 +83,7 @@ describe('caravan', () => {
   it('starts in autumn with the new prices and silver', () => {
     const s = createGame(createRng(3));
     expect(seasonOf(s.week)).toBe('autumn');
-    expect(RULES.startSilver).toBe(180);
+    expect(DIFFICULTY.normal.startSilver).toBe(180);
     expect([BUILDINGS.house.cost, BUILDINGS.field.cost, BUILDINGS.plaza.cost, RULES.roadCost]).toEqual([40, 20, 25, 2]);
   });
 });
@@ -701,7 +701,7 @@ describe('caravan (layout)', () => {
   it('pitches the tents in rows of two on both sides of the camp road, the row by the ring first, for free', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const s = createGame(createRng(seed));
-      expect(s.silver).toBe(RULES.startSilver);
+      expect(s.silver).toBe(DIFFICULTY.normal.startSilver);
       expect(s.families).toEqual([]);
       const tents = s.buildings.filter((b) => b.kind === 'house');
       const spots = [{ x: 19, y: 21 }, { x: 19, y: 24 }, { x: 17, y: 21 }, { x: 17, y: 24 }, { x: 15, y: 21 }].slice(0, tents.length);

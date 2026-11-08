@@ -1,5 +1,6 @@
 import { HOUSE_LEVELS, RULES, storageOf } from './data';
 import { round2, type Economy } from './economy';
+import { comingWinterGrowth, difficultyOf } from './difficulty';
 import { seasonOf } from './seasons';
 import type { GameEvent, GameState, Material } from './types';
 
@@ -9,11 +10,16 @@ import type { GameEvent, GameState, Material } from './types';
  * what it has, the stock goes to 0 and it is cold (`s.cold`): houses suffer as in a famine.
  */
 
-/** Wood the houses with people burn in a winter week. */
+/** Wood the houses with people burn in a winter week (this winter's, or the coming one's: difficulty.ts). */
 export function firewoodPerWeek(s: GameState): number {
   let n = 0;
   for (const b of s.buildings) if (b.kind === 'house' && b.level > 0) n += HOUSE_LEVELS[b.level].firewood ?? 0;
-  return round2(n);
+  return houseFirewood(s, n);
+}
+
+/** Firewood of the data (a house level's, or a sum) as this game burns it: the difficulty and the harder winters. */
+export function houseFirewood(s: Pick<GameState, 'difficulty' | 'week'>, n: number): number {
+  return round2(n * difficultyOf(s).firewood * (1 + comingWinterGrowth(s, s.week)));
 }
 
 /** Burns the week's firewood (winter only) and updates the cold, with its events. */

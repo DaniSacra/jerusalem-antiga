@@ -1,7 +1,7 @@
 /** In-memory overrides of the data tables, to measure proposals without editing src/data. */
-import { BUILDINGS, GOALS, HOUSE_LEVELS, RULES, TEMPLE_STAGES } from '../../src/core';
+import { BUILDINGS, DIFFICULTY, GOALS, HOUSE_LEVELS, RULES, TEMPLE_STAGES } from '../../src/core';
 
-const TABLES: Record<string, unknown> = { buildings: BUILDINGS, goals: GOALS, houses: HOUSE_LEVELS, rules: RULES, temple: TEMPLE_STAGES };
+const TABLES: Record<string, unknown> = { difficulty: DIFFICULTY, buildings: BUILDINGS, goals: GOALS, houses: HOUSE_LEVELS, rules: RULES, temple: TEMPLE_STAGES };
 
 /**
  * Applies `--set table.path=json` and `--drop-goal N` (1-based; its unlock moves to the goal before).

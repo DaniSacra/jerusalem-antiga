@@ -1,3 +1,4 @@
+import { difficultyOf, winterGrowth } from './difficulty';
 import { lampLit, theftTotal } from './theft';
 import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
@@ -57,13 +58,15 @@ export function peopleEating(s: GameState, week = s.week): { residents: number; 
   const houses = new Map<number, Building>();
   for (const b of s.buildings) if (b.kind === 'house') houses.set(b.id, b);
   const out = { residents: 0, workers: 0, eaten: 0 };
+  // The difficulty's appetite, and the harder winters of the later years (difficulty.ts).
+  const k = difficultyOf(s).food * (1 + winterGrowth(s, week));
   for (const p of s.people) {
     const h = p.houseId === null ? undefined : houses.get(p.houseId);
     if (!h) continue;
     const band = ageBand(p, s.week);
     out.residents++;
     if (band === 'adult') out.workers++;
-    out.eaten += foodOf(band, h.level, week);
+    out.eaten += foodOf(band, h.level, week) * k;
   }
   return out;
 }
@@ -94,7 +97,7 @@ export function computeEconomy(s: GameState): Economy {
   const bonus = fieldBonus(s);
   for (const b of s.buildings) {
     if (b.kind === 'house') continue;
-    const cost = upkeepPaid(b, crews);
+    const cost = upkeepPaid(s, b, crews);
     if (cost) upkeep[b.kind] = round2((upkeep[b.kind] ?? 0) + cost);
     if (!b.connected) continue;
     const n = jobsAt(b);

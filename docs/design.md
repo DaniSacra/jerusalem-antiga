@@ -232,7 +232,14 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
     - do primeiro outono depois da liberação, cada morador gasta 0,03 de roupa por semana de inverno; sem
       roupa, crianças e idosos podem morrer de frio mesmo com lenha (tenda 2%, casa 0,5%);
     - pílula Roupas, aviso no outono, toast, balões da casa, do curtume e do altar;
-    - sim: ver a linha "ragged" do sim-tester (resultado na nota do commit).
+    - sim, 150 seeds: Comum 49/17, Eficiente 69/12; inverno sem roupa em 48–57% das partidas, mortes de frio mediana 3, pastos mediana 3.
+  - **F. Tranquilo / Normal / Difícil** (2026-11-08):
+    - três cartões no título (o último escolhido marcado), `s.difficulty`, multiplicadores em `difficulty.json`;
+    - invernos que pioram do Ano 3 só no Difícil (+2%/ano até +10%): no Normal derrubavam o Comum para 19%;
+    - Difícil mais brando que o do plano (×1,1 em vez de ×1,2–1,25): com o do plano o Comum ganhava 0%;
+    - sim, 100 seeds (Comum, Eficiente): Tranquilo 88/1 e 95/3; Normal ~49/17 e 69/12; Difícil 19/29 e 43/19;
+    - pendente: o Distraído no Tranquilo ainda perde 64% (alvo ≤ 35%): ele só constrói comida na fome;
+      e o Normal perde 16–17% (alvo 3–10%).
 
 ## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.

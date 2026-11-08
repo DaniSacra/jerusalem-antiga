@@ -1,4 +1,4 @@
-import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type Difficulty, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
@@ -18,6 +18,9 @@ const materialsText = (m: Materials) => (['stone', 'wood'] as const).filter((k) 
 
 /** What a workshop does for the fields ("+10% de comida dos campos, até +30%"). */
 const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100)}% de comida dos campos, até +${Math.round((BUILDINGS.workshop.fieldBonusMax ?? 0) * 100)}%`;
+
+/** Names of the difficulties (plano-dificuldade F). */
+const DIFFICULTY_NAME = { easy: 'Tranquilo', normal: 'Normal', hard: 'Difícil' } satisfies Record<Difficulty, string>;
 
 export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
@@ -244,9 +247,15 @@ export const T = {
     dyeing: 'Tinturaria',
     tannery: 'Curtume',
   } satisfies Record<Craft, string>,
+  /** The difficulty (plano-dificuldade F): its name, the title card's phrase, and the end cards' note. */
+  difficulty: {
+    name: DIFFICULTY_NAME,
+    about: { easy: 'Invernos leves, obras mais baratas', normal: 'O jogo como foi pensado', hard: 'Invernos cada vez mais duros e obras caras' } satisfies Record<Difficulty, string>,
+    played: (d: Difficulty) => `Dificuldade: ${DIFFICULTY_NAME[d]}.`,
+  },
   victoryTitle: 'Vitória!',
-  victoryText: (played: number, residents: number) =>
-    `O Templo foi consagrado em ${duration(played)}, com ${residents} moradores.`,
+  victoryText: (played: number, residents: number, d: Difficulty) =>
+    `O Templo foi consagrado em ${duration(played)}, com ${residents} moradores. Dificuldade: ${DIFFICULTY_NAME[d]}.`,
   /** The "medals" under the victory and defeat text: a big number and what it counts. */
   medal: {
     residents: (n: number) => (n === 1 ? 'morador' : 'moradores'),
@@ -257,8 +266,8 @@ export const T = {
   },
   keepBuilding: 'Continuar construindo',
   defeatTitle: 'Jerusalém foi abandonada',
-  defeatText: (weeksPlayed: number, peak: number) =>
-    `A cidade ficou ${weeks(RULES.debtWeeksToLose)} em dívida. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores.`,
+  defeatText: (weeksPlayed: number, peak: number, d: Difficulty) =>
+    `A cidade ficou ${weeks(RULES.debtWeeksToLose)} em dívida. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores. Dificuldade: ${DIFFICULTY_NAME[d]}.`,
   retry: 'Tentar de novo',
   /** Defeat: a new game on the same map (same seed). */
   sameMap: 'Mesmo mapa',

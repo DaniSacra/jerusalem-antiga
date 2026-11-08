@@ -1,4 +1,4 @@
-import type { BuildingCategory, Cell, Rect } from '../core';
+import type { Difficulty, BuildingCategory, Cell, Rect } from '../core';
 import { COLUMN_ORDER } from '../game/tools';
 import type { GameOut } from '../game/events';
 import { Gestures, TOUCH_LIFT, type GestureView, type PointerIn } from '../game/gestures';
@@ -146,13 +146,13 @@ export class Play3D implements SessionView, GestureView, HudHost {
   }
 
   /** The title screen closed: the camera back at the opening view, the interface and the weeks start. */
-  begin(tutorial: boolean) {
+  begin(tutorial: boolean, difficulty?: Difficulty) {
     if (!this.behind) return;
     this.behind = false;
     this.root.classList.remove('behind');
     this.scene.rig.set({ yaw: this.openingYaw });
     this.wake = true;
-    this.session.begin(tutorial);
+    this.session.begin(tutorial, difficulty);
   }
 
   /** The cell under a screen point: a building's box first with Mover and Demolir, else the ground. */
@@ -249,10 +249,10 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.scene.effect(o);
     switch (o.do) {
       case 'victory':
-        this.hud.showVictory(o.week, o.residents, o.births, o.weddings);
+        this.hud.showVictory(o.week, o.residents, o.births, o.weddings, this.session.state.difficulty);
         break;
       case 'defeat':
-        this.hud.showDefeat(o.week, o.peak);
+        this.hud.showDefeat(o.week, o.peak, this.session.state.difficulty);
         break;
       case 'cheer':
         this.hud.float(o.gain, { x: o.x, y: o.y, w: 1, h: 1 }, 'gold');

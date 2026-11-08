@@ -86,7 +86,7 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   const crews = crewCounts(s);
   // Empty workplaces pay their upkeep in full (plano-dificuldade B): say how many and what they cost.
   const empty = s.buildings.filter((b) => b.connected && BUILDINGS[b.kind].jobs > 0 && madeByCrew(b.kind) && isWorking(b, s.week) && !crews.get(b.id));
-  if (empty.length) out.push({ kind: 'noCrew', building: empty[0].kind, count: empty.length, upkeep: Math.round(empty.reduce((a, b) => a + upkeepPaid(b, crews), 0) * 100) / 100 });
+  if (empty.length) out.push({ kind: 'noCrew', building: empty[0].kind, count: empty.length, upkeep: Math.round(empty.reduce((a, b) => a + upkeepPaid(s, b, crews), 0) * 100) / 100 });
   for (const material of MATERIALS) {
     if (storageFull(s, material) && s.buildings.some((b) => b.connected && BUILDINGS[b.kind].gather?.product === material)) out.push({ kind: 'storageFull', material });
   }

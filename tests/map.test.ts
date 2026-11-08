@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { altarDistance, altarRing, between, campPlazaSpot, campRoad, caravanSpots, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, templeRuin, type Feature, type Terrain } from '../src/core';
+import { DIFFICULTY, altarDistance, altarRing, between, campPlazaSpot, campRoad, caravanSpots, checkPlace, createGame, dimsOf, createRng, findPath, generateTerrain, indexOf, isReserved, RULES, startRoad, templeRuin, type Feature, type Terrain } from '../src/core';
 
 const { cols, rows, clearRadius, river, denseGrove, rockOutcrop } = RULES.map;
 const SEEDS = Array.from({ length: 100 }, (_, k) => k + 1);
@@ -214,7 +214,7 @@ describe('map generation', () => {
 
   it('starts with a 4x4 altar at the center, the caravan tents and a road to the south edge (the entrance)', () => {
     const s = createGame(createRng(5));
-    expect(s.silver).toBe(RULES.startSilver);
+    expect(s.silver).toBe(DIFFICULTY.normal.startSilver);
     expect(s.unlocked).toEqual(RULES.startUnlocked);
     expect(s.buildings.filter((b) => b.kind === 'altar')).toEqual([expect.objectContaining({ kind: 'altar', x: 22, y: 22, w: 4, h: 4, connected: true })]);
     expect(s.buildings.filter((b) => b.kind === 'temple')).toHaveLength(1); // the ruin
@@ -245,6 +245,6 @@ describe('map generation', () => {
     // Every ring cell is walkable from the entrance, and the south road still reaches it.
     for (const c of ring) expect(findPath(s, s.entrance, [c])).not.toBeNull();
     expect(findPath(s, s.entrance, [{ x: 24, y: 26 }])).toHaveLength(22);
-    expect(s.silver).toBe(RULES.startSilver); // the starting roads are free
+    expect(s.silver).toBe(DIFFICULTY.normal.startSilver); // the starting roads are free
   });
 });

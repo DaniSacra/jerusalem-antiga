@@ -1,4 +1,5 @@
 import { TEMPLE_STAGES } from './data';
+import { stageOf } from './difficulty';
 import { currentGoal } from './goals';
 import { lackingMaterial } from './materials';
 import type { ActionResult, Building, GameState, TempleStageDef } from './types';
@@ -12,7 +13,7 @@ import type { ActionResult, Building, GameState, TempleStageDef } from './types'
  */
 
 /** The stage to build next (stage 1 = index 0), or undefined once the Temple is consecrated. */
-export const nextStage = (s: GameState): TempleStageDef | undefined => TEMPLE_STAGES[s.temple.done];
+export const nextStage = (s: GameState): TempleStageDef | undefined => stageOf(s, s.temple.done);
 
 /** The Temple is consecrated: its coverage and happiness count. */
 export const templeDone = (s: GameState) => s.temple.done >= TEMPLE_STAGES.length;

@@ -7,6 +7,8 @@ import {
   lampLit,
   theftAt,
   upkeepPaid,
+  upkeepOf,
+  houseFirewood,
   BUILDINGS,
   RULES,
   computeEconomy,
@@ -67,6 +69,7 @@ import {
   type Materials,
   currentGoal,
   TEMPLE_STAGES,
+  stageOf,
 } from '../../core';
 import { stagePlan } from './temple';
 import { treeKind } from '../seasons';
@@ -192,10 +195,11 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
     if (def.fieldBonus) lines.push({ text: N.fieldBonus(Math.round(fieldBonus(s) * 100)), tone: 'good' });
   }
   lines.push(...foodLines(s, b));
-  const upkeep = statOf(b, 'upkeep');
-  // An empty workplace pays its upkeep all the same (plano-dificuldade B): said in red.
-  const idle = madeByCrew(b.kind) && !crewCounts(s).get(b.id);
-  if (upkeep) lines.push(idle ? { text: N.upkeepEmpty(upkeepPaid(b, crewCounts(s))), tone: 'bad' } : { text: N.upkeep(upkeep), tone: 'gold' });
+  // What this game pays (the difficulty); an empty workplace pays it all the same (plano-dificuldade B): said in red.
+  const upkeep = upkeepOf(s, statOf(b, 'upkeep'));
+  const crews = crewCounts(s);
+  const idle = madeByCrew(b.kind) && !crews.get(b.id);
+  if (upkeep) lines.push(idle ? { text: N.upkeepEmpty(upkeepPaid(s, b, crews)), tone: 'bad' } : { text: N.upkeep(upkeep), tone: 'gold' });
   // Service levels: what the next one changes, and the gold Melhorar (grey without the silver).
   const levels: CardLine[] = [];
   if (def.levels) {
@@ -206,7 +210,7 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
     else if (stat) {
       const up = { kind: b.kind, level: b.level + 1 };
       const say = T.nova.levelStat[stat];
-      levels.push({ text: N.nextLevel(b.level + 1, say(statOf(up, stat)), statOf(up, 'upkeep'), say(statOf(b, stat)), upkeep), tone: 'gold', box: true });
+      levels.push({ text: N.nextLevel(b.level + 1, say(statOf(up, stat)), upkeepOf(s, statOf(up, 'upkeep')), say(statOf(b, stat)), upkeep), tone: 'gold', box: true });
     }
     if (next && !action) {
       const short = s.silver < next.cost;
@@ -288,7 +292,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     const left = weeksToNextLevel(s, b);
     const season = seasonOf(s.week);
     if (s.cold) level.push({ text: T.nova.cold, tone: 'bad' });
-    else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), tone: 'muted', plain: true });
+    else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(houseFirewood(s, HOUSE_LEVELS[h.level].firewood ?? 0)), tone: 'muted', plain: true });
     if (h.level === 1 && (season === 'autumn' || season === 'winter')) level.push({ text: T.nova.tentCold, tone: s.cold ? 'bad' : 'warn' });
     if (s.ragged && season === 'winter') level.push({ text: T.nova.ragged, tone: 'bad' });
     if (s.famine) level.push({ text: N.famine, tone: 'bad' });
@@ -324,7 +328,7 @@ function altarLines(s: GameState, b: Building): CardLine[] {
   // Who else takes the livestock: the tanneries (plano-dificuldade E).
   const hides = computeEconomy(s).hides;
   return [
-    { text: O.burns(TEMPLE_STAGES[s.temple.done - 1].offering, houses), tone: 'good' },
+    { text: O.burns(stageOf(s, s.temple.done - 1)!.offering, houses), tone: 'good' },
     ...(hides > 0 ? [{ text: O.tanneries(hides), tone: 'muted', plain: true } as CardLine] : []),
     { text: T.nova.reach(r), tone: 'muted', plain: true },
   ];
@@ -344,7 +348,7 @@ function stageCard(s: GameState, b: Building): { lines: CardLine[]; action: Card
   TEMPLE_STAGES.forEach((st, k) => k < s.temple.done && here(k) && lines.push({ ...ok(true, N.built(st.name)), gap: 4 }));
   const k = TEMPLE_STAGES.findIndex((_, i) => i >= s.temple.done && here(i));
   if (k < 0) return { lines, action: null, jobs: false };
-  const st = TEMPLE_STAGES[k];
+  const st = stageOf(s, k)!;
   lines.push({ text: N.head(k + 1, TEMPLE_STAGES.length, st.name), tone: 'gold', gap: 4 });
   const p = k === s.temple.done ? stagePlan(s) : null;
   const goal = currentGoal(s);
@@ -450,7 +454,7 @@ function costParts(s: GameState, cost: number, m: Materials): CardLine {
 export function toolCard(s: GameState, kind: BuildableKind, phone: boolean): CardLine[] {
   const d = BUILDINGS[kind];
   const N = T.nova;
-  const upkeep = [...(d.upkeep ? [N.upkeep(d.upkeep)] : []), ...(!phone && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
+  const upkeep = [...(d.upkeep ? [N.upkeep(upkeepOf(s, d.upkeep))] : []), ...(!phone && d.jobs ? [N.jobs(d.jobs)] : [])].join(' · ');
   const lines: CardLine[] = [{ text: d.name, big: true }, costLine(s, kind), ...(upkeep ? [{ text: upkeep, tone: 'gold' as const }] : []), { text: N.effect[kind], plain: true }];
   if (d.gather) lines.push({ text: N.gatherRule(d.gather.source, d.gather.perCell, d.gather.radius, d.gather.max, d.gather.product), tone: 'muted', plain: true });
   // A building with levels: its first and last ("Guarda 300 · melhora até 1000").

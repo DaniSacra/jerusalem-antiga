@@ -221,29 +221,29 @@ describe('an empty workplace pays half its upkeep (B2 measured)', () => {
   it('a lumber empty pays half, with 1 of 2 the full upkeep; a market at level 2 the same; off the road too', () => {
     const s = emptyGame();
     const lumber = put(s, 'lumber', EAST, 27);
-    expect(upkeepPaid(lumber, crewCounts(s))).toBe(half('lumber'));
+    expect(upkeepPaid(s, lumber, crewCounts(s))).toBe(half('lumber'));
     hire(s, lumber, 1);
-    expect(upkeepPaid(lumber, crewCounts(s))).toBe(BUILDINGS.lumber.upkeep);
+    expect(upkeepPaid(s, lumber, crewCounts(s))).toBe(BUILDINGS.lumber.upkeep);
     const m = put(s, 'market', westOf('market'), 31);
     m.level = 2;
     const full = statOf(m, 'upkeep');
-    expect(upkeepPaid(m, crewCounts(s))).toBe(full * RULES.emptyUpkeepFactor);
+    expect(upkeepPaid(s, m, crewCounts(s))).toBe(full * RULES.emptyUpkeepFactor);
     hire(s, m, 1);
-    expect(upkeepPaid(m, crewCounts(s))).toBe(full);
+    expect(upkeepPaid(s, m, crewCounts(s))).toBe(full);
     const loose = put(s, 'lumber', 2, 2);
     expect(loose.connected).toBe(false);
-    expect(upkeepPaid(loose, crewCounts(s))).toBe(half('lumber'));
+    expect(upkeepPaid(s, loose, crewCounts(s))).toBe(half('lumber'));
   });
 
   it('a granary, the plaza and the park pay in full though nobody works there; a field resting in winter with its crew too', () => {
     const s = emptyGame({ week: RULES.weeksPerSeason }); // winter
     for (const [k, x, y] of [['granary', EAST, 27], ['plaza', ROADSIDE, 27], ['park', ROADSIDE, 30]] as const) {
       const b = put(s, k, x, y);
-      expect(upkeepPaid(b, crewCounts(s))).toBe(BUILDINGS[k].upkeep);
+      expect(upkeepPaid(s, b, crewCounts(s))).toBe(BUILDINGS[k].upkeep);
     }
     const field = put(s, 'field', westOf('field'), 34);
     hire(s, field);
-    expect(upkeepPaid(field, crewCounts(s))).toBe(BUILDINGS.field.upkeep);
+    expect(upkeepPaid(s, field, crewCounts(s))).toBe(BUILDINGS.field.upkeep);
   });
 
   it('the economy pays what upkeepPaid says: upkeep by kind, the balance and the costliest', () => {

@@ -1,4 +1,5 @@
 import { install, installOffer, onInstallChange } from '../app/install';
+import { DIFFICULTIES, type Difficulty } from '../core';
 import { T } from '../game/strings';
 import { tutorialSeen } from '../game/tutorialStore';
 import { formOf, h, onTap } from './dom';
@@ -7,20 +8,20 @@ import './ui.css';
 
 /** The open title screen: what the player chose, and `reveal` once the city is drawn behind it. */
 export interface TitleScreen {
-  chosen: Promise<{ tutorial: boolean }>;
+  chosen: Promise<{ tutorial: boolean; difficulty: Difficulty }>;
   /** The warm backdrop fades to a vignette and the living city shows around the card. */
   reveal(): void;
 }
 
 /**
- * The title screen of the 3D game in HTML: the name, how to play, the controls and "Começar"
+ * The title screen of the 3D game in HTML: the name, how to play, the controls, the difficulty and "Começar"
  * (Enter on PC); once the tutorial was seen, "Ver tutorial de novo" too. "Instalar app" shows when
  * the browser can install it. It opens at once on a warm backdrop; the game's city opens behind it
  * while Three.js and the models download, and `reveal` lets it show.
  */
-export function showTitle(parent: HTMLElement = document.body): TitleScreen {
+export function showTitle(last: Difficulty = 'normal', parent: HTMLElement = document.body): TitleScreen {
   let reveal = () => {};
-  const chosen = new Promise<{ tutorial: boolean }>((resolve) => {
+  const chosen = new Promise<{ tutorial: boolean; difficulty: Difficulty }>((resolve) => {
     const root = h('div', { id: 'hud', class: 'title-screen', 'data-form': formOf() });
     root.style.setProperty('--c-ink', NOVA_CSS.ink);
     root.style.setProperty('--c-muted', NOVA_CSS.muted);
@@ -32,7 +33,7 @@ export function showTitle(parent: HTMLElement = document.body): TitleScreen {
       removeEventListener('keydown', onKey);
       offInstall();
       root.remove();
-      resolve({ tutorial });
+      resolve({ tutorial, difficulty: picked });
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') done(false);
@@ -46,7 +47,19 @@ export function showTitle(parent: HTMLElement = document.body): TitleScreen {
       acts.append(again);
     }
     const list = h('ol', {}, ...T.howTo.map((line) => h('li', {}, line)));
-    const card = h('div.card', {}, h('h1', {}, T.title), list, h('p.controls', {}, T.controls), acts);
+    // Tranquilo / Normal / Difícil (plano-dificuldade F): the last one chosen comes marked.
+    let picked = last;
+    const D = T.difficulty;
+    const cards = DIFFICULTIES.map((d) => {
+      const b = h('button.diff', { 'data-spot': `difficulty-${d}`, 'aria-pressed': String(d === picked) }, h('b', {}, D.name[d]), h('small', {}, D.about[d]));
+      onTap(b, () => {
+        picked = d;
+        for (const [k, c] of cards) c.setAttribute('aria-pressed', String(k === d));
+      });
+      return [d, b] as const;
+    });
+    const levels = h('div.diffs', {}, ...cards.map(([, b]) => b));
+    const card = h('div.card', {}, h('h1', {}, T.title), list, h('p.controls', {}, T.controls), levels, acts);
     const corner = h('div.install');
     const paint = () => {
       corner.replaceChildren();

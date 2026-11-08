@@ -444,6 +444,25 @@ async function play3dScenario(page, suffix) {
     return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height];
   });
   assert(startBtn[3] >= 44, `Começar is thumb-sized (${startBtn[2]}x${startBtn[3]})`);
+  // Tranquilo / Normal / Difícil (plano-dificuldade F): three cards on the screen, Normal marked the first time; a tap moves the mark.
+  const levels = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.title-screen .diff')].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { spot: b.dataset.spot, on: b.getAttribute('aria-pressed') === 'true', x: r.x + r.width / 2, y: r.y + r.height / 2, inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+      }),
+    );
+  const cards = await levels();
+  assert(cards.length === 3 && cards.every((l) => l.inside), `three difficulty cards on the screen (${JSON.stringify(cards)})`);
+  assert(cards.find((l) => l.on)?.spot === 'difficulty-normal', 'Normal comes marked the first time');
+  const hard = cards.find((l) => l.spot === 'difficulty-hard');
+  if (phone) await cdpTapPage(page, hard.x, hard.y);
+  else await page.mouse.click(hard.x, hard.y);
+  assert((await levels()).find((l) => l.on)?.spot === 'difficulty-hard', 'a tap marks Difícil');
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}-title-hard.png` });
+  const normal = cards.find((l) => l.spot === 'difficulty-normal');
+  if (phone) await cdpTapPage(page, normal.x, normal.y);
+  else await page.mouse.click(normal.x, normal.y);
   if (phone) await cdpTapPage(page, startBtn[0], startBtn[1]);
   else await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.view3d?.ready && window.view3d.frames > 3 && window.session, null, { timeout: 180000 });
@@ -453,6 +472,7 @@ async function play3dScenario(page, suffix) {
   assert(st.canvases === 1, `one canvas (${st.canvases})`);
   assert(st.form === (phone ? 'phone' : 'pc'), `the interface is laid out for the ${suffix} (${st.form})`);
   assert(st.tutorial, 'the first game opens the tutorial');
+  assert((await page.evaluate(() => window.state.difficulty)) === 'normal', 'the game plays the difficulty marked on the title');
   await page.screenshot({ path: `${OUT}/play3d-${suffix}.png` });
   // Nothing of the interface spills off the screen.
   const out = await page.evaluate(() =>
@@ -591,10 +611,14 @@ async function end3dScenario(page, suffix) {
     assert(fit.medals === medals && fit.branches === 2, `the ${name} card has its ${medals} medals and two branches (${JSON.stringify(fit)})`);
     assert(fit.top >= 0 && fit.bottom <= fit.h && fit.left >= 0 && fit.right <= fit.w, `the ${name} card fits the screen (${JSON.stringify(fit)})`);
   };
-  await page.evaluate(() => window.view3d.game.hud.showVictory(160, 84, 23, 11));
+  await page.evaluate(() => window.view3d.game.hud.showVictory(160, 84, 23, 11, 'hard'));
   await check('victory', 3);
-  await page.evaluate(() => window.view3d.game.hud.showDefeat(70, 31));
+  // The end cards say the difficulty (plano-dificuldade F).
+  const said = () => page.evaluate(() => document.querySelector('.modal')?.textContent ?? '');
+  assert((await said()).includes('Dificuldade: Difícil.'), 'the victory card says the difficulty');
+  await page.evaluate(() => window.view3d.game.hud.showDefeat(70, 31, 'easy'));
   await check('defeat', 2);
+  assert((await said()).includes('Dificuldade: Tranquilo.'), 'the defeat card says the difficulty');
 }
 
 /** Opens the 3D game on its own and leaves the title screen (tutorial marked as seen). */

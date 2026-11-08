@@ -70,8 +70,8 @@ describe('the tannery turns livestock into clothes', () => {
 
 describe('clothes in winter', () => {
   it('each resident wears out perPerson a winter week, once the city dresses; never out of winter', () => {
-    expect(clothesPerWeek(25)).toBeCloseTo(25 * C.perPerson);
     const s = city(25, { week: WINTER, clothes: 10, dressing: true });
+    expect(clothesPerWeek(s, 25)).toBeCloseTo(25 * C.perPerson);
     const events: GameEvent[] = [];
     wearClothes(s, 25, events);
     expect(s.clothes).toBeCloseTo(10 - 25 * C.perPerson);
@@ -129,7 +129,7 @@ describe('clothes in winter', () => {
 
   it('clothesShort: in autumn, the clothes missing for the whole winter; the alert says it', () => {
     const s = city(25, { week: AUTUMN, clothes: 3, dressing: true });
-    const need = clothesPerWeek(25) * W;
+    const need = clothesPerWeek(s, 25) * W;
     expect(clothesShort(s, { clothes: 0, residents: 25 })).toBe(Math.ceil(need - 3));
     expect(clothesShort(s, { clothes: 1, residents: 25 })).toBe(0); // a tannery makes enough until the spring
     expect(alerts(s)).toContainEqual({ kind: 'clothes', missing: Math.ceil(need - 3), ragged: false });

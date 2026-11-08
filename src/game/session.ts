@@ -43,6 +43,8 @@ import {
   type Rect,
   type Rng,
   type TutorialStepId,
+  setDifficulty,
+  type Difficulty,
 } from '../core';
 import { T } from './strings';
 import { categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, type Speed, type Tool } from './tools';
@@ -90,6 +92,8 @@ export type TutorialPoint = { tool: Tool } | { road: Cell } | { spot: Rect; lift
 
 export interface SessionOptions {
   seed: number;
+  /** The difficulty (Normal unless told; the title screen may change it before the game begins). */
+  difficulty?: Difficulty;
   /** Forces the tutorial ("Ver tutorial de novo"); otherwise it runs while `seen` is false. */
   tutorial: boolean;
   seen: boolean;
@@ -141,7 +145,7 @@ export class Session {
   constructor(o: SessionOptions) {
     this.seed = o.seed;
     this.rng = createRng(o.seed);
-    this.state = createGame(this.rng);
+    this.state = createGame(this.rng, o.difficulty);
     this.guide = o.tutorial || !o.seen ? new TutorialGuide(this.state, o.saveSeen) : null;
     this.spot = this.guide ? foodSpot(this.state) : null;
     this.ghost = this.spot?.road ?? [];
@@ -155,7 +159,8 @@ export class Session {
    * The game starts (the title screen closed over the city): the tutorial too when it was asked for
    * ("Ver tutorial de novo"), and the camera goes again to the current step.
    */
-  begin(tutorial: boolean) {
+  begin(tutorial: boolean, difficulty?: Difficulty) {
+    if (difficulty) setDifficulty(this.state, difficulty);
     if (tutorial && !this.guide) {
       this.guide = new TutorialGuide(this.state, this.saveSeen);
       this.spot = foodSpot(this.state);

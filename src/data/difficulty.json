@@ -1,0 +1,5 @@
+{
+  "easy":   { "startSilver": 220, "food": 0.9,  "firewood": 0.8, "clothes": 0.8, "upkeep": 0.8, "emptyUpkeep": 0.5, "theft": 0.5,  "offering": 0.75, "templeCost": 0.8, "templeWork": 0.8, "winterGrowth": 0,    "winterGrowthMax": 0 },
+  "normal": { "startSilver": 180, "food": 1,    "firewood": 1,   "clothes": 1,   "upkeep": 1,   "emptyUpkeep": 1,   "theft": 1,    "offering": 1,    "templeCost": 1,   "templeWork": 1,   "winterGrowth": 0,    "winterGrowthMax": 0 },
+  "hard":   { "startSilver": 160, "food": 1.05, "firewood": 1.1, "clothes": 1.1, "upkeep": 1.1, "emptyUpkeep": 1,   "theft": 1.25, "offering": 1.1,  "templeCost": 1.1, "templeWork": 1.1, "winterGrowth": 0.02, "winterGrowthMax": 0.1 }
+}

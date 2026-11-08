@@ -4,6 +4,7 @@ import { Session } from '../game/session';
 import { onSettings } from '../game/settings';
 import { Music } from './music';
 import { saveTutorialSeen, tutorialSeen } from '../game/tutorialStore';
+import { saveDifficulty, savedDifficulty } from '../game/difficultyStore';
 import { T } from '../game/strings';
 import { showTitle } from '../ui/title';
 
@@ -30,9 +31,10 @@ export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 
     if (import.meta.env.DEV) Object.assign(window, { music: m });
   }
   // The title screen shows at once; the city opens behind it while Three.js and the models download.
-  const screen = title ? showTitle() : null;
+  const screen = title ? showTitle(savedDifficulty()) : null;
   const { Play3D } = await import('./play3d');
-  const session = new Session({ seed, tutorial: false, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
+  // A restart keeps the difficulty chosen last ("Mesmo mapa", "Tentar de novo").
+  const session = new Session({ seed, difficulty: savedDifficulty(), tutorial: false, seen: tutorialSeen(), saveSeen: saveTutorialSeen });
   const game = await Play3D.open(session, {
     behind: !!screen,
     restart: (sameMap) => {
@@ -42,7 +44,9 @@ export async function start3d(seed = devSeed() ?? (Math.random() * 2 ** 32) >>> 
   });
   if (screen) {
     screen.reveal();
-    game.begin((await screen.chosen).tutorial);
+    const chosen = await screen.chosen;
+    saveDifficulty(chosen.difficulty);
+    game.begin(chosen.tutorial, chosen.difficulty);
   }
   listen = () => ({ season: seasonOf(session.state.week), night: game.scene.ambience.night > 0.5, rain: game.scene.ambience.rain > 0.3 });
   const s = session.state;

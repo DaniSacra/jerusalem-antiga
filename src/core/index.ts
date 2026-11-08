@@ -32,6 +32,7 @@ export * from './materials';
 export * from './trees';
 export * from './firewood';
 export * from './clothes';
+export * from './difficulty';
 export * from './cold';
 export * from './work';
 export * from './temple';

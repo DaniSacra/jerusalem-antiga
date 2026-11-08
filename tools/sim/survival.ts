@@ -61,6 +61,7 @@ import {
   upkeepPaid,
   vulnerable,
   firewoodShort,
+  stageOf,
   clothesShort,
   TEMPLE_STAGES,
   nextStage,
@@ -78,6 +79,7 @@ import {
   type Building,
   type Person,
   type BuildableKind,
+  type Difficulty,
   type GameState,
   type Rect,
   type Rng,
@@ -660,7 +662,7 @@ export class SurvivalBot {
     const isFood = (x: Building) => x.kind === 'fisher' || x.kind === 'gatherer' || x.kind === 'field';
     const crews = crewCounts(s);
     // What each building pays now (an empty workplace pays half, its balloon says so) and what it makes (nothing when empty).
-    const per = (b: Building) => (madeByCrew(b.kind) && !crews.get(b.id) ? 0 : value(b)) / (upkeepPaid(b, crews) || 1);
+    const per = (b: Building) => (madeByCrew(b.kind) && !crews.get(b.id) ? 0 : value(b)) / (upkeepPaid(s, b, crews) || 1);
     // Never the last granary (its food would spoil) nor the last two food buildings.
     const last = (kind: BuildableKind) => s.buildings.filter((x) => x.kind === kind).length <= 1;
     const keep = (b: Building) => (isFood(b) && s.buildings.filter(isFood).length <= 2) || ((b.kind === 'granary' || b.kind === 'lumber' || b.kind === 'quarry') && last(b.kind));
@@ -703,7 +705,7 @@ export class SurvivalBot {
     if (n >= MAX_PRODUCERS) return false;
     // The Eficiente reads the Gado pill: out of winter the pastures should make a quarter more than the next stage will burn.
     const made = s.buildings.filter((b) => b.kind === 'pasture').reduce((x, b) => x + gatherYield(s, b, 39), 0);
-    const next = TEMPLE_STAGES[Math.min(s.temple.done, TEMPLE_STAGES.length - 1)].offering;
+    const next = stageOf(s, Math.min(s.temple.done, TEMPLE_STAGES.length - 1))!.offering;
     const ahead = mode === 'ahead' && s.temple.done > 0 && made < 1.25 * next;
     const want = n === 0 || ahead || (mode === 'ahead' && n < 2 && s.temple.done >= 2) || this.lasted('herdDown', mode === 'ahead' ? 4 : 8);
     if (!want || !this.place(s, 'pasture', false, true)) return false;
@@ -1321,9 +1323,12 @@ const riverDistance = (s: GameState) => {
   return d;
 };
 
+/** The difficulty the sim plays (`--difficulty easy|normal|hard`, plano-dificuldade F). */
+export const simDifficulty: { d: Difficulty } = { d: 'normal' };
+
 export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const rng = createRng(seed);
-  const s = createGame(rng);
+  const s = createGame(rng, simDifficulty.d);
   const bot = new SurvivalBot(p, createRng(seed * 7919 + 13));
   const res: Result = {
     bot: p.name, seed, families0: s.start.families, foodWeeks0: s.start.foodWeeks, riverDist: riverDistance(s), won: false, lost: false, weeks: maxWeeks,
@@ -1552,7 +1557,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       const c2 = crewCounts(s);
       const eco2 = computeEconomy(s);
       const places = s.buildings.filter((b) => madeByCrew(b.kind) && statOf(b, 'jobs') > 0 && !c2.get(b.id));
-      const emptyUpkeep = places.reduce((a, b) => a + upkeepPaid(b, c2), 0);
+      const emptyUpkeep = places.reduce((a, b) => a + upkeepPaid(s, b, c2), 0);
       const upkeep = Object.values(eco2.upkeep).reduce((a, v) => a + (v ?? 0), 0);
       const bands = bandCounts(s);
       const famine26 = famineLast.filter(Boolean).length;

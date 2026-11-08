@@ -258,6 +258,9 @@ export interface GoalDef {
   text: string;
 }
 
+/** Tranquilo, Normal or Difícil (plano-dificuldade F). */
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
 /** A stage of the Temple (`temple.json`): where it is built, what it costs, its builders' jobs and its work in builder-weeks. */
 export interface TempleStageDef {
   name: string;
@@ -272,7 +275,6 @@ export interface TempleStageDef {
 }
 
 export interface Rules {
-  startSilver: number;
   startUnlocked: Placeable[];
   /** Materials the founding caravan brings. */
   startMaterials: Record<Material, number>;
@@ -520,6 +522,8 @@ export interface GameState {
   famine: boolean;
   /** Winter without firewood: houses suffer as in a famine (see firewood.ts). */
   cold: boolean;
+  /** The difficulty chosen on the title screen (fixed for the game; difficulty.ts). */
+  difficulty: Difficulty;
   /** Clothes in store (the tannery makes them; every resident wears some out each winter week, clothes.ts). */
   clothes: number;
   /** The city needs clothes in winter: from the first autumn after the tannery was unlocked. */

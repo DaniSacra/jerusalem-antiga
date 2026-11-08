@@ -282,7 +282,14 @@
 .title-screen li { margin-bottom: 6px; }
 .title-screen .controls { text-align: center; color: #6b5a44; font-size: var(--text); }
 .title-screen .install { position: absolute; z-index: 11; right: var(--margin); top: var(--margin); max-width: 60vw; color: #fff8e4; text-align: right; pointer-events: auto; }
+/* Tranquilo / Normal / Difícil: three cards side by side, the chosen one in gold. */
+.title-screen .diffs { display: flex; gap: 8px; margin: 4px 0 12px; }
+.title-screen .diff { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border-radius: 12px; border: 2px solid rgba(107, 90, 68, 0.35); background: rgba(255, 250, 235, 0.6); color: var(--c-ink); font-family: var(--font); cursor: pointer; pointer-events: auto; }
+.title-screen .diff b { font-size: var(--num); }
+.title-screen .diff small { font-size: var(--small); color: #6b5a44; line-height: 1.2; text-align: center; }
+.title-screen .diff[aria-pressed='true'] { border-color: var(--c-gold); background: #fff3cf; box-shadow: 0 0 0 2px rgba(214, 168, 58, 0.35); }
 #hud[data-form='phone'].title-screen .card { padding: 14px 18px; }
+#hud[data-form='phone'].title-screen .diff { padding: 5px 4px; }
 #hud[data-form='phone'].title-screen ol { font-size: var(--text); }
 
 /* ---------- settings (gear) ---------- */

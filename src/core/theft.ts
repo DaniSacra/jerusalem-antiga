@@ -1,5 +1,6 @@
 import { BUILDINGS, RULES, statOf } from './data';
 import type { Building, GameEvent, GameState } from './types';
+import { difficultyOf } from './difficulty';
 import { crewCounts } from './work';
 
 /**
@@ -41,7 +42,7 @@ export function theftAt(s: GameState, crews = crewCounts(s)): Map<number, number
   for (const b of stores) {
     if (crews.get(b.id)) continue;
     const lit = s.buildings.some((l) => lampLit(s, l) && inReach(l, b)) ? RULES.theft.litTheft : 1;
-    const n = round2(above * (statOf(b, 'storage') / cap) * RULES.theft.share * lit);
+    const n = round2(above * (statOf(b, 'storage') / cap) * RULES.theft.share * difficultyOf(s).theft * lit);
     if (n > 0) out.set(b.id, n);
   }
   return out;

@@ -147,6 +147,8 @@ function statsNow({ s, e, forecast: out, notices }: StatsData, phone: boolean): 
   if (costs.length) upkeep.push({ parts: [{ text: st.upkeep, tone: 'muted', plain: true }] });
   for (const k of costs) upkeep.push(row('  ' + BUILDINGS[k].name, `−${fmt(e.upkeep[k]!)}${per}`, 'bad'));
   upkeep.push(row(st.balance, `${signed(e.silverDelta)}${per}`, signTone(e.silverDelta)));
+  // The game's difficulty (plano-dificuldade F), small under the silver.
+  upkeep.push({ parts: [{ text: T.difficulty.played(s.difficulty), tone: 'muted', plain: true }] });
 
   // Food: what comes in by source (harvest, fishing, gathering), what is eaten, the stock and the forecast.
   const crews = crewCounts(s);
