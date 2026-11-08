@@ -1044,18 +1044,20 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     fica salvo), "Música: ligado/desligado" e "Volume − 50% +" (passos de 10%; salvos). Esc fecha.
   - **Música** (`src/game/music/score.ts` e `mix.ts`, puros; `src/app/music.ts`, Web Audio): fundo
     calmo gerado no navegador, original por construção. **Uma música por estação** (pedido do usuário
-    em 2026-11-07), sempre em **piano sobre sintetizadores suaves** (sem flauta nem harpa): primavera
-    em Ré maior, 96 batidas por minuto, tema que sobe, acordes quebrados subindo e um arpejo de
-    sintetizador (a cidade acordando); verão em Sol maior, 100 bpm, tema sincopado e agudo, acordes
+    em 2026-11-07), sempre em **piano sobre sintetizadores suaves** (sem flauta nem harpa). Desde
+    2026-11-08 **alegres e calmas** (o usuário achou a versão anterior de dar sono): 100–112 bpm,
+    progressões maiores claras, tambor leve de dia em todas as estações e eco curto. Primavera em Ré
+    maior, 108 bpm, tema saltitante (pontuado) que sobe, acordes quebrados subindo e um arpejo de
+    sintetizador (a cidade acordando); verão em Sol maior, 112 bpm, tema sincopado e agudo, acordes
     em contratempo, arpejo cheio, tambor de mão e chocalho (dias longos e quentes); outono em Fá
-    maior, 90 bpm, tema que suspira e desce começando no vi, acordes em semínimas e fundo mais escuro
-    (colheita e fim de tarde); inverno em Dó maior, 84 bpm, notas longas e agudas sobre acordes
-    arpejados e sustentados, fundo largo, mais eco, sem tambor, final plagal IV–I (o silêncio junto do
-    fogo). Peças de 16 compassos (AABA): a primeira frase é sempre o tema da estação, nota por nota;
+    maior, 104 bpm, dança de aldeia (baixo e acorde alternados, "pum-pá"), tema brincalhão em
+    colcheias e arpejo leve (a festa da colheita); inverno em Dó maior, 100 bpm, caixinha de música
+    (notas agudas de sino sobre uma figura de colcheias), chocalho suave, sem arpejo, final plagal
+    IV–I (a casa quente junto do fogo). Peças de 16 compassos (AABA): a primeira frase é sempre o tema da estação, nota por nota;
     a semente varia a segunda frase, a ponte e os enfeites. Melodia na pentatônica (notas do acorde
-    nos tempos fortes), final no I, baixo (fundamental, quinta e nota de passagem; no inverno só a
-    fundamental longa), fundo de acordes, no máximo 10 vozes, 6–12 s de silêncio entre as peças. A
-    estação é lida a cada peça; à noite a mesma música mais baixa (−25%), 6 batidas mais lenta, mais
+    nos tempos fortes), final no I, baixo (fundamental, quinta e nota de passagem na primavera e no
+    verão), fundo de acordes, no máximo 10 vozes, 4–8 s de silêncio entre as peças. A
+    estação é lida a cada peça; à noite a mesma música mais baixa (−25%), 4 batidas mais lenta, mais
     esparsa e sem tambor; na chuva um pouco mais baixa. Ligada por padrão a 50% (curva volume²);
     começa no primeiro toque, clique ou tecla (regra dos navegadores), toca no título e com o jogo
     pausado; aba escondida: some em 0,3 s e o áudio é suspenso, volta em 4 s. Tecla **M** liga e

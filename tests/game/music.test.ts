@@ -69,20 +69,26 @@ describe('music score (generated, original by construction)', () => {
       const drums = p.notes.filter((n) => n.voice === 'drum');
       expect(drums.every((n) => n.beat >= 16 && n.beat < 60 && (n.midi === DRUM.low || n.midi === DRUM.shaker))).toBe(true);
     }
-    // Spring and summer: the synth arpeggio and the drum; winter: neither, chords rolled and held.
+    // Happy but calm (2026-11-08): the drum by day in every season; the arpeggio but in winter, the music box.
+    for (const s of SEASONS) expect(day(s).notes.some((n) => n.voice === 'drum')).toBe(true);
     expect(day('summer').notes.filter((n) => n.voice === 'arp').length).toBeGreaterThan(day('spring').notes.filter((n) => n.voice === 'arp').length);
     expect(day('spring').notes.some((n) => n.voice === 'arp' && n.beat < 16)).toBe(false);
-    expect(day('autumn').notes.some((n) => n.voice === 'arp')).toBe(false);
-    expect(day('winter').notes.some((n) => n.voice === 'arp' || n.voice === 'drum')).toBe(false);
-    expect(day('summer').notes.filter((n) => n.voice === 'drum').length).toBeGreaterThan(day('autumn').notes.filter((n) => n.voice === 'drum').length);
-    expect(day('winter').notes.filter((n) => n.voice === 'keys').every((n) => n.dur >= 3.5)).toBe(true);
+    expect(day('autumn').notes.some((n) => n.voice === 'arp' && n.beat < 16)).toBe(false);
+    expect(day('autumn').notes.some((n) => n.voice === 'arp')).toBe(true);
+    expect(day('winter').notes.some((n) => n.voice === 'arp')).toBe(false);
+    expect(day('summer').notes.filter((n) => n.voice === 'drum').length).toBeGreaterThan(day('winter').notes.filter((n) => n.voice === 'drum').length);
+    // No chord held through the bar but the ending: winter chimes in eighths, autumn dances 1-and-2.
+    for (const s of SEASONS) expect(day(s).notes.filter((n) => n.voice === 'keys' && n.beat < 60).every((n) => n.dur <= 1)).toBe(true);
+    expect(day('winter').notes.filter((n) => n.voice === 'keys' && n.beat < 60).every((n) => n.dur === 0.5)).toBe(true);
     expect(day('spring').notes.filter((n) => n.voice === 'keys' && n.beat < 60).every((n) => n.dur === 0.5)).toBe(true);
-    // Darker pad and more echo in autumn and winter.
+    // Darker pad in autumn, more echo in winter, short echoes everywhere.
     expect(day('autumn').pad).toBeLessThan(day('summer').pad);
     expect(day('winter').echo).toBeGreaterThan(day('summer').echo);
+    for (const s of SEASONS) expect(day(s).echo).toBeLessThanOrEqual(0.4);
     const rng = () => 0.5;
-    expect(silenceAfter(rng)).toBeGreaterThanOrEqual(6);
-    expect(silenceAfter(() => 0.999)).toBeLessThanOrEqual(12);
+    expect(silenceAfter(() => 0)).toBeGreaterThanOrEqual(4);
+    expect(silenceAfter(rng)).toBeGreaterThanOrEqual(4);
+    expect(silenceAfter(() => 0.999)).toBeLessThanOrEqual(8);
   });
 
   it('the melody puts chord tones on the strong beats', () => {
@@ -94,15 +100,15 @@ describe('music score (generated, original by construction)', () => {
     }
   });
 
-  it('mood: summer the fastest, winter the slowest; night softer, slower, sparser and without drum', () => {
+  it('mood: summer the fastest, winter the slowest; night softer, a touch slower, sparser and without drum', () => {
     const m = (season: (typeof SEASONS)[number], night = false, rain = false) => mood({ season, night, rain });
     expect(m('winter').bpm).toBeLessThan(m('autumn').bpm);
     expect(m('autumn').bpm).toBeLessThan(m('spring').bpm);
     expect(m('spring').bpm).toBeLessThan(m('summer').bpm);
     for (const s of SEASONS) {
-      // Calm but with a step (the first 60–76 bpm version was sleepy): 78–100 bpm, night included.
-      expect(m(s, true).bpm).toBeGreaterThanOrEqual(78);
-      expect(m(s).bpm).toBeLessThanOrEqual(100);
+      // Happy and calm (the 60–76 and then 84–100 bpm versions were sleepy): 96–112 bpm, night included.
+      expect(m(s, true).bpm).toBeGreaterThanOrEqual(96);
+      expect(m(s).bpm).toBeLessThanOrEqual(112);
       expect(m(s, true).bpm).toBeLessThan(m(s).bpm);
       expect(m(s, true).gain).toBeCloseTo(m(s).gain * 0.75);
       expect(m(s, true).drums).toBe(0);

@@ -2,16 +2,18 @@ import { createRng, type Rng, type Season } from '../../core';
 
 /**
  * The background music's score (pure: no Web Audio). Four pieces, one per season, each with its own
- * key, tempo, theme and accompaniment, played on piano over soft synthesizers (the user found the
- * flute dull and asked for "piano with synths that keep us calm and wanting to play"):
- * - spring (D major, 96 bpm): a rising theme over rising broken chords and a light synth arpeggio,
- *   the town waking up;
- * - summer (G major, 100 bpm): a syncopated, bright theme, chord stabs, a full arpeggio and the
+ * key, tempo, theme and accompaniment, played on piano over soft synthesizers. The user asked for
+ * "piano with synths that keep us calm and wanting to play" and then (2026-11-08) for happier music,
+ * calm but not sleepy: every season now walks at 100-112 bpm on bright major progressions, with a
+ * light drum and short echoes.
+ * - spring (D major, 108 bpm): a skipping, dotted theme that climbs over rising broken chords and a
+ *   light synth arpeggio, the town waking up;
+ * - summer (G major, 112 bpm): a syncopated, bright theme, chord stabs, a full arpeggio and the
  *   hand drum and shaker, the long warm days;
- * - autumn (F major, 90 bpm): a sighing, falling theme starting on vi, gentle quarter-note chords,
- *   a warmer, darker pad, the harvest and the evenings drawing in;
- * - winter (C major, 84 bpm): long, high notes over rolled chords held through the bar and a wide
- *   pad, no drum, the plagal "amen" ending, the quiet by the fire.
+ * - autumn (F major, 104 bpm): a village dance, bass and chord in turn (oom-pah), a playful theme in
+ *   eighths, the harvest feast;
+ * - winter (C major, 100 bpm): a music box, high bell-like notes over a chiming eighth figure, a soft
+ *   shaker, the plagal "amen" ending, the warm house by the fire.
  * Form AABA of 4-bar phrases: the first A is always the season's theme note for note (so each season
  * is one recognizable piece); the seed varies the second A, the bridge and the accompaniment's fills.
  * `src/app/music.ts` plays it. See docs/arquitetura-3d.md section 12.
@@ -64,7 +66,7 @@ export interface MoodInput {
   rain: boolean;
 }
 
-type Keys = 'rise' | 'stab' | 'gentle' | 'roll';
+type Keys = 'rise' | 'stab' | 'bounce' | 'chime';
 
 /** What makes each season's piece its own (hand-written). */
 interface Style {
@@ -92,44 +94,44 @@ interface Style {
 
 export const STYLE: Record<Season, Style> = {
   spring: {
-    tonic: 62, bpm: 96, density: 0.85, arp: 0.6, drums: 0.5, gain: 1, register: 0,
-    rhythm: [[0, 1], [1, 0.5], [1.5, 0.5], [2, 1], [3, 1], [4, 1.5], [5.5, 0.5], [6, 2]],
-    steps: [0, 1, 1, 1, -1, 2, -1, 1],
+    tonic: 62, bpm: 108, density: 0.85, arp: 0.6, drums: 0.6, gain: 1, register: 0,
+    rhythm: [[0, 0.75], [0.75, 0.25], [1, 0.5], [1.5, 0.5], [2, 1], [3, 0.5], [3.5, 0.5], [4, 0.75], [4.75, 0.25], [5, 1], [6, 1.5], [7.5, 0.5]],
+    steps: [0, 1, 1, 1, -1, 1, 1, 2, -1, -1, 1, 1],
     bridgeSteps: [-1, 1, 1, 2],
-    a: [0, 4, 5, 3], b: [[3, 4, 2, 5], [3, 0, 3, 4]], end: [3, 4, 0, 0],
-    keys: 'rise', pad: 1500, echo: 0.3,
+    a: [0, 3, 4, 0], b: [[3, 4, 0, 5], [5, 3, 4, 4]], end: [3, 4, 0, 0],
+    keys: 'rise', pad: 1700, echo: 0.25,
   },
   summer: {
-    tonic: 55, bpm: 100, density: 1, arp: 1, drums: 1, gain: 1, register: 7,
+    tonic: 55, bpm: 112, density: 1, arp: 1, drums: 1, gain: 1, register: 7,
     rhythm: [[0, 0.5], [0.5, 1], [1.5, 0.5], [2, 0.5], [2.5, 1], [3.5, 0.5], [4, 1], [5, 0.5], [5.5, 0.5], [6, 2]],
     steps: [0, 2, -1, 1, 2, -1, -2, 1, 1, 0],
     bridgeSteps: [-2, -1, 1, 2],
     a: [0, 3, 0, 4], b: [[5, 3, 0, 4], [3, 4, 5, 4]], end: [3, 4, 0, 0],
-    keys: 'stab', pad: 1800, echo: 0.25,
+    keys: 'stab', pad: 1900, echo: 0.22,
   },
   autumn: {
-    tonic: 65, bpm: 90, density: 0.7, arp: 0, drums: 0.4, gain: 0.95, register: -3,
-    rhythm: [[0, 1.5], [1.5, 0.5], [2, 2], [4, 1], [5, 1], [6, 2]],
-    steps: [0, -1, -1, 2, -1, -1],
-    bridgeSteps: [-1, -1, 1, -2],
-    a: [5, 3, 0, 4], b: [[1, 4, 0, 5], [3, 2, 1, 4]], end: [1, 4, 0, 0],
-    keys: 'gentle', pad: 1000, echo: 0.4,
+    tonic: 65, bpm: 104, density: 0.8, arp: 0.35, drums: 0.7, gain: 1, register: 0,
+    rhythm: [[0, 0.5], [0.5, 0.5], [1, 1], [2, 0.5], [2.5, 0.5], [3, 1], [4, 0.5], [4.5, 0.5], [5, 0.5], [5.5, 0.5], [6, 2]],
+    steps: [0, 1, 1, -1, 1, 1, -1, -1, -1, 2, 1],
+    bridgeSteps: [-1, 1, 2, -2],
+    a: [0, 5, 3, 4], b: [[3, 0, 3, 4], [5, 3, 1, 4]], end: [3, 4, 0, 0],
+    keys: 'bounce', pad: 1400, echo: 0.28,
   },
   winter: {
-    tonic: 60, bpm: 84, density: 0.55, arp: 0, drums: 0, gain: 0.9, register: 5,
-    rhythm: [[0, 2], [2, 1], [3, 1], [4, 3], [7, 1]],
-    steps: [0, 1, -1, 2, -1],
+    tonic: 60, bpm: 100, density: 0.7, arp: 0, drums: 0.35, gain: 0.95, register: 5,
+    rhythm: [[0, 1], [1, 0.5], [1.5, 0.5], [2, 1], [3, 1], [4, 0.5], [4.5, 0.5], [5, 0.5], [5.5, 0.5], [6, 2]],
+    steps: [0, 2, -1, 1, -1, 1, 1, -1, 1, -2],
     bridgeSteps: [-1, 1, 2, -2],
-    a: [0, 3, 5, 4], b: [[5, 3, 0, 4], [3, 0, 1, 4]], end: [3, 3, 0, 0],
-    keys: 'roll', pad: 1200, echo: 0.55,
+    a: [0, 3, 5, 4], b: [[3, 0, 3, 4], [5, 3, 0, 4]], end: [3, 3, 0, 0],
+    keys: 'chime', pad: 1500, echo: 0.38,
   },
 };
 
-/** The mood of a season; at night softer, a little slower and sparser with no drum; a little in the rain. */
+/** The mood of a season; at night softer, a touch slower and sparser with no drum; a little in the rain. */
 export function mood({ season, night, rain }: MoodInput): Mood {
   const s = STYLE[season];
   const m: Mood = { season, bpm: s.bpm, density: s.density, arp: s.arp, drums: s.drums, gain: s.gain };
-  if (night) Object.assign(m, { bpm: m.bpm - 6, density: m.density * 0.6, arp: m.arp * 0.5, drums: 0, gain: m.gain * 0.75 });
+  if (night) Object.assign(m, { bpm: m.bpm - 4, density: m.density * 0.7, arp: m.arp * 0.6, drums: 0, gain: m.gain * 0.75 });
   if (rain) Object.assign(m, { density: m.density * 0.8, gain: m.gain * 0.9 });
   return m;
 }
@@ -208,12 +210,17 @@ function keysBar(out: Note[], rng: Rng, style: Keys, chord: number[], tonic: num
       add(b, u(1), d, 0.3);
       add(b, u(2), d, 0.28);
     }
-  } else if (style === 'gentle') {
-    // Quarter notes 1-5-8-5, unhurried.
-    [0, 2, 3, 2].forEach((k, q) => (q !== 2 || rng() < density + 0.3) && add(q, u(k), 1, q === 0 ? 0.32 : 0.26));
+  } else if (style === 'bounce') {
+    // A village dance: the root on 1 and 3, the chord on 2 and 4, a pick-up on the last "and".
+    for (const b of [0, 2]) add(b, u(0), 1, 0.32);
+    for (const b of [1, 3]) {
+      add(b, u(1), 0.5, 0.27);
+      add(b, u(2), 0.5, 0.25);
+    }
+    if (rng() < density) add(3.5, u(1), 0.5, 0.22);
   } else {
-    // Rolled chord held through the bar.
-    [0, 1, 2].forEach((k) => add(k * 0.25, u(k), 4 - k * 0.25, 0.28));
+    // A music box: a chiming eighth figure, root, fifth, third, fifth.
+    [0, 2, 1, 2, 0, 2, 1, 3].forEach((k, e) => (e % 2 === 0 || rng() < density + 0.2) && add(e * 0.5, u(k), 0.5, e % 2 ? 0.22 : 0.28));
   }
 }
 
@@ -248,11 +255,11 @@ export function piece(seed: number, m: Mood): Piece {
       const last = p === 3 && bar === 3;
       // Pad: the triad held through the bar, close to the middle of its range.
       const pad = RANGE.pad;
-      for (const c of chord) notes.push({ voice: 'pad', beat: at, midi: nearest(notesIn([c], tonic, pad), (pad[0] + pad[1]) / 2), dur: 4, vel: m.season === 'winter' ? 0.24 : 0.18 });
+      for (const c of chord) notes.push({ voice: 'pad', beat: at, midi: nearest(notesIn([c], tonic, pad), (pad[0] + pad[1]) / 2), dur: 4, vel: m.season === 'winter' ? 0.2 : 0.17 });
       if (last) keysEnd(notes, chord, tonic, at);
       else keysBar(notes, rng, s.keys, chord, tonic, at, m.density);
-      // Synth arpeggio (spring from the second phrase, summer throughout): eighths up and down an octave higher.
-      if (m.arp > 0 && !last && (m.season !== 'spring' || p > 0)) {
+      // Synth arpeggio (summer throughout, spring and autumn from the second phrase; never winter): eighths up and down an octave higher.
+      if (m.arp > 0 && !last && (m.season === 'summer' || p > 0)) {
         const tones = notesIn(chord, tonic, RANGE.arp).slice(0, 4);
         [0, 1, 2, 3, 2, 1, 2, 1].forEach((k, e) => {
           if (rng() < m.arp) notes.push({ voice: 'arp', beat: at + e * 0.5, midi: tones[Math.min(k, tones.length - 1)], dur: 0.5, vel: e % 2 ? 0.26 : 0.32 });
@@ -264,15 +271,15 @@ export function piece(seed: number, m: Mood): Piece {
         if (rng() < m.drums) notes.push({ voice: 'drum', beat: at + 2.5, midi: DRUM.low, dur: 0.5, vel: 0.3 });
         for (const off of [0.5, 1.5, 2.5, 3.5]) if (rng() < m.drums * (off % 2 === 1.5 ? 1 : 0.5)) notes.push({ voice: 'drum', beat: at + off, midi: DRUM.shaker, dur: 0.25, vel: 0.22 });
       }
-      // Bass: the root on beat 1; the fifth on 3 and a passing note when the season walks; winter holds the root.
+      // Bass: the root on beat 1, the fifth on 3 and a passing note on the last "and" (winter and autumn walk plainer).
       const root = nearest(notesIn([chord[0]], tonic, RANGE.bass), 43);
-      if (last || m.season === 'winter') {
-        notes.push({ voice: 'bass', beat: at, midi: root, dur: last ? 4 : 3.5, vel: 0.45 });
+      if (last) {
+        notes.push({ voice: 'bass', beat: at, midi: root, dur: 4, vel: 0.45 });
         return;
       }
       notes.push({ voice: 'bass', beat: at, midi: root, dur: 1.5, vel: 0.5 });
       notes.push({ voice: 'bass', beat: at + 2, midi: nearest(notesIn([chord[2]], tonic, RANGE.bass), root + 7), dur: 1, vel: 0.38 });
-      if (m.season !== 'autumn' && rng() < m.density) notes.push({ voice: 'bass', beat: at + 3.5, midi: nearest(notesIn([chord[1]], tonic, RANGE.bass), root + 4), dur: 0.5, vel: 0.3 });
+      if (m.season !== 'autumn' && m.season !== 'winter' && rng() < m.density) notes.push({ voice: 'bass', beat: at + 3.5, midi: nearest(notesIn([chord[1]], tonic, RANGE.bass), root + 4), dur: 0.5, vel: 0.3 });
     });
   });
   return { season: m.season, tonic, bpm: m.bpm, beats: 64, pad: s.pad, echo: s.echo, notes: notes.sort((x, y) => x.beat - y.beat || x.midi - y.midi) };
@@ -287,5 +294,5 @@ export function polyphony(notes: readonly Note[]): number {
   return most;
 }
 
-/** Seconds of quiet after a piece (6–12 s): a breath between pieces for hours of play, short enough to keep the step. */
-export const silenceAfter = (rng: Rng) => 6 + rng() * 6;
+/** Seconds of quiet after a piece (4–8 s): a breath between pieces for hours of play, short enough to keep the step. */
+export const silenceAfter = (rng: Rng) => 4 + rng() * 4;

@@ -857,6 +857,12 @@ tem tom, andamento, tema, progressões, mão esquerda (subindo, contratempo, sem
 arpejado), arpejo, tambor, cor do fundo e eco próprios (`STYLE` em `score.ts`); a primeira frase é
 sempre o tema. O texto abaixo descreve a primeira versão.
 
+**Revisão de 2026-11-08 (usuário):** "mais alegre, calma mas sem querer dormir". Andamentos de 100 a
+112 bpm (noite só −4), progressões maiores (I–IV–V–I), tambor leve de dia em todas as estações, eco
+de no máximo 0,4, silêncio de 4–8 s. A mão esquerda do outono virou dança "pum-pá" (`bounce`) e a do
+inverno uma caixinha de música em colcheias (`chime`); não há mais acorde segurado o compasso inteiro
+fora do final.
+
 **Clima (barato, só na fronteira de frase):** `mood({ season, night, rain })` muda andamento,
 instrumento da melodia, registro, densidade de notas e volume alvo. Primavera/verão: harpa, mais
 notas; outono: flauta, mais grave; inverno: mais lento, fundo e poucas notas; noite: -30 % de volume,
