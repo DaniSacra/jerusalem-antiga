@@ -193,9 +193,17 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
   etapa um objetivo, paga ao começar, erguida por construtores, com raio sagrado e oferta maiores;
   casas de pedra e grandes pedem o altar com ofertas; 22 objetivos; linha "O que fazer agora".
   Critérios R1–R10.
-- **3 Dificuldade** (mecânica: multiplicadores; 18–24,5 h): Tranquilo / Normal / Difícil
-  (`difficulty.json`), `foodFactor` e lenha crescentes por nível, inverno que piora do Ano 3. A2 por
-  dificuldade (seção 4.6).
+- **2 Templo em ruínas**: no main em 2026-11-08 (aa1ea92), junto com os consertos do playtest 2
+  (`docs/revisoes/2026-11-07/playtest-usuario-2.md`).
+- **3 Dificuldade**: desde 2026-11-07 substituído por `docs/revisoes/2026-11-07/plano-dificuldade.md`,
+  que pede ligações entre as mecânicas e é dividido em peças A–F, cada uma publicada sozinha.
+  - **A. Manutenção e prata** (2026-11-08):
+    - campo, pescador e coletora 0,5 → 0,6; lenhador 0,5 → 0,75; pasto 0,5 → 1; prêmios dos
+      objetivos 6–21 × 0,85;
+    - sim, 100 seeds: Comum vence 65% (era 77%) e perde 8%; prata nunca gasta 19% (era 27%);
+      Eficiente vence 81%;
+    - os 0,75/1/× 0,75 do plano deram Comum 50% e 12% de derrotas, abaixo do alvo de 60–75%;
+    - sem UI nova: tocar nas pílulas já abre Estatísticas com impostos, manutenção e saldo.
 
 ## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.

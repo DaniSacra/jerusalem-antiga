@@ -216,7 +216,7 @@ describe('services and crews', () => {
 });
 
 describe('an empty workplace pays half its upkeep (B2 measured)', () => {
-  const half = (k: 'lumber' | 'market' | 'field') => BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor;
+  const half = (k: 'lumber' | 'market' | 'field') => Math.round(BUILDINGS[k].upkeep! * RULES.emptyUpkeepFactor * 100) / 100;
 
   it('a lumber empty pays half, with 1 of 2 the full upkeep; a market at level 2 the same; off the road too', () => {
     const s = emptyGame();

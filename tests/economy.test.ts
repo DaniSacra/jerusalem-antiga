@@ -85,13 +85,13 @@ describe('economy', () => {
     for (const b of s.buildings) if (b.kind !== 'house' && BUILDINGS[b.kind].jobs) hire(s, b); // staffed: the full upkeep
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
-      field: 0.5,
+      field: 0.6,
       plaza: 0.75,
-      fisher: 0.5,
-      gatherer: 0.5,
-      lumber: 0.5,
+      fisher: 0.6,
+      gatherer: 0.6,
+      lumber: 0.75,
       quarry: 1.75,
-      pasture: 0.5,
+      pasture: 1,
       granary: 1.75,
       market: 3.5,
       workshop: 1.75,
@@ -200,7 +200,7 @@ describe('fields make food, not silver', () => {
     e = computeEconomy(s);
     expect(e).toMatchObject({ jobs: 2, yearJobs: 2 });
     expect(e.harvest).toBeCloseTo(BUILDINGS.field.harvest! / FIELD_WEEKS); // only the connected one
-    expect(e.upkeep.field).toBe(BUILDINGS.field.upkeep! * (1 + RULES.emptyUpkeepFactor)); // both pay upkeep: the empty far one half
+    expect(e.upkeep.field).toBeCloseTo(BUILDINGS.field.upkeep! * (1 + RULES.emptyUpkeepFactor), 1); // both pay upkeep: the empty far one half
   });
 });
 

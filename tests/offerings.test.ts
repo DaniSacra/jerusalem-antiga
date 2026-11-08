@@ -56,7 +56,7 @@ const PASTURE_Y = 30;
 
 describe('pasture data', () => {
   it('Pasto: 3 x 3, 1 job, 30 silver and 10 wood, gathers free grass into the livestock', () => {
-    expect(BUILDINGS.pasture).toMatchObject({ name: 'Pasto', category: 'supply', cost: 30, upkeep: 0.5, w: 3, h: 3, jobs: 1, materials: { wood: 10 } });
+    expect(BUILDINGS.pasture).toMatchObject({ name: 'Pasto', category: 'supply', cost: 30, upkeep: 1, w: 3, h: 3, jobs: 1, materials: { wood: 10 } });
     expect(P).toMatchObject({ source: 'grass', radius: 2, max: 1.5, winterFactor: 0.5, product: 'livestock' });
     expect(P.perCell).toBeGreaterThan(0);
     expect(storageOf('livestock')).toBe(RULES.livestockStorage);

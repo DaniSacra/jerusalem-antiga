@@ -89,7 +89,7 @@ const lumberAt = (s: GameState) => put(s, 'lumber', EAST, 30);
 
 describe('materials data', () => {
   it('lumber and quarry: work buildings gathering wood from trees and stone from rocks', () => {
-    expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 0.5, w: 2, h: 2, jobs: 2, cutEvery: 10 });
+    expect(BUILDINGS.lumber).toMatchObject({ category: 'work', cost: 25, upkeep: 0.75, w: 2, h: 2, jobs: 2, cutEvery: 10 });
     expect(lumber).toEqual({ source: 'tree', radius: 3, perCell: 0.25, max: 2.5, product: 'wood' });
     expect(BUILDINGS.quarry).toMatchObject({ category: 'work', cost: 40, upkeep: 1.75, w: 2, h: 2, jobs: 3, materials: { wood: 10 } });
     expect(quarry).toEqual({ source: 'rock', radius: 2, perCell: 0.3, max: 1.4, product: 'stone' });

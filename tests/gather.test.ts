@@ -21,9 +21,9 @@ function riverInReach(s: GameState, b: Building, r: number): number {
 const gathererAt = (s: GameState) => put(s, 'gatherer', EAST, 30);
 
 describe('fisher and gatherer data', () => {
-  it('cost 20, upkeep 1, 1 job, 2x2, in the supply group, unlocked from the start', () => {
+  it('cost 20, upkeep 0.6, 1 job, 2x2, in the supply group, unlocked from the start', () => {
     for (const k of ['fisher', 'gatherer'] as const) {
-      expect(BUILDINGS[k]).toMatchObject({ cost: 20, upkeep: 0.5, jobs: 1, w: 2, h: 2, category: 'supply' });
+      expect(BUILDINGS[k]).toMatchObject({ cost: 20, upkeep: 0.6, jobs: 1, w: 2, h: 2, category: 'supply' });
       expect(RULES.startUnlocked).toContain(k);
     }
     expect(fish).toEqual({ source: 'river', radius: 2, perCell: 0.38, max: 1.9, winterFactor: 0.3 });

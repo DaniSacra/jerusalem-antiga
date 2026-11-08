@@ -85,11 +85,11 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
-| Campo | 20 | 0,5/sem | 2 x 2 | 2 | 180 comida/ano fora do inverno (cerca de 4,6/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
+| Campo | 20 | 0,6/sem | 2 x 2 | 2 | 180 comida/ano fora do inverno (cerca de 4,6/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
 | Praça | 25 | 0,75/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (5 casas de barro); casas de barro no raio viram casas de pedra |
-| Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,38, máx. 1,9 comida/sem; × 0,3 no inverno | 2 | |
-| Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,16, máx. 1,5 comida/sem; × 0,3 no inverno | 3 | |
-| Lenhador | 25 | 0,5/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
+| Pescador | 20 | 0,6/sem | 2 x 2 | 1 | células de rio no raio × 0,38, máx. 1,9 comida/sem; × 0,3 no inverno | 2 | |
+| Coletora | 20 | 0,6/sem | 2 x 2 | 1 | árvores no raio × 0,16, máx. 1,5 comida/sem; × 0,3 no inverno | 3 | |
+| Lenhador | 25 | 0,75/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
 | Pedreira | 40 + 10 madeira | 1,75/sem | 2 x 2 | 3 | rochas no raio × 0,3, máx. 1,4 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (passe o primeiro inverno); as rochas não acabam |
 | Celeiro | 40 + 10 madeira | 1,75/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
 | Mercado | 60 + 10 madeira | 3,5/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
@@ -594,22 +594,22 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 3 | Primeiro nascimento | marco | +40 | – |
 | 4 | Passe o primeiro inverno | marco `firstSpring` | +30 | Pasto |
 | 5 | **Construa um pasto** | 1 | +40 | Pedreira |
-| 6 | Tenha 5 casas de barro | 5 | +40 | Praça |
-| 7 | **Restaure o altar** | etapa 1 | +50 | – |
-| 8 | Receba a primeira caravana | marco | +50 | Oficina |
-| 9 | Construa uma oficina | 1 | +40 | Mercado |
-| 10 | Chegue a 30 moradores | 30 | +50 | – |
-| 11 | Tenha 6 casas de pedra | 6 | +60 | Parque (e a Alegria) |
-| 12 | **Alicerce do Templo** | etapa 2 | +80 | – |
-| 13 | Uma criança da cidade virou adulta | marco | +80 | – |
-| 14 | Chegue a 45 moradores | 45 | +80 | – |
-| 15 | Tenha 4 casas grandes | 4 | +80 | – |
-| 16 | **Paredes do Templo** | etapa 3 | +100 | – |
-| 17 | **Tenha 2 pastos** | 2 | +100 | – |
-| 18 | Chegue a 65 moradores | 65 | +100 | – |
-| 19 | Chegue a 85 moradores | 85 | +120 | – |
-| 20 | **Pórtico e telhado** | etapa 4 | +150 | – |
-| 21 | Chegue a 120 moradores | 120 | +175 | – |
+| 6 | Tenha 5 casas de barro | 5 | +35 | Praça |
+| 7 | **Restaure o altar** | etapa 1 | +40 | – |
+| 8 | Receba a primeira caravana | marco | +40 | Oficina |
+| 9 | Construa uma oficina | 1 | +35 | Mercado |
+| 10 | Chegue a 30 moradores | 30 | +40 | – |
+| 11 | Tenha 6 casas de pedra | 6 | +50 | Parque (e a Alegria) |
+| 12 | **Alicerce do Templo** | etapa 2 | +70 | – |
+| 13 | Uma criança da cidade virou adulta | marco | +70 | – |
+| 14 | Chegue a 45 moradores | 45 | +70 | – |
+| 15 | Tenha 4 casas grandes | 4 | +70 | – |
+| 16 | **Paredes do Templo** | etapa 3 | +85 | – |
+| 17 | **Tenha 2 pastos** | 2 | +85 | – |
+| 18 | Chegue a 65 moradores | 65 | +85 | – |
+| 19 | Chegue a 85 moradores | 85 | +100 | – |
+| 20 | **Pórtico e telhado** | etapa 4 | +130 | – |
+| 21 | Chegue a 120 moradores | 120 | +150 | – |
 | 22 | **Consagração do Templo** | etapa 5 | vitória | – |
 
 **Templo em ruínas** (plano "ruínas" 2026-11-07, `src/data/temple.json`, `src/core/temple.ts`): a
@@ -634,7 +634,7 @@ Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
   do Templo consagrado). Sem altar restaurado, nenhuma casa passa do barro; sem ofertas, as casas de
   pedra caem pela regra de sempre (`weeksToDowngrade` 3): o estoque de gado é o colchão.
 - **Gado** (`livestock`, um material): começa em 0, teto `livestockStorage` 50; o **Pasto** (3 x 3,
-  30 prata + 10 madeira, 1 Pastor, manutenção 0,5) rende 0,05 por célula de **capim livre** no raio
+  30 prata + 10 madeira, 1 Pastor, manutenção 1) rende 0,05 por célula de **capim livre** no raio
   2 (chão `grass` sem construção, rua, árvore ou rocha), até 1,5/sem, × 0,5 no inverno; cheio, para.
   Construir em cima do capim tira a célula. Um pasto num capim médio (~1,25/sem) sustenta o altar
   restaurado (0,75/sem) fora do inverno; do Alicerce (1/sem) em diante o inverno pede o 2º, e na

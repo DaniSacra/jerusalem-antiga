@@ -39,7 +39,7 @@ describe('service building levels', () => {
     expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([300, 1.75, 1]);
     g.level = 3;
     expect([statOf(g, 'storage'), statOf(g, 'upkeep'), statOf(g, 'jobs')]).toEqual([1000, 5.5, 1]);
-    expect(statOf({ kind: 'field', level: 1 }, 'upkeep')).toBe(0.5);
+    expect(statOf({ kind: 'field', level: 1 }, 'upkeep')).toBe(BUILDINGS.field.upkeep);
     expect(statOf({ kind: 'house', level: 3 }, 'upkeep')).toBe(0);
   });
 
@@ -135,8 +135,8 @@ describe('upkeep from the first week', () => {
     expect(s.silver).toBe(before - total);
   });
 
-  it('level-1 upkeep: small food buildings 0.5, plaza 0.75, granary and workshop 1.75, park 2, market 3.5, temple and houses 0', () => {
-    expect(['field', 'plaza', 'fisher', 'gatherer'].map((k) => BUILDINGS[k as 'field'].upkeep)).toEqual([0.5, 0.75, 0.5, 0.5]);
+  it('level-1 upkeep: small food buildings 0.6, plaza 0.75, granary and workshop 1.75, park 2, market 3.5, temple and houses 0', () => {
+    expect(['field', 'plaza', 'fisher', 'gatherer'].map((k) => BUILDINGS[k as 'field'].upkeep)).toEqual([0.6, 0.75, 0.6, 0.6]);
     expect([BUILDINGS.park.upkeep, BUILDINGS.granary.upkeep, BUILDINGS.workshop.upkeep, BUILDINGS.market.upkeep, BUILDINGS.temple.upkeep]).toEqual([2, 1.75, 1.75, 3.5, 0]);
     expect(BUILDINGS.house.upkeep).toBeUndefined();
   });

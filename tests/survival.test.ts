@@ -782,7 +782,7 @@ describe('fields keep their farmers in winter (plan B2)', () => {
     expect(e.harvest).toBe(0);
     expect(e.yearJobs).toBe(3 * BUILDINGS.field.jobs + BUILDINGS.fisher.jobs); // still jobs of the year
     expect(e.foodMade).toBeCloseTo(gatherFood(s, fisher)); // the fisher at full strength
-    expect(computeEconomy(s).upkeep.field).toBe(3 * BUILDINGS.field.upkeep!);
+    expect(computeEconomy(s).upkeep.field).toBeCloseTo(3 * BUILDINGS.field.upkeep!);
     // 6 adults: 1 fisher, 5 farmers resting on the fields; nobody out of work.
     const fields = s.buildings.filter((b) => b.kind === 'field');
     expect(fields.map((f) => crewOf(s, f).length)).toEqual([2, 2, 1]);
