@@ -253,6 +253,17 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
+## Estacionado: R "Recuperação e vitória" (2026-11-08, decisão do usuário)
+Feito e medido, **não publicado** (patch em `docs/revisoes/2026-11-08/pacote-R-recuperacao.patch`):
+em dívida uma família sai a cada N semanas (a casa mais pobre; a tenda vai junto); a derrota por 24
+semanas de dívida sai e entra "menos de 5 pessoas por 8 semanas" (só numa cidade que já teve 5);
+"Jerusalém resistiu!" ao sair de 8+ semanas de dívida. Sim (Normal, Comum): N=6 vence 35% / perde
+28%; N=12, 42/23; N=18, 47/23 (hoje 47/20). Todas as derrotas viram "cidade esvaziada": a família
+que sai leva o imposto e a dívida não fecha. O Distraído passa a perder 25% no Ano 1 (hoje 0%: a
+caravana segurava a derrota). Conclusão: a regra mostra a cidade morrendo, mas não salva nenhuma e
+pesa no começo. Perguntas ao usuário: perder deve doer mais ou menos? Se entrar, com N=18 e sem
+famílias saindo no Ano 1?
+
 ## Feito: B4 "Alegria desde o começo" (2026-11-08)
 A Alegria vale desde a semana 0 (sai a ligação com o Parque). Motivos novos ligam o inverno à
 Alegria: sem lenha −20, tenda no inverno −10, sem roupa −10 (o frio substitui os outros dois).

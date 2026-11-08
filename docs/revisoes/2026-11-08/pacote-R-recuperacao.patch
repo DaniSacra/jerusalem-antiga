@@ -1,0 +1,455 @@
+diff --git a/src/core/alerts.ts b/src/core/alerts.ts
+index 2656988..571cec2 100644
+--- a/src/core/alerts.ts
++++ b/src/core/alerts.ts
+@@ -51,9 +51,12 @@ export type Alert =
+ /** Last weeks of autumn that warn about the winter. */
+ const lateAutumn = (week: number) => seasonOf(week) === 'autumn' && week % RULES.weeksPerSeason >= RULES.weeksPerSeason - RULES.winterWarningWeeks;
+ 
++/** In debt: weeks until the next family leaves the city (package R; one every `debt.leaveWeeks`). */
++export const debtLeaveIn = (s: Pick<GameState, 'debtWeeks'>) => RULES.debt.leaveWeeks - (s.debtWeeks % RULES.debt.leaveWeeks);
++
+ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] {
+   const out: Alert[] = [];
+-  if (s.silver < 0) out.push({ kind: 'debt', weeksLeft: RULES.debtWeeksToLose - s.debtWeeks, famine: s.famine });
++  if (s.silver < 0) out.push({ kind: 'debt', weeksLeft: debtLeaveIn(s), famine: s.famine });
+   const season = seasonOf(s.week);
+   if (!foodLastsToHarvest(s, eco)) out.push({ kind: 'foodShort' });
+   const missing = firewoodShort(s, eco);
+diff --git a/src/core/caravans.ts b/src/core/caravans.ts
+index 027bef4..c0c5177 100644
+--- a/src/core/caravans.ts
++++ b/src/core/caravans.ts
+@@ -145,7 +145,7 @@ function arrive(s: GameState, index: number, rng: Rng, events: GameEvent[]) {
+   s.food = Math.max(s.food, Math.min(foodCapacity(s), round2(s.food + food)));
+   events.push({ type: 'caravanArrived', housed: c.housed, left: c.left, x: s.entrance.x, y: s.entrance.y });
+   if (c.housed > 0) reach(s, 'firstCaravan', events);
+-  // The newcomers restart the debt count (a city in debt waited for them: see `caravanSpares`).
++  // The newcomers restart the debt count (the next family leaves only `debt.leaveWeeks` later).
+   if (c.housed > 0) s.debtWeeks = Math.min(s.debtWeeks, 1);
+ }
+ 
+diff --git a/src/core/simulation.ts b/src/core/simulation.ts
+index ab92309..4c534b3 100644
+--- a/src/core/simulation.ts
++++ b/src/core/simulation.ts
+@@ -9,7 +9,7 @@ import { checkGoal, reach } from './goals';
+ import { hasNeeds, rollUpWeeks } from './houses';
+ import { stepPeople } from './life';
+ import { clanName } from './names';
+-import { leaveHouse } from './people';
++import { leaveHouse, vacate } from './people';
+ import { rollLook } from './looks';
+ import { refreshCity } from './refresh';
+ import { lackingMaterial, levelMaterials, payMaterials } from './materials';
+@@ -111,26 +111,44 @@ function updateHouse(s: GameState, b: Building, rng: Rng, events: GameEvent[], w
+ const staffedServices = (s: GameState) =>
+   s.buildings.filter((b) => b.connected && RULES.staffedServices.includes(b.kind) && s.people.some((p) => p.jobId === b.id));
+ 
+-/** A later caravan (planned or announced) is due within `debtCaravanWeeks`: the debt cannot lose the game yet. */
+-export const caravanSpares = (s: GameState) =>
+-  s.caravans.some((c) => (c.status === 'planned' || c.status === 'announced') && c.week - s.week <= RULES.debtCaravanWeeks);
++const D = RULES.debt;
++
++/** The family that leaves first in debt: the poorest house (lowest level), the newest of them. */
++export const debtLeaver = (s: GameState) =>
++  s.buildings.filter((b) => b.kind === 'house' && b.level > 0).sort((a, b) => a.level - b.level || b.id - a.id)[0];
+ 
+ /**
+- * Counts consecutive weeks ended in debt; the city is lost after RULES.debtWeeksToLose, except
+- * while a caravan is due soon (`caravanSpares`): then the count stops one week short of the defeat.
++ * Package R: counts consecutive weeks ended in debt; every `debt.leaveWeeks` of them a family leaves
++ * the city (`debtLeaver`: its house stands empty, a tent goes with it). Out of a long debt
++ * (`debt.resistWeeks`), "Jerusalém resistiu".
+  */
+ function updateDebt(s: GameState, events: GameEvent[]) {
+   if (s.silver >= 0) {
+-    if (s.debtWeeks > 0) events.push({ type: 'debtEnd' });
++    if (s.debtWeeks > 0) events.push({ type: 'debtEnd', resisted: s.debtWeeks >= D.resistWeeks });
+     s.debtWeeks = 0;
+     return;
+   }
+   if (s.debtWeeks === 0) events.push({ type: 'debtStart' });
+-  s.debtWeeks = caravanSpares(s) ? Math.min(s.debtWeeks + 1, RULES.debtWeeksToLose - 1) : s.debtWeeks + 1;
+-  if (s.debtWeeks >= RULES.debtWeeksToLose) {
+-    s.lost = true;
+-    events.push({ type: 'defeat', week: s.week, peak: s.peakPopulation });
++  s.debtWeeks++;
++  const b = s.debtWeeks % D.leaveWeeks === 0 ? debtLeaver(s) : undefined;
++  if (!b) return;
++  const clan = leaveHouse(s, b.id, 'debt');
++  vacate(s, b.id);
++  events.push({ type: 'familyLeft', x: b.x, y: b.y, reason: 'debt', name: clan === null ? '' : clanName(clan) });
++}
++
++/**
++ * Package R: a city that emptied is lost: once it had `debt.emptyPeople` residents, after
++ * `debt.emptyWeeks` weeks in a row with fewer people than that.
++ */
++function updateEmpty(s: GameState, events: GameEvent[]) {
++  if (s.people.length >= D.emptyPeople || s.peakPopulation < D.emptyPeople) {
++    s.emptyWeeks = 0;
++    return;
+   }
++  if (++s.emptyWeeks < D.emptyWeeks) return;
++  s.lost = true;
++  events.push({ type: 'defeat', week: s.week, peak: s.peakPopulation });
+ }
+ 
+ /** Keeps the food within the stores; the rest spoils (an event when spoiling starts). */
+@@ -275,5 +293,6 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
+   record(s, after);
+   checkGoal(s, events);
+   updateDebt(s, events);
++  updateEmpty(s, events);
+   return events;
+ }
+diff --git a/src/core/state.ts b/src/core/state.ts
+index 98a83d3..bfdc59b 100644
+--- a/src/core/state.ts
++++ b/src/core/state.ts
+@@ -44,6 +44,7 @@ export function createGame(rng: Rng, difficulty: Difficulty = 'normal'): GameSta
+     unlocked: [...RULES.startUnlocked],
+     won: false,
+     debtWeeks: 0,
++    emptyWeeks: 0,
+     peakPopulation: 0,
+     lost: false,
+     drought: false,
+diff --git a/src/core/types.ts b/src/core/types.ts
+index 47e5ee4..dfb3028 100644
+--- a/src/core/types.ts
++++ b/src/core/types.ts
+@@ -55,7 +55,7 @@ export type AgeBand = 'child' | 'adult' | 'elder';
+  * Why a person left the city: died of age or of cold (`coldDeath`, B3), left with the family
+  * (famine, `cold`: no firewood, no road, demolished house) or found no house.
+  */
+-export type EndCause = 'age' | 'coldDeath' | 'famine' | 'cold' | 'road' | 'demolished' | 'noHouse';
++export type EndCause = 'age' | 'coldDeath' | 'famine' | 'cold' | 'road' | 'debt' | 'demolished' | 'noHouse';
+ 
+ /**
+  * A person of the city. Children are not stored (see `childrenOf`); a family is everyone with the
+@@ -344,10 +344,12 @@ export interface Rules {
+   coldDeath: { childAge: number; tent: [number, number]; tentCold: [number, number]; houseCold: [number, number]; tentRagged: [number, number]; houseRagged: [number, number]; famineFactor: number };
+   /** Clothes (plano-dificuldade E): worn by each resident a winter week, and the store's cap. */
+   clothes: { perPerson: number; storage: number };
+-  /** Consecutive weeks with negative silver that lose the game. */
+-  debtWeeksToLose: number;
+-  /** No defeat by debt while a later caravan (planned or announced) is due within these weeks. */
+-  debtCaravanWeeks: number;
++  /**
++   * Recovery and defeat (package R): in debt a family leaves the city every `leaveWeeks` weeks in a
++   * row; a debt paid after `resistWeeks` or more is a crisis overcome. The city is lost after
++   * `emptyWeeks` weeks in a row with fewer than `emptyPeople` people.
++   */
++  debt: { leaveWeeks: number; resistWeeks: number; emptyPeople: number; emptyWeeks: number };
+   roadCost: number;
+   /** House happiness 0..100 (see happiness.ts): bonuses, penalties and what it changes. */
+   happiness: {
+@@ -539,6 +541,8 @@ export interface GameState {
+   won: boolean;
+   /** Consecutive weeks ended with negative silver (0 when out of debt). */
+   debtWeeks: number;
++  /** Consecutive weeks ended with fewer than `debt.emptyPeople` people (the defeat at `debt.emptyWeeks`). */
++  emptyWeeks: number;
+   /** Most residents the city ever had (shown on the defeat screen). */
+   peakPopulation: number;
+   lost: boolean;
+@@ -622,7 +626,8 @@ export type GameEvent =
+   /** A new season began (looks only for now). */
+   | { type: 'season'; season: Season }
+   | { type: 'debtStart' }
+-  | { type: 'debtEnd' }
++  /** Out of debt; `resisted`: after a long one (`debt.resistWeeks`), "Jerusalém resistiu". */
++  | { type: 'debtEnd'; resisted: boolean }
+   | { type: 'defeat'; week: number; peak: number }
+   /** Food spoiled because the stores were full (once per stretch of spoiling weeks). */
+   | { type: 'spoilStart' }
+@@ -638,7 +643,7 @@ export type GameEvent =
+   | { type: 'treeRegrown'; x: number; y: number; kind: TreeFeature };
+ 
+ /** Why a family left its tent: famine, or the tent lost its road (it dropped back to a plot). */
+-export type LeaveReason = 'famine' | 'cold' | 'road';
++export type LeaveReason = 'famine' | 'cold' | 'road' | 'debt';
+ 
+ /** `materials`: not enough wood or stone (see `missingMaterial`). */
+ export type FailReason = 'locked' | 'invalid' | 'silver' | 'materials' | 'debt' | 'noRoad' | 'protected';
+diff --git a/src/data/rules.json b/src/data/rules.json
+index a00bcd1..b6e98ed 100644
+--- a/src/data/rules.json
++++ b/src/data/rules.json
+@@ -27,8 +27,7 @@
+   "emptyUpkeepFactor": 1,
+   "coldDeath": { "childAge": 4, "tent": [0.01, 0], "tentCold": [0.04, 0.01], "houseCold": [0.01, 0], "tentRagged": [0.02, 0], "houseRagged": [0.005, 0], "famineFactor": 2 },
+   "clothes": { "perPerson": 0.03, "storage": 100 },
+-  "debtWeeksToLose": 24,
+-  "debtCaravanWeeks": 52,
++  "debt": { "leaveWeeks": 6, "resistWeeks": 8, "emptyPeople": 5, "emptyWeeks": 8 },
+   "treeClearCost": 5,
+   "roadCost": 2,
+   "happiness": {
+diff --git a/src/game/events.ts b/src/game/events.ts
+index 2e3b155..4580ad5 100644
+--- a/src/game/events.ts
++++ b/src/game/events.ts
+@@ -125,7 +125,7 @@ export function readEvents(s: GameState, events: readonly GameEvent[], tally: Ta
+         out.push({ do: 'slowDown' });
+         break;
+       case 'debtEnd':
+-        toast(T.debtEnd, 'good');
++        toast(e.resisted ? T.resisted : T.debtEnd, 'good');
+         break;
+       case 'defeat':
+         out.push({ do: 'defeat', week: e.week, peak: e.peak });
+diff --git a/src/game/strings.ts b/src/game/strings.ts
+index cc45941..a0a5410 100644
+--- a/src/game/strings.ts
++++ b/src/game/strings.ts
+@@ -22,6 +22,8 @@ const WORKSHOP_BONUS = `+${Math.round((BUILDINGS.workshop.fieldBonus ?? 0) * 100
+ /** Names of the difficulties (plano-dificuldade F). */
+ const DIFFICULTY_NAME = { easy: 'Tranquilo', normal: 'Normal', hard: 'Difícil' } satisfies Record<Difficulty, string>;
+ 
++const LEAVE_REASON = { famine: 'fome', cold: 'frio, sem lenha', road: 'tenda sem rua ligada ao altar', debt: 'a cidade está em dívida' } satisfies Record<LeaveReason, string>;
++
+ export const T = {
+   /** Residents lost when a house goes down (with famine, the cause). */
+   houseDown: (delta: number, famine: boolean, cold = false) => (cold ? `Frio ${delta}` : famine ? `Fome ${delta}` : `${delta}`),
+@@ -103,9 +105,8 @@ export const T = {
+     food: 'Sem nascimentos: a comida não dura até a primavera',
+     storage: 'Sem nascimentos: o estoque é pequeno',
+   } satisfies Record<BirthBlock, string>,
+-  /** A family left its tent: famine, or the tent lost its road. */
+-  familyLeft: (reason: LeaveReason, name: string) =>
+-    `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
++  /** A family left the city: famine, cold, the tent lost its road, or the city in debt. */
++  familyLeft: (reason: LeaveReason, name: string) => `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${LEAVE_REASON[reason]}`,
+   famine: 'Falta comida: construa pescador ou coletora',
+   coldStart: 'Frio! Acabou a lenha: construa um lenhador',
+   /** The clothes ran out in winter (once per episode, plano-dificuldade E). */
+@@ -156,8 +157,8 @@ export const T = {
+   alert: (a: Alert): string => {
+     if (a.kind === 'debt')
+       return a.famine
+-        ? `Dívida e fome: demolir serviços corta a manutenção · ${weeks(a.weeksLeft)}`
+-        : `Em dívida: ${weeks(a.weeksLeft)} para a cidade ser abandonada. Reduza a manutenção`;
++        ? `Dívida e fome: demolir serviços corta a manutenção · uma família sai em ${weeks(a.weeksLeft)}`
++        : `Em dívida: uma família sai em ${weeks(a.weeksLeft)}. Reduza a manutenção`;
+     if (a.kind === 'deficit')
+       return `Saldo ${signed(a.balance)}/sem · maior custo: ${BUILDINGS[a.costliest].name} (${fmt2(a.upkeep)}/sem) · use Demolir em serviços que atendem poucas casas`;
+     if (a.kind === 'material')
+@@ -193,6 +194,8 @@ export const T = {
+   },
+   debtStart: 'Cidade em dívida: toque na prata',
+   debtEnd: 'A cidade saiu da dívida!',
++  /** Out of a long debt (package R). */
++  resisted: 'Jerusalém resistiu! A cidade saiu da dívida',
+   /** Why a spot is not free (more precise than "invalid"). */
+   blocked: {
+     edge: 'Fora do mapa',
+@@ -270,7 +273,7 @@ export const T = {
+   keepBuilding: 'Continuar construindo',
+   defeatTitle: 'Jerusalém foi abandonada',
+   defeatText: (weeksPlayed: number, peak: number, d: Difficulty) =>
+-    `A cidade ficou ${weeks(RULES.debtWeeksToLose)} em dívida. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores. Dificuldade: ${DIFFICULTY_NAME[d]}.`,
++    `Ficaram menos de ${RULES.debt.emptyPeople} pessoas na cidade. Você jogou ${duration(weeksPlayed)} e chegou a ${peak} moradores. Dificuldade: ${DIFFICULTY_NAME[d]}.`,
+   retry: 'Tentar de novo',
+   /** Defeat: a new game on the same map (same seed). */
+   sameMap: 'Mesmo mapa',
+@@ -508,7 +511,7 @@ export const T = {
+     },
+     /** "O que fazer agora": one short line under the top bar (see `nextStep`). */
+     next: {
+-      debt: (w: number) => `Dívida: ${weeks(w)} para perder. Demolir corta gastos`,
++      debt: (w: number) => `Dívida: uma família sai em ${weeks(w)}. Demolir corta gastos`,
+       famine: 'Fome! Construa um pescador perto do rio',
+       food: (w: number) => `Comida acaba em ${weeks(w)}: construa um pescador perto do rio`,
+       cold: 'Frio! Sem lenha: construa um lenhador',
+diff --git a/tests/debt.test.ts b/tests/debt.test.ts
+index 4bc2186..e237518 100644
+--- a/tests/debt.test.ts
++++ b/tests/debt.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from 'vitest';
+-import { alerts, BUILDINGS, refreshCity, caravanSpares, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
++import { alerts, BUILDINGS, refreshCity, checkClear, HOUSE_LEVELS, clearCell, place, RULES, stepWeek, type GameEvent, type GameState } from '../src/core';
+ import { constRng, EAST, emptyGame, put, ROADSIDE } from './helpers';
+ 
+ const never = constRng(0.99);
+@@ -49,52 +49,86 @@ describe('upkeep and debt', () => {
+     run(s, 2);
+     expect(s.debtWeeks).toBe(3);
+     s.silver = U; // e.g. a goal reward
+-    expect(run(s, 1)).toContainEqual({ type: 'debtEnd' }); // ends at 0: not debt
++    expect(run(s, 1)).toContainEqual({ type: 'debtEnd', resisted: false }); // ends at 0: not debt
+     expect(s.debtWeeks).toBe(0);
+     expect(run(s, 1)).toContainEqual({ type: 'debtStart' });
+     expect(s.debtWeeks).toBe(1);
+   });
+ 
+-  it(`loses exactly after ${RULES.debtWeeksToLose} consecutive weeks in debt`, () => {
+-    expect(RULES.debtWeeksToLose).toBe(24);
++  it('package R numbers: a family leaves every 6 weeks in debt; lost after 8 weeks under 5 people', () => {
++    expect(RULES.debt).toEqual({ leaveWeeks: 6, resistWeeks: 8, emptyPeople: 5, emptyWeeks: 8 });
++  });
++
++  it('in debt a family leaves every leaveWeeks weeks: the poorest house first (a tent goes, a stone house stands empty)', () => {
++    const L = RULES.debt.leaveWeeks;
+     const s = draining(-1);
+-    s.peakPopulation = 42;
+-    const before = run(s, RULES.debtWeeksToLose - 1);
+-    expect(before.some((e) => e.type === 'defeat')).toBe(false);
++    const stone = put(s, 'house', ROADSIDE, 27, 3, false, 4);
++    const tent = put(s, 'house', ROADSIDE, 29, 1, false, 4);
++    const left = () => run(s, L).filter((e) => e.type === 'familyLeft');
++    s.silver = -1e6; // deep in debt the whole test
++    expect(run(s, L - 1).some((e) => e.type === 'familyLeft')).toBe(false);
++    const first = run(s, 1).filter((e) => e.type === 'familyLeft');
++    expect(first).toEqual([expect.objectContaining({ type: 'familyLeft', reason: 'debt', x: tent.x, y: tent.y })]);
++    expect(tent).toMatchObject({ level: 0, emptyLevel: 0 });
++    expect(s.people.some((p) => p.houseId === tent.id)).toBe(false);
++    expect(s.departed.filter((p) => p.end?.cause === 'debt')).toHaveLength(4);
++    expect(left()).toEqual([expect.objectContaining({ reason: 'debt', x: stone.x, y: stone.y })]);
++    expect(stone.level).toBe(0);
++    expect(stone.emptyLevel).toBeGreaterThan(1); // it keeps its level (here it dropped, without a plaza) for a new family
++    expect(s.debtWeeks).toBe(2 * L);
++  });
++
++  it('no defeat by debt itself: a city of 5 or more people in debt for a long time is not lost', () => {
++    const s = draining(-1e6);
++    for (let k = 0; k < 10; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 2, false, 4); // 40 people: 3 families leave, 28 stay
++    run(s, 3 * RULES.debt.leaveWeeks);
+     expect(s.lost).toBe(false);
+-    expect(run(s, 1)).toContainEqual({ type: 'defeat', week: RULES.debtWeeksToLose, peak: 42 });
++  });
++
++  it(`a city that had ${RULES.debt.emptyPeople} residents is lost after ${RULES.debt.emptyWeeks} weeks in a row with fewer people`, () => {
++    const E = RULES.debt.emptyWeeks;
++    const s = emptyGame({ food: 1000 });
++    put(s, 'house', ROADSIDE, 27, 2, false, RULES.debt.emptyPeople);
++    run(s, E + 2);
++    expect(s.lost).toBe(false); // 5 people: the city lives
++    s.people.splice(0, 1);
++    s.peakPopulation = 42;
++    expect(run(s, E - 1).some((e) => e.type === 'defeat')).toBe(false);
++    expect(s.emptyWeeks).toBe(E - 1);
++    expect(run(s, 1)).toContainEqual({ type: 'defeat', week: s.week, peak: 42 });
+     expect(s.lost).toBe(true);
+     const week = s.week;
+     expect(run(s, 3)).toEqual([]); // nothing happens after the defeat
+     expect(s.week).toBe(week);
+   });
+ 
+-  it(`no defeat while a later caravan is due within ${RULES.debtCaravanWeeks} weeks: the count stops one week short and the warning stays`, () => {
+-    const L = RULES.debtWeeksToLose;
+-    const s = draining(-1);
+-    const due = RULES.debtCaravanWeeks; // planned at week 0, it comes at the edge of the window
+-    s.caravans = [{ week: due, families: 1, warn: 4, status: 'planned', housed: 0, left: 0 }];
+-    expect(caravanSpares(s)).toBe(true);
+-    const before = run(s, due - 1);
+-    expect(before.some((e) => e.type === 'defeat')).toBe(false);
+-    expect(s.lost).toBe(false);
+-    expect(s.debtWeeks).toBe(L - 1);
+-    expect(alerts(s)).toContainEqual(expect.objectContaining({ kind: 'debt', weeksLeft: 1 }));
+-    expect(s.caravans[0].status).toBe('announced'); // announced spares too
+-    // It comes with no empty house: nobody stays, nothing spares the city any more.
+-    expect(run(s, 1)).toContainEqual(expect.objectContaining({ type: 'defeat' }));
+-    expect(s.lost).toBe(true);
++  it('a city that never had that many residents is not lost by it', () => {
++    const s = emptyGame({ food: 1000 });
++    put(s, 'house', ROADSIDE, 27, 2, false, RULES.debt.emptyPeople - 1);
++    run(s, 2 * RULES.debt.emptyWeeks);
++    expect(s).toMatchObject({ lost: false, emptyWeeks: 0 });
+   });
+ 
+-  it('a caravan further away than the window, skipped or arrived does not spare the city', () => {
+-    for (const status of ['planned', 'skipped', 'arrived'] as const) {
+-      const s = draining(-1);
+-      const week = status === 'planned' ? RULES.debtCaravanWeeks + RULES.debtWeeksToLose + 1 : 30;
+-      s.caravans = [{ week, families: 1, warn: 4, status, housed: 0, left: 0 }];
+-      expect(caravanSpares(s)).toBe(false);
+-      run(s, RULES.debtWeeksToLose);
+-      expect(s.lost, status).toBe(true);
+-    }
++  it('a caravan that fills the city again restarts the count', () => {
++    const s = emptyGame({ food: 1000 });
++    put(s, 'house', ROADSIDE, 27, 2, false, 2);
++    s.peakPopulation = 10; // the city had people once
++    run(s, 4);
++    expect(s.emptyWeeks).toBe(4);
++    put(s, 'house', ROADSIDE, 29, 2, false, 4);
++    run(s, 1);
++    expect(s.emptyWeeks).toBe(0);
++  });
++
++  it(`out of a debt of ${RULES.debt.resistWeeks} weeks or more, "Jerusalém resistiu"; out of a short one, not`, () => {
++    const s = draining(-1e6);
++    run(s, 3);
++    s.silver = 1e6;
++    expect(run(s, 1)).toContainEqual({ type: 'debtEnd', resisted: false });
++    s.silver = -1e6;
++    run(s, RULES.debt.resistWeeks);
++    s.silver = 1e6;
++    expect(run(s, 1)).toContainEqual({ type: 'debtEnd', resisted: true });
+   });
+ 
+   it('remembers the highest population', () => {
+@@ -114,7 +148,7 @@ describe('alerts', () => {
+     const s = draining(-1); // market: upkeep U, 3 jobs
+     s.debtWeeks = 5;
+     expect(alerts(s)).toEqual([
+-      { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
++      { kind: 'debt', weeksLeft: RULES.debt.leaveWeeks - 5, famine: false },
+       { kind: 'deficit', balance: -U, costliest: 'market', upkeep: U },
+       { kind: 'noCrew', building: 'market', count: 1, upkeep: U }, // nobody lives here to work at it
+     ]);
+@@ -125,7 +159,7 @@ describe('alerts', () => {
+     expect(tax).toBeLessThan(2 * FULL);
+     // (18 residents and no food buildings: the food and births warnings show too, tested elsewhere)
+     expect(alerts(s).filter((a) => a.kind !== 'foodShort' && a.kind !== 'noBirths')).toEqual([
+-      { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
++      { kind: 'debt', weeksLeft: RULES.debt.leaveWeeks - 5, famine: false },
+       { kind: 'deficit', balance: tax - 2 * FULL, costliest: 'market', upkeep: 2 * FULL }, // taxes - two staffed markets
+       { kind: 'unemployed', count: 12, workshopsFull: false },
+     ]);
+@@ -153,6 +187,6 @@ describe('alerts', () => {
+   it('in debt and famine at once, the debt alert says so (demolish to afford a field)', () => {
+     const s = draining(-1);
+     s.famine = true;
+-    expect(alerts(s)[0]).toEqual({ kind: 'debt', weeksLeft: RULES.debtWeeksToLose, famine: true });
++    expect(alerts(s)[0]).toEqual({ kind: 'debt', weeksLeft: RULES.debt.leaveWeeks, famine: true });
+   });
+ });
+diff --git a/tests/game/nextStep.test.ts b/tests/game/nextStep.test.ts
+index 159a682..a1da02f 100644
+--- a/tests/game/nextStep.test.ts
++++ b/tests/game/nextStep.test.ts
+@@ -24,7 +24,7 @@ describe('nextStep: what to do now', () => {
+       s.silver = -5;
+       const n = nextStep(s);
+       expect(n).toMatchObject({ kind: 'crisis', tone: 'bad', aim: { tool: 'clear' }, open: { panel: 'alerts' } });
+-      expect(n.text).toMatch(/^Dívida: \d+ semanas? para perder/);
++      expect(n.text).toMatch(/^Dívida: uma família sai em \d+ semanas?/);
+     });
+ 
+     it('food that will not last: when it runs out, and the fisher', () => {
+diff --git a/tools/sim/survival.ts b/tools/sim/survival.ts
+index 92a62e0..3355e28 100644
+--- a/tools/sim/survival.ts
++++ b/tools/sim/survival.ts
+@@ -3,6 +3,7 @@
+  * The command line is in run.ts (`npm run sim`).
+  */
+ import {
++  debtLeaveIn,
+   BUILDINGS,
+   HOUSE_LEVELS,
+   RULES,
+@@ -651,7 +652,7 @@ export class SurvivalBot {
+   /** In debt: demolishes one building of the costliest upkeep kind, the one that serves least. */
+   private trim(s: GameState): boolean {
+     const eco = computeEconomy(s);
+-    if (eco.silverDelta >= 0 && s.silver + eco.silverDelta * (RULES.debtWeeksToLose - s.debtWeeks) >= 0) return false;
++    if (eco.silverDelta >= 0 && s.silver + eco.silverDelta * debtLeaveIn(s) >= 0) return false;
+     const value = (b: Building) => {
+       if (b.kind === 'plaza' || b.kind === 'market' || b.kind === 'park') return 2 * s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cheb(h, b) <= (BUILDINGS[b.kind].radius ?? 0)).length;
+       if (b.kind === 'fisher' || b.kind === 'gatherer' || b.kind === 'lumber' || b.kind === 'quarry') return gatherYield(s, b) * 3;
