@@ -16,6 +16,7 @@ import { cutTrees, regrowTrees } from './trees';
 import { buildersAtWork, nextStage, stageSite } from './temple';
 import { coldDeaths, coldDeathsSince } from './cold';
 import { burnFirewood, keepsFirewood } from './firewood';
+import { wearClothes } from './clothes';
 import { seasonOf, seasonStarts, WEEKS_PER_YEAR } from './seasons';
 import type { Building, GameEvent, GameState, LeaveReason, Rng } from './types';
 
@@ -152,6 +153,8 @@ function newSeason(s: GameState, rng: Rng, events: GameEvent[]) {
     if (s.drought) events.push({ type: 'drought' });
   }
   if (season === 'autumn') {
+    // The city dresses for the cold from the first autumn after the tannery is unlocked (a season's warning).
+    if (s.unlocked.includes('tannery')) s.dressing = true;
     s.lastDrought = s.drought;
     s.drought = false;
     if (!s.famineThisYear) reach(s, 'yearWithoutFamine', events);
@@ -238,11 +241,13 @@ export function stepWeek(s: GameState, rng: Rng): GameEvent[] {
   }
 
   s.silver = round2(s.silver + eco.silverDelta);
-  s.wood = round2(s.wood + eco.wood);
+  s.wood = Math.max(0, round2(s.wood + eco.wood));
   s.stone = round2(s.stone + eco.stone);
   s.livestock = round2(s.livestock + eco.livestock);
+  s.clothes = round2(s.clothes + eco.clothes);
   offer(s, events);
   burnFirewood(s, events);
+  wearClothes(s, eco.residents, events);
   if (s.cold) s.winterLoss = true;
   coldDeaths(s, rng, events);
   // Cut first: the cut count follows the trees the week's wood came from, and a tree that grows

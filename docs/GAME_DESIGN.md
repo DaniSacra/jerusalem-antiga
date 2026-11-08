@@ -85,17 +85,19 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
 |---|---|---|---|---|---|---|---|
 | Rua | 2 / célula | – | 1 x 1 | – | – | – | arrastar constrói em sequência |
 | Casa | 40 + 10 madeira | – | 2 x 2 | – | impostos | – | começa como terreno vazio (as tendas da caravana são grátis) |
-| Campo | 20 | 0,6/sem | 2 x 2 | 2 | 180 comida/ano fora do inverno (cerca de 4,6/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
+| Campo | 20 | 0,5/sem | 2 x 2 | 2 | 180 comida/ano fora do inverno (cerca de 4,6/sem), mais o bônus das oficinas | – | 4 plantações (só aparência); ver Colheita |
 | Praça | 25 | 0,75/sem | 2 x 2 | – | – | 4 | liberada pelo Objetivo 5 (5 casas de barro); casas de barro no raio viram casas de pedra |
-| Pescador | 20 | 0,6/sem | 2 x 2 | 1 | células de rio no raio × 0,38, máx. 1,9 comida/sem; × 0,3 no inverno | 2 | |
-| Coletora | 20 | 0,6/sem | 2 x 2 | 1 | árvores no raio × 0,16, máx. 1,5 comida/sem; × 0,3 no inverno | 3 | |
+| Pescador | 20 | 0,5/sem | 2 x 2 | 1 | células de rio no raio × 0,38, máx. 1,9 comida/sem; × 0,3 no inverno | 2 | |
+| Coletora | 20 | 0,5/sem | 2 x 2 | 1 | árvores no raio × 0,16, máx. 1,5 comida/sem; × 0,3 no inverno | 3 | |
 | Lenhador | 25 | 0,75/sem | 2 x 2 | 2 | árvores no raio × 0,25, máx. 2,5 madeira/sem | 3 | categoria Trabalho; o ano todo; corta 1 árvore a cada 10 de madeira (ver Madeira e pedra) |
 | Pedreira | 40 + 10 madeira | 1,75/sem | 2 x 2 | 3 | rochas no raio × 0,3, máx. 1,4 pedra/sem | 2 | categoria Trabalho; o ano todo; liberada pelo Objetivo 4 (passe o primeiro inverno); as rochas não acabam |
 | Celeiro | 40 + 10 madeira | 1,75/sem | 3 x 3 | 1 | guarda 300 de comida (nível 2: 600, nível 3: 1000) | – | liberado pelo Objetivo 1; melhora (veja Níveis) |
 | Mercado | 60 + 10 madeira | 3,5/sem | 2 x 4 | 3 | – | 5 (nível 2: 6, nível 3: 7) | liberado pelo Objetivo 7 (construir uma oficina); casas de pedra no raio dele e de um parque viram casas grandes; pode girar para 4 x 2; melhora |
 | Oficina | 50 + 10 madeira | 1,75/sem | 3 x 3 | 3 | +10% da comida dos campos (nível 2: +20%, nível 3: +30%), soma até +30% (`fieldBonusMax`); não dá prata | – | liberada pelo Objetivo 6; 6 ofícios (só aparência); melhora |
-| Parque | 60 + 5 pedra | 2/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 9; casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
-| Templo | grátis (o lugar); as etapas pagam | – | 6 x 6 | – (construtores na obra) | – | 12 | lugar liberado pelo Objetivo 9 (30 moradores); sem manutenção; erguido em 5 etapas (ver Objetivos); protegido depois do Alicerce; o raio só dá Alegria, e só depois da Consagração |
+| Parque | 60 + 5 pedra | 2/sem | 2 x 2 | – | – | 4 | liberado pelo Objetivo 12 (6 casas de pedra); casas de pedra no raio (e no de um mercado) viram casas grandes; dá Alegria |
+| Lamparina | 8 | – (queima 0,05 madeira/sem) | 1 x 1 | – | – | 3 | categoria Casa; liberada pelo Objetivo 10 (30 moradores); na rua e com madeira, fica acesa e corta o roubo dos celeiros no raio para 25% |
+| Curtume | 50 + 10 madeira | 1,5/sem | 2 x 2 | 2 | 1 roupa/sem com 0,4 de gado, pela lotação | – | categoria Trabalho; liberado pelo Objetivo 13 (Alicerce do Templo); ver Roupas e curtume |
+| Templo | grátis (o lugar); as etapas pagam | – | 6 x 6 | – (construtores na obra) | – | 12 | lugar liberado pelo Objetivo 10 (30 moradores); sem manutenção; erguido em 5 etapas (ver Objetivos); protegido depois do Alicerce; o raio só dá Alegria, e só depois da Consagração |
 | Altar | – | – | 4 x 4 | – | – | 4 | fixo no início; o raio só dá Alegria (não é exigência de casa) |
 
 - **Pescador, Coletora, Lenhador e Pedreira** (`gather` em `buildings.json`, uma regra só,
@@ -129,6 +131,15 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   comida/sem". O celeiro vem logo depois do campo na ordem em que o automático preenche as vagas
   (`jobPriority`). Sim, 100 seeds: Comum vence 69% e perde 10%; roubo de 3,5% da comida produzida,
   em 98% das partidas (com 5%: Comum 62% e 14% de derrotas).
+- **Lamparinas** (`theft.ts`, peça D, 2026-11-08): a Lamparina (8 de prata, 1 x 1, sem manutenção)
+  queima **0,05 de madeira por semana** enquanto está ligada à rua (`lampsBurn`, sai do saldo de madeira;
+  a madeira nunca fica negativa). Acesa (na rua e com madeira no estoque, `lampLit`), ela corta o roubo
+  de todo celeiro a até **3 células** dela para **25%** (`theft.litTheft`). Sem madeira, apaga e não
+  guarda nada. O balão da lamparina diz quantos celeiros ela guarda, ou que está apagada; a prévia ao
+  construir diz quantos guardaria. À noite a chama dela brilha no 3D (no lugar dos braseiros automáticos
+  das ruas). Objetivo 11: "Ilumine o celeiro: 3 lamparinas". Sim, 150 seeds (com a manutenção de campo,
+  pescador e coletora em 0,5): Comum vence 59% e perde 13%. Com 0,6 o Comum caía para 45% e 20%: o
+  roubo empurrava o bot reativo a construir comida mais cedo, e a lamparina tira esse empurrão.
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
   coluna mostra custo e manutenção. **Local de trabalho vazio paga a manutenção inteira** (`emptyUpkeepFactor`
@@ -229,7 +240,11 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` seção 4. Código: `sr
 | Tenda, com lenha (`tent`) | 1% | 0 |
 | Tenda, sem lenha (`tentCold`) | 4% | 1% |
 | Barro ou melhor, sem lenha (`houseCold`) | 1% | 0 |
-| Barro ou melhor, com lenha | 0 | 0 |
+| Tenda, com lenha e sem roupa (`tentRagged`) | 2% | 0 |
+| Barro ou melhor, com lenha e sem roupa (`houseRagged`) | 0,5% | 0 |
+| Barro ou melhor, com lenha e roupa | 0 | 0 |
+
+Sem lenha vale a linha do frio, com roupa ou sem (o frio já é pior).
 
 - **Fome junto** multiplica a chance por **2** (`famineFactor`). Chance 0 não sorteia. Quem está a
   caminho não sorteia. O sorteio da casa (cair ou sair) continua um só.
@@ -242,6 +257,26 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` seção 4. Código: `sr
   primavera "O inverno levou N pessoas". Ficha da tenda no outono e no inverno: "Tenda fria: risco
   para crianças e idosos" (amarelo; vermelho no frio). Estatísticas, aba Povo: "De frio" no ano (só
   quando há). A ficha da pessoa mostra "† aos N".
+
+### Roupas e curtume (peça E do `plano-dificuldade.md`, 2026-11-08)
+Código: `src/core/clothes.ts`, `tans` do curtume em `buildings.json`, `rules.json > clothes`.
+- O **Curtume** (2 x 2, 50 de prata + 10 de madeira, manutenção 1,5, 2 vagas; categoria Trabalho)
+  é liberado pelo objetivo **Alicerce do Templo**; o objetivo seguinte é "Construa um curtume" (+60).
+  Pela lotação, ele tira **0,4 de gado por semana** do curral e faz **1 roupa por semana**
+  (`Economy.hides` e `Economy.clothes`). Tira o gado depois do que os pastos trazem e **antes da
+  oferta do altar**: curtume e altar disputam o mesmo gado. Para sem gado no curral e com o estoque de
+  roupas cheio (**100**, `clothes.storage`). Na `jobPriority` vem logo depois do pasto.
+- A cidade **precisa de roupa** a partir do **primeiro outono depois de liberar o curtume**
+  (`s.dressing`; uma estação de aviso). Em cada semana de inverno, cada morador gasta **0,03 de roupa**
+  (`clothes.perPerson`; 25 moradores gastam ~10 roupas num inverno). Se o estoque não paga, a cidade
+  usa o que tem, o estoque vai a 0 e fica **sem roupa** (`s.ragged`): crianças e idosos podem morrer
+  de frio mesmo com lenha (tabela acima). Não derruba casa.
+- **Tela:** pílula **Roupas** depois de Gado (desde a liberação): "N · dura N invernos" (vermelha com
+  ⚠ quando falta). Aviso no outono e no inverno: "Faltam N roupas para o inverno: construa um curtume";
+  sem roupa, "Sem roupa! O frio pega crianças e idosos mesmo com lenha. Construa um curtume". Toast
+  "Acabou a roupa…" uma vez por episódio. Balão da casa no inverno sem roupa: "Sem roupa: frio para
+  crianças e idosos". Balão do curtume: "Faz N roupas/sem com N de gado" (ou "Parado: sem gado no
+  curral"); balão do altar: "Curtume leva N gado/sem".
 
 ## Ruas e conexão
 
@@ -376,7 +411,7 @@ o objetivo que a libera, e o balão sobre a casa mostra o ícone dela com um cad
 
 ## Felicidade
 
-A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 9, `happinessOn`). Antes disso toda casa fica
+A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 12, `happinessOn`). Antes disso toda casa fica
 contente (50, sem motivos), o imposto e a chance de nascer não mudam, a carinha não aparece na
 placa e não há balão de casa triste.
 
@@ -611,19 +646,21 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 7 | **Restaure o altar** | etapa 1 | +40 | – |
 | 8 | Receba a primeira caravana | marco | +40 | Oficina |
 | 9 | Construa uma oficina | 1 | +35 | Mercado |
-| 10 | Chegue a 30 moradores | 30 | +40 | – |
-| 11 | Tenha 6 casas de pedra | 6 | +50 | Parque (e a Alegria) |
-| 12 | **Alicerce do Templo** | etapa 2 | +70 | – |
-| 13 | Uma criança da cidade virou adulta | marco | +70 | – |
-| 14 | Chegue a 45 moradores | 45 | +70 | – |
-| 15 | Tenha 4 casas grandes | 4 | +70 | – |
-| 16 | **Paredes do Templo** | etapa 3 | +85 | – |
-| 17 | **Tenha 2 pastos** | 2 | +85 | – |
-| 18 | Chegue a 65 moradores | 65 | +85 | – |
-| 19 | Chegue a 85 moradores | 85 | +100 | – |
-| 20 | **Pórtico e telhado** | etapa 4 | +130 | – |
-| 21 | Chegue a 120 moradores | 120 | +150 | – |
-| 22 | **Consagração do Templo** | etapa 5 | vitória | – |
+| 10 | Chegue a 30 moradores | 30 | +40 | Lamparina |
+| 11 | **Ilumine o celeiro: 3 lamparinas** | 3 | +35 | – |
+| 12 | Tenha 6 casas de pedra | 6 | +50 | Parque (e a Alegria) |
+| 13 | **Alicerce do Templo** | etapa 2 | +70 | Curtume |
+| 14 | **Construa um curtume** | 1 | +60 | – |
+| 15 | Uma criança da cidade virou adulta | marco | +70 | – |
+| 16 | Chegue a 45 moradores | 45 | +70 | – |
+| 17 | Tenha 4 casas grandes | 4 | +70 | – |
+| 18 | **Paredes do Templo** | etapa 3 | +85 | – |
+| 19 | **Tenha 2 pastos** | 2 | +85 | – |
+| 20 | Chegue a 65 moradores | 65 | +85 | – |
+| 21 | Chegue a 85 moradores | 85 | +100 | – |
+| 22 | **Pórtico e telhado** | etapa 4 | +130 | – |
+| 23 | Chegue a 120 moradores | 120 | +150 | – |
+| 24 | **Consagração do Templo** | etapa 5 | vitória | – |
 
 **Templo em ruínas** (plano "ruínas" 2026-11-07, `src/data/temple.json`, `src/core/temple.ts`): a
 meta do jogo inteiro. A ruína do Templo (6 x 6) está no mapa desde a semana 0, ao norte do altar e
@@ -1433,7 +1470,7 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   grandes as janelas (nas casas .glb, um vidro quente com halo, `WINDOWS_AT` em `plan.ts`), e cada
   uma tem uma poça de luz quente no chão diante da porta (maior nas casas maiores; o mercado e a
   oficina ligados também, `DoorLights`); a tenda tem a fogueira com faíscas e uma poça forte. Casa
-  vazia fica apagada. Acendem também os braseiros em algumas esquinas das ruas principais, o fogo do
+  vazia fica apagada. Acendem também as lamparinas que o jogador pôs (só com madeira no estoque), o fogo do
   altar e o forno da oficina, e aparecem estrelas e a lua. A lua e o céu da noite iluminam o
   bastante para ver ruas, casas e gente no celular, ainda com cara de noite (`look3d.json` > `day.keys`
   e `night`). Desligado na engrenagem: sempre meio-dia.

@@ -1,5 +1,5 @@
-import { theftTotal } from './theft';
-import { HOUSE_LEVELS, storageOf } from './data';
+import { lampLit, theftTotal } from './theft';
+import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
 import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
 import { ageBand, foodOf } from './people';
@@ -28,8 +28,14 @@ export interface Economy {
   /** Wood and stone made this week (lumbers and quarries, by their crews), up to the store cap. */
   wood: number;
   stone: number;
-  /** Livestock the pastures made this week (by their crews), up to the pens' cap. */
+  /** Livestock the pastures made this week (by their crews), up to the pens' cap, less what the tanneries took (`hides`). */
   livestock: number;
+  /** Livestock the tanneries take this week (plano-dificuldade E): from the pens, before the altar's offering. */
+  hides: number;
+  /** Clothes the tanneries make this week (by their crews), up to the store's cap and the livestock there is. */
+  clothes: number;
+  /** Share of their crews' work the tanneries can do this week (0..1): the pens and the store allow it. */
+  tanned: number;
   /** Share of the made wood and stone that fits the store (1: all of it; 0: the store is full). */
   stored: Record<Material, number>;
   /** Weekly silver balance: taxes - upkeep. */
@@ -83,6 +89,7 @@ export function computeEconomy(s: GameState): Economy {
   let foodProd = 0;
   let harvest = 0;
   const made: Record<Material, number> = { wood: 0, stone: 0, livestock: 0 };
+  const tan = { livestock: 0, clothes: 0 };
   const upkeep: Partial<Record<BuildingKind, number>> = {};
   const bonus = fieldBonus(s);
   for (const b of s.buildings) {
@@ -98,6 +105,11 @@ export function computeEconomy(s: GameState): Economy {
     filled += Math.min(n, crews.get(b.id) ?? 0);
     const h = fieldHarvest(s, b, s.week, s.drought, undefined, bonus) * staff;
     harvest += h;
+    const tans = BUILDINGS[b.kind].tans;
+    if (tans) {
+      tan.livestock += tans.livestock * staff;
+      tan.clothes += tans.clothes * staff;
+    }
     const product = productOf(b.kind);
     if (product && product !== 'food') made[product] += gatherYield(s, b) * staff;
     else foodProd += (product ? gatherYield(s, b) * staff : 0) + h;
@@ -119,6 +131,10 @@ export function computeEconomy(s: GameState): Economy {
     return n > 0 ? Math.min(1, Math.max(0, storageOf(m) - s[m]) / n) : 1;
   };
   const stored: Record<Material, number> = { wood: fits('wood'), stone: fits('stone'), livestock: fits('livestock') };
+  // The tanneries work as far as the pens and the clothes store allow.
+  const pens = s.livestock + made.livestock * stored.livestock;
+  const room = Math.max(0, RULES.clothes.storage - s.clothes);
+  const tanned = tan.livestock > 0 ? Math.min(1, pens / tan.livestock, room / tan.clothes) : 0;
   const sum = (r: Partial<Record<BuildingKind, number>>) => Object.values(r).reduce((a, v) => a + v, 0);
   return {
     residents,
@@ -131,9 +147,12 @@ export function computeEconomy(s: GameState): Economy {
     harvest: round2(harvest),
     foodMade: round2(foodProd),
     foodEaten: round2(eaten),
-    wood: round2(made.wood * stored.wood),
+    wood: round2(made.wood * stored.wood - lampsBurn(s)),
     stone: round2(made.stone * stored.stone),
-    livestock: round2(made.livestock * stored.livestock),
+    livestock: round2(made.livestock * stored.livestock - tan.livestock * tanned),
+    hides: round2(tan.livestock * tanned),
+    clothes: round2(tan.clothes * tanned),
+    tanned,
     stored,
     silverDelta: round2(taxes - sum(upkeep)),
     taxes: round2(taxes),
@@ -142,6 +161,9 @@ export function computeEconomy(s: GameState): Economy {
     moods,
   };
 }
+
+/** Wood the lit lamps burn a week (plano-dificuldade D): with none left they go dark and burn nothing. */
+export const lampsBurn = (s: GameState) => s.buildings.reduce((a, b) => a + (lampLit(s, b) ? (BUILDINGS[b.kind].burns ?? 0) : 0), 0);
 
 /** The building kind with the highest total upkeep, or null if nothing costs upkeep. */
 export function costliestUpkeep(eco: Economy): { kind: BuildingKind; amount: number } | null {

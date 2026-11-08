@@ -1,10 +1,10 @@
 import { Pasture } from './pasture';
 import * as THREE from 'three';
-import { mainRoadCells, type GameState } from '../core';
+import { lampLit, type GameState } from '../core';
 import VISUAL from '../data/visual.json';
 import { Instancer } from './instancer';
 import { Families } from './figures';
-import { DoorLights, FieldHands, Flames, Haulers, NightFires, Smoke, Walkers } from './life';
+import { DoorLights, FieldHands, type FireKind, Flames, Haulers, NightFires, Smoke, Walkers } from './life';
 import LOOK from './look3d.json';
 import type { ModelKey, Prototype } from './models';
 import { cityPlan, CLOSED_AT, hash, houseSmokeKey, KILN, panesOf, residentsOf, walkerCount, YARD_AT } from './plan';
@@ -162,7 +162,7 @@ export class World {
     const dust: THREE.Vector4[] = [];
     const fires: THREE.Vector3[] = [];
     // Which fire spots are a tent's (out in a winter without firewood) or the altar's, and the tent fires.
-    const fireKind: ('tent' | 'altar' | undefined)[] = [];
+    const fireKind: FireKind[] = [];
     const tents: THREE.Vector3[] = [];
     const fields: THREE.Vector3[] = [];
     const puddles: THREE.Vector3[] = [];
@@ -268,8 +268,11 @@ export class World {
         fireKind[fires.length - 1] = 'altar';
       }
     }
-    // Braziers along the main streets (junctions), one in every few, as the 2D lamps.
-    for (const c of mainRoadCells(s)) if (hash(c.x, c.y, 30) * VISUAL.lights.lampEvery < 1) fires.push(new THREE.Vector3(c.x + 0.5, ground.height(c.x + 0.5, c.y + 0.5) + 0.02, c.y + 0.5));
+    // The street lamps the player placed shine at night while the city has wood to burn (plano-dificuldade D).
+    for (const b of s.buildings) if (lampLit(s, b)) {
+      fires.push(new THREE.Vector3(b.x + 0.62, ground.height(b.x + 0.5, b.y + 0.5), b.y + 0.5));
+      fireKind[fires.length - 1] = 'lamp';
+    }
     this.city.add(inst.build(this.shadows));
 
     this.houses = s.buildings.filter((b) => b.kind === 'house' && b.level > 0).length;

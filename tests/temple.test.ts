@@ -267,7 +267,7 @@ describe('finishing a stage', () => {
     const silver = s.silver;
     const events = stepWeek(s, never);
     expect(events).toContainEqual({ type: 'stageDone', stage: 2, x: site.x, y: site.y });
-    expect(events).toContainEqual({ type: 'goal', index: goalOf(2), reward: GOALS[goalOf(2)].reward, unlock: undefined });
+    expect(events).toContainEqual({ type: 'goal', index: goalOf(2), reward: GOALS[goalOf(2)].reward, unlock: 'tannery' });
     expect(s.silver).toBe(silver + GOALS[goalOf(2)].reward);
     expect(s.temple).toEqual({ done: 2, active: false, progress: 0 });
     expect(site.builders).toBeUndefined();
@@ -288,13 +288,13 @@ describe('finishing a stage', () => {
   });
 
   it('a milestone reached before still counts at once after the stage', () => {
-    const { s } = underWay(2, 4);
-    const next = GOALS[goalOf(2) + 1];
+    const { s } = underWay(1, 2);
+    const next = GOALS[goalOf(1) + 1];
     expect(next.type).toBe('milestone');
     s.milestones.push(next.milestone!);
-    s.temple.progress = stageDef(2).work - 4;
-    expect(stepWeek(s, never)).toContainEqual(expect.objectContaining({ type: 'goal', index: goalOf(2) }));
-    expect(stepWeek(s, never)).toContainEqual(expect.objectContaining({ type: 'goal', index: goalOf(2) + 1 }));
+    s.temple.progress = stageDef(1).work - 2;
+    expect(stepWeek(s, never)).toContainEqual(expect.objectContaining({ type: 'goal', index: goalOf(1) }));
+    expect(stepWeek(s, never)).toContainEqual(expect.objectContaining({ type: 'goal', index: goalOf(1) + 1 }));
   });
 });
 

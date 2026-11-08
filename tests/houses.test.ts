@@ -384,7 +384,7 @@ describe('house info and balloons', () => {
     ]);
     expect(s.unlocked).not.toContain('park');
     expect(unlockingGoal('market')).toBe(9);
-    expect(unlockingGoal('park')).toBe(11);
+    expect(unlockingGoal('park')).toBe(12);
   });
 
   it('needLocked: only a service need whose building is still locked', () => {

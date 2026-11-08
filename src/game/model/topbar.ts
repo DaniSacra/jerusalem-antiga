@@ -1,6 +1,8 @@
 import {
   calendar,
   cityLevel,
+  clothesPerWeek,
+  clothesShort,
   currentGoal,
   firewoodShort,
   foodCapacity,
@@ -33,7 +35,7 @@ export type Part = { text: string; tone?: Tone; size?: Size } | { bar: number } 
 
 export interface Pill {
   /** Stable key (the HTML keeps one element per pill). */
-  key: 'silver' | 'food' | 'wood' | 'stone' | 'livestock' | 'people' | 'joy';
+  key: 'silver' | 'food' | 'wood' | 'stone' | 'livestock' | 'clothes' | 'people' | 'joy';
   icon: string;
   parts: Part[];
   /** Blinks (debt, famine). */
@@ -113,6 +115,21 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
         ...(phone || fit >= 3 ? [] : [{ text: `${made[m] < 0 ? '−' : '+'}${fmt(Math.abs(made[m]))}${N.perWeek}`, tone: made[m] > 0 ? 'good' : made[m] < 0 ? 'bad' : 'muted', size: 'text' } as Part]),
       ],
     });
+  // Clothes (plano-dificuldade E), once the tannery is unlocked: the store and how many winters it dresses the city.
+  if (s.unlocked.includes('tannery') || s.clothes > 0) {
+    const short = s.ragged || clothesShort(s, eco) > 0;
+    const winter = clothesPerWeek(eco.residents) * RULES.weeksPerSeason;
+    pills.push({
+      key: 'clothes',
+      icon: 'clothes',
+      alarm: false,
+      parts: [
+        ...(phone || fit >= 1 ? [] : [{ text: N.clothes, tone: 'muted' } as Part]),
+        { text: (short ? '⚠ ' : '') + fmtInt(s.clothes), tone: short ? 'bad' : 'text', size: 'num' },
+        ...(phone || fit >= 3 ? [] : [{ text: N.clothesWinters(winter > 0 ? s.clothes / winter : 5), tone: short ? 'bad' : 'muted', size: 'text' } as Part]),
+      ],
+    });
+  }
   pills.push({ key: 'people', icon: 'people', alarm: false, parts: [...label(N.residents), { text: fmtInt(eco.residents), size: 'num' }] });
   if (!phone && happinessOn(s)) {
     const mood: Mood = moodOf(eco.happiness);

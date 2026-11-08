@@ -32,7 +32,7 @@ export type CityLayer = (typeof LAYERS)[number];
 export const PEOPLE: readonly CityLayer[] = ['walkers', 'families', 'haulers'];
 
 export function cityKeys(s: GameState): CityKeys {
-  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}|works:${siteKey(s)}|herd:${herdKey(s)}`;
+  const buildings = s.buildings.map((b) => `${b.id}:${b.kind}:${b.level}:${b.emptyLevel}:${b.variant}${b.mirrored ? 'm' : ''}:${b.x},${b.y},${b.w},${b.h}:${b.connected ? 1 : 0}`).join('|') + `|stock:${stockLevel(s)}|works:${siteKey(s)}|herd:${herdKey(s)}|lit:${s.wood > 0 ? s.buildings.filter((b) => b.kind === 'lamp' && b.connected).length : 0}`;
   let props = '';
   // A road is its look (0 trail, 1 road, 2 kerbed; 'x' off the network: dashed), else the feature's name or '-'.
   const traffic = roadTraffic(s);

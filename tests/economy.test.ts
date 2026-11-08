@@ -85,13 +85,14 @@ describe('economy', () => {
     for (const b of s.buildings) if (b.kind !== 'house' && BUILDINGS[b.kind].jobs) hire(s, b); // staffed: the full upkeep
     const e = computeEconomy(s);
     expect(Object.fromEntries(Object.entries(BUILDINGS).filter(([, d]) => d.upkeep).map(([k, d]) => [k, d.upkeep]))).toEqual({
-      field: 0.6,
+      field: 0.5,
       plaza: 0.75,
-      fisher: 0.6,
-      gatherer: 0.6,
+      fisher: 0.5,
+      gatherer: 0.5,
       lumber: 0.75,
       quarry: 1.75,
       pasture: 1,
+      tannery: 1.5,
       granary: 1.75,
       market: 3.5,
       workshop: 1.75,

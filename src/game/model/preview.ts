@@ -13,6 +13,7 @@ import {
   weeksToHarvest,
   checkPlace,
   costOf,
+  lampGuards,
   onlyNeedsRoad,
   servedHouses,
   serviceOf,
@@ -93,6 +94,7 @@ export function outputOf(s: GameState, tool: Tool, r: Rect): { lines: string[]; 
     return lost > 0 ? { lines: [N.foodLost(lost)], bad: true } : none;
   }
   if (tool === 'view' || tool === 'road') return none;
+  if (tool === 'lamp') return { lines: [N.lampWouldGuard(lampGuards(s, r))], bad: false };
   const def = BUILDINGS[tool];
   if (!def.gather && !def.harvest) return none;
   if (def.harvest && !harvestsIn(s.week)) return { lines: [N.inspect.frozen(weeksToHarvest(s.week))], bad: false };

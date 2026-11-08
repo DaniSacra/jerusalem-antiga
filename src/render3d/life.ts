@@ -640,6 +640,11 @@ void main() {
  * warm pool of light on the ground. All three fade in with the night. The tent fires (`house`) are
  * out in a winter without firewood (`s.cold`).
  */
+/** What burns in a `NightFires` spot. */
+export type FireKind = 'tent' | 'altar' | 'lamp' | undefined;
+/** Height of a street lamp's flame over its foot (the `lamp` model). */
+const LAMP_GLOW_Y = 0.97;
+
 export class NightFires {
   readonly objects: THREE.Object3D[];
   private flames: THREE.InstancedMesh;
@@ -650,8 +655,11 @@ export class NightFires {
   private cold: boolean | null = null;
   private house: boolean[];
 
-  /** `kinds`: a tent's fire (out in the cold) or the altar's (its flame is `Flames`: glow and pool only). */
-  constructor(private spots: THREE.Vector3[], private kinds: ('tent' | 'altar' | undefined)[] = []) {
+  /**
+   * `kinds`: a tent's fire (out in the cold), the altar's (its flame is `Flames`: glow and pool only)
+   * or a street lamp's (its flame is the model's: the glow up at the lamp, the pool on the ground).
+   */
+  constructor(private spots: THREE.Vector3[], private kinds: FireKind[] = []) {
     const house = (this.house = spots.map((_, i) => kinds[i] === 'tent'));
     const n = Math.max(1, spots.length);
     const cone = new THREE.ConeGeometry(0.09, 0.26, 5);
@@ -661,7 +669,7 @@ export class NightFires {
     this.flames.frustumCulled = false;
     this.flames.count = spots.length;
     const pts = new THREE.BufferGeometry();
-    pts.setAttribute('position', new THREE.Float32BufferAttribute(spots.flatMap((p) => [p.x, p.y + 0.18, p.z]), 3));
+    pts.setAttribute('position', new THREE.Float32BufferAttribute(spots.flatMap((p, i) => [p.x, p.y + (kinds[i] === 'lamp' ? LAMP_GLOW_Y : 0.18), p.z]), 3));
     pts.setAttribute('aPhase', new THREE.Float32BufferAttribute(spots.map((_, i) => i * 1.7), 1));
     pts.setAttribute('aHouse', new THREE.Float32BufferAttribute(spots.map((_, i) => (house[i] ? 1 : 0)), 1));
     this.glowMat = new THREE.ShaderMaterial({
@@ -716,7 +724,7 @@ export class NightFires {
       const f = 0.8 + 0.25 * Math.sin(time * 13 + i) + 0.1 * Math.sin(time * 23 + i * 2);
       this.tmp.position.copy(p);
       this.tmp.rotation.set(0, time * 2 + i, 0);
-      const out = (cold && this.house[i]) || this.kinds[i] === 'altar' ? 0 : 1;
+      const out = (cold && this.house[i]) || this.kinds[i] === 'altar' || this.kinds[i] === 'lamp' ? 0 : 1;
       this.tmp.scale.set(k * out, f * k * out, k * out);
       this.tmp.updateMatrix();
       this.flames.setMatrixAt(i, this.tmp.matrix);

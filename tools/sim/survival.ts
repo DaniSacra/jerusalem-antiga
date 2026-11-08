@@ -39,6 +39,7 @@ import {
   clearCell,
   seasonOf,
   stepWeek,
+  lampGuards,
   theftTotal,
   weeksToHarvest,
   unemployed,
@@ -60,6 +61,7 @@ import {
   upkeepPaid,
   vulnerable,
   firewoodShort,
+  clothesShort,
   TEMPLE_STAGES,
   nextStage,
   stageSite,
@@ -268,7 +270,7 @@ const fertileFull = (s: GameState, h: Building) => roomIn(s, h) <= 0 && househol
 /** Kinds the temple savings never hold back. */
 /** Stone a bot keeps for the next stone house before raising a service level. */
 const UPGRADE_STONE_RESERVE = 10;
-const SAVINGS_FREE: ReadonlySet<BuildableKind> = new Set<BuildableKind>(['fisher', 'gatherer', 'field', 'granary', 'house', 'temple']);
+const SAVINGS_FREE: ReadonlySet<BuildableKind> = new Set<BuildableKind>(['fisher', 'gatherer', 'field', 'granary', 'house', 'temple', 'lamp']);
 
 type Producer = 'lumber' | 'quarry' | 'pasture';
 /** The building that makes each material, and the one each building makes. */
@@ -425,6 +427,7 @@ export class SurvivalBot {
       this.lacked[m] = false;
     }
     this.bump('firewood', firewoodShort(s, eco) > 0);
+    this.bump('clothes', s.ragged || clothesShort(s, eco) > 0);
     // The herd falls (the Gado pill goes down) or the altar has no offering (its toast and the crisis line).
     this.bump('herdDown', s.temple.done > 0 && ((s.livestock < this.herd && s.livestock < RULES.livestockStorage / 2) || !s.offered));
     this.herd = s.livestock;
@@ -506,6 +509,8 @@ export class SurvivalBot {
     // 2b. Materials: lumbers and quarries.
     if (this.materials(s)) return true;
     if (this.pastures(s)) return true;
+    // 2c. Clothes (plano-dificuldade E): the alert asks for a tannery; another only while the ones there all work.
+    if (this.seen('clothes') && this.tanneriesBusy(s) && this.place(s, 'tannery', false, true)) return true;
 
     // 3. Evolution: family houses stalled for the next unlocked service (2 → plaza, 3 → market and park).
     // Workshops for jobs come first only while their field bonus is below the cap the player reads.
@@ -861,6 +866,9 @@ export class SurvivalBot {
         v -= cheb(r, altar) < 5 ? 2 : 0; // keep the altar's ground for houses
       } else if (kind === 'temple') {
         v = -cheb(r, altar) * 0.2;
+      } else if (kind === 'lamp') {
+        // Lamps guard granaries (plano-dificuldade D): beside one, the least guarded first; never on the altar's ground.
+        v = lampGuards(s, r) * 5 - (cheb(r, altar) < 5 ? 5 : 0) - (s.buildings.some((b) => b.kind === 'pasture' && cheb(r, b) <= 2) ? 4 : 0);
       } else {
         v = -cheb(r, altar) * 0.2;
       }
@@ -870,6 +878,13 @@ export class SurvivalBot {
     // The temple must go somewhere: in a boxed-in city the bot demolishes its way out.
     if (!best && (kind === 'temple' || far) && !dig) return this.spotFor(s, kind, true, far);
     return best && { r: best.r, d: best.d, dig };
+  }
+
+  /** Every tannery has its crew and livestock to tan (another one would help), or there is none. */
+  private tanneriesBusy(s: GameState): boolean {
+    const crews = crewCounts(s);
+    const ts = s.buildings.filter((b) => b.kind === 'tannery');
+    return ts.every((b) => staffOf(b, crews) >= 1) && (ts.length === 0 || computeEconomy(s).hides > 0);
   }
 
   /** `essential`: built even without free workers (the first lumber or quarry, or one for houses waiting on it). */
@@ -1093,6 +1108,8 @@ export interface Result {
   blocks: Record<string, number>;
   blocksY1: Record<string, number>;
   food: { field: number; fisher: number; gatherer: number; spoiled: number; stolen: number };
+  /** Plano-dificuldade E: winter weeks without clothes, winters with any, tanneries built. */
+  ragged: { weeks: number; winters: number; tanneries: number };
   droughtYears: number;
   famineAfterDrought: number;
   debtLoss: boolean;
@@ -1312,7 +1329,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     bot: p.name, seed, families0: s.start.families, foodWeeks0: s.start.foodWeeks, riverDist: riverDistance(s), won: false, lost: false, weeks: maxWeeks,
     year1: false, residents52: 0, residents104: 0, lowestResidentsY1: Infinity, famineY1: 0, famineWeeks: 0, longestFamine: 0, left: 0, leftWinter1: 0, emptied: false,
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
-    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0, stolen: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
+    food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0, stolen: 0 }, ragged: { weeks: 0, winters: 0, tanneries: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
     sq: { silverIn: s.silver, stoneCap: 0, weeks: 0, foodBuildings: [] }, houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
     features0: s.feature.filter((f) => f).length, clearSpent: 0, big260: 0, upkeepY3: {},
     endSilver: 0, endIncome: 0,
@@ -1353,6 +1370,7 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
   let richRun = 0;
+  let raggedWinter = false;
   let run = 0;
   let dryYear = false;
   let goalSince = 0;
@@ -1495,6 +1513,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     }
     const silverBefore = s.silver;
     res.food.stolen += theftTotal(s);
+    if (s.ragged) {
+      if (!raggedWinter) res.ragged.winters++;
+      res.ragged.weeks++;
+    }
+    raggedWinter = seasonOf(s.week) === 'winter' && (raggedWinter || s.ragged);
+    res.ragged.tanneries = Math.max(res.ragged.tanneries, s.buildings.filter((b) => b.kind === 'tannery').length);
     const events = stepWeek(s, rng);
     for (let k = doneBefore; k < s.temple.done; k++) tp.stages[k].done = s.week;
     // Ruins: weeks the restored altar had no offering (and the longest run), the herd at its cap, the pastures.

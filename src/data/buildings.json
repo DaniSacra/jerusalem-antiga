@@ -1,10 +1,10 @@
 {
   "house":    { "name": "Casa", "category": "home",    "cost": 40,  "w": 2, "h": 2, "jobs": 0, "materials": { "wood": 10 } },
-  "field":    { "name": "Campo", "category": "supply",   "cost": 20, "upkeep": 0.6,  "w": 2, "h": 2, "jobs": 2, "harvest": 180, "variants": 4 },
+  "field":    { "name": "Campo", "category": "supply",   "cost": 20, "upkeep": 0.5,  "w": 2, "h": 2, "jobs": 2, "harvest": 180, "variants": 4 },
   "plaza":    { "name": "Praça", "category": "home",    "cost": 25, "upkeep": 0.75,  "w": 2, "h": 2, "jobs": 0, "radius": 4 },
-  "fisher":   { "name": "Pescador", "category": "supply", "cost": 20, "upkeep": 0.6, "w": 2, "h": 2, "jobs": 1,
+  "fisher":   { "name": "Pescador", "category": "supply", "cost": 20, "upkeep": 0.5, "w": 2, "h": 2, "jobs": 1,
                 "gather": { "source": "river", "radius": 2, "perCell": 0.38, "max": 1.9, "winterFactor": 0.3 } },
-  "gatherer": { "name": "Coletora", "category": "supply", "cost": 20, "upkeep": 0.6, "w": 2, "h": 2, "jobs": 1,
+  "gatherer": { "name": "Coletora", "category": "supply", "cost": 20, "upkeep": 0.5, "w": 2, "h": 2, "jobs": 1,
                 "gather": { "source": "tree", "radius": 3, "perCell": 0.16, "max": 1.5, "winterFactor": 0.3 } },
   "lumber":   { "name": "Lenhador", "category": "work", "cost": 25, "upkeep": 0.75, "w": 2, "h": 2, "jobs": 2,
                 "gather": { "source": "tree", "radius": 3, "perCell": 0.25, "max": 2.5, "product": "wood" }, "cutEvery": 10 },
@@ -20,5 +20,7 @@
   "park":     { "name": "Parque", "category": "home",  "cost": 60,  "upkeep": 2,  "w": 2, "h": 2, "jobs": 0, "radius": 4, "materials": { "stone": 5 } },
   "temple":   { "name": "Templo", "category": "special",  "cost": 0,   "upkeep": 0, "w": 6, "h": 6, "jobs": 0, "radius": 12, "protected": true },
   "pasture":  { "name": "Pasto", "category": "supply", "cost": 30, "upkeep": 1, "w": 3, "h": 3, "jobs": 1, "materials": { "wood": 10 }, "gather": { "source": "grass", "radius": 2, "perCell": 0.05, "max": 1.5, "winterFactor": 0.5, "product": "livestock" } },
+  "lamp":     { "name": "Lamparina", "category": "home", "cost": 8, "w": 1, "h": 1, "jobs": 0, "radius": 3, "burns": 0.05 },
+  "tannery":  { "name": "Curtume", "category": "work", "cost": 50, "upkeep": 1.5, "w": 2, "h": 2, "jobs": 2, "materials": { "wood": 10 }, "tans": { "livestock": 0.4, "clothes": 1 } },
   "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "protected": true }
 }

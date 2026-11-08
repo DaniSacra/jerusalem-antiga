@@ -217,6 +217,22 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
     - sim: Comum vence 69% e perde 10%, roubo de 3,5% da comida em 98% das partidas;
     - com os 5% do plano, o Comum perdia 14%;
     - o vulto com o saco à noite ficou para a peça D (lamparinas).
+  - **D. Lamparinas** (2026-11-08):
+    - Lamparina 8 de prata, 1 x 1, sem manutenção, queima 0,05 de madeira por semana; liberada aos 30 moradores;
+    - acesa (na rua, com madeira), corta o roubo dos celeiros a até 3 células para 25%;
+    - objetivo novo depois dos 30 moradores: "Ilumine o celeiro: 3 lamparinas" (+35); agora são 23 objetivos;
+    - no 3D a chama brilha à noite e substitui os braseiros automáticos das ruas (a cidade escura é a do jogador);
+    - campo, pescador e coletora voltam de 0,6 para 0,5 de manutenção: o roubo era a muleta que fazia o
+      Comum construir comida cedo, e a lamparina a tira (com 0,6: Comum 45% e 20% de derrotas);
+    - sim, 150 seeds: Comum vence 59% e perde 13%;
+    - o vulto com o saco à noite e as casas apagadas no inverno sem lenha ficaram de fora (KISS).
+  - **E. Curtume → roupas → frio** (2026-11-08):
+    - Curtume 2 x 2 (50 + 10 madeira, manutenção 1,5, 2 vagas): 0,4 de gado → 1 roupa por semana, antes da oferta do altar;
+    - liberado pelo Alicerce, com o objetivo "Construa um curtume" (+60); são 24 objetivos;
+    - do primeiro outono depois da liberação, cada morador gasta 0,03 de roupa por semana de inverno; sem
+      roupa, crianças e idosos podem morrer de frio mesmo com lenha (tenda 2%, casa 0,5%);
+    - pílula Roupas, aviso no outono, toast, balões da casa, do curtume e do altar;
+    - sim: ver a linha "ragged" do sim-tester (resultado na nota do commit).
 
 ## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.

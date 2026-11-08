@@ -56,9 +56,11 @@ describe('goals', () => {
       ['templeStage', 1, 1, 40, null],
       ['milestone', 1, 'firstCaravan', 40, 'workshop'],
       ['build', 1, 'workshop', 35, 'market'],
-      ['residents', 30, null, 40, null],
+      ['residents', 30, null, 40, 'lamp'],
+      ['build', 3, 'lamp', 35, null],
       ['houses', 6, 3, 50, 'park'],
-      ['templeStage', 1, 2, 70, null],
+      ['templeStage', 1, 2, 70, 'tannery'],
+      ['build', 1, 'tannery', 60, null],
       ['milestone', 1, 'firstGrownUp', 70, null],
       ['residents', 45, null, 70, null],
       ['houses', 4, 4, 70, null],
@@ -75,7 +77,7 @@ describe('goals', () => {
     expect(GOALS.at(-1)!.victory).toBe(true);
     expect(GOALS.filter((g) => g.victory)).toHaveLength(1);
     expect(GOALS.some((g) => g.fromYear)).toBe(false); // no goal waits for a year any more
-    expect(GOALS).toHaveLength(22);
+    expect(GOALS).toHaveLength(24);
     // "Terceira geração" is no goal any more (it stays a milestone in the statistics).
     expect(GOALS.some((g) => g.milestone === 'thirdGeneration')).toBe(false);
   });
@@ -92,7 +94,8 @@ describe('goals', () => {
     expect(unlockingGoal('plaza')).toBe(6);
     expect(unlockingGoal('workshop')).toBe(8);
     expect(unlockingGoal('market')).toBe(9);
-    expect(unlockingGoal('park')).toBe(11);
+    expect(unlockingGoal('lamp')).toBe(10); // 30 residents: theft is on from 20
+    expect(unlockingGoal('park')).toBe(12);
     expect(unlockingGoal('temple')).toBeNull(); // the ruin stands from the start: no tool to unlock
     // The pasture comes before the first stage (the restored altar burns livestock).
     expect(unlockingGoal('pasture')!).toBeLessThan(GOALS.findIndex((g) => g.type === 'templeStage') + 1);
@@ -102,20 +105,20 @@ describe('goals', () => {
     });
   });
 
-  it('the plaza waits for goal 6 (5 mud-brick houses); goal 11 (6 stone houses) unlocks the park', () => {
+  it('the plaza waits for goal 6 (5 mud-brick houses); goal 12 (6 stone houses) unlocks the park', () => {
     expect(RULES.startUnlocked).not.toContain('plaza');
     expect(RULES.startUnlocked).not.toContain('park');
     const fresh = createGame(createRng(1));
     expect(fresh.unlocked).not.toContain('plaza');
     expect(fresh.unlocked).not.toContain('park');
     expect(GOALS[5]).toMatchObject({ type: 'houses', target: 5, level: 2, unlock: 'plaza' });
-    const goal = GOALS[10];
+    const goal = GOALS[11];
     expect(goal).toMatchObject({ type: 'houses', target: 6, level: 3, unlock: 'park' });
-    const s = emptyGame({ goalIndex: 10, silver: 0, unlocked: [...RULES.startUnlocked] });
+    const s = emptyGame({ goalIndex: 11, silver: 0, unlocked: [...RULES.startUnlocked] });
     for (let k = 0; k < goal.target; k++) put(s, 'house', ROADSIDE, 27 + 2 * k, 3);
     const events: GameEvent[] = [];
     checkGoal(s, events);
-    expect(events[0]).toEqual({ type: 'goal', index: 10, reward: goal.reward, unlock: 'park' });
+    expect(events[0]).toEqual({ type: 'goal', index: 11, reward: goal.reward, unlock: 'park' });
     expect(s.unlocked).toContain('park');
   });
 
@@ -269,17 +272,20 @@ describe('goals', () => {
   });
 
   it('completes one goal per check, even when the next one is already met', () => {
-    // Six big houses meet "30 residents" and "6 stone houses" at once.
+    // Six big houses and three lamps meet "30 residents", "3 lamps" and "6 stone houses" at once.
     const s = emptyGame({ goalIndex: 9 });
     for (const y of [27, 29, 31, 33, 35, 37]) put(s, 'house', ROADSIDE, y, TOP);
+    for (const y of [27, 28, 29]) put(s, 'lamp', EAST, y);
     const events: GameEvent[] = [];
     checkGoal(s, events);
     expect(s.goalIndex).toBe(10);
     checkGoal(s, events);
     expect(s.goalIndex).toBe(11);
+    checkGoal(s, events); // the big houses count as stone houses
+    expect(s.goalIndex).toBe(12);
     checkGoal(s, events); // the Alicerce is not built
-    expect(s.goalIndex).toBe(11);
-    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([9, 10]);
+    expect(s.goalIndex).toBe(12);
+    expect(events.filter((e) => e.type === 'goal').map((e) => e.type === 'goal' && e.index)).toEqual([9, 10, 11]);
   });
 });
 

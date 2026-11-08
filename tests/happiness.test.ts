@@ -198,9 +198,9 @@ describe('happiness before the park', () => {
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 11), not before', () => {
+  it('turns on with the goal that unlocks the park (goal 12), not before', () => {
     const n = unlockingGoal('park')!;
-    expect(n).toBe(11);
+    expect(n).toBe(12);
     expect(RULES.startUnlocked).not.toContain('park');
     const s = emptyGame();
     s.unlocked = [...RULES.startUnlocked];

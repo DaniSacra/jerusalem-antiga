@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, computeEconomy, noteTheft, RULES, statOf, stepWeek, theftAt, theftTotal, type GameEvent, type GameState } from '../src/core';
+import { BUILDINGS, computeEconomy, lampGuards, lampLit, lampsBurn, litBy, noteTheft, RULES, statOf, stepWeek, theftAt, theftTotal, type GameEvent, type GameState } from '../src/core';
 import { constRng, EAST, emptyGame, fill, hire, put, ROADSIDE } from './helpers';
 
 const T = RULES.theft;
@@ -15,7 +15,7 @@ function city(n: number, food = BASE + 200): { s: GameState; granary: ReturnType
 
 describe('theft data (plano-dificuldade C)', () => {
   it('from 20 residents, 3% a week; the granary fills right after the fields', () => {
-    expect(T).toEqual({ minPeople: 20, share: 0.03 });
+    expect(T).toEqual({ minPeople: 20, share: 0.03, litTheft: 0.25 });
     expect(RULES.jobPriority.indexOf('granary')).toBe(RULES.jobPriority.indexOf('field') + 1);
   });
 });
@@ -79,5 +79,49 @@ describe('theft from unguarded granaries', () => {
     const events = stepWeek(s, constRng(0.99));
     expect(events.some((e) => e.type === 'granaryRobbed')).toBe(true);
     expect(BUILDINGS.granary.storage).toBeGreaterThan(0);
+  });
+});
+
+describe('lamps (plano-dificuldade D)', () => {
+  it('Lamparina: 1 x 1, 8 silver, no upkeep (it burns wood), burns 0.05 wood a week, radius 3; unlocked at 30 residents', () => {
+    expect(BUILDINGS.lamp).toMatchObject({ cost: 8, w: 1, h: 1, jobs: 0, radius: 3, burns: 0.05 });
+    expect(BUILDINGS.lamp.upkeep).toBeUndefined();
+    expect(T.litTheft).toBe(0.25);
+  });
+
+  it('a lit lamp near an unguarded granary cuts its theft to litTheft; out of wood it guards nothing', () => {
+    const { s, granary } = city(T.minPeople);
+    s.jobTargets.granary = 0;
+    for (const p of s.people) p.jobId = null;
+    const full = theftAt(s).get(granary.id)!;
+    const lamp = put(s, 'lamp', EAST, 35); // by the road, right above the granary
+    for (const p of s.people) p.jobId = null;
+    expect(lamp.connected).toBe(true);
+    expect(lampGuards(s, lamp)).toBe(1);
+    expect(lampLit(s, lamp)).toBe(true);
+    expect(theftAt(s).get(granary.id)).toBeCloseTo(full * T.litTheft);
+    s.wood = 0;
+    expect(lampLit(s, lamp)).toBe(false);
+    expect(theftAt(s).get(granary.id)).toBeCloseTo(full);
+  });
+
+  it('a lamp far from the granary guards nothing', () => {
+    const { s, granary } = city(T.minPeople);
+    for (const p of s.people) p.jobId = null;
+    const far = put(s, 'lamp', EAST, 27);
+    expect(lampGuards(s, far)).toBe(0);
+    expect(litBy(s, granary)).toEqual([]);
+  });
+
+  it('the connected lamps burn wood every week, never below 0', () => {
+    const { s } = city(4);
+    const before = computeEconomy(s).wood;
+    put(s, 'lamp', EAST, 27);
+    put(s, 'lamp', EAST, 28);
+    expect(lampsBurn(s)).toBeCloseTo(2 * BUILDINGS.lamp.burns!);
+    expect(computeEconomy(s).wood).toBeCloseTo(before - 2 * BUILDINGS.lamp.burns!);
+    s.wood = 0.05;
+    stepWeek(s, constRng(0.99));
+    expect(s.wood).toBeGreaterThanOrEqual(0);
   });
 });

@@ -3,9 +3,12 @@ import {
   balanceAfter,
   bandCounts,
   madeByCrew,
+  lampGuards,
+  lampLit,
   theftAt,
   upkeepPaid,
   BUILDINGS,
+  RULES,
   computeEconomy,
   costOf,
   foodAfter,
@@ -287,6 +290,7 @@ function houseCard(s: GameState, b: Building, births: BirthBlock | null, phone: 
     if (s.cold) level.push({ text: T.nova.cold, tone: 'bad' });
     else if (season === 'autumn' || season === 'winter') level.push({ text: T.nova.firewood(HOUSE_LEVELS[h.level].firewood ?? 0), tone: 'muted', plain: true });
     if (h.level === 1 && (season === 'autumn' || season === 'winter')) level.push({ text: T.nova.tentCold, tone: s.cold ? 'bad' : 'warn' });
+    if (s.ragged && season === 'winter') level.push({ text: T.nova.ragged, tone: 'bad' });
     if (s.famine) level.push({ text: N.famine, tone: 'bad' });
     else if (h.firewoodHold) level.push({ text: N.firewoodHold(h.next.name), tone: 'bad', gap: 4 });
     else if (wait) level.push({ text: N.waiting(h.next.name, Math.ceil((h.next.materials[wait] ?? 0) - s[wait]), wait), tone: 'bad', gap: 4 });
@@ -317,7 +321,13 @@ function altarLines(s: GameState, b: Building): CardLine[] {
   const r = altarRadius(s);
   const area = new Set(cellsInRadius(s, b.x, b.y, r, b.w, b.h));
   const houses = s.buildings.filter((h) => h.kind === 'house' && h.level > 0 && cellsOf(h).some((c) => area.has(indexOf(s, c.x, c.y)))).length;
-  return [{ text: O.burns(TEMPLE_STAGES[s.temple.done - 1].offering, houses), tone: 'good' }, { text: T.nova.reach(r), tone: 'muted', plain: true }];
+  // Who else takes the livestock: the tanneries (plano-dificuldade E).
+  const hides = computeEconomy(s).hides;
+  return [
+    { text: O.burns(TEMPLE_STAGES[s.temple.done - 1].offering, houses), tone: 'good' },
+    ...(hides > 0 ? [{ text: O.tanneries(hides), tone: 'muted', plain: true } as CardLine] : []),
+    { text: T.nova.reach(r), tone: 'muted', plain: true },
+  ];
 }
 
 /**
@@ -406,6 +416,14 @@ function foodLines(s: GameState, b: Building): CardLine[] {
   const working = def.gather || (def.harvest && harvestsIn(s.week));
   if (working && b.connected && staff > 0 && staff < 1) out.push({ text: N.inspect.fewWorkers(Math.round(staff * 100)), tone: 'warn' });
   if (def.storage) out.push({ text: N.stores(statOf(b, 'storage')), tone: b.connected ? 'text' : 'muted' });
+  // The lamp: lit (and the granaries it guards) or out of wood (plano-dificuldade D).
+  if (b.kind === 'lamp') out.push(lampLit(s, b) ? { text: N.lampGuards(lampGuards(s, b)), tone: 'good' } : { text: N.lampOut, tone: 'bad' });
+  // The tannery: the clothes it makes from the pens' livestock, or why it stopped (plano-dificuldade E).
+  if (def.tans && b.connected && staff > 0) {
+    const k = computeEconomy(s).tanned * staff;
+    if (k > 0) out.push({ text: N.tans(def.tans.clothes * k, def.tans.livestock * k), tone: 'good' });
+    else out.push({ text: s.clothes >= RULES.clothes.storage ? N.storeFull(RULES.clothes.storage) : N.tansNoLivestock, tone: 'bad' });
+  }
   // An unguarded granary is robbed every week (plano-dificuldade C).
   const stolen = def.storage ? theftAt(s).get(b.id) : undefined;
   if (stolen) out.push({ text: N.robbed(stolen), tone: 'bad' });

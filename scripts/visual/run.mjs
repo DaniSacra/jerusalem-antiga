@@ -1314,7 +1314,7 @@ async function town3dScenario(page) {
     s.silver = s.wood = s.stone = 1e6;
     s.feature = s.feature.map(() => null);
     for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
-    s.unlocked.push('granary', 'plaza', 'market', 'workshop', 'quarry', 'park');
+    s.unlocked.push('granary', 'plaza', 'market', 'workshop', 'quarry', 'park', 'tannery');
     const put = (kind, x, y) => {
       const r = core.place(s, kind, x, y);
       if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);
@@ -1332,6 +1332,13 @@ async function town3dScenario(page) {
     put('plaza', 25, 44);
     put('lumber', 22, 45);
     put('quarry', 25, 46);
+    // plano-dificuldade E: shed, awning, hides on frames and vats (the first free spot down the street).
+    const spots = [];
+    for (let d = 0; d <= 8; d++) for (let y = 44 - d; y <= 47 + d; y++) for (let x = 20 - d; x <= 27 + d; x++) spots.push([x, y]);
+    const tan = spots.find(([x, y]) => core.checkPlace(s, 'tannery', x, y).ok);
+    if (!tan) throw new Error('no room for the tannery');
+    put('tannery', ...tan);
+    window.tanAt = tan;
     // People in the houses: more walkers on the streets.
     for (const h of s.buildings.filter((b) => b.kind === 'house'))
       for (let k = 0; k < 4; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 20 + k * 9, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
@@ -1350,6 +1357,9 @@ async function town3dScenario(page) {
   await page.evaluate(() => window.view3d.rig.set({ x: 24, z: 31, dist: 8 }));
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/town3d-pc-houses.png` });
+  await page.evaluate(() => window.view3d.rig.set({ x: window.tanAt[0] + 1, z: window.tanAt[1] + 1, dist: 7 }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/town3d-pc-tannery.png` });
   // The streets with people carrying their things (jar, basket, sickle, log, cart, staff, goods) and their animals.
   const walkers = await page.evaluate(() => window.view3d.info().walkers);
   assert(walkers >= 12, `a lived-in street has walkers (${walkers})`);
@@ -1443,7 +1453,7 @@ async function town3dScenario(page) {
 /**
  * The town at night and in a winter without firewood (plano-beleza E1-E3, Q1-Q6): a street of houses of
  * every level with an empty stone house and an empty big house, two fields and a loose road off the
- * network. Lit windows on the lived-in .glb stone and big houses (none on the empty ones); with
+ * network, two street lamps. Lit windows on the lived-in .glb stone and big houses (none on the empty ones), the lamps glow; with
  * `s.cold` no house smokes; the loose road is dashed; the altar fire burns in layers; at most 120 calls.
  */
 async function night3dScenario(page, form) {
@@ -1464,6 +1474,10 @@ async function night3dScenario(page, form) {
     [[37, 3], [39, 4]].forEach(([x, kept]) => Object.assign(put('house', x, 30), { level: 0, emptyLevel: kept }));
     put('field', 27, 33);
     put('field', 29, 33);
+    // Two street lamps by the road (plano-dificuldade D): lit at night while there is wood.
+    s.unlocked.push('lamp');
+    put('lamp', 32, 33);
+    put('lamp', 35, 33);
     // A loose road: never joined to the altar's network.
     for (let x = 28; x <= 36; x++) core.place(s, 'road', x, 37);
     for (let y = 37; y <= 40; y++) core.place(s, 'road', 36, y);
@@ -1483,7 +1497,7 @@ async function night3dScenario(page, form) {
         });
         return c;
       };
-      return { panes: count('pane'), loose: count('loose'), share: w.smoke.mesh.material.uniforms.uShare.value, calls: window.view3d.info().calls };
+      return { panes: count('pane'), loose: count('loose'), lamps: w.fires.kinds.filter((k) => k === 'lamp').length, share: w.smoke.mesh.material.uniforms.uShare.value, calls: window.view3d.info().calls };
     });
   const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0.3, snowing: false };
   const look = async (view, cam, name) => {
@@ -1500,6 +1514,8 @@ async function night3dScenario(page, form) {
   const night = await look({ day: 0.72, weather: clear }, { x: 31, z: 32, dist: 12, ...above }, 'houses');
   assert(night.panes === 4 * 2 + 1, `the 4 lived-in .glb stone and big houses have their window panes, the mud house its door, the 2 empty ones none (${night.panes})`);
   assert(night.calls <= 120, `at most 120 draw calls at night (${night.calls})`);
+  assert(night.lamps === 2, `the 2 street lamps glow at night (${night.lamps})`);
+  await look({ day: 0.72, weather: clear }, { x: 33.5, z: 33, dist: 7, ...above }, 'lamps');
   await look({ day: 0.72, weather: clear }, { x: 31, z: 33, dist: 40 }, 'far');
   // The altar fire at night: tongues, embers and sparks.
   await look({ day: 0.72, weather: clear }, { x: 24, z: 24, dist: 9, ...above }, 'altar');

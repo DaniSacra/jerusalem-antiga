@@ -27,14 +27,14 @@ export function burnFirewood(s: GameState, events: GameEvent[]): void {
 }
 
 /** Winter weeks left from this week on (0 in spring and summer; a whole winter in autumn). */
-function winterWeeksLeft(week: number): number {
+export function winterWeeksLeft(week: number): number {
   const season = seasonOf(week);
   const left = RULES.weeksPerSeason - (week % RULES.weeksPerSeason);
   return season === 'winter' ? left : season === 'autumn' ? RULES.weeksPerSeason : 0;
 }
 
 /** Weeks from this one to the next spring (production until then counts). */
-function weeksToSpring(week: number): number {
+export function weeksToSpring(week: number): number {
   const season = seasonOf(week);
   const left = RULES.weeksPerSeason - (week % RULES.weeksPerSeason);
   return season === 'winter' ? left : season === 'autumn' ? left + RULES.weeksPerSeason : 0;

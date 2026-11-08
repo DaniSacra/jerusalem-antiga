@@ -328,9 +328,9 @@ describe('stone houses and the altar', () => {
 });
 
 describe('pasture goals', () => {
-  it('goal 17 asks for 2 connected pastures', () => {
+  it('goal 19 asks for 2 connected pastures', () => {
     const i = GOALS.findIndex((g) => g.type === 'build' && g.kind === 'pasture' && g.target === 2);
-    expect(i).toBe(16);
+    expect(i).toBe(18);
     const s = emptyGame({ goalIndex: i, silver: 0 });
     put(s, 'pasture', PASTURE_X, PASTURE_Y);
     put(s, 'pasture', 1, 1); // off the road

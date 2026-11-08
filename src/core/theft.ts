@@ -1,4 +1,4 @@
-import { RULES, statOf } from './data';
+import { BUILDINGS, RULES, statOf } from './data';
 import type { Building, GameEvent, GameState } from './types';
 import { crewCounts } from './work';
 
@@ -14,7 +14,23 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Residents of the city (people living in a house). */
 const residents = (s: GameState) => s.people.reduce((n, p) => n + (p.houseId !== null ? 1 : 0), 0);
 
-/** Food stolen this week from each unguarded granary (by id); empty below `minPeople`. */
+/** A lamp gives light while it is on the road and the city has wood to burn. */
+export const lampLit = (s: GameState, b: Building) => b.kind === 'lamp' && b.connected && s.wood > 0;
+
+/** The lamp's cell is within its radius of any cell of the building (Chebyshev). */
+function inReach(lamp: Pick<Building, 'x' | 'y'>, b: Building): boolean {
+  const r = BUILDINGS.lamp.radius ?? 0;
+  return lamp.x >= b.x - r && lamp.x <= b.x + b.w - 1 + r && lamp.y >= b.y - r && lamp.y <= b.y + b.h - 1 + r;
+}
+
+/** The lit lamps within reach of the building. */
+export const litBy = (s: GameState, b: Building): Building[] => s.buildings.filter((l) => lampLit(s, l) && inReach(l, b));
+
+/** Granaries within a lamp's radius (lit or not): what it guards, or would guard where it stands. */
+export const lampGuards = (s: GameState, lamp: Pick<Building, 'x' | 'y'>): number =>
+  s.buildings.filter((b) => b.connected && statOf(b, 'storage') > 0 && inReach(lamp, b)).length;
+
+/** Food stolen this week from each unguarded granary (by id); empty below `minPeople`. A lit lamp near it cuts it to `litTheft`. */
 export function theftAt(s: GameState, crews = crewCounts(s)): Map<number, number> {
   const out = new Map<number, number>();
   if (residents(s) < RULES.theft.minPeople) return out;
@@ -24,7 +40,8 @@ export function theftAt(s: GameState, crews = crewCounts(s)): Map<number, number
   if (!cap || !above) return out;
   for (const b of stores) {
     if (crews.get(b.id)) continue;
-    const n = round2(above * (statOf(b, 'storage') / cap) * RULES.theft.share);
+    const lit = s.buildings.some((l) => lampLit(s, l) && inReach(l, b)) ? RULES.theft.litTheft : 1;
+    const n = round2(above * (statOf(b, 'storage') / cap) * RULES.theft.share * lit);
     if (n > 0) out.set(b.id, n);
   }
   return out;

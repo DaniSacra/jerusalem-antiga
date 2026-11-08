@@ -10,7 +10,7 @@ export const MATERIALS: readonly Material[] = ['wood', 'stone', 'livestock'];
 export type Materials = Partial<Record<Material, number>>;
 /** What a gathering building brings every week. */
 export type Product = 'food' | Material;
-export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'lumber' | 'quarry' | 'pasture' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
+export type BuildingKind = 'house' | 'field' | 'plaza' | 'fisher' | 'gatherer' | 'lumber' | 'quarry' | 'pasture' | 'lamp' | 'tannery' | 'granary' | 'market' | 'workshop' | 'park' | 'temple' | 'altar';
 /** Buildings the player can place (the altar is fixed). */
 /** The four seasons, in order. */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -190,6 +190,10 @@ export interface BuildingDef {
   gather?: { source: GatherSource; radius: number; perCell: number; max: number; product?: Product; winterFactor?: number };
   /** Lumber: cuts the nearest tree in its radius every this much wood made (see trees.ts). */
   cutEvery?: number;
+  /** Wood it burns a week while lit (the lamp; plano-dificuldade D). */
+  burns?: number;
+  /** The tannery (plano-dificuldade E): livestock it takes from the pens and clothes it makes a week, by its crew. */
+  tans?: { livestock: number; clothes: number };
   /** Materials paid on top of the silver cost when built. */
   materials?: Materials;
   /** Food this building lets the city keep (granary). */
@@ -329,13 +333,15 @@ export interface Rules {
   /** A workplace with nobody working there pays this share of its upkeep (see `upkeepPaid`). */
   emptyUpkeepFactor: number;
   /** Theft from unguarded granaries (plano-dificuldade C). */
-  theft: { minPeople: number; share: number };
+  theft: { minPeople: number; share: number; litTheft: number };
   /**
    * Cold deaths in winter (Package B3), per resident and week; pairs are [vulnerable, others]
    * (vulnerable: up to `childAge` years old, or an elder). `tent`: a tent with firewood;
    * `tentCold`, `houseCold`: a tent or a better house without firewood. Famine multiplies by `famineFactor`.
    */
-  coldDeath: { childAge: number; tent: [number, number]; tentCold: [number, number]; houseCold: [number, number]; famineFactor: number };
+  coldDeath: { childAge: number; tent: [number, number]; tentCold: [number, number]; houseCold: [number, number]; tentRagged: [number, number]; houseRagged: [number, number]; famineFactor: number };
+  /** Clothes (plano-dificuldade E): worn by each resident a winter week, and the store's cap. */
+  clothes: { perPerson: number; storage: number };
   /** Consecutive weeks with negative silver that lose the game. */
   debtWeeksToLose: number;
   /** No defeat by debt while a later caravan (planned or announced) is due within these weeks. */
@@ -514,6 +520,12 @@ export interface GameState {
   famine: boolean;
   /** Winter without firewood: houses suffer as in a famine (see firewood.ts). */
   cold: boolean;
+  /** Clothes in store (the tannery makes them; every resident wears some out each winter week, clothes.ts). */
+  clothes: number;
+  /** The city needs clothes in winter: from the first autumn after the tannery was unlocked. */
+  dressing: boolean;
+  /** A winter week without clothes for everyone: the cold reaches children and elders even with firewood. */
+  ragged: boolean;
   goalIndex: number;
   unlocked: Placeable[];
   won: boolean;
@@ -577,6 +589,8 @@ export type GameEvent =
   | { type: 'famineEnd' }
   | { type: 'coldStart' }
   | { type: 'coldEnd' }
+  /** The clothes ran out in winter (once per episode). */
+  | { type: 'raggedStart' }
   | { type: 'goal'; index: number; reward: number; unlock?: Placeable }
   | { type: 'victory'; week: number; residents: number }
   /** A family abandoned its tent (during famine, or because it lost its road) and walks out of the city from (x, y); `name` is its family name. */

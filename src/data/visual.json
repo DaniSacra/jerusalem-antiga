@@ -17,8 +17,6 @@
     "walkers": { "night": 0.5, "evening": 1.25, "eveningFrom": 0.42, "eveningTo": 0.56 }
   },
   "lights": {
-    "lampRadius": 3,
-    "lampEvery": 5,
     "maxSparkFires": 6,
     "windowLevel": 3
   },

@@ -6,7 +6,7 @@ import type { GameEvent, GameState, Person, Rng } from './types';
 /**
  * Cold deaths (Package B3): each winter week every resident of a house draws its own chance of
  * dying of cold (`rules.coldDeath`), by the house (tent or better), whether the city has firewood
- * (`s.cold`) and whether the person is vulnerable (a small child or an elder). Famine multiplies it.
+ * (`s.cold`), whether it has clothes (`s.ragged`, plano-dificuldade E) and whether the person is vulnerable (a small child or an elder). Famine multiplies it.
  * Runs after the firewood burn and before the houses.
  */
 
@@ -20,7 +20,8 @@ export function coldDeathChance(s: GameState, p: Person): number {
   if (seasonOf(s.week) !== 'winter' || p.houseId === null) return 0;
   const home = s.buildings.find((b) => b.id === p.houseId);
   if (!home || home.level < 1) return 0;
-  const pair = home.level === 1 ? (s.cold ? C.tentCold : C.tent) : s.cold ? C.houseCold : null;
+  const tent = home.level === 1;
+  const pair = s.cold ? (tent ? C.tentCold : C.houseCold) : s.ragged ? (tent ? C.tentRagged : C.houseRagged) : tent ? C.tent : null;
   if (!pair) return 0;
   const chance = pair[vulnerable(s, p) ? 0 : 1];
   return s.famine ? Math.min(1, chance * C.famineFactor) : chance;

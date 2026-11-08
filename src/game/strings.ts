@@ -105,6 +105,8 @@ export const T = {
     `${name ? `A família de ${name}` : 'Uma família'} foi embora: ${reason === 'famine' ? 'fome' : reason === 'cold' ? 'frio, sem lenha' : 'tenda sem rua ligada ao altar'}`,
   famine: 'Falta comida: construa pescador ou coletora',
   coldStart: 'Frio! Acabou a lenha: construa um lenhador',
+  /** The clothes ran out in winter (once per episode, plano-dificuldade E). */
+  raggedStart: 'Acabou a roupa: o frio pega crianças e idosos. Construa um curtume',
   /** An unguarded granary robbed (once per episode). */
   granaryRobbed: (n: number) => `Roubaram ${fmt(n)} de comida do celeiro: ponha um celeireiro`,
   coldEnd: 'A lenha voltou: as casas se aquecem',
@@ -145,6 +147,8 @@ export const T = {
     market: 'Mercado liberado: com oficina e campos, o povo tem o que trocar',
     quarry: 'Pedreira liberada: tira pedra das rochas para casas de pedra e o Templo',
     pasture: 'Pasto liberado: dá gado do capim para as ofertas do altar',
+    lamp: 'Lamparina liberada: celeiro perto de uma lamparina acesa quase não é roubado',
+    tannery: 'Curtume liberado: do próximo outono em diante, o povo precisa de roupa no inverno',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
@@ -158,6 +162,8 @@ export const T = {
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
     if (a.kind === 'firewood')
       return a.cold ? 'Frio! Sem lenha, as casas esvaziam. Construa um lenhador' : `A lenha não dura o inverno: faltam ${a.missing} de madeira. Construa um lenhador`;
+    if (a.kind === 'clothes')
+      return a.ragged ? 'Sem roupa! O frio pega crianças e idosos mesmo com lenha. Construa um curtume' : `Faltam ${a.missing} roupas para o inverno: construa um curtume`;
     if (a.kind === 'storageFull') return `Estoque de ${PRODUCT[a.material]} cheio (${storageOf(a.material)}): ${({ wood: 'o lenhador', stone: 'a pedreira', livestock: 'o pasto' } as const)[a.material]} parou`;
     if (a.kind === 'caravan') {
       const fam = `Caravana com ${a.families} ${a.families === 1 ? 'família' : 'famílias'} em ${weeks(a.weeks)}`;
@@ -270,6 +276,9 @@ export const T = {
     happiness: 'Alegria',
     /** Materials pill (PC: one pill per material, with its name). */
     material: { wood: 'Madeira', stone: 'Pedra', livestock: 'Gado' } satisfies Record<Material, string>,
+    clothes: 'Roupas',
+    /** Winters the clothes in store dress the city (PC clothes pill). */
+    clothesWinters: (n: number) => (n < 1 ? 'não dura o inverno' : n >= 5 ? 'dura 5+ invernos' : `dura ${Math.floor(n)} ${Math.floor(n) === 1 ? 'inverno' : 'invernos'}`),
     perWeek: '/sem',
     /** The season the food runs out in at this pace (PC food pill). */
     foodEnds: { spring: 'acaba na primavera', summer: 'acaba no verão', autumn: 'acaba no outono', winter: 'acaba no inverno' } satisfies Record<Season, string>,
@@ -337,6 +346,8 @@ export const T = {
       park: 'Casas de pedra perto de um parque viram casas grandes.',
       temple: 'O Templo em ruínas: toque nele para ver a próxima etapa.',
       pasture: 'Rende gado pelo capim livre em volta. O altar restaurado queima gado toda semana.',
+      lamp: 'Ilumina a rua: celeiros perto dela quase não são roubados. Queima um pouco de madeira.',
+      tannery: 'Faz roupas com o couro do gado. Sem roupa, o inverno mata crianças e idosos mesmo com lenha.',
     } satisfies Record<BuildableKind, string>,
     /** Tip of the bottom tools when picked. */
     tip: {
@@ -354,6 +365,15 @@ export const T = {
     storeFull: (cap: number) => `Parado: estoque cheio (${cap})`,
     /** Granary balloon: robbed every week while nobody keeps it. */
     robbed: (n: number) => `Sem guarda: roubam ${fmt2(n)} de comida/sem`,
+    /** Lamp balloon and preview: what it guards, or that it is out. */
+    lampGuards: (n: number) => (n ? `Acesa: protege ${n === 1 ? '1 celeiro' : `${n} celeiros`}` : 'Acesa: nenhum celeiro por perto'),
+    lampOut: 'Apagada: sem madeira',
+    /** The tannery's balloon (plano-dificuldade E). */
+    tans: (clothes: number, livestock: number) => `Faz ${fmt2(clothes)} roupas/sem com ${fmt2(livestock)} de gado`,
+    tansNoLivestock: 'Parado: sem gado no curral',
+    /** A house in a winter without clothes. */
+    ragged: 'Sem roupa: frio para crianças e idosos',
+    lampWouldGuard: (n: number) => (n ? `Protege ${n === 1 ? '1 celeiro' : `${n} celeiros`} do roubo` : 'Nenhum celeiro por perto'),
     /** A house with people in autumn and winter: the firewood it burns; with cold, in red. */
     firewood: (n: number) => `Lenha no inverno: ${fmt(n)}/sem`,
     cold: 'Frio: falta lenha',
@@ -467,6 +487,8 @@ export const T = {
       ruins: 'Altar em ruínas: restaure para as casas de pedra',
       burns: (n: number, houses: number) => `Ofertas: ${fmt2(n)} gado/sem · cobre ${houses} ${houses === 1 ? 'casa' : 'casas'}`,
       empty: 'Sem ofertas: não cobre as casas',
+      /** The altar balloon: the livestock the tanneries take too. */
+      tanneries: (n: number) => `Curtume leva ${fmt2(n)} gado/sem`,
       /** A house's missing need "Altar". */
       needRuins: 'Altar em ruínas',
       needNone: 'altar sem ofertas',

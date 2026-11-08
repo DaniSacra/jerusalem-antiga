@@ -528,6 +528,40 @@ function park(): Piece[] {
   ];
 }
 
+/** The street lamp (plano-dificuldade D): a stone foot, a wooden post and a clay lamp (its flame is the night glow while lit, `NightFires`). */
+function lamp(): Piece[] {
+  return [
+    cyl(0.16, 0.2, 0.12, 8, 0, 0, 0, COLORS.limestone),
+    cyl(0.04, 0.05, 0.85, 6, 0, 0.12, 0, COLORS.trunk),
+    box(0.3, 0.04, 0.06, 0, 0.92, 0, COLORS.trunk),
+    cyl(0.07, 0.05, 0.08, 8, 0.12, 0.84, 0, COLORS.ochre),
+  ];
+}
+
+/**
+ * The tannery (plano-dificuldade E, 2 x 2): a mud shed with a flat roof and a brown awning at the
+ * back, hides stretched on two frames and three soaking vats in the yard.
+ */
+const HIDE = 0x9a6a3a;
+function tannery(): Piece[] {
+  return [
+    box(1.1, 0.7, 0.85, -0.38, 0, -0.45, COLORS.mud),
+    box(1.2, 0.07, 0.95, -0.38, 0.7, -0.45, COLORS.roofMud),
+    box(0.26, 0.45, 0.04, -0.38, 0, -0.01, COLORS.dark),
+    sail(0.7, 0.025, 0.55, 0.55, 0.62, -0.55, 0x7a5236),
+    ...[[0.25, -0.8], [0.85, -0.8], [0.25, -0.3], [0.85, -0.3]].map(([x, z]) => box(0.035, 0.62, 0.035, x, 0, z, COLORS.wood)),
+    // Hides on frames.
+    ...[-0.1, 0.55].flatMap((x) => [
+      box(0.04, 0.55, 0.04, x - 0.22, 0, 0.55, COLORS.wood),
+      box(0.04, 0.55, 0.04, x + 0.22, 0, 0.55, COLORS.wood),
+      box(0.48, 0.04, 0.04, x, 0.53, 0.55, COLORS.wood),
+      box(0.4, 0.4, 0.02, x, 0.1, 0.55, HIDE),
+    ]),
+    // Soaking vats.
+    ...[[-0.75, 0.3], [-0.75, 0.72], [0.75, 0.05]].flatMap(([x, z]) => [cyl(0.15, 0.13, 0.2, 8, x, 0, z, COLORS.mudDark), cyl(0.12, 0.12, 0.01, 8, x, 0.19, z, 0x5a3a22)]),
+  ];
+}
+
 function altar(): Piece[] {
   return [
     box(3.6, 0.3, 3.6, 0, 0, 0, COLORS.limestoneDark),
@@ -1652,6 +1686,8 @@ function addMirrors(out: Record<ModelKey, Prototype>) {
 const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>, () => Piece[]> = {
   'house-0': plot,
   pasture,
+  lamp,
+  tannery,
   'house-1': tent,
   'house-2': mudHouse,
   'house-3': stoneHouse,

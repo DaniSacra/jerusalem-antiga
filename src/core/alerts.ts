@@ -10,6 +10,7 @@ import { waitingCouples } from './people';
 import { seasonOf } from './seasons';
 import { housesWaiting } from './houses';
 import { firewoodShort, storageFull } from './firewood';
+import { clothesShort } from './clothes';
 import { MATERIALS, type BuildingKind, type GameState, type Material } from './types';
 
 /** Standing warnings, most urgent first (the Avisos button and the statistics). */
@@ -20,6 +21,8 @@ export type Alert =
   | { kind: 'foodShort' }
   /** The wood will not pay the winter's firewood (`missing`), or it is cold already. */
   | { kind: 'firewood'; missing: number; cold: boolean }
+  /** The clothes will not dress everyone until the spring (`missing`), or the city is ragged already (plano-dificuldade E). */
+  | { kind: 'clothes'; missing: number; ragged: boolean }
   /** A material store is full: its lumber or quarry stopped. */
   | { kind: 'storageFull'; material: Material }
   /** `count` houses are ready to climb but wait for this material. */
@@ -55,6 +58,8 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   if (!foodLastsToHarvest(s, eco)) out.push({ kind: 'foodShort' });
   const missing = firewoodShort(s, eco);
   if (s.cold || missing > 0) out.push({ kind: 'firewood', missing, cold: s.cold });
+  const bare = clothesShort(s, eco);
+  if (s.ragged || bare > 0) out.push({ kind: 'clothes', missing: bare, ragged: s.ragged });
   const waiting = housesWaiting(s);
   for (const material of MATERIALS) if (waiting[material] > 0) out.push({ kind: 'material', material, count: waiting[material], making: eco[material] > 0 });
   const caravan = announcedCaravan(s);

@@ -15,7 +15,7 @@ export const canWork = (s: GameState, p: Person) => p.houseId !== null && ageBan
 /** Workplaces whose work shows: what they make, the workshops' bonus, a market's coverage (not a granary or the temple). */
 export const madeByCrew = (kind: BuildingKind) => {
   const d = BUILDINGS[kind];
-  return d.jobs > 0 && !!(d.gather || d.harvest || d.fieldBonus || RULES.staffedServices.includes(kind));
+  return d.jobs > 0 && !!(d.gather || d.harvest || d.fieldBonus || d.tans || RULES.staffedServices.includes(kind));
 };
 
 /** Jobs a building has: its level's, or the builders' while a stage of the Temple is built there. */
