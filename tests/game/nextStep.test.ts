@@ -43,6 +43,18 @@ describe('nextStep: what to do now', () => {
       expect(nextStep(s)).toMatchObject({ kind: 'crisis', text: N.famine });
     });
 
+    it('starving with a fisher nobody works at and nobody free: open Profissões, not "build a fisher"', () => {
+      const s = game();
+      s.famine = true;
+      const f = put(s, 'fisher', EAST, 27);
+      refreshCity(s);
+      expect(f.connected).toBe(true);
+      expect(nextStep(s)).toMatchObject({ kind: 'crisis', text: N.noCrew('fisher'), aim: null, open: { panel: 'jobs' } });
+      // Someone free: the fisher fills next week, the line goes back to the food.
+      person(s, { houseId: put(s, 'house', ROADSIDE, 30, 1, false, 0).id, age: 30 });
+      expect(nextStep(s)).toMatchObject({ text: N.famine, aim: { tool: 'fisher' } });
+    });
+
     it('cold without firewood: the lumber camp', () => {
       const s = game();
       s.cold = true;
@@ -173,6 +185,17 @@ describe('nextStep: what to do now', () => {
       const n = nextStep(s);
       expect(n.text).toMatch(/^As casas sobem em ~/);
       expect(n.tone).toBe('good');
+    });
+
+    it('mud houses short of families with an empty plot: the next caravan brings one, else a wedding', () => {
+      const s = game({ goalIndex: goalAt((g) => g.type === 'houses' && g.level === 2) });
+      s.food = 1e4;
+      put(s, 'house', ROADSIDE, 27, 2, false, 2);
+      const plot = put(s, 'house', ROADSIDE, 29, 0, false, 0);
+      s.caravans = [{ week: s.week + 30, families: 2, warn: 6, status: 'planned', housed: 0, left: 0 }];
+      expect(nextStep(s)).toMatchObject({ text: N.familyByCaravan(30), aim: { rect: { x: plot.x, y: plot.y, w: plot.w, h: plot.h } } });
+      s.caravans[0].status = 'arrived';
+      expect(nextStep(s).text).toBe(N.familyByWedding);
     });
 
     it('residents: couples waiting for a house', () => {

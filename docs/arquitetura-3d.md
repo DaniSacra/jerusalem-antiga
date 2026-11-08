@@ -311,7 +311,7 @@ Clique em botão HTML   ──► ui/* onTap ───────────�
 | `GameScene.setupInput` | `game/keys.ts` | teclas |
 | `GameScene.handleEvents` | `game/events.ts` | eventos → toasts e fx |
 | `GameScene` `checkTutorial`, `tutorialTarget`, `lumberRoadLeft`; `render/Tutorial.ts > TutorialGuide, tutorialSeen` | `game/tutorial.ts` | tutorial |
-| `GameScene.updateTempleAreas`, `showSpots/drawSpots` | `game/session.ts` | áreas do Templo e "Onde pôr" |
+| `GameScene.updateTempleAreas` (removido: o Templo nasce em ruínas), `showSpots/drawSpots` | `game/session.ts` | "Onde pôr" |
 | `render/Toasts.ts` (fila, regras) | `game/toastQueue.ts` | fila de toasts |
 | `nova/Inspector.ts` `card`, `houseCard`, `lossLine`, `foodLines`, `levelStatOf` | `game/model/card.ts` | balão da construção tocada |
 | `nova/Panels.ts` (seções, linhas, gráficos como números) | `game/model/panels.ts` | painéis |
@@ -802,6 +802,15 @@ cada rua; (2) `Terrain.flatten` espalha só as células ocupadas e `reshape` nã
 planura não mudou (rua em chão já plano). Ainda há ~1 quadro > 50 ms por reconstrução (a cidade inteira
 refeita, ~10 ms na CPU lenta + envio à GPU): o próximo passo, se pesar no aparelho real, é separar as
 ruas num instanciador próprio.
+
+**Medida de 2026-11-07** (mesmo script, Templo em etapas): **140 → 102 chamadas** de dia (noite 126 → 93,
+chuva 118 → 89), mesmo visual. (1) `build()` em `models.ts` junta numa parte só, com a cor nos vértices
+(os materiais compartilhados dos kits: sólido, pano, madeira que balança e rua sem neve), toda cor que não
+tem vida própria; ficam à parte só as cores tingidas pela estação (folhas, grama, solo), as que crescem com
+a lavoura, o escuro das janelas que brilha à noite e o fogo (uma praça de 10 cores custa 5 chamadas, não 10).
+(2) Cada conjunto de pessoas (`Figures`) é uma malha só: túnica, cabeça, gorro e manto na mesma geometria,
+as três cores por cópia em atributos instanciados e o gorro ou o manto dobrado num ponto no shader (1
+chamada em vez de 4, e uma matriz por pessoa em vez de quatro).
 
 ---
 

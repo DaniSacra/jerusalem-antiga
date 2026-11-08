@@ -1,4 +1,4 @@
-import { dimsOf, footprint, indexOf, placeSpots, serviceOf, type Building, type Cell, type GameState, type Rect, type TempleSpot } from '../core';
+import { dimsOf, footprint, indexOf, placeSpots, serviceOf, type Building, type Cell, type GameState, type Rect } from '../core';
 import { previewOf, coveredCells, type Preview } from '../game/model/preview';
 import { C } from '../game/palette';
 import { isPlaceTool, type Tool } from '../game/tools';
@@ -37,7 +37,6 @@ export interface MarksInput {
   ghostRoad: readonly Cell[];
   /** The tutorial's house step: the plaza house spots light up. */
   houseSpots: boolean;
-  templeAreas: readonly TempleSpot[];
   /** Spots of the "where to build" helper (balloon), or null. */
   spots: readonly Rect[] | null;
   doomed: Building | null;
@@ -67,10 +66,6 @@ export function marksOf(s: GameState, m: MarksInput): Marks {
   const service = place && place !== 'road' ? serviceOf(place) : null;
   if (place === 'house') fills.push({ cells: coveredCells(s, s.coverage.plaza), color: C.need.plaza, alpha: 0.18 });
   if (service) fills.push({ cells: coveredCells(s, s.coverage[service]), color: C.need[service], alpha: 0.2 });
-  if (place === 'temple') {
-    const { w, h } = dimsOf('temple');
-    for (const a of m.templeAreas) spot(fills, outlines, { x: a.x, y: a.y, w, h }, a.ready ? C.fits : C.needsRoad);
-  }
   if (place === 'house' && m.houseSpots) {
     const { w, h } = dimsOf('house');
     for (const o of placeSpots(s, 'house')) spot(fills, outlines, { x: o.x, y: o.y, w, h }, C.fits);

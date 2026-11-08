@@ -324,7 +324,6 @@ export interface Rules {
   famineDropChance: number;
   treeClearCost: number;
   /** The temple's areas also show where it fits this many free cells away from the network (a road there links it). */
-  templeSpotRoadGap: number;
   /** Chance per week, during famine, that a tent is abandoned (back to an empty plot). */
   famineLeaveChance: number;
   /** A workplace with nobody working there pays this share of its upkeep (see `upkeepPaid`). */

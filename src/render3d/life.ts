@@ -1,10 +1,10 @@
 import VISUAL from '../data/visual.json';
 import * as THREE from 'three';
-import { ageBand, borderCells, craftOf, createRng, jobsOf, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
+import { ageBand, borderCells, craftOf, createRng, doorsOf, jobsOf, findPath, pickWalkerType, walkerGoal, walkerStart, type Cell, type Craft, type GameState, type Rng, type WalkerType } from '../core';
 import { COLORS } from './models';
 import LOOK from './look3d.json';
 import type { Terrain } from './terrain';
-import { castWalkers, COMPANION_AT, companionOf, figureLook, LOADS, loadOf, residentLook, walkerLook } from './crowd';
+import { castWalkers, COMPANION_AT, companionOf, doorBeside, figureLook, LOADS, loadOf, reroute, residentLook, walkerLook, type FigureLook, type Load } from './crowd';
 import { hash } from './plan';
 import { Herd } from './animals';
 import { HAUL, haulJobs, legOf, waitAfter, type HaulJob, type Pt } from './haul';
@@ -13,6 +13,12 @@ import { Figures } from './figures';
 /** How far (cells) walkers come from to a milestone; the crowd size and cheering time are in visual.json > moments. */
 const GATHER_RADIUS = 14;
 const MOMENTS = VISUAL.moments;
+
+/**
+ * Where a walker is: on the streets (`out`), heading for the nearest door to go in (`home`: night,
+ * rain, fewer walkers in the city), walking in through it (`door`), or indoors and hidden (`in`).
+ */
+type WalkerState = 'out' | 'home' | 'door' | 'in';
 
 interface Walker {
   type: WalkerType;
@@ -26,12 +32,25 @@ interface Walker {
   beast: number;
   /** Walking to a milestone to cheer there (seconds of cheering once it arrives), or 0. */
   cheer?: number;
+  state: WalkerState;
+  /** Seconds before a walker indoors steps out (they do not all come out at once). */
+  wait: number;
+  /** The resident it is (null: a passer-by in a town with fewer residents than walkers). */
+  id: number | null;
+  look: FigureLook;
+  load: Load | null;
 }
+
+/** Seconds over which the walkers indoors come out again (each its own moment). */
+const OUT_SECONDS = 4;
 
 /**
  * Residents walking the road network (paths and destinations from src/core, as in the 2D game),
  * drawn as low-poly people dressed by who walks (the old, children, women carrying water or baskets,
- * men at their trades: see crowd.ts), with a light bob and sway.
+ * men at their trades: see crowd.ts), with a light bob and sway. At night and in the rain the share
+ * on the streets falls: the others walk to the nearest door and go in, and come out of a door again
+ * later. A new part (the network or the population changed) takes over the walkers of the old one
+ * where they are, on their way (a broken way is mended from where they stand).
  */
 export class Walkers {
   private list: Walker[] = [];
@@ -39,90 +58,154 @@ export class Walkers {
   private donkeys: Herd;
   private sheep: Herd;
   private rng: Rng;
-  /** The resident each walker is (null: a passer-by in a town with fewer residents than walkers). */
-  private people: (number | null)[] = [];
   /** Where each walker stands now (x, y, z per slot), for a tap. */
   private at: Float32Array = new Float32Array(0);
-  /** Walkers on the streets now (a share of the list: fewer at night and in the rain). */
-  private shown = 0;
+  /** Walkers wanted on the streets now (the first of the list: fewer at night and in the rain). */
+  private want: number;
 
-  constructor(private s: GameState, private ground: Terrain, count: number, shadows: boolean) {
+  constructor(private s: GameState, private ground: Terrain, private size: number, shadows: boolean, prev?: Walkers) {
     this.rng = createRng(s.week * 31 + 7);
+    const residents = new Set(s.people.filter((p) => p.houseId !== null).map((p) => p.id));
+    // Who stays: everyone on the streets (the ones past the new count go in), and the first indoors.
+    this.list = (prev?.list ?? []).filter((w, i) => w.state !== 'in' || i < size);
+    for (const [i, w] of this.list.entries()) {
+      if (w.id !== null && !residents.has(w.id)) w.id = null;
+      if (w.state === 'out') this.mend(w);
+      if (i >= size && w.state === 'out') w.state = 'home';
+    }
+    // The newcomers: on their way when the view opens, indoors (stepping out of a door soon) after.
+    const fresh: Walker[] = [];
+    for (let i = this.list.length; i < size; i++) {
+      const type = pickWalkerType(s, this.rng);
+      if (!type) break;
+      const path = prev ? [] : this.route(type, null, false);
+      if (!prev && !path) continue;
+      const w: Walker = { type, path: path ?? [], seg: 0, t: 0, speed: 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6, beast: -1, state: prev ? 'in' : 'out', wait: this.rng() * OUT_SECONDS, id: null, look: null!, load: null };
+      if (path) w.seg = Math.floor(this.rng() * (path.length - 1));
+      fresh.push(w);
+    }
+    // Each newcomer is a resident not out yet (tap one: its sheet opens), dressed as that person.
+    const draws = fresh.map(() => this.rng());
+    const cast = castWalkers(s, fresh.map((w) => w.type), draws, this.list.map((w) => w.id).filter((id) => id !== null));
     // The crafts of the city's workshops: an artisan carries the goods of one of them (his own, when he works there).
     const crafts = s.buildings.filter((b) => b.connected).map(craftOf).filter((c): c is Craft => c !== null);
-    let donkeys = 0;
-    let sheep = 0;
-    for (let i = 0; i < count; i++) {
-      const w = this.trip(null);
-      if (w) {
-        w.seg = Math.floor(this.rng() * (w.path.length - 1));
-        const beast = companionOf(w.type);
-        w.beast = beast === 'donkey' ? donkeys++ : beast === 'sheep' ? sheep++ : -1;
-        this.list.push(w);
-      }
-    }
-    // Each walker is a resident (tap one: its sheet opens), dressed as that person.
-    const draws = this.list.map(() => this.rng());
-    this.people = castWalkers(s, this.list.map((w) => w.type), draws);
     const jobs = jobsOf(s);
     const byId = new Map(s.people.map((p) => [p.id, p]));
-    const loads = this.list.map((w, k) => {
-      const id = this.people[k];
-      const own = id !== null ? s.buildings.find((b) => b.id === jobs.get(id)?.buildingId) : undefined;
+    fresh.forEach((w, k) => {
+      const p = cast[k] !== null ? byId.get(cast[k]!) : undefined;
+      const own = p ? s.buildings.find((b) => b.id === jobs.get(p.id)?.buildingId) : undefined;
       const craft = (own && craftOf(own)) || (crafts.length ? crafts[Math.floor(draws[k] * crafts.length)] : null);
-      return loadOf(w.type, craft);
+      w.id = p?.id ?? null;
+      w.look = p ? residentLook(w.type, p.sex, ageBand(p, s.week), hash(p.id, 3)) : walkerLook(w.type, draws[k]);
+      w.load = loadOf(w.type, craft);
+      w.speed *= w.look.pace;
+      this.list.push(w);
     });
+    let donkeys = 0;
+    let sheep = 0;
+    for (const w of this.list) {
+      const beast = companionOf(w.type);
+      w.beast = beast === 'donkey' ? donkeys++ : beast === 'sheep' ? sheep++ : -1;
+    }
     // One mesh only for each thing someone carries (fewer draw calls).
-    this.figures = new Figures(count, shadows, LOADS.filter((l) => loads.includes(l)));
+    const loads = this.list.map((w) => w.load);
+    this.figures = new Figures(this.list.length, shadows, LOADS.filter((l) => loads.includes(l)));
     this.list.forEach((w, k) => {
-      const p = this.people[k] !== null ? byId.get(this.people[k]!) : undefined;
-      this.figures.dress(k, p ? residentLook(w.type, p.sex, ageBand(p, s.week), hash(p.id, 3)) : walkerLook(w.type, draws[k]));
-      this.figures.carry(k, loads[k]);
-      w.speed *= this.figures.look(k).pace;
+      this.figures.dress(k, w.look);
+      this.figures.carry(k, w.load);
     });
     this.donkeys = new Herd('donkey', donkeys, shadows);
     this.sheep = new Herd('sheep', sheep, shadows);
     this.donkeys.count = donkeys;
     this.sheep.count = sheep;
-    this.figures.count = this.shown = this.list.length;
+    this.figures.count = this.list.length;
+    this.want = Math.min(size, this.list.length);
     this.at = new Float32Array(this.list.length * 3);
   }
 
   /** The residents on the streets now and where they are (world x, y at the head, z). */
   *residents(): Generator<{ id: number; x: number; y: number; z: number }> {
-    for (let i = 0; i < this.shown; i++) {
-      const id = this.people[i];
-      if (id !== null && id !== undefined) yield { id, x: this.at[i * 3], y: this.at[i * 3 + 1] + 0.3, z: this.at[i * 3 + 2] };
+    for (let i = 0; i < this.list.length; i++) {
+      const { id, state } = this.list[i];
+      if (id !== null && state !== 'in') yield { id, x: this.at[i * 3], y: this.at[i * 3 + 1] + 0.3, z: this.at[i * 3 + 2] };
     }
   }
 
-  /** Shows a share (0..1) of the walkers; the others are indoors. */
+  /** A share (0..1) of the walkers on the streets; the others walk to a door and go in. */
   setShare(share: number) {
-    this.shown = Math.round(this.list.length * Math.min(1, Math.max(0, share)));
-    this.figures.count = this.shown;
+    this.want = Math.round(Math.min(this.size, this.list.length) * Math.min(1, Math.max(0, share)));
   }
 
   get objects(): THREE.Object3D[] {
     return [...this.figures.objects, ...this.donkeys.objects, ...this.sheep.objects];
   }
 
-  /** Walkers on the streets now. */
+  /** Walkers on the streets now (going in too). */
   get count() {
-    return this.shown;
+    let n = 0;
+    for (const w of this.list) if (w.state !== 'in') n++;
+    return n;
   }
 
-  /** A new walk, from `from` (the end of the last one) or from a starting building. */
-  private trip(prev: Walker | null): Walker | null {
+  private onRoad = (c: Cell) => !!this.s.network[c.y * this.s.cols + c.x];
+
+  /** A walk for `type` from `start` (else from a starting building), back to its `from` building or on. */
+  private route(type: WalkerType, start: Cell | null, back: boolean): Cell[] | null {
     const s = this.s;
     for (let tries = 0; tries < 6; tries++) {
-      const type = prev?.type ?? pickWalkerType(s, this.rng);
-      if (!type) return null;
-      const start = prev ? prev.path[prev.path.length - 1] : walkerStart(s, type, this.rng);
-      const goal = start && walkerGoal(s, type, this.rng, !!prev && this.rng() < 0.5);
-      const path = goal && findPath(s, start!, goal.cells);
-      if (path && path.length > 2) return { type, path, seg: 0, t: 0, speed: prev?.speed ?? 0.9 + this.rng() * 0.5, lane: (this.rng() - 0.5) * 0.4, phase: this.rng() * 6, beast: prev?.beast ?? -1 };
+      const from = start ?? walkerStart(s, type, this.rng);
+      const goal = from && walkerGoal(s, type, this.rng, back);
+      const path = goal && findPath(s, from!, goal.cells);
+      if (path && path.length > 2) return path;
     }
     return null;
+  }
+
+  /** The next walk from the end of this one (or the same way back). */
+  private next(w: Walker) {
+    const end = w.path[w.path.length - 1];
+    // No way on: back the way it came (not through the door it came out of), or indoors.
+    const back = w.path.slice(this.onRoad(w.path[0]) ? 0 : 1).reverse();
+    const way = this.route(w.type, end, this.rng() < 0.5);
+    w.path = way ?? (back.length > 1 ? back : [end, end]);
+    if (!way && back.length < 2) w.state = 'home';
+    w.seg = 0;
+  }
+
+  /** The roads changed: a walker whose way is broken goes on by a new way from where it stands. */
+  private mend(w: Walker) {
+    const r = reroute(w.path, w.seg, this.onRoad);
+    if (r === 'keep') return;
+    const [here, ahead] = [w.path[w.seg], w.path[Math.min(w.seg + 1, w.path.length - 1)]];
+    w.cheer = 0;
+    const way = r === 'ahead' ? this.route(w.type, ahead, false) : r === 'back' ? this.route(w.type, here, false) : null;
+    if (way && r === 'ahead') w.path = [here, ...way];
+    else if (way) [w.path, w.t] = [[ahead, ...way], 1 - w.t];
+    else [w.path, w.state] = [[here, ahead], 'home'];
+    w.seg = 0;
+  }
+
+  /** An indoor walker steps out of a door onto the road, on a new walk. */
+  private comeOut(w: Walker): boolean {
+    for (let tries = 0; tries < 3; tries++) {
+      const start = walkerStart(this.s, w.type, this.rng);
+      const way = start && this.route(w.type, start, false);
+      if (!way) continue;
+      const door = doorBeside(this.s, start!);
+      if (!door && tries < 2) continue;
+      [w.path, w.seg, w.t, w.state, w.cheer] = [door ? [door, ...way] : way, 0, 0, 'out', 0];
+      return true;
+    }
+    return false;
+  }
+
+  /** On the way in, at cell `seg`: the nearest door, if one is beside it (true: it heads in). */
+  private headIn(w: Walker): boolean {
+    const c = w.path[w.seg];
+    const door = this.onRoad(c) ? doorBeside(this.s, c) : null;
+    if (!door) return false;
+    [w.path, w.seg, w.state] = [[c, door], 0, 'door'];
+    return true;
   }
 
   /**
@@ -136,22 +219,35 @@ export class Walkers {
     const cx = b.x + b.w / 2;
     const cz = b.y + b.h / 2;
     const near = this.list
-      .slice(0, this.shown)
-      .map((w, i) => ({ i, d: Math.hypot(w.path[w.seg].x - cx, w.path[w.seg].y - cz) }))
-      .filter((o) => o.d < GATHER_RADIUS && !this.list[o.i].cheer)
+      .map((w, i) => ({ i, w, d: Math.hypot(w.path[w.seg]?.x - cx, w.path[w.seg]?.y - cz) }))
+      .filter((o) => o.w.state === 'out' && o.d < GATHER_RADIUS && !o.w.cheer)
       .sort((a, c) => a.d - c.d)
       .slice(0, MOMENTS.milestoneCrowd);
-    for (const { i } of near) {
-      const w = this.list[i];
+    for (const { w } of near) {
       const path = findPath(s, w.path[w.seg], goals);
       if (!path || path.length < 2) continue;
-      this.list[i] = { ...w, path, seg: 0, t: 0, cheer: MOMENTS.milestoneSeconds, speed: w.speed * 1.3 };
+      [w.path, w.seg, w.t, w.cheer, w.speed] = [path, 0, 0, MOMENTS.milestoneSeconds, w.speed * 1.3];
     }
   }
 
   update(dt: number, time: number) {
-    for (let i = 0; i < this.shown; i++) {
-      let w = this.list[i];
+    let top = 0;
+    for (let i = 0; i < this.list.length; i++) {
+      const w = this.list[i];
+      const wanted = i < this.want;
+      if (w.state === 'in') {
+        // Indoors: a walker wanted again steps out of a door after its own little wait.
+        if (wanted && dt > 0 && (w.wait -= dt) <= 0 && !this.comeOut(w)) w.wait = 2;
+        if (w.state === 'in') {
+          this.hide(i, w);
+          continue;
+        }
+      } else if (!wanted && w.state === 'out') {
+        // Night, rain, fewer walkers: it goes in by the nearest door on its way.
+        w.state = 'home';
+        if (w.cheer) w.speed /= 1.3;
+        w.cheer = 0;
+      } else if (wanted && w.state === 'home' && this.onRoad(w.path[w.path.length - 1])) w.state = 'out';
       if (w.cheer && w.seg >= w.path.length - 1) {
         // At the milestone: hopping for joy, then on its way again.
         w.cheer = Math.max(0, w.cheer - dt);
@@ -162,30 +258,46 @@ export class Walkers {
         this.at.set([x, gy, z], i * 3);
         this.figures.place(i, x, gy + 0.04 + Math.abs(Math.sin(time * 8 + w.phase)) * 0.08, z, w.phase, 0, 0);
         if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
-        if (!w.cheer) this.list[i] = { ...(this.trip({ ...w, speed: w.speed / 1.3 }) ?? { ...w, path: [...w.path].reverse() }), seg: 0, t: 0, cheer: 0 };
+        if (!w.cheer) {
+          w.speed /= 1.3;
+          this.next(w);
+          w.t = 0;
+        }
+        top = i + 1;
         continue;
       }
       w.t += dt * w.speed;
-      while (w.t >= 1) {
+      while (w.t >= 1 && w.state !== 'in') {
         w.t -= 1;
         w.seg++;
-        if (w.seg >= w.path.length - 1) {
+        const end = w.seg >= w.path.length - 1;
+        if (w.state === 'door') {
+          if (end) [w.state, w.wait, w.t] = ['in', this.rng() * OUT_SECONDS, 0];
+        } else if (w.state === 'home') {
+          if (!this.headIn(w) && end) [w.state, w.wait, w.t] = ['in', this.rng() * OUT_SECONDS, 0];
+        } else if (end) {
           if (w.cheer) {
             w.seg = w.path.length - 1;
             w.t = 0;
             break;
           }
-          w = this.list[i] = this.trip(w) ?? { ...w, seg: 0, path: [...w.path].reverse() };
+          this.next(w);
         }
       }
+      if (w.state === 'in') {
+        this.hide(i, w);
+        continue;
+      }
+      top = i + 1;
       if (w.cheer && w.seg >= w.path.length - 1) continue;
       const a = w.path[w.seg];
       const b = w.path[Math.min(w.seg + 1, w.path.length - 1)];
       const dx = b.x - a.x;
       const dz = b.y - a.y;
-      // Lane: a sideways offset so people coming and going do not overlap.
-      const x = a.x + 0.5 + dx * w.t - dz * w.lane;
-      const z = a.y + 0.5 + dz * w.t + dx * w.lane;
+      // Lane: a sideways offset so people coming and going do not overlap (none through a door).
+      const lane = w.state === 'door' || (w.seg === 0 && !this.onRoad(a)) ? 0 : w.lane;
+      const x = a.x + 0.5 + dx * w.t - dz * lane;
+      const z = a.y + 0.5 + dz * w.t + dx * lane;
       // Two steps per second at the usual pace: a light bob and sway.
       const ph = time * 9 * w.speed + w.phase;
       const yaw = Math.atan2(dx, dz);
@@ -200,14 +312,17 @@ export class Walkers {
         herd.place(w.beast, bx, this.ground.height(bx, bz) + 0.03 + Math.abs(Math.sin(ph + 1)) * 0.012, bz, yaw, Math.sin(ph + 1) * 0.04);
       }
     }
-    // Walkers indoors (night, rain) take their animals in too.
-    for (let i = this.shown; i < this.list.length; i++) {
-      const w = this.list[i];
-      if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
-    }
+    // Only the slots up to the last one out are drawn.
+    this.figures.count = top;
     this.figures.commit();
     this.donkeys.commit();
     this.sheep.commit();
+  }
+
+  /** A walker indoors: hidden, with its animal. */
+  private hide(i: number, w: Walker) {
+    this.figures.hide(i);
+    if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
   }
 }
 
@@ -662,6 +777,10 @@ interface Hauler {
   wait: number;
   phase: number;
   pace: number;
+  look: FigureLook;
+  /** Its job is over: it walks back and goes in (`gone` once inside). */
+  retire: boolean;
+  gone: boolean;
 }
 
 const SACK = new THREE.Color(0xb08a58);
@@ -693,11 +812,29 @@ export class Haulers {
   private v = new THREE.Vector3();
   private sc = new THREE.Vector3();
 
-  constructor(private s: GameState, private ground: Terrain, shadows: boolean) {
+  constructor(private s: GameState, private ground: Terrain, shadows: boolean, prev?: Haulers) {
     this.rng = createRng(s.week * 17 + 3);
-    const jobs = haulJobs(s);
-    const n = Math.max(1, jobs.length);
-    const builds = jobs.some((j) => j.job === 'build');
+    // Who stays at work keeps its place and way; the ones whose job is over walk back and go in.
+    const old = (prev?.list ?? []).filter((h) => !h.gone);
+    for (const { job, home } of haulJobs(s)) {
+      const k = old.findIndex((h) => h.job === job && h.home === home && !h.retire);
+      if (k >= 0) {
+        this.list.push(old[k]);
+        old.splice(k, 1);
+        continue;
+      }
+      const h: Hauler = { job, home, route: [], seg: 0, t: 0, out: true, wait: this.rng() * 2, phase: this.rng() * 6, pace: 0.9 + this.rng() * 0.2, look: figureLook(job === 'gather' ? 'f' : 'm', 'adult', this.rng()), retire: false, gone: false };
+      this.plan(h);
+      // A worker setting out after the view opened steps out of its building (the builder off the road).
+      if (prev && h.route.length > 1) h.route.unshift(this.entry(h));
+      this.list.push(h);
+    }
+    for (const h of old) {
+      h.retire = true;
+      this.list.push(h);
+    }
+    const n = Math.max(1, this.list.length);
+    const builds = this.list.some((h) => h.job === 'build');
     this.figures = new Figures(n, shadows, builds ? ['hammer'] : []);
     const sack = new THREE.IcosahedronGeometry(0.075, 0);
     sack.scale(1, 1.25, 0.8);
@@ -709,15 +846,11 @@ export class Haulers {
       o.castShadow = shadows;
       o.frustumCulled = false;
     }
-    for (const { job, home } of jobs) {
-      const i = this.list.length;
-      const k = this.rng();
-      this.figures.dress(i, figureLook(job === 'gather' ? 'f' : 'm', 'adult', k));
-      if (job === 'build') this.figures.carry(i, 'hammer');
-      this.sacks.setColorAt(i, job === 'build' ? STONE : SACK);
-      this.list.push({ job, home, route: [], seg: 0, t: 0, out: true, wait: this.rng() * 2, phase: this.rng() * 6, pace: 0.9 + this.rng() * 0.2 });
-      this.plan(this.list[i]);
-    }
+    this.list.forEach((h, i) => {
+      this.figures.dress(i, h.look);
+      if (h.job === 'build') this.figures.carry(i, 'hammer');
+      this.sacks.setColorAt(i, h.job === 'build' ? STONE : SACK);
+    });
     this.figures.count = this.sacks.count = this.baskets.count = this.list.length;
   }
 
@@ -727,11 +860,26 @@ export class Haulers {
 
   /** Workers out now. */
   get count() {
-    return this.list.length;
+    return this.list.filter((h) => !h.gone).length;
+  }
+
+  /** Where a worker steps out of its building or goes into it: its middle (a builder: the site's door on the road). */
+  private entry(h: Hauler): Pt {
+    const b = this.s.buildings.find((o) => o.id === h.home);
+    if (!b) return h.route[0];
+    const door = h.job === 'build' ? doorsOf(this.s, b)[0] : null;
+    return door ? { x: door.x + 0.5, y: door.y + 0.5, up: 0 } : { x: b.x + b.w / 2, y: b.y + b.h / 2, up: h.route[0]?.up };
   }
 
   private plan(h: Hauler) {
     const b = this.s.buildings.find((o) => o.id === h.home);
+    // Its job over and back home: in through the door, then gone (its building gone: gone at once).
+    if (h.retire && (h.out || !b)) {
+      const here = h.route[h.route.length - 1];
+      if (!b || !here || h.gone) return void (h.gone = true);
+      [h.route, h.seg, h.t, h.wait, h.gone] = [[here, this.entry(h)], 0, 0, 0, true];
+      return;
+    }
     h.seg = 0;
     h.t = 0;
     h.route = b ? legOf(this.s, h.job, b, h.out, h.route, this.rng) : [];
@@ -750,7 +898,12 @@ export class Haulers {
       const h = this.list[i];
       const end = h.route.length - 1;
       if (h.seg >= end) {
-        h.wait -= dt * run;
+        // The last stretch through the door is done: hidden for good.
+        if (h.gone) {
+          this.draw(i, h, time, false);
+          continue;
+        }
+        h.wait -= dt * run * (h.retire ? 4 : 1);
         if (h.wait <= 0) this.plan(h);
       } else {
         h.t += dt * run * HAUL_SPEED * HAUL.pace * h.pace;
@@ -758,7 +911,7 @@ export class Haulers {
           h.t -= 1;
           h.seg++;
         }
-        if (h.seg >= end) {
+        if (h.seg >= end && !h.gone) {
           h.t = 0;
           h.wait = waitAfter(h.job, h.out, this.rng);
           h.out = !h.out;
@@ -772,7 +925,7 @@ export class Haulers {
   }
 
   private draw(i: number, h: Hauler, time: number, walking: boolean) {
-    if (!h.route.length) {
+    if (!h.route.length || (h.gone && h.seg >= h.route.length - 1)) {
       this.figures.hide(i);
       this.load(this.sacks, i, false, 0, 0, 0, 0, 0, 0, 0);
       this.load(this.baskets, i, false, 0, 0, 0, 0, 0, 0, 0);

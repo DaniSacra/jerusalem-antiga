@@ -1,5 +1,8 @@
 import {
   alerts,
+  crewOf,
+  seatsOf,
+  unemployed,
   announcedCaravan,
   birthBlock,
   currentGoal,
@@ -66,18 +69,24 @@ const calm = (): NextStep => ({ kind: 'calm', text: N().calm, tone: 'good', icon
 /** 1. What kills or loses the city: the debt, hunger (now or before the harvest), firewood for the winter. */
 function crisis(s: GameState, city: CityReadout): NextStep | null {
   const one = (text: string, icon: string, aim: StepAim): NextStep => ({ kind: 'crisis', text, tone: 'bad', icon, aim, open: { panel: 'alerts' } });
+  // A maker on the road with nobody at it while nobody is free: building another would stay empty too
+  // (playtest 2026-11-07: "1 pescador, 0 de 1 vaga"), so the line opens Profissões instead.
+  const make = (text: string, icon: string, kind: BuildableKind): NextStep => {
+    const idle = unemployed(s) === 0 && s.buildings.some((b) => b.kind === kind && seatsOf(b) > 0 && !crewOf(s, b).length);
+    return idle ? { kind: 'crisis', text: N().noCrew(kind), tone: 'bad', icon, aim: null, open: { panel: 'jobs' } } : one(text, icon, toolAim(s, kind));
+  };
   for (const a of alerts(s, city.eco)) {
     if (a.kind === 'debt') return one(N().debt(a.weeksLeft), 'silver', { tool: 'clear' });
-    if (a.kind === 'foodShort') return one(s.famine || !city.forecast ? N().famine : N().food(city.forecast.weeks), 'food', toolAim(s, 'fisher'));
-    if (a.kind === 'firewood') return one(a.cold ? N().cold : N().firewood(Math.ceil(a.missing)), 'wood', toolAim(s, 'lumber'));
+    if (a.kind === 'foodShort') return make(s.famine || !city.forecast ? N().famine : N().food(city.forecast.weeks), 'food', 'fisher');
+    if (a.kind === 'firewood') return make(a.cold ? N().cold : N().firewood(Math.ceil(a.missing)), 'wood', 'lumber');
   }
-  if (s.famine) return one(N().famine, 'food', toolAim(s, 'fisher'));
+  if (s.famine) return make(N().famine, 'food', 'fisher');
   // The restored altar without its offering (it covers no house), or its livestock about to end.
   if (s.temple.done >= 1) {
-    if (!s.offered) return one(N().offerings, 'livestock', toolAim(s, 'pasture'));
+    if (!s.offered) return make(N().offerings, 'livestock', 'pasture');
     const net = city.eco.livestock - TEMPLE_STAGES[s.temple.done - 1].offering;
     const left = net < 0 ? Math.floor(s.livestock / -net) : Infinity;
-    if (left <= LIVESTOCK_WARN_WEEKS) return one(N().livestock(left), 'livestock', toolAim(s, 'pasture'));
+    if (left <= LIVESTOCK_WARN_WEEKS) return make(N().livestock(left), 'livestock', 'pasture');
   }
   return null;
 }
@@ -169,7 +178,13 @@ function housesStep(s: GameState, level: number, target: number, have: number, o
       const short = Math.max(1, ...below.filter((h) => h.info.waiting === m).map((h) => Math.ceil((h.info.next?.materials[m] ?? 0) - s[m])));
       return one(N().material(short, m), toolAim(s, makerOf(m)));
     }
-  if (have + below.length < target) return one(N().moreHouses(have, target), toolAim(s, 'house'));
+  if (have + below.length < target) {
+    // A plot alone makes no family (playtest 2026-11-07, stuck at "5 casas de barro"): with one empty, say who comes.
+    const plot = s.buildings.find((b) => b.kind === 'house' && b.level === 0);
+    if (!plot) return one(N().moreHouses(have, target), toolAim(s, 'house'));
+    const next = s.caravans.find((c) => c.status === 'planned' || c.status === 'announced');
+    return one(next ? N().familyByCaravan(Math.max(1, next.week - s.week)) : N().familyByWedding, { rect: rectOf(plot) });
+  }
   const climbing = below.map((h) => weeksToNextLevel(s, h.b)).filter((w): w is number => w !== null);
   return climbing.length ? one(N().climbing(Math.min(...climbing)), { rect: rectOf(top.b) }, 'good') : null;
 }

@@ -53,12 +53,13 @@
     "soil": "0x8a6440", "soilPlowed": "0x5e3f28", "soilDry": "0xa88a64"
   },
   "weather": {
-    "spellWeeks": [0.2, 0.55],
-    "fadeWeeks": 0.06,
-    "overcastLead": 0.12,
+    "spellWeeks": [2, 5],
+    "wetShare": 0.375,
+    "fadeWeeks": 0.5,
+    "overcastLead": 0.7,
     "strength": [0.35, 0.65, 1],
-    "wetRise": 0.12,
-    "dryWeeks": { "spring": 0.8, "summer": 0.35, "autumn": 0.9, "winter": 1.4 },
+    "wetRise": 0.5,
+    "dryWeeks": { "spring": 1.6, "summer": 0.8, "autumn": 1.8, "winter": 2.8 },
     "windChance": { "spring": 0.15, "summer": 0.3, "autumn": 0.3, "winter": 0.2 },
     "sky": "0x8e98a8",
     "sunCut": 0.75
@@ -67,7 +68,7 @@
   "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
   "ambient": { "maxAnimals": 56, "pastureFlock": 8, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
   "night": { "window": 2.3, "door": 0.7, "tentPool": 0.85, "doorRadius": [0, 0.75, 0.9, 1.0, 1.15], "workRadius": 1.5 },
-  "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
+  "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "farBand": 10, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
   "wind": { "calm": 0, "trees": 0.06, "crops": 0.7 },
   "wear": {
     "res": 4, "trodden": "0x96734e",

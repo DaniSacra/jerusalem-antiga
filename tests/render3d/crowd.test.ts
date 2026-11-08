@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castWalkers, companionOf, CRAFT_LOAD, familyLead, figureLook, groupLength, groupSlots, LOADS, loadOf, memberAt, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
+import { castWalkers, companionOf, CRAFT_LOAD, doorBeside, familyHome, familyLead, farFade, figureLook, groupLength, groupSlots, LOADS, loadOf, memberAt, reroute, ROW_GAP, walkerLook, walkerPerson } from '../../src/render3d/crowd';
 import { addPerson, BUILDINGS, jobsOf, refreshCity, type WalkerType } from '../../src/core';
 import { emptyGame, put } from '../helpers';
 import WALKERS from '../../src/data/walkers.json';
@@ -63,26 +63,70 @@ describe('families walking home in 3D', () => {
     expect(groupLength(slots)).toBe(donkey.back);
   });
 
-  it('walk the rest of the way into the house, rest, and walk it again', () => {
-    const [from, last, speed, rest, length] = [3, 13, 1, 4, 0.8];
-    // The whole group is on the way at the start.
-    const lead0 = familyLead(from, last, 0, speed, rest, length);
-    expect(memberAt(lead0, 0, from, last)).toBe(from + length);
-    expect(memberAt(lead0, length, from, last)).toBe(from);
-    // Halfway, everybody walks, further along.
-    const lead = familyLead(from, last, 4, speed, rest, length);
-    expect(memberAt(lead, 0, from, last)).toBeGreaterThan(lead0);
-    // The leader goes in first; then all of them are home.
-    expect(memberAt(familyLead(from, last, 9, speed, rest, length), 0, from, last)).toBeNull();
-    expect(memberAt(familyLead(from, last, 9, speed, rest, length), length, from, last)).not.toBeNull();
-    expect(memberAt(familyLead(from, last, 11, speed, rest, length), length, from, last)).toBeNull();
-    // After the rest they start again.
-    const cycle = (last - from) / speed + rest;
-    expect(familyLead(from, last, cycle + 1, speed, rest, length)).toBeCloseTo(familyLead(from, last, 1, speed, rest, length));
+  it('walk once with the core: in step with its weeks, never back, into the house and no loop', () => {
+    const [last, perWeek, length] = [20, 6, 0.8];
+    // Week 1 at step 6: the leader is 6 cells further each week, in step with the fraction.
+    let lead = familyLead(-Infinity, 6, 0, 0, perWeek);
+    expect(lead).toBe(6);
+    lead = familyLead(lead, 6, 0.5, 0.5, perWeek);
+    expect(lead).toBe(9);
+    // The turn of the week: the core's step moves on, the leader does not jump.
+    expect(familyLead(lead, 12, 0, 0.5, perWeek) - familyLead(lead, 6, 1, 0.5, perWeek)).toBe(0);
+    // A late frame of the core's never pulls it back.
+    expect(familyLead(lead, 6, 0.2, 0, perWeek)).toBe(lead);
+    // Just behind the leader, the last one comes out of the entrance (step 0) a little later.
+    expect(memberAt(0.5, length, 0, last)).toBeNull();
+    expect(memberAt(1, length, 0, last)).not.toBeNull();
+    // The core moved them in: the rest walk on at the same pace and are home, for good.
+    lead = 19.6;
+    expect(memberAt(lead, 0, 0, last)).toBeNull();
+    expect(memberAt(lead, length, 0, last)).not.toBeNull();
+    expect(familyHome(lead, length, last)).toBe(false);
+    lead = familyLead(lead, null, 0.2, 0.2, perWeek);
+    expect(lead).toBeCloseTo(20.8);
+    expect(familyHome(lead, length, last)).toBe(true);
+    for (let k = 0; k < 50; k++) lead = familyLead(lead, null, 0, 0.1, perWeek);
+    expect(familyHome(lead, length, last)).toBe(true);
+    // Paused: no time passes, nobody moves.
+    expect(familyLead(9, null, 0.3, 0, perWeek)).toBe(9);
+    // Arrived before it was ever seen: already in.
+    expect(familyHome(familyLead(-Infinity, null, 0, 0.1, perWeek), length, last)).toBe(true);
   });
 
   it('shows nobody for a family already at the door', () => {
-    expect(memberAt(familyLead(5, 5, 1, 1, 4, 0), 0, 5, 5)).toBeNull();
+    expect(memberAt(5, 0, 5, 5)).toBeNull();
+  });
+
+  it('finds the door beside a road cell: a lived-in house first, never a field or a plaza', () => {
+    const s = emptyGame();
+    const field = put(s, 'field', 20, 30);
+    const at = (c: { x: number; y: number } | null) => (c ? s.grid[c.y * s.cols + c.x] : null);
+    const c = { x: field.x - 1, y: field.y };
+    expect(doorBeside(s, c)).toBeNull();
+    const plaza = put(s, 'plaza', c.x - BUILDINGS.plaza.w!, c.y);
+    expect(doorBeside(s, c)).toBeNull();
+    const house = put(s, 'house', c.x, c.y - BUILDINGS.house.h!, 1);
+    expect(at(doorBeside(s, c))).toBe(house);
+    expect(at({ x: c.x - 1, y: c.y })).toBe(plaza);
+  });
+
+  it('mends a broken way from where the walker stands: on ahead, back, or in', () => {
+    const path = [0, 1, 2, 3, 4].map((x) => ({ x, y: 0 }));
+    const road = (gone: number[]) => (c: { x: number }) => !gone.includes(c.x);
+    expect(reroute(path, 1, road([]))).toBe('keep');
+    // The cell it left is gone: nothing ahead changed.
+    expect(reroute(path, 1, road([0, 1]))).toBe('keep');
+    expect(reroute(path, 1, road([4]))).toBe('ahead');
+    expect(reroute(path, 1, road([2]))).toBe('back');
+    expect(reroute(path, 1, road([1, 2]))).toBe('lost');
+  });
+
+  it('thins the still figures out with the distance instead of hiding them at once', () => {
+    expect(farFade(20, 48, 10)).toBe(1);
+    expect(farFade(38, 48, 10)).toBe(1);
+    expect(farFade(43, 48, 10)).toBeCloseTo(0.5);
+    expect(farFade(48, 48, 10)).toBe(0);
+    expect(farFade(70, 48, 10)).toBe(0);
   });
 
   it('gives every walker type of the 2D game what it carries, the artisan the goods of a city craft', () => {
@@ -132,5 +176,8 @@ describe('families walking home in 3D', () => {
     expect([...men, woman, child].map((p) => p.id)).toEqual(expect.arrayContaining(cast as number[]));
     // More walkers than residents: the rest are passers-by.
     expect(castWalkers(s, ['child', 'child', 'child', 'child', 'child'], [0, 0, 0, 0, 0])[4]).toBeNull();
+    // Walkers kept from before are out already: the newcomers are others.
+    const more = castWalkers(s, ['child', 'farmer'], [0.3, 0.1], cast as number[]);
+    for (const id of more) expect(cast).not.toContain(id);
   });
 });

@@ -39,8 +39,6 @@ import {
   clearCell,
   seasonOf,
   stepWeek,
-  templeSpots,
-  templeSpotsNear,
   weeksToHarvest,
   unemployed,
   ageOf,
@@ -98,8 +96,6 @@ export interface Profile {
   foodOnlyInFamine: boolean;
   /** Reacts to a stalled house only after seeing its balloon for `delay` weeks. */
   reactsToBalloons: boolean;
-  /** From the goal that unlocks the temple on, keeps a 6x6 free for it (the place is marked there). */
-  reservesTemple: boolean;
   /**
    * Temple in stages (plano-desafio 2): goals ahead of a stage's goal from which the bot keeps its
    * silver and materials (only food, the granary and houses may use them) and marks the Temple as
@@ -148,14 +144,22 @@ export interface Profile {
   jobDonors: 'plan' | 'food' | 'thin';
   /** B2: answers the "N sem trabalho" alert (from 3, from the start) with what it names: a workshop, else a lumber (none yet, wood below 20, winter) or a field. */
   answersIdle?: boolean;
+  /**
+   * Pastures (plano-ruinas 6): 'goal' builds only the ones a goal asks for, on the first place it
+   * finds (the Distraido); 'react' puts them on the best free grass and adds one when the herd fell
+   * (below half the pens) 8 weeks in a row or the altar went without offerings (the Comum); 'ahead' also adds the second
+   * once the Foundation is built, before the Walls, another while the pastures make (out of winter)
+   * less than 1.25 x the next stage's offering, and reacts after 4 weeks (the Eficiente).
+   */
+  pastures: 'goal' | 'react' | 'ahead';
 }
 
 export const PROFILES: Record<string, Profile> = {
-  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: true, stageAhead: 2, setsBuilders: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin' },
+  eficiente: { name: 'eficiente', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 2, setsBuilders: true, foodMix: [1, 1, 1], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: true, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin', pastures: 'ahead' },
   /** Expert that sows no fields; feeds the city with fishers and gatherers. */
-  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, stageAhead: 2, setsBuilders: true, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin' },
-  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, reservesTemple: false, stageAhead: 0, setsBuilders: true, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true, movesJobs: true, emptyWait: 4, jobDonors: 'food', answersIdle: true },
-  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, reservesTemple: false, stageAhead: -1, setsBuilders: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false, movesJobs: false, emptyWait: Infinity, jobDonors: 'plan' },
+  pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 2, setsBuilders: true, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin', pastures: 'ahead' },
+  comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 0, setsBuilders: true, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true, movesJobs: true, emptyWait: 4, jobDonors: 'food', answersIdle: true, pastures: 'react' },
+  distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, stageAhead: -1, setsBuilders: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false, movesJobs: false, emptyWait: Infinity, jobDonors: 'plan', pastures: 'goal' },
 };
 
 // ------------------------------------------------------------------ geometry
@@ -256,12 +260,10 @@ const fertileCouple = (s: GameState, mother: Person) => {
 const fertileFull = (s: GameState, h: Building) => roomIn(s, h) <= 0 && household(s, h.id).some((p) => fertileCouple(s, p));
 
 /** The goal that unlocks the temple (the Eficiente reserves its ground and silver from then on). */
-const TEMPLE_UNLOCK = GOALS.findIndex((g) => g.unlock === 'temple');
 /** Kinds the temple savings never hold back. */
 /** Stone a bot keeps for the next stone house before raising a service level. */
 const UPGRADE_STONE_RESERVE = 10;
 const SAVINGS_FREE: ReadonlySet<BuildableKind> = new Set<BuildableKind>(['fisher', 'gatherer', 'field', 'granary', 'house', 'temple']);
-const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 type Producer = 'lumber' | 'quarry' | 'pasture';
 /** The building that makes each material, and the one each building makes. */
@@ -344,26 +346,7 @@ export class SurvivalBot {
   moves = { empty: 0, firewood: 0 };
   /** A pending target: the bot laid road toward it and builds it once connected. */
   private pending: { kind: BuildableKind; r: Rect; dig: boolean } | null = null;
-  /** The 6x6 kept free for the temple (see `reservesTemple`), or null. */
-  private reserved: Rect | null = null;
   constructor(readonly p: Profile, private rng: Rng) {}
-
-  /** Free land, and not on the ground kept for the temple (unless it is the temple). */
-  private open(s: GameState, r: Rect, kind?: BuildableKind) {
-    return freeRect(s, r) && (kind === 'temple' || !this.reserved || !overlaps(r, this.reserved));
-  }
-
-  /** From the goal that unlocks the temple on: keeps the nearest place it fits (ready first) free for it. */
-  private updateReserve(s: GameState) {
-    if (!this.p.reservesTemple || s.goalIndex < TEMPLE_UNLOCK || s.buildings.some((b) => b.kind === 'temple')) {
-      this.reserved = null;
-      return;
-    }
-    if (this.reserved && freeRect(s, this.reserved)) return;
-    const spots = templeSpotsNear(s);
-    const at = spots.find((o) => o.ready) ?? spots[0] ?? this.spotFor(s, 'temple')?.r;
-    this.reserved = at ? { x: at.x, y: at.y, ...dimsOf('temple') } : null;
-  }
 
   /** The next stage of the Temple the bot gathers for (see `stageAhead`), or null. */
   private stageSaved(s: GameState): TempleStageDef | null {
@@ -437,11 +420,13 @@ export class SurvivalBot {
       this.lacked[m] = false;
     }
     this.bump('firewood', firewoodShort(s, eco) > 0);
+    // The herd falls (the Gado pill goes down) or the altar has no offering (its toast and the crisis line).
+    this.bump('herdDown', s.temple.done > 0 && ((s.livestock < this.herd && s.livestock < RULES.livestockStorage / 2) || !s.offered));
+    this.herd = s.livestock;
     const crews = crewCounts(s);
     const empty = new Map<number, number>();
     for (const b of crewPlaces(s)) if (!crews.get(b.id)) empty.set(b.id, (this.empty.get(b.id) ?? 0) + 1);
     this.empty = empty;
-    this.updateReserve(s);
     if (this.p.tutorial && s.week === 0 && !this.tutored) this.playTutorial(s);
     if (this.rng() < this.p.idleChance) return;
     for (let k = 0; k < this.p.actions; k++) {
@@ -451,6 +436,8 @@ export class SurvivalBot {
   }
 
   private tutored = false;
+  /** Livestock seen last week (for `herdDown`). */
+  private herd = 0;
   /** The tutorial's build steps (no clock): a fisher or a gatherer, a field, a lumber and a house. */
   private playTutorial(s: GameState) {
     this.tutored = true;
@@ -508,6 +495,7 @@ export class SurvivalBot {
 
     // 2b. Materials: lumbers and quarries.
     if (this.materials(s)) return true;
+    if (this.pastures(s)) return true;
 
     // 3. Evolution: family houses stalled for the next unlocked service (2 → plaza, 3 → market and park).
     // Workshops for jobs come first only while their field bonus is below the cap the player reads.
@@ -551,15 +539,12 @@ export class SurvivalBot {
 
   /**
    * The Temple in stages (one action): builders lent for a stage that ended go back (+ on each
-   * lowered trade); during a stage, builders through the targets (`setsBuilders`); else the place is
-   * marked (free) once unlocked, and the next stage is paid as soon as it can begin.
+   * lowered trade); during a stage, builders through the targets (`setsBuilders`); else the next
+   * stage is paid as soon as it can begin (the Temple stands in ruins on the map from the start).
    */
   private temple(s: GameState): boolean {
     if (!s.temple.active && this.lent.size) return this.giveBack(s);
     if (s.temple.active) return this.p.setsBuilders && this.staffBuilders(s);
-    if (s.unlocked.includes('temple') && !s.buildings.some((b) => b.kind === 'temple') && (this.p.stageAhead >= 0 || stageIsGoal(s))) {
-      if (this.reserved ? this.reach(s, 'temple', this.reserved) : this.place(s, 'temple')) return true;
-    }
     return checkStartStage(s).ok && startStage(s).ok;
   }
 
@@ -676,7 +661,7 @@ export class SurvivalBot {
   private materials(s: GameState): boolean {
     for (const m of MATERIALS) {
       const kind = PRODUCER[m];
-      if (!s.unlocked.includes(kind)) continue;
+      if (kind === 'pasture' || !s.unlocked.includes(kind)) continue;
       // Only the ones still making something count (a lumber in a cut grove makes little until it regrows).
       const all = s.buildings.filter((b) => b.kind === kind);
       const own = all.filter((b) => gatherYield(s, b) >= DEAD_YIELD);
@@ -693,6 +678,22 @@ export class SurvivalBot {
       return true;
     }
     return false;
+  }
+
+  /** Another pasture (see `pastures`): the herd short for a while, or the Eficiente's second before the Walls. */
+  private pastures(s: GameState): boolean {
+    const mode = this.p.pastures;
+    if (mode === 'goal' || !s.unlocked.includes('pasture')) return false;
+    const n = s.buildings.filter((b) => b.kind === 'pasture').length;
+    if (n >= MAX_PRODUCERS) return false;
+    // The Eficiente reads the Gado pill: out of winter the pastures should make a quarter more than the next stage will burn.
+    const made = s.buildings.filter((b) => b.kind === 'pasture').reduce((x, b) => x + gatherYield(s, b, 39), 0);
+    const next = TEMPLE_STAGES[Math.min(s.temple.done, TEMPLE_STAGES.length - 1)].offering;
+    const ahead = mode === 'ahead' && s.temple.done > 0 && made < 1.25 * next;
+    const want = n === 0 || ahead || (mode === 'ahead' && n < 2 && s.temple.done >= 2) || this.lasted('herdDown', mode === 'ahead' ? 4 : 8);
+    if (!want || !this.place(s, 'pasture', false, true)) return false;
+    this.streak.herdDown = 0;
+    return true;
   }
 
   /**
@@ -831,11 +832,11 @@ export class SurvivalBot {
     const altar = altarRect(s);
     let best: { r: Rect; d: number; v: number } | null = null;
     // Food and the temple are worth a long road; other buildings a short one (SERVICE_ROAD).
-    const gathers = kind === 'fisher' || kind === 'gatherer' || kind === 'lumber' || kind === 'quarry';
+    const gathers = kind === 'fisher' || kind === 'gatherer' || kind === 'lumber' || kind === 'quarry' || (kind === 'pasture' && this.p.pastures !== 'goal');
     const reach = far || gathers || (kind === 'field' && this.p.planner) || kind === 'temple' ? this.p.roadReach : Math.min(this.p.roadReach, SERVICE_ROAD);
     for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
       const r = { x, y, w, h };
-      if (!this.open(s, r, kind)) continue;
+      if (!freeRect(s, r)) continue;
       const { d } = rectReach(s, r, rd);
       if (d > reach) continue;
       let v = 0;
@@ -895,7 +896,6 @@ export class SurvivalBot {
     let laid = 0;
     for (const i of path.slice(0, 12)) {
       const x = i % s.cols, y = Math.floor(i / s.cols);
-      if (this.reserved && overlaps({ x, y, w: 1, h: 1 }, this.reserved)) break;
       if (dig && s.grid[i]) this.stats.built.dug = (this.stats.built.dug ?? 0) + 1;
       if ((s.feature[i] || (dig && s.grid[i])) && !clearCell(s, x, y).ok) break;
       if (!place(s, 'road', x, y).ok) break;
@@ -954,7 +954,7 @@ export class SurvivalBot {
       const d = rot ? { w: h, h: w } : { w, h };
       for (let y = 0; y + d.h <= s.rows; y++) for (let x = 0; x + d.w <= s.cols; x++) {
         const r = { x, y, ...d };
-        if (!this.open(s, r)) continue;
+        if (!freeRect(s, r)) continue;
         const reach = rectReach(s, r, rd).d;
         if (reach > SERVICE_ROAD) continue;
         const n = targets.filter((t) => cheb(r, t) <= rad).length;
@@ -985,7 +985,7 @@ export class SurvivalBot {
     const cands: { r: Rect; v: number }[] = [];
     for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
       const r = { x, y, w, h };
-      if (!this.open(s, r) || !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) continue;
+      if (!freeRect(s, r) || !borderCells(s, r).some((c) => s.network[indexOf(s, c.x, c.y)])) continue;
       const f = fake(s, 'house', r);
       const plaza = needMet(s, f, 'plaza');
       // Before the plaza is unlocked (B1: it comes with the mud-brick goal) any plot on the network will do.
@@ -1024,7 +1024,7 @@ export class SurvivalBot {
       const x = i % s.cols, y = Math.floor(i / s.cols);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         let ok = 0;
-        for (let k = 1; k <= 6; k++) if (isFreeLand(s, x + dx * k, y + dy * k) && this.open(s, { x: x + dx * k, y: y + dy * k, w: 1, h: 1 })) ok++; else break;
+        for (let k = 1; k <= 6; k++) if (isFreeLand(s, x + dx * k, y + dy * k) && freeRect(s, { x: x + dx * k, y: y + dy * k, w: 1, h: 1 })) ok++; else break;
         if (ok < 4) continue;
         const v = -cheb({ x, y, w: 1, h: 1 }, altar) + this.rng() * 3;
         if (!best || v > best.v) best = { x, y, dx, dy, v };
@@ -1034,7 +1034,7 @@ export class SurvivalBot {
     let laid = 0;
     for (let k = 1; k <= 6; k++) {
       const c = { x: best.x + best.dx * k, y: best.y + best.dy * k, w: 1, h: 1 };
-      if (this.open(s, c) && place(s, 'road', c.x, c.y).ok) laid++;
+      if (freeRect(s, c) && place(s, 'road', c.x, c.y).ok) laid++;
       else break;
     }
     this.stats.roadCells += laid;
@@ -1123,24 +1123,15 @@ export interface Result {
   levelsAtEnd: number[];
   /** Cells with a tree or rock on the starting map. */
   features0: number;
-  /** M2 (plano-p2-correcoes 2.3): at the temple unlock, a free 6x6 at most `templeSpotRoadGap` cells from the network (null: never unlocked). */
-  templeGap: boolean | null;
-  /** Diagnostic only: the temple had a ready spot (touching the network) the week it was unlocked. */
-  templeRoom: boolean | null;
-  /** At the temple unlock: a 6x6 spot of free land or trees within SERVICE_ROAD road cells / anywhere on free land or trees. */
-  templeNear: boolean | null;
-  templeAny: boolean | null;
   /** Silver spent cutting trees (bot actions only). */
   clearSpent: number;
   /** Big houses (level 4) at week 260. */
   big260: number;
   /** Upkeep per building kind at week 156 (start of year 4 = end of year 3). */
   upkeepY3: Record<string, number>;
-  /** At the end of the run: silver, weekly silver change, and whether the temple had a ready spot / any 6x6 of free land or trees. */
+  /** At the end of the run: silver and weekly silver change. */
   endSilver: number;
   endIncome: number;
-  endTempleRoom: boolean;
-  endTempleAny: boolean;
   /** A4: largest residents(year N) / residents(year N-1) from year 2 on (completed years before the end). */
   growthMax: number;
   /** A4 without recoveries: largest residents(year N) / the best year-end before it or the founding caravan (a city back at an old size is not an explosion). */
@@ -1176,6 +1167,8 @@ export interface Result {
   b3: B3Result;
   /** Temple in stages (plano-desafio 2.7). */
   tp: TempleResult;
+  /** Ruins package (plano-ruinas 6): offerings, pastures and the herd. */
+  rv: { missWeeks: number; missRun: number; firstYield: number; pastures: number; fullRun: number; lowRun: number };
 }
 
 export interface TempleResult {
@@ -1183,8 +1176,6 @@ export interface TempleResult {
   stages: { goal: number | null; start: number | null; done: number | null }[];
   /** Per stage: what was enough last before it was paid (silver, wood or stone). */
   last: (string | null)[];
-  /** Week the Temple's place was marked. */
-  marked: number | null;
   /** Longest run of weeks with a stage under way and nobody building; weeks with fewer builders than its jobs. */
   idleRun: number;
   shortWeeks: number;
@@ -1294,8 +1285,6 @@ export interface MatResult {
   end: Record<Material, number>;
   /** Stock at the end of each year. */
   byYear: Record<Material, number[]>;
-  /** Weeks from the Temple's unlock to its place marked. */
-  templeWait: number;
 }
 
 const riverDistance = (s: GameState) => {
@@ -1304,22 +1293,6 @@ const riverDistance = (s: GameState) => {
   for (let i = 0; i < s.ground.length; i++) if (s.ground[i] === 'river') d = Math.min(d, cheb({ x: i % s.cols, y: Math.floor(i / s.cols), w: 1, h: 1 }, a));
   return d;
 };
-
-/** Diagnostic for M2: a 6x6 rect of free land or trees (cuttable) near the network (<= SERVICE_ROAD road cells) / anywhere. */
-function templeRoomLoose(s: GameState): [boolean, boolean] {
-  const { w, h } = dimsOf('temple');
-  const open = (x: number, y: number) => { const i = indexOf(s, x, y); return isFreeLand(s, x, y) || (!s.grid[i] && !s.roads[i] && s.ground[i] !== 'river' && (s.feature[i] === 'palm' || s.feature[i] === 'olive')); };
-  const rd = roadDist(s);
-  let near = false, any = false;
-  for (let y = 0; y + h <= s.rows; y++) for (let x = 0; x + w <= s.cols; x++) {
-    let ok = true;
-    for (let dy = 0; dy < h && ok; dy++) for (let dx = 0; dx < w && ok; dx++) ok = open(x + dx, y + dy);
-    if (!ok) continue;
-    any = true;
-    if (rectReach(s, { x, y, w, h }, rd).d <= SERVICE_ROAD) near = true;
-  }
-  return [near, any];
-}
 
 export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const rng = createRng(seed);
@@ -1331,19 +1304,20 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     firstHarvestWeek: null, firstFieldWeek: null, firstGranaryWeek: null, goalWeeks: GOALS.map(() => null), blocks: {}, blocksY1: {},
     food: { field: 0, fisher: 0, gatherer: 0, spoiled: 0 }, droughtYears: 0, famineAfterDrought: 0, debtLoss: false, debtY1: false, debtY2: false, debtEver: false, goalWait: 0, goalWaitIndex: -1, built: bot.stats.built, peak: 0,
     sq: { silverIn: s.silver, stoneCap: 0, weeks: 0, foodBuildings: [] }, houses52: 0, famineWinters: 0, crises: 0, recoveries: 0, firstCrisisWeek: null, maxWorkshops: 0, silverIdle: 0, residentsByYear: [], blocksByYear: [], peopleByYear: [], caravanHoused: 0, caravanLeft: 0, maxGranaries: 0, levelsAtEnd: [],
-    features0: s.feature.filter((f) => f).length, templeGap: null, templeRoom: null, templeNear: null, templeAny: null, clearSpent: 0, big260: 0, upkeepY3: {},
-    endSilver: 0, endIncome: 0, endTempleRoom: false, endTempleAny: false,
+    features0: s.feature.filter((f) => f).length, clearSpent: 0, big260: 0, upkeepY3: {},
+    endSilver: 0, endIncome: 0,
     growthMax: NaN, growthPeak: NaN, residentsStart: computeEconomy(s).residents, couplesLeft: 0, coupleWaitMax: 0, caravansArrived: 0, caravansAll: 0, caravansSome: 0, g15: null, coupleBlocksByYear: [],
     endBands: { child: 0, adult: 0, elder: 0 }, endUnemployed: 0, deathAge: NaN, endResidents: 0, marks: {},
     mat: {
       lumbers: 0, quarries: 0, waitWeeks: { wood: 0, stone: 0, livestock: 0 }, houseWaitMax: 0, woodBlockedY1: 0, blocked: { wood: 0, stone: 0, livestock: 0 }, idle300: 0, unemployed200: NaN,
       stumps260: 0, stumps520: 0, cut: 0, made: { wood: 0, stone: 0, livestock: 0 }, spentBuild: { wood: 0, stone: 0, livestock: 0 }, spentLevel: { wood: 0, stone: 0, livestock: 0 }, end: { wood: 0, stone: 0, livestock: 0 },
-      byYear: { wood: [], stone: [], livestock: [] }, templeWait: NaN,
+      byYear: { wood: [], stone: [], livestock: [] },
     },
     b1: { coldY1: 0, coldWeeks: 0, coldWinters: 0, woodY1: [], holdY1: 0, holdAll: 0, holdHouses: 0, endsY1: {}, idleY1: NaN, unlockWeek: {}, firstLumber: null, emptyWeek: null },
     b2: { emptyWeeks: 0, emptyY1: 0, emptyByKind: {}, emptyLongest: 0, emptyLongestKind: null, emptyLongestActive: 0, emptyLongestNoField: 0, lumberEmptyWinter: false, liveLumberEmptyWinter: false, noWoodWinter: false, moves: bot.moves },
     b3: { cold: {}, coldY1: 0, coldAll: 0, coldByYear: [], coldWeeksByYear: [], tentsByWinter: [], tentsW1: NaN, tentVulnW1: NaN, tentVulnWeeksY1: 0, housesW1: NaN, j1: 0, j1Live: 0, j1Kind: null, j1Old: 0, under5Weeks: null, loss: null },
-    tp: { stages: TEMPLE_STAGES.map(() => ({ goal: null, start: null, done: null })), last: TEMPLE_STAGES.map(() => null), marked: null, idleRun: 0, shortWeeks: 0, builderWeeks: 0, activeWeeks: 0, log: bot.builderLog, famineActive: 0 },
+    tp: { stages: TEMPLE_STAGES.map(() => ({ goal: null, start: null, done: null })), last: TEMPLE_STAGES.map(() => null), idleRun: 0, shortWeeks: 0, builderWeeks: 0, activeWeeks: 0, log: bot.builderLog, famineActive: 0 },
+    rv: { missWeeks: 0, missRun: 0, firstYield: NaN, pastures: 0, fullRun: 0, lowRun: 0 },
   };
   const b3 = res.b3;
   const j1Run = new Map<number, number>();
@@ -1360,11 +1334,12 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   const mat = res.mat;
   const houseWait = new Map<number, number>();
   let matRun = 0;
-  let templeUnlockWeek: number | null = null;
   /** Week each temple resource last became enough (null: not enough now). */
   const enoughSince: Record<string, number | null> = { silver: null, wood: null, stone: null };
   const tp: TempleResult = res.tp;
   let idleRun = 0;
+  let missRun = 0;
+  let fullRun = 0;
   const famineYears = new Set<number>();
   let crisisPeak: number | null = null;
   let richRun = 0;
@@ -1381,20 +1356,17 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
       const have = k === 'silver' ? s.silver : s[k as Material];
       enoughSince[k] = have >= (stageCost[k] ?? 0) ? (enoughSince[k] ?? s.week) : null;
     }
-    const hadTemple = s.buildings.some((b) => b.kind === 'temple');
     const before = { wood: s.wood, stone: s.stone, livestock: s.livestock };
     bot.act(s);
     if (onScreen && s.temple.active) {
       tp.stages[s.temple.done].start = s.week;
       tp.last[s.temple.done] = Object.keys(enoughSince).reduce((a, k) => ((enoughSince[k] ?? -1) > (enoughSince[a] ?? -1) ? k : a), 'silver');
     }
-    if (tp.marked === null && s.buildings.some((b) => b.kind === 'temple')) tp.marked = s.week;
     for (const m of MATERIALS) {
       mat.spentBuild[m] += Math.max(0, before[m] - s[m]);
       if (bot.lacked[m]) mat.blocked[m]++;
     }
     if (s.week < 52 && bot.lacked.wood) mat.woodBlockedY1++;
-    if (!hadTemple && s.buildings.some((b) => b.kind === 'temple') && templeUnlockWeek !== null) mat.templeWait = s.week - templeUnlockWeek;
     if (s.temple.active) {
       const st = nextStage(s)!;
       const n = buildersAtWork(s);
@@ -1514,6 +1486,17 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     const silverBefore = s.silver;
     const events = stepWeek(s, rng);
     for (let k = doneBefore; k < s.temple.done; k++) tp.stages[k].done = s.week;
+    // Ruins: weeks the restored altar had no offering (and the longest run), the herd at its cap, the pastures.
+    const rv = res.rv;
+    missRun = s.temple.done > 0 && !s.offered ? missRun + 1 : 0;
+    if (missRun) rv.missWeeks++;
+    rv.missRun = Math.max(rv.missRun, missRun);
+    fullRun = s.livestock >= RULES.livestockStorage - 2 ? fullRun + 1 : 0;
+    rv.fullRun = Math.max(rv.fullRun, fullRun);
+    const pastures = s.buildings.filter((b) => b.kind === 'pasture');
+    rv.pastures = Math.max(rv.pastures, pastures.length);
+    // The first pasture's yield out of winter (week 39 is summer), read the week it is built.
+    if (Number.isNaN(rv.firstYield) && pastures.length) rv.firstYield = gatherYield(s, pastures[0], 39);
     res.sq.silverIn += Math.max(0, s.silver - silverBefore);
     res.sq.weeks++;
     if (s.stone >= RULES.materialStorage * 0.95) res.sq.stoneCap++;
@@ -1565,7 +1548,6 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     for (const m of MATERIALS) if (waitingNow[m] > 0) mat.waitWeeks[m]++;
     mat.lumbers = Math.max(mat.lumbers, s.buildings.filter((b) => b.kind === 'lumber').length);
     mat.quarries = Math.max(mat.quarries, s.buildings.filter((b) => b.kind === 'quarry').length);
-    if (templeUnlockWeek === null && s.unlocked.includes('temple')) templeUnlockWeek = s.week;
     matRun = (s.wood > 300 || s.stone > 300) && !s.unlocked.includes('temple') ? matRun + 1 : 0;
     mat.idle300 = Math.max(mat.idle300, matRun);
     if (s.week === 200) mat.unemployed200 = unemployed(s);
@@ -1575,11 +1557,6 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
     if (s.drought && !wasDrought) { res.droughtYears++; dryYear = true; }
     if (seasonOf(s.week) === 'autumn' && s.week % RULES.weeksPerSeason === 0) dryYear = false;
     for (let g = goalBefore; g < s.goalIndex; g++) res.goalWeeks[g] = s.week;
-    if (res.templeRoom === null && s.unlocked.includes('temple')) {
-      res.templeGap = templeSpotsNear(s).length > 0;
-      res.templeRoom = templeSpots(s).length > 0;
-      [res.templeNear, res.templeAny] = templeRoomLoose(s);
-    }
     if (s.week === 260) res.big260 = s.buildings.filter((b) => b.kind === 'house' && b.level === 4).length;
     if (s.week === 156) for (const b of s.buildings) { const u = statOf(b, 'upkeep'); if (u) res.upkeepY3[b.kind] = (res.upkeepY3[b.kind] ?? 0) + u; }
     if (s.goalIndex > goalBefore) goalSince = s.week;
@@ -1647,8 +1624,6 @@ export function run(p: Profile, seed: number, maxWeeks = 1000): Result {
   }
   res.endSilver = s.silver;
   res.endIncome = computeEconomy(s).silverDelta;
-  res.endTempleRoom = templeSpots(s).length > 0;
-  res.endTempleAny = templeRoomLoose(s)[1];
   res.caravanHoused = s.caravans.reduce((a, c) => a + c.housed, 0);
   res.caravanLeft = s.caravans.reduce((a, c) => a + c.left, 0);
   res.levelsAtEnd = [1, 2, 3, 4].map((l) => s.buildings.filter((b) => b.kind === 'house' && b.level === l).length);

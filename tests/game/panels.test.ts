@@ -25,12 +25,12 @@ describe('panels as data (2D and 3D)', () => {
     expect(phone[3].parts.length).toBeLessThan(pc[3].parts.length);
   });
 
-  it('Avisos: "no warnings" in green when there are none; each warning with ⚠', () => {
+  it('Avisos: "no warnings" in green when there are none; each warning with ⚠, one under another in one column', () => {
     expect(alertsPanel([])[0][1].parts[0]).toEqual({ text: T.nova.noAlerts, tone: 'good' });
     const two = alertsPanel([{ key: 'a', text: 'Falta comida', bad: true, toast: true }, { key: 'b', text: 'Casal', bad: false, toast: false }]);
-    expect(two.length).toBe(2);
+    expect(two.length).toBe(1);
     expect(two[0][1].parts[0]).toEqual({ text: '⚠ Falta comida', tone: 'bad' });
-    expect(two[1][0].parts[0].tone).toBe('warn');
+    expect(two[0][2].parts[0].tone).toBe('warn');
   });
 
   it('Estatísticas "Agora": silver, food and work; the problems only on PC', () => {

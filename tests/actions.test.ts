@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, checkPlace, clearCell, dimsOf, indexOf, onlyNeedsRoad, place, placeSpots, RULES, templeRoadSpot, templeSpots, templeSpotsNear } from '../src/core';
-import { EAST, emptyGame, put, road, ROADSIDE, westOf } from './helpers';
+import { BUILDINGS, checkPlace, clearCell, createGame, createRng, dimsOf, GOALS, indexOf, onlyNeedsRoad, place, placeSpots, RULES } from '../src/core';
+import { EAST, emptyGame, put, ROADSIDE, westOf } from './helpers';
 
 describe('placing buildings', () => {
   it('charges the cost and occupies every cell of the footprint', () => {
@@ -52,101 +52,23 @@ describe('placing buildings', () => {
   });
 });
 
-describe('temple placement', () => {
-  it('occupies 6x6 cells and is marked for free (no silver, no material)', () => {
-    const s = emptyGame({ silver: 0, stone: 0, wood: 0 });
-    expect(place(s, 'temple', EAST, 30)).toEqual({ ok: true });
-    expect([s.silver, s.stone, s.wood]).toEqual([0, 0, 0]);
-    const t = s.grid[indexOf(s, EAST, 30)]!;
-    expect(t).toMatchObject({ kind: 'temple', w: 6, h: 6, connected: true });
-    expect(s.grid[indexOf(s, EAST + 5, 35)]).toBe(t);
-    expect(s.grid[indexOf(s, EAST + 6, 35)]).toBeNull();
-  });
-
-  it('is invalid if any of its cells is blocked', () => {
-    const s = emptyGame();
-    s.feature[indexOf(s, EAST + 5, 35)] = 'rock';
-    expect(checkPlace(s, 'temple', EAST, 30)).toEqual({ ok: false, reason: 'invalid' });
-    expect(checkPlace(s, 'temple', 20, 30)).toEqual({ ok: false, reason: 'invalid' }); // over the road
-    expect(checkPlace(s, 'temple', 40, 5)).toEqual({ ok: false, reason: 'invalid' }); // river / edge
-  });
-
-  it('must touch a connected road', () => {
-    const s = emptyGame();
-    expect(checkPlace(s, 'temple', EAST + 1, 30)).toEqual({ ok: false, reason: 'noRoad' });
-    expect(checkPlace(s, 'temple', 18, 36)).toEqual({ ok: true }); // west side of the road
-  });
-
-  it('lists every spot where it fits, ignoring silver', () => {
-    const s = emptyGame({ silver: 0 });
-    const spots = templeSpots(s);
-    expect(spots).toContainEqual({ x: EAST, y: 30 });
-    expect(spots).toContainEqual({ x: 18, y: 36 });
-    expect(spots).not.toContainEqual({ x: EAST + 1, y: 30 });
-    s.silver = 1e6;
-    for (const o of spots) expect(checkPlace(s, 'temple', o.x, o.y)).toEqual({ ok: true });
-  });
-
-  it('has no spot when no free 6x6 touches a connected road', () => {
-    const s = emptyGame();
-    s.feature = s.feature.map(() => 'rock');
-    expect(templeSpots(s)).toEqual([]);
-  });
-
-  it('templeSpotsNear: touching the network is ready, one free cell away needs a road, two away is left out', () => {
-    expect(RULES.templeSpotRoadGap).toBe(1);
-    const s = emptyGame({ silver: 0 });
-    const at = (x: number, y: number) => templeSpotsNear(s).find((o) => o.x === x && o.y === y);
-    expect(at(EAST, 30)).toEqual({ x: EAST, y: 30, ready: true });
-    expect(at(EAST + 1, 30)).toEqual({ x: EAST + 1, y: 30, ready: false }); // a 1-cell road at x = EAST links it
-    expect(at(EAST + 2, 30)).toBeUndefined();
-    road(s, [[EAST, 30]]);
-    expect(at(EAST + 1, 30)).toEqual({ x: EAST + 1, y: 30, ready: true });
-    // Every ready spot is a place the temple can be built; the others are not (yet).
-    s.silver = 1e6;
-    for (const o of templeSpotsNear(s)) expect(checkPlace(s, 'temple', o.x, o.y).ok, `${o.x},${o.y}`).toBe(o.ready);
-    expect(templeSpotsNear(s).filter((o) => o.ready).length).toBe(templeSpots(s).length);
-  });
-
-  it('templeSpotsNear lists the spots nearest the altar first, and none over rocks', () => {
-    const s = emptyGame();
-    const a = { x: s.altar.x + 2, y: s.altar.y + 2 };
-    const far = templeSpotsNear(s).map((o) => Math.abs(o.x + 3 - a.x) + Math.abs(o.y + 3 - a.y));
-    expect(far).toEqual([...far].sort((p, q) => p - q));
-    s.feature = s.feature.map(() => 'rock');
-    expect(templeSpotsNear(s)).toEqual([]);
-  });
-
-  it('templeRoadSpot: with no area near the roads, the free place the shortest road reaches, and that road', () => {
-    const s = emptyGame({ silver: 1e6 });
-    const d = dimsOf('temple');
-    // Rocks everywhere but one free 6x6 two cells east of the road at x = EAST - 1, and a 1-cell-wide path to it.
-    s.feature = s.feature.map(() => 'rock');
-    const fx = EAST + 2;
-    for (let y = 30; y < 30 + d.h; y++) for (let x = fx; x < fx + d.w; x++) s.feature[indexOf(s, x, y)] = null;
-    for (let x = EAST; x < fx; x++) s.feature[indexOf(s, x, 30)] = null;
-    expect(templeSpotsNear(s)).toEqual([]);
-    const far = templeRoadSpot(s)!;
-    expect(far).toMatchObject({ x: fx, y: 30, ready: false });
-    expect(far.road).toHaveLength(2);
-    // Building that road makes it a ready spot, where the temple can be built.
-    road(s, far.road.map((c) => [c.x, c.y] as [number, number]));
-    expect(checkPlace(s, 'temple', fx, 30).ok).toBe(true);
-    expect(templeRoadSpot(s)).toMatchObject({ ready: true, road: [] });
-    s.feature = s.feature.map(() => 'rock');
-    expect(templeRoadSpot(s)).toBeNull();
+describe('the temple site', () => {
+  it('is never placed: the ruin stands from the start and no goal unlocks the temple tool', () => {
+    const s = createGame(createRng(3));
+    expect(s.buildings.filter((b) => b.kind === 'temple')).toHaveLength(1);
+    expect(s.unlocked).not.toContain('temple');
+    expect(GOALS.some((g) => g.unlock === 'temple')).toBe(false);
   });
 
   it('onlyNeedsRoad: free and paid for, but away from the network', () => {
     const s = emptyGame({ silver: 1000 });
-    expect(onlyNeedsRoad(s, 'temple', EAST + 1, 30)).toBe(true);
-    expect(onlyNeedsRoad(s, 'temple', EAST, 30)).toBe(false); // touches the road: it can be built
     expect(onlyNeedsRoad(s, 'house', ROADSIDE - 1, 30)).toBe(true); // it could be built, cut off
     expect(onlyNeedsRoad(s, 'house', ROADSIDE, 30)).toBe(false);
     expect(onlyNeedsRoad(s, 'house', ROADSIDE + 1, 30)).toBe(false); // over the road: taken, not "needs a road"
     expect(onlyNeedsRoad(s, 'road', 2, 2)).toBe(false);
-    s.silver = BUILDINGS.temple.cost - 1;
-    expect(onlyNeedsRoad(s, 'temple', EAST + 1, 30)).toBe(false); // the silver is missing too
+    s.silver = BUILDINGS.house.cost - 1;
+    expect(onlyNeedsRoad(s, 'house', ROADSIDE - 1, 30)).toBe(false); // the silver is missing too
+    s.silver = 1000;
     s.unlocked = s.unlocked.filter((k) => k !== 'house');
     expect(onlyNeedsRoad(s, 'house', ROADSIDE - 1, 30)).toBe(false);
   });

@@ -215,16 +215,32 @@ const blob = (r: number, x: number, y: number, z: number, color: number, sy = 1,
   return { geo: g, color };
 };
 
-/** Merges the pieces by colour: one part (one draw call per instanced mesh) per material. */
+/**
+ * Colours that keep a material of their own: recoloured by the season in the stage (plants, grass,
+ * soil), growing with the crop, or glowing at night (the dark of windows and doors).
+ */
+const OWN: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.hedge, COLORS.palm, COLORS.grass, COLORS.tuft, COLORS.tuftDark, COLORS.soil, COLORS.dark, ...GROWING];
+
+/**
+ * Merges the pieces into as few parts as it can (one draw call per instanced mesh each): every
+ * colour that lives on its own (OWN, fire, tree crowns) is one part with its shared material; the
+ * rest takes its colour in the vertices and joins one part per kind of material (solid, cloth in the
+ * wind, swaying wood, road), as the kits do. A plaza of ten colours costs two calls, not ten.
+ */
 function build(pieces: Piece[]): Prototype {
   const groups = new Map<string, { color: number; emissive: boolean; cloth: boolean; geos: THREE.BufferGeometry[] }>();
   const crown = new Map<number, THREE.BufferGeometry[]>();
+  const painted: Piece[] = [];
   for (const p of pieces) {
     if (p.tone !== undefined) {
       // A crown lobe: its shade in the vertices, one part per crown colour.
       const geo = clean(p.geo);
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(p.tone), 3));
       crown.set(p.color, [...(crown.get(p.color) ?? []), geo]);
+      continue;
+    }
+    if (!p.emissive && !OWN.includes(p.color)) {
+      painted.push(p);
       continue;
     }
     const key = `${p.color}-${!!p.emissive}-${!!p.cloth}`;
@@ -234,6 +250,7 @@ function build(pieces: Piece[]): Prototype {
   }
   return {
     parts: [
+      ...buildKit(painted, true).parts,
       ...[...groups.values()].map((g) => ({ geometry: mergeGeometries(g.geos)!, material: mat(g.color, g.emissive, g.cloth) })),
       ...[...crown].map(([color, geos]) => ({ geometry: mergeGeometries(geos)!, material: crownMaterial(color) as THREE.Material })),
     ],
@@ -1569,23 +1586,25 @@ function goat(x: number, z: number, color: number): Piece[] {
 
 const kitMaterials = new Map<string, THREE.Material>();
 
-/** A material that takes its colour from the vertices: solid, cloth in the wind, or leaves that sway. */
-function kitMat(kind: 'solid' | 'cloth' | 'sway'): THREE.Material {
+type KitKind = 'solid' | 'cloth' | 'sway' | 'road';
+
+/** A material that takes its colour from the vertices: solid, cloth in the wind, leaves that sway, or road (no snow settles). */
+function kitMat(kind: KitKind): THREE.Material {
   let m = kitMaterials.get(kind);
   if (!m) {
     const base = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: kind === 'cloth' ? 0.95 : 0.92, metalness: 0, flatShading: true });
-    m = patch(base, kind === 'cloth' ? { snow: true, cloth: true } : kind === 'sway' ? { snow: true, wind: WIND.trees } : { snow: true });
+    m = patch(base, kind === 'cloth' ? { snow: true, cloth: true } : kind === 'sway' ? { snow: true, wind: WIND.trees } : kind === 'road' ? {} : { snow: true });
     kitMaterials.set(kind, m);
   }
   return m;
 }
 
-/** Merges a kit piece with its colours in the vertices: one part solid, one cloth, one leaves. */
-function buildKit(pieces: Piece[]): Prototype {
-  const groups = new Map<'solid' | 'cloth' | 'sway', THREE.BufferGeometry[]>();
+/** Merges a kit piece with its colours in the vertices: one part solid, one cloth, one leaves (and with `roads`, one of road colours). */
+function buildKit(pieces: Piece[], roads = false): Prototype {
+  const groups = new Map<KitKind, THREE.BufferGeometry[]>();
   const c = new THREE.Color();
   for (const p of pieces) {
-    const kind = p.cloth ? 'cloth' : SWAYING.includes(p.color) ? 'sway' : 'solid';
+    const kind: KitKind = p.cloth ? 'cloth' : SWAYING.includes(p.color) ? 'sway' : roads && ROAD_COLORS.includes(p.color) ? 'road' : 'solid';
     const g = p.cloth ? flapped(clean(p.geo), p.cloth) : clean(p.geo);
     c.setHex(p.color);
     const n = g.attributes.position.count;

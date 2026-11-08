@@ -266,7 +266,7 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `
   saiu da cidade, o local foi demolido ou perdeu a rua, mais gente que vagas: saem os de id maior);
   depois cada vaga livre vai ao adulto sem trabalho que **mora mais perto** (Manhattan da casa ao
   local; empate pelo id), com os locais na ordem `jobPriority` (pescador, coletora, campo, lenhador,
-  pedreira, celeiro, mercado, oficina, templo) e, no mesmo tipo, o mais antigo. **O jogo nunca move
+  pedreira, pastor, celeiro, mercado, oficina, templo) e, no mesmo tipo, o mais antigo. **O jogo nunca move
   quem já tem trabalho.**
 - **O campo no inverno** congela, mas os lavradores ficam nele, descansando (contam como empregados).
 - **Mudar a profissão** (`setJob`, jogador): na ficha da pessoa, "Mudar" abre uma lista curta com
@@ -295,8 +295,9 @@ Plano: `docs/revisoes/2026-11-06/plano-sobrevivencia.md` (seção 3). Código: `
   Pedreiros, Celeireiros, Mercadores, Artesãos, Construtores), "2 de 4 vagas" (ou "sem rua"), em âmbar
   "falta N" quando há menos gente que a meta, e **− [meta] +** (botões de 44 px). Meta automática:
   o número é o das vagas, cinza, com o selo "auto"; + fica cinza (já quer todas). − tira na hora quem
-  mora mais longe; + com ninguém livre diz "Ninguém livre: tire de outra profissão" no cabeçalho do painel (enquanto
-  ninguém está livre e alguma profissão espera gente) e a linha fica com "falta 1" até alguém ficar livre. Celular deitado: duas
+  mora mais longe. Sempre que alguma profissão espera gente e ninguém está livre, o cabeçalho do painel
+  diz "Ninguém livre: use − em outra profissão" (o jogo nunca tira alguém de um trabalho sozinho; playtest
+  2026-11-07: um Pescador vazio em "0 de 1 vaga" sem explicação), e a linha fica com "falta N" até alguém ficar livre. Celular deitado: duas
   colunas que enchem de cima para baixo, o painel desce até a borda da tela (cobre as ferramentas
   enquanto aberto, e os toasts esperam ele fechar) e cabe sem rolar; PC: uma coluna.
 - **Metas das profissões** (`s.jobTargets`, core em `work.ts`/`actions.ts`): sem chave = automática
@@ -436,7 +437,7 @@ motivo. Código em `people.ts`, `life.ts`, `families.ts` e `caravans.ts`; númer
 ## Caravanas
 
 Além da fundadora, cada partida sorteia no início (`rollCaravans`, `caravans.later`) as caravanas
-seguintes: uma entre as semanas 52 e 98 (Ano 2, **3 famílias: as duas primeiras sempre casais de noivos
+seguintes: uma entre as semanas 30 e 60 (fim do Ano 1, era 52–98 até o playtest de 2026-11-07, quando a meta de 5 casas de barro travava à espera dela; a metade mais longa da espera caiu pela metade: p75 53 → 27 sem, p90 82 → 45; **3 famílias: as duas primeiras sempre casais de noivos
 jovens**, `engaged` 2, e uma sorteada), uma entre 156 e 260 (Anos 4–5, 2 a 3) e, em metade das partidas,
 uma entre 312 e 415 (2 a 3). Cada uma é **anunciada 4 a 8 semanas antes**
 (`warnWeeks`): toast "Uma caravana de 3 famílias chega no inverno" e o aviso "Caravana com 3
@@ -618,11 +619,11 @@ Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
 
 | # | Etapa | Lugar | Prata | Pedra | Madeira | Construtores | Obra (sem-construtor) | Raio do altar | Oferta (gado/sem) |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | Altar restaurado | altar | 40 | 20 | 20 | 2 | 12 | 6 | 0,5 |
-| 2 | Alicerce | ruína | 150 | 80 | 0 | 4 | 40 | 7 | 0,75 |
-| 3 | Paredes | ruína | 200 | 120 | 40 | 5 | 60 | 8 | 1,0 |
-| 4 | Pórtico e telhado | ruína | 250 | 60 | 120 | 6 | 72 | 10 | 1,25 |
-| 5 | Consagração | ruína | 200 | 0 | 40 | 4 | 32 | 10 | 1,5 |
+| 1 | Altar restaurado | altar | 40 | 10 | 20 | 2 | 12 | 6 | 0,75 |
+| 2 | Alicerce | ruína | 150 | 80 | 0 | 4 | 40 | 7 | 1 |
+| 3 | Paredes | ruína | 200 | 120 | 40 | 5 | 60 | 8 | 1,25 |
+| 4 | Pórtico e telhado | ruína | 250 | 60 | 120 | 6 | 72 | 10 | 1,5 |
+| 5 | Consagração | ruína | 200 | 0 | 40 | 4 | 32 | 10 | 1,75 |
 
 - **Ofertas** (`offer` em `simulation.ts`): toda semana, depois da produção, o altar restaurado
   queima a oferta da última etapa pronta do estoque de gado. Com gado bastando, cobre o raio dela
@@ -632,10 +633,12 @@ Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
 - **O altar vale:** a Casa de pedra e a Casa grande pedem `sacred` (o raio do altar com ofertas, ou o
   do Templo consagrado). Sem altar restaurado, nenhuma casa passa do barro; sem ofertas, as casas de
   pedra caem pela regra de sempre (`weeksToDowngrade` 3): o estoque de gado é o colchão.
-- **Gado** (`livestock`, um material): começa em 0, teto `livestockStorage` 40; o **Pasto** (3 x 3,
-  30 prata + 10 madeira, 1 Pastor, manutenção 0,5) rende 0,06 por célula de **capim livre** no raio
+- **Gado** (`livestock`, um material): começa em 0, teto `livestockStorage` 50; o **Pasto** (3 x 3,
+  30 prata + 10 madeira, 1 Pastor, manutenção 0,5) rende 0,05 por célula de **capim livre** no raio
   2 (chão `grass` sem construção, rua, árvore ou rocha), até 1,5/sem, × 0,5 no inverno; cheio, para.
-  Construir em cima do capim tira a célula.
+  Construir em cima do capim tira a célula. Um pasto num capim médio (~1,25/sem) sustenta o altar
+  restaurado (0,75/sem) fora do inverno; do Alicerce (1/sem) em diante o inverno pede o 2º, e na
+  Consagração (1,75/sem) o 3º.
 
 - Uma etapa só começa quando é o objetivo atual (`stageIsGoal`), no balão do altar (etapa 1) ou do
   Templo (2–5): paga na hora a prata e os materiais (`startStage`; recusa sem eles, em dívida ou
@@ -650,14 +653,14 @@ Cinco etapas, cada uma um objetivo (`templeStage`), refazem os dois no lugar:
 - O Templo só cobre (raio 12, Alegria +10) depois da Consagração (`templeDone`); as etapas não mudam
   outra regra. A vitória é a Consagração terminada.
 - **Balão do altar:** em ruínas, "Altar em ruínas: restaure para as casas de pedra"; restaurado,
-  "Ofertas: 0,5 gado/sem · cobre N casas" e o alcance; sem gado, em vermelho "✗ Sem ofertas: não
+  "Ofertas: 0,75 gado/sem · cobre N casas" e o alcance; sem gado, em vermelho "✗ Sem ofertas: não
   cobre as casas". O Templo, até o Alicerce ficar pronto, se chama **"Ruínas do Templo"** no balão (só
   as etapas, sem a frase do que faz). A casa que não sobe por causa do altar diz o motivo: "Altar em
-  ruínas", "altar sem ofertas" ou "longe do altar". Toasts: "O altar ficou sem ofertas: as casas de
-  pedra vão cair" (e "Sem ofertas" subindo do altar) e "As ofertas voltaram". A coluna não tem mais o
+  ruínas", "altar sem ofertas" ou "longe do altar". Toasts: "Falta gado para o altar: construa um
+  pasto" (e "Sem ofertas" subindo do altar) e "As ofertas voltaram". A coluna não tem mais o
   Templo (ele está no mapa desde o começo) e ganha o Pasto, depois da Coletora.
 - **Balão do altar e do Templo** (`stageCard` em `src/game/model/card.ts`): as etapas já prontas ali
-  ("✓ Altar restaurado: pronto") e a próxima, "Etapa 2 de 5: Alicerce". Enquanto ela é o objetivo:
+  ("✓ Altar restaurado: etapa pronta") e a próxima, "Etapa 2 de 5: Alicerce". Enquanto ela é o objetivo:
   antes de começar, o custo ("150 prata · 80 pedra", o que falta em vermelho com "(tem N)"), "4
   construtores · ~10 sem de obra" e o botão dourado **"Começar: Alicerce"** (`session.startStage()`;
   cinza com o que falta, "Falta pedra: 80 (tem 30)", e o toque diz o motivo); em obra,
@@ -842,7 +845,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     com prêmio e o que libera (no celular, prêmio e liberação só no objetivo atual), em duas colunas
     quando não cabem em uma;
   - **Avisos** (triângulo): selo vermelho com a contagem da lista do core (`alerts()`); tocar abre a
-    lista com o texto de cada aviso. Quando entra um aviso novo o botão pulsa e aparece um toast com
+    lista com o texto de cada aviso, um embaixo do outro numa coluna só (lista longa rola). Quando entra um aviso novo o botão pulsa e aparece um toast com
     o texto (uma vez por episódio). **Não há faixa de aviso sobre o mapa;**
   - **Estatísticas** (gráfico): prata (impostos, manutenção por tipo, saldo),
     comida (colheita, pesca, coleta, consumo, saldo, estoque/capacidade, previsão), trabalho
@@ -1178,14 +1181,17 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   gastos"), fome ou comida que não chega à colheita ("Comida acaba em N semanas: construa um
   pescador perto do rio"), frio ou lenha que não dura o inverno, o altar restaurado sem ofertas ("O
   altar está sem ofertas: construa um pasto no capim") ou com gado para 8 semanas ou menos ("Gado
-  acaba em N semanas: construa um pasto no capim"); 2) **a etapa do Templo** quando é o
-  objetivo (borda dourada): "Altar restaurado: toque no altar e comece", "Alicerce: junte 80 pedra ·
+  acaba em N semanas: construa um pasto no capim"). Se já existe um pescador, lenhador ou pasto
+  na rua sem ninguém trabalhando e ninguém está livre, a crise diz "Pescador sem ninguém: mude
+  alguém em Profissões" e o toque abre Profissões (construir outro ficaria vazio
+  também); 2) **a etapa do Templo** quando é o
+  objetivo (borda dourada): "Altar restaurado: toque no altar para começar", "Alicerce: junte 80 pedra ·
   30/80", "Alicerce: ligue o Templo à rua", "Alicerce: ponha construtores · 1 de 4", "Alicerce 18/40 ·
   pronto em ~6 sem"; 3) **o objetivo atual**: a primeira coisa que falta (construir: o próprio
   objetivo, ou "Oficina: ligue à rua"; casas de nível N: a exigência da casa mais perto de subir,
   "Construa uma praça perto das casas de barro", "Praça libera no objetivo 5", "Faltam 8 de pedra para
   as casas subirem", "Casas de pedra pedem o altar: restaure o altar", "Casas de pedra só perto do
-  altar: construa perto dele", "Construa mais casas: 2 de 5", "As casas sobem em ~3 semanas"; moradores: caravana
+  altar: construa perto dele", "Construa mais casas: 2 de 5" (sem terreno vazio; com um, "Terreno pronto: uma família vem com a caravana em ~N semanas" ou "Terreno pronto: espere o próximo casamento", porque terreno não faz família), "As casas sobem em ~3 semanas"; moradores: caravana
   ou casais sem casa vazia, material, comida para nascer, depois o nível das casas; marcos: "Deixe 1
   casa vazia: caravana em 5 sem", "As crianças crescem: enquanto isso, suba as casas"); 4) "Tudo em
   ordem: aproveite a cidade".
@@ -1213,16 +1219,8 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   prata a prévia diz "Falta prata: custa N", em dívida "Em dívida: não dá para construir").
   Pescador e Coletora mostram "Rende N comida/sem" (com as células de rio ou árvores contadas
   destacadas); Campo mostra que dá comida fora do inverno. Com Casa, destaque da área coberta
-  pelas praças (onde a tenda pode virar casa de barro). O Templo mostra as 6 x 6 células
-  e contorna até `maxTempleSpots` (6, em `visual.json`) áreas onde cabe, sem sobrepor, as mais
-  perto do altar (`templeSpotsNear` no core, recalculado ao escolher e a cada atualização, nunca
-  por quadro): **verde** se já encosta na rede, **amarela** se um 6 x 6 livre fica a no máximo
-  `templeSpotRoadGap` (1, em `rules.json`) célula livre da rede. Sem nenhuma dessas, marca em
-  amarelo o 6 x 6 livre que a rua mais curta alcança (`templeRoadSpot`; empate: o mais perto do
-  altar) e desenha essa rua em dourado, como a do tutorial. Ao escolher o Templo a câmera desliza
-  até a primeira área. Sem área verde, toast "Sem lugar pronto: puxe uma rua ligada ao altar até
-  uma área amarela"; sem nenhuma, "Sem espaço para o Templo: abra uma rua ao lado de um terreno
-  livre 6 x 6".
+  pelas praças (onde a tenda pode virar casa de barro). O Templo não é
+  posto pelo jogador: as ruínas já estão no mapa desde o início (ver Objetivos).
 - **Toasts** (mensagens curtas no centro de baixo, acima das ferramentas, empilhando para cima; o
   que sai esmaece em 250 ms e os outros deslizam para o lugar em 150 ms, sem movimento com
   `prefers-reduced-motion`):
@@ -1346,8 +1344,10 @@ de Jerusalém: inverno chuvoso e verde, verão seco.
   forte: mais gotas, mais vento, céu e luz mais escuros, sombras de nuvens mais fortes), com
   respingos no chão. O chão e os telhados escurecem molhados e continuam molhados depois da chuva,
   secando devagar (mais rápido no verão); poças aparecem nas ruas e somem mais devagar ainda.
-  Os períodos de clima duram 6–12 s e são sorteados de novo quando a estação muda ou quando a neve
-  ou a seca começam ou acabam (o clima nunca passa para a estação errada).
+  A chuva vem em pancadas de 2 a 5 semanas (`look3d.json` > `weather.spellWeeks`) que atravessam a
+  virada da semana, entrando e saindo devagar (~0,5 semana, `fadeWeeks`) e com o céu fechando antes;
+  a fração do tempo com chuva é a chance da estação × `wetShare` (0,375, igual à de antes). Uma pancada
+  para antes de uma semana sem chance de chuva (o verão continua seco).
 - **Neve (rara, só visual):** cerca de 1 inverno em 5 (`visual.json`). Da semana 3 à 10 do inverno
   a neve cobre o chão (célula por célula), os telhados e as árvores, e a chuva cai como neve.
   Nunca num ano seco.
@@ -1399,7 +1399,10 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
 - **Moradores** andando **só pelas ruas**, com rota por busca em largura até uma construção
   conectada (core). Quantidade = 8 + metade dos moradores, no máximo 140 (`walkerCount`). Balançam
   de leve ao andar, param na pausa e andam mais rápido em 3x. Menos gente na rua à noite e na chuva
-  (`crowd` em `look3d.json`).
+  (`crowd` em `look3d.json`): quem sai da conta anda até a porta mais próxima no caminho e entra; quem
+  volta sai por uma porta (`doorBeside` em `crowd.ts`). Ninguém some nem pula: andarilhos, famílias e
+  trabalhadores são redesenhados cada um só quando a sua parte muda (`diff.ts`), e quem continua
+  mantém lugar e caminho; um caminho cortado por uma rua demolida é refeito de onde a pessoa está.
 - **Quem anda na rua é gente da cidade** (`castWalkers` em `crowd.ts`): cada morador andando é um
   morador de verdade, cada um uma vez só, vestido como ele mesmo. O tipo de ofício é feito por quem
   trabalha ali (o lavrador por quem trabalha num campo, o artesão por quem trabalha na oficina, e
@@ -1407,7 +1410,8 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   cesteira são mulheres. Numa cidade com menos moradores que andarilhos, os que sobram são de fora.
   Com Mover, **tocar ou clicar numa pessoa na rua abre a ficha dela** (26 px de alcance no toque,
   16 no mouse); fora disso, o toque abre o balão do que está no mapa.
-- **Famílias e caravanas** andam em grupo da entrada até a casa (veja "Aparência e moradores").
+- **Famílias e caravanas** andam em grupo da entrada até a casa (veja "Aparência e moradores"), uma vez
+  só, no passo do core (`f.step` com a fração da semana), e entram; não repetem o trecho.
 - **Agricultores** curvados sobre as plantações, alguns por campo e mais no arado e na colheita
   (`crowd.fieldHands`); nenhum em campo sem rua.
 - **Dia e noite** (só visual): 240 s a 1x, seguindo o tempo do jogo (para na pausa), com a luz do
@@ -1443,7 +1447,8 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   - No outono, sob até 4 oliveiras a até 5 células das casas, dois colhedores: um batendo os galhos
     com vara, outra ajoelhada catando no cesto.
   - No máximo 40 figuras; menos à noite e na chuva (como os andarilhos), metade na qualidade baixa,
-    nenhuma na mínima nem de longe (zoom mínimo); sombras só na qualidade alta.
+    nenhuma na mínima nem de longe (rareiam nas últimas 10 unidades antes de `farDist`, `farBand`);
+    sombras só na qualidade alta.
 - **Noivos de mãos dadas:** um casal noivo a caminho da casa onde vai casar (o core casa os dois
   ao chegar) anda lado a lado, de mãos dadas (`betrothed` em `crowd.ts`).
 - **Família indo embora:** quando uma família deixa a cidade (evento `familyLeft`), quem saiu da

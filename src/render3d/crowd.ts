@@ -1,4 +1,4 @@
-import { ageBand, jobsOf, type AgeBand, type BuildingKind, type Craft, type GameState, type Person, type Sex, type WalkerType } from '../core';
+import { ageBand, jobsOf, type AgeBand, type BuildingKind, type Cell, type Craft, type GameState, type Person, type Sex, type WalkerType } from '../core';
 
 /**
  * How the people of the 3D view look and walk, as plain data (no Three.js): robe and head cover by
@@ -123,12 +123,13 @@ const WORK_OF: Partial<Record<WalkerType, BuildingKind>> = { farmer: 'field', po
  * Who each walker on the streets is: a resident of the city, each at most once. A walker of a trade
  * is someone who works there (the farmer works a field, the artisan a workshop); otherwise someone of
  * the age the type shows (`walkerPerson`; a woman for the water and basket carriers); otherwise anyone not yet out. `k[i]` (0..1) is the
- * walker's own draw. Null: nobody left (more walkers than residents in a new town).
+ * walker's own draw; `taken`: residents already out (walkers kept from before). Null: nobody left
+ * (more walkers than residents in a new town).
  */
-export function castWalkers(s: GameState, types: readonly WalkerType[], k: readonly number[]): (number | null)[] {
+export function castWalkers(s: GameState, types: readonly WalkerType[], k: readonly number[], taken: Iterable<number> = []): (number | null)[] {
   const jobs = jobsOf(s);
   const residents = s.people.filter((p) => p.houseId !== null).sort((a, b) => a.id - b.id);
-  const used = new Set<number>();
+  const used = new Set<number>(taken);
   return types.map((type, i) => {
     const want = walkerPerson(type, k[i]);
     const work = WORK_OF[type];
@@ -199,18 +200,20 @@ export const holdLoad = (slot: Slot): Load => (slot.side > 0 ? 'hold-r' : 'hold-
 export const groupLength = (slots: Slot[]) => slots.reduce((m, s) => Math.max(m, s.back), 0);
 
 /**
- * A family walking home in the 3D view (the game is paused while it is open): from the cell it has
- * reached (`from`), the whole group (`length` cells long) walks to the house cell (`last`) at `speed`
- * cells per second, goes in, and after `rest` seconds walks the stretch again. Returns the leader's
- * step along the path; a member `back` cells behind is at `lead - back` (see `memberAt`).
+ * Where the leader of a family walking home is (a step along its path), following the core: while
+ * the family is on its way (`step`, the core's `f.step`) the leader is `perWeek` cells further each
+ * week, in step with the week's fraction `frac` (never back); once the core has moved it in (`step`
+ * null) the rest of the group walks on at the same pace (`dWeeks` of game time this frame) and goes in.
  */
-export function familyLead(from: number, last: number, seconds: number, speed: number, rest: number, length: number): number {
-  const way = last - from;
-  if (way <= 0) return Infinity;
-  const cycle = way / speed + rest;
-  const t = ((seconds % cycle) + cycle) % cycle;
-  return from + length + t * speed;
+export function familyLead(lead: number, step: number | null, frac: number, dWeeks: number, perWeek: number): number {
+  if (step !== null) return Math.max(lead, step + Math.min(1, Math.max(0, frac)) * perWeek);
+  // Never seen on its way (it arrived before its first frame): already in.
+  if (lead === -Infinity) return Infinity;
+  return lead + Math.max(0, dWeeks) * perWeek;
 }
+
+/** The whole group (`length` cells long) is in through the door of the house cell `last`. */
+export const familyHome = (lead: number, length: number, last: number) => lead - length >= last - 0.5;
 
 /** Step of a member `back` cells behind the leader, or null while it is not on the way (not out yet, or home). */
 export function memberAt(lead: number, back: number, from: number, last: number): number | null {
@@ -219,3 +222,45 @@ export function memberAt(lead: number, back: number, from: number, last: number)
   if (step < from || step >= last - 0.5) return null;
   return step;
 }
+
+/** Buildings nobody goes into: open ground. */
+const OPEN: ReadonlySet<BuildingKind> = new Set(['field', 'pasture', 'plaza', 'park']);
+
+/**
+ * The door a walker on road cell `c` can go in by, or come out of: a cell of a building next to it
+ * that people go into (a lived-in house first; not a field, a pasture, a plaza or a park). Null: none.
+ */
+export function doorBeside(s: GameState, c: Cell): Cell | null {
+  let best: Cell | null = null;
+  let rank = 0;
+  for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+    const x = c.x + dx;
+    const y = c.y + dy;
+    if (x < 0 || y < 0 || x >= s.cols || y >= s.rows) continue;
+    const b = s.grid[y * s.cols + x];
+    if (!b || OPEN.has(b.kind)) continue;
+    const r = b.kind === 'house' ? (b.level > 0 ? 3 : 1) : 2;
+    if (r > rank) [best, rank] = [{ x, y }, r];
+  }
+  return best;
+}
+
+/**
+ * What a walker does with its way when the roads change: `keep` it (the rest is still road), go on
+ * `ahead` from the next cell by a new way, turn `back` to the cell it left and go from there, or
+ * `lost` (no road under it either way: it goes indoors at the end of the stretch).
+ */
+export function reroute(path: readonly Cell[], seg: number, onRoad: (c: Cell) => boolean): 'keep' | 'ahead' | 'back' | 'lost' {
+  const next = path[Math.min(seg + 1, path.length - 1)];
+  let whole = true;
+  for (let k = seg + 1; k < path.length && whole; k++) whole = onRoad(path[k]);
+  if (whole) return 'keep';
+  if (onRoad(next)) return 'ahead';
+  return onRoad(path[seg]) ? 'back' : 'lost';
+}
+
+/**
+ * The share (0..1) of the still figures shown at camera `distance`: all up to `far − band`, then
+ * fewer and fewer, none past `far` (they thin out instead of vanishing at once).
+ */
+export const farFade = (distance: number, far: number, band: number) => Math.min(1, Math.max(0, (far - distance) / band));

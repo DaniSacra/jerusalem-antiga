@@ -14,6 +14,7 @@ import { Idlers, Leavers } from './townsfolk';
 import { groundDetail } from './detail';
 import { standMap, wearMap } from './wear';
 import { COURT, templeBuilt } from './works';
+import type { CityLayer } from './diff';
 
 /** Most people working one field at the harvest (see fieldHands). */
 export const MAX_HANDS = 2;
@@ -21,8 +22,7 @@ export const MAX_HANDS = 2;
 /** Props that lie flat on the ground (roads), sunk a little into it. */
 const FLAT_PROPS = new Set<ModelKey>(['road', 'road-edge', 'ruts', 'road-stones', 'flags', 'trail', 'trail-arm', 'kerb', 'loose', 'loose-arm']);
 
-/** Layers of the drawn city that change apart (see `diff.ts`). */
-export type CityLayer = 'buildings' | 'props' | 'people';
+export type { CityLayer };
 
 /**
  * The drawn city, live. Three parts built apart:
@@ -30,8 +30,9 @@ export type CityLayer = 'buildings' | 'props' | 'people';
  *   roads and buildings by moving the mesh's heights (`Terrain.reshape`);
  * - the city (every building, road and tree, instanced from `cityPlan`, with smoke, fire spots,
  *   field hands and puddles), drawn again when buildings or ground props change;
- * - the people (walkers and families), drawn again only when the network or the population changes,
- *   so they do not jump back to the start of their way at every road built.
+ * - the people, in three parts drawn again apart (the walkers when the network or the population
+ *   changes, the families when one sets out or arrives, the workers when a job starts or ends); each
+ *   new part takes over the old one's people, so who stays keeps its place and way (life.ts, figures.ts).
  * Everything per frame lives in the parts' `update`.
  */
 export class World {
@@ -61,7 +62,9 @@ export class World {
   fields = 0;
   private land = new THREE.Group();
   private city = new THREE.Group();
-  private people = new THREE.Group();
+  private walking = new THREE.Group();
+  private homing = new THREE.Group();
+  private working = new THREE.Group();
   private idle = new THREE.Group();
   private leaving = new THREE.Group();
   /** Tufts and pebbles on the open ground (the stage hides them from far away and at the minimum quality). */
@@ -99,9 +102,9 @@ export class World {
     this.land.add(skirt.build(shadows));
     this.leavers = new Leavers(s, this.ground, shadows);
     this.leaving.add(...this.leavers.objects);
-    this.group.add(this.land, this.city, this.detail, this.people, this.idle, this.leaving);
+    this.group.add(this.land, this.city, this.detail, this.walking, this.homing, this.working, this.idle, this.leaving);
     this.buildCity();
-    this.buildPeople();
+    this.buildPeople(['walkers', 'families', 'haulers']);
   }
 
   /** The family of the house on cell (x, y) left the city: they walk out of town. */
@@ -137,7 +140,7 @@ export class World {
 
   /**
    * Draws again the layers that changed: the city part for buildings or props (with the ground under
-   * it), the people part for people. Walkers read the ground height live, so a city change alone
+   * it), each part of the people for its own layer. Walkers read the ground height live, so a city change alone
    * leaves them walking (the stage rebuilds them once the city is quiet, see `Stage.rebuild`).
    */
   sync(layers: readonly CityLayer[]) {
@@ -145,7 +148,7 @@ export class World {
       this.ground.reshape();
       this.buildCity();
     }
-    if (layers.includes('people')) this.buildPeople();
+    this.buildPeople(layers);
   }
 
   private buildCity() {
@@ -292,18 +295,31 @@ export class World {
     this.idle.add(...this.idlers.objects);
   }
 
-  private buildPeople() {
-    free(this.people, this.shared);
+  /** The parts of the people whose layer changed, each taking over the people of the part before. */
+  private buildPeople(layers: readonly CityLayer[]) {
     const s = this.s;
-    this.walkers = new Walkers(s, this.ground, walkerCount(residentsOf(s)), this.shadows);
-    this.families = new Families(s, this.ground, this.shadows);
-    this.haulers = new Haulers(s, this.ground, this.shadows);
-    this.people.add(...this.walkers.objects, ...this.families.objects, ...this.haulers.objects);
-    this.buildIdle();
+    if (layers.includes('walkers')) {
+      const old = this.walkers;
+      this.walkers = new Walkers(s, this.ground, walkerCount(residentsOf(s)), this.shadows, old);
+      free(this.walking, this.shared);
+      this.walking.add(...this.walkers.objects);
+      // The still life is cast from the residents too.
+      this.buildIdle();
+    }
+    if (layers.includes('families')) {
+      this.families = new Families(s, this.ground, this.shadows, this.families);
+      free(this.homing, this.shared);
+      this.homing.add(...this.families.objects);
+    }
+    if (layers.includes('haulers')) {
+      this.haulers = new Haulers(s, this.ground, this.shadows, this.haulers);
+      free(this.working, this.shared);
+      this.working.add(...this.haulers.objects);
+    }
   }
 
   dispose() {
-    for (const g of [this.land, this.city, this.detail, this.people, this.idle, this.leaving]) free(g, this.shared);
+    for (const g of [this.land, this.city, this.detail, this.walking, this.homing, this.working, this.idle, this.leaving]) free(g, this.shared);
     this.ground.dispose();
     this.group.removeFromParent();
   }

@@ -34,6 +34,8 @@ export interface JobsView {
   rows: JobRow[];
   /** Some profession has a number target (Automático would change something). */
   anyTarget: boolean;
+  /** "Ninguém livre…" whenever a profession waits for workers and nobody is free (the game never moves a worker by itself). */
+  note: string | null;
 }
 
 const rank = (kind: BuildingKind) => {
@@ -64,5 +66,7 @@ export function jobsView(s: GameState): JobsView {
     };
   });
   const bands = bandCounts(s);
-  return { idle: unemployed(s), others: N.others(bands.child, bands.elder), rows, anyTarget: rows.some((r) => !r.auto) };
+  const idle = unemployed(s);
+  const note = idle === 0 && rows.some((r) => r.missing > 0) ? N.nobodyFree : null;
+  return { idle, others: N.others(bands.child, bands.elder), rows, anyTarget: rows.some((r) => !r.auto), note };
 }

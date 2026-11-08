@@ -19,6 +19,6 @@
                 "levels": [{ "cost": 50, "upkeep": 3.5, "fieldBonus": 0.2, "materials": { "stone": 20 } }, { "cost": 80, "upkeep": 5, "fieldBonus": 0.3, "materials": { "stone": 40 } }] },
   "park":     { "name": "Parque", "category": "home",  "cost": 60,  "upkeep": 2,  "w": 2, "h": 2, "jobs": 0, "radius": 4, "materials": { "stone": 5 } },
   "temple":   { "name": "Templo", "category": "special",  "cost": 0,   "upkeep": 0, "w": 6, "h": 6, "jobs": 0, "radius": 12, "protected": true },
-  "pasture":  { "name": "Pasto", "category": "supply", "cost": 30, "upkeep": 0.5, "w": 3, "h": 3, "jobs": 1, "materials": { "wood": 10 }, "gather": { "source": "grass", "radius": 2, "perCell": 0.06, "max": 1.5, "winterFactor": 0.5, "product": "livestock" } },
+  "pasture":  { "name": "Pasto", "category": "supply", "cost": 30, "upkeep": 0.5, "w": 3, "h": 3, "jobs": 1, "materials": { "wood": 10 }, "gather": { "source": "grass", "radius": 2, "perCell": 0.05, "max": 1.5, "winterFactor": 0.5, "product": "livestock" } },
   "altar":    { "name": "Altar",   "cost": 0,   "w": 4, "h": 4, "jobs": 0, "protected": true }
 }

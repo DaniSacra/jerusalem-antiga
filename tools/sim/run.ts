@@ -97,8 +97,7 @@ function materialLines(rs: Result[]): string[] {
     line('stone', 'quarries', (r) => r.mat.quarries),
     `  W1 any house waiting ${pc(anyWait, n)} | W2 longest house wait med ${m((r) => r.mat.houseWaitMax)} p75 ${f(qt(rs.map((r) => r.mat.houseWaitMax), 0.75))} >52 ${rs.filter((r) => r.mat.houseWaitMax > 52).length}` +
       ` | W3 Y1 wood-blocked wks med ${m((r) => r.mat.woodBlockedY1)} | W4 >300 for >52 wk ${rs.filter((r) => r.mat.idle300 > 52).length} | W5 idle w200 med ${m((r) => r.mat.unemployed200)}` +
-      ` | W6 gatherer ${f((100 * food('gatherer')) / (food('field') + food('fisher') + food('gatherer')))}% | stumps w260 ${m((r) => r.mat.stumps260)} w520 ${m((r) => r.mat.stumps520)} cut ${m((r) => r.mat.cut)}` +
-      ` | unlock→temple marked med ${m((r) => r.mat.templeWait)}`,
+      ` | W6 gatherer ${f((100 * food('gatherer')) / (food('field') + food('fisher') + food('gatherer')))}% | stumps w260 ${m((r) => r.mat.stumps260)} w520 ${m((r) => r.mat.stumps520)} cut ${m((r) => r.mat.cut)}`,
   ];
 }
 /** Economy squeeze (sim-tester-aperto): wins, defeats, hunger or cold, spoiled food, silver never spent, stone at its cap. */
@@ -202,9 +201,24 @@ function templeLines(rs: Result[]): string[] {
     `  E1 win med ${m(won)} wk = ${f(mins(med(won)), 1)} min (p10-p90 ${f(mins(qt(won, 0.1)), 1)}-${f(mins(qt(won, 0.9)), 1)}) | E2 won ${pc(won.length, n)} lost ${pc(lost, n)} unfinished ${pc(n - won.length - lost, n)}` +
       ` | E5 worst goal gap (per-goal p50) ${f(gaps[worst])} wk (g${worst + 1}) longest wait per run p50 ${m(rs.map((r) => r.goalWait))} | E6 altar restored wk p50 ${m(rs.map((r) => r.tp.stages[0].done ?? NaN))} p10-p90 ${f(qt(rs.map((r) => r.tp.stages[0].done ?? NaN), 0.1))}-${f(qt(rs.map((r) => r.tp.stages[0].done ?? NaN), 0.9))} in 30-80 ${pc(rs.filter((r) => (r.tp.stages[0].done ?? -1) >= 30 && (r.tp.stages[0].done ?? -1) <= 80).length, n)}`,
     `  E7 stage paid & 0 builders >26 wk: ${pc(rs.filter((r) => r.tp.idleRun > 26).length, n)} (longest p50 ${m(rs.map((r) => r.tp.idleRun))} p90 ${f(qt(rs.map((r) => r.tp.idleRun), 0.9))} max ${Math.max(...rs.map((r) => r.tp.idleRun))})` +
-      ` | marked wk p50 ${m(rs.map((r) => r.tp.marked ?? NaN))} | builders per active wk ${f(rs.reduce((a, r) => a + r.tp.builderWeeks, 0) / Math.max(1, rs.reduce((a, r) => a + r.tp.activeWeeks, 0)), 2)} short wks p50 ${m(rs.map((r) => r.tp.shortWeeks))} | famine wks in stages p50 ${m(rs.map((r) => r.tp.famineActive))} runs>0 ${pc(rs.filter((r) => r.tp.famineActive > 0).length, n)}` +
+      ` | builders per active wk ${f(rs.reduce((a, r) => a + r.tp.builderWeeks, 0) / Math.max(1, rs.reduce((a, r) => a + r.tp.activeWeeks, 0)), 2)} short wks p50 ${m(rs.map((r) => r.tp.shortWeeks))} | famine wks in stages p50 ${m(rs.map((r) => r.tp.famineActive))} runs>0 ${pc(rs.filter((r) => r.tp.famineActive > 0).length, n)}` +
       ` | builders from (sum/run): ${logKeys.map((k) => `${k} ${f(rs.reduce((a, r) => a + (r.tp.log[k] ?? 0), 0) / n, 1)}`).join(', ') || '-'}`,
     ...stages,
+  ];
+}
+/** Ruins package (plano-ruinas 6): R1-R10, the stages' start and end weeks and the herd. */
+function ruinsLine(rs: Result[]): string[] {
+  const n = rs.length;
+  const m = (get: (r: Result) => number, d = 0) => f(med(rs.map(get)), d);
+  const q = (get: (r: Result) => number, x: number, d = 0) => f(qt(rs.map(get), x), d);
+  const won = rs.filter((r) => r.won).map((r) => r.weeks);
+  const restored = rs.filter((r) => r.tp.stages[0].done !== null);
+  const ls = (y: number) => m((r) => r.mat.byYear.livestock[y] ?? NaN);
+  return [
+    `  RV R1 won ${pc(won.length, n)} R2 lost ${pc(rs.filter((r) => r.lost).length, n)} | R3 altar ever without offering ${pc(rs.filter((r) => r.rv.missWeeks > 0).length, n)} (of restored ${pc(restored.filter((r) => r.rv.missWeeks > 0).length, restored.length)}) wks med ${m((r) => r.rv.missWeeks)} p90 ${q((r) => r.rv.missWeeks, 0.9)}` +
+      ` | R4 >8 wk in a row ${pc(rs.filter((r) => r.rv.missRun > 8).length, n)} longest med ${m((r) => r.rv.missRun)} p90 ${q((r) => r.rv.missRun, 0.9)} | R5 altar restored wk med ${m((r) => r.tp.stages[0].done ?? NaN)} | R6 win ${f(mins(med(won)), 1)} min` +
+      ` | R7 1st pasture yield p10 ${q((r) => r.rv.firstYield, 0.1, 2)} p50 ${q((r) => r.rv.firstYield, 0.5, 2)} p90 ${q((r) => r.rv.firstYield, 0.9, 2)} | R8 pastures med ${m((r) => r.rv.pastures)} max ${Math.max(...rs.map((r) => r.rv.pastures))} | R9 herd full >26 wk ${pc(rs.filter((r) => r.rv.fullRun > 26).length, n)}`,
+    `  RV stages start/done wk med: ${TEMPLE_STAGES.map((_, k) => `s${k + 1} ${m((r) => r.tp.stages[k].start ?? NaN)}/${m((r) => r.tp.stages[k].done ?? NaN)}`).join(' ')} | herd at year start Y2-Y12 ${[1, 2, 3, 4, 5, 6, 8, 10, 12].map((y) => ls(y)).join('/')} | end med ${m((r) => r.mat.end.livestock)}`,
   ];
 }
 /** A5 read per goal: the median wait for each goal (from the goal before; runs that reached it) and the worst of them. */
@@ -230,6 +244,7 @@ for (const name of bots) {
   if (args.includes('--json')) continue;
   const n = rs.length;
   if (args.includes('--squeeze')) { console.log(`${name.padEnd(9)}${squeezeLine(rs)}`); continue; }
+  if (args.includes('--ruins')) { console.log(`${name.padEnd(9)}${squeezeLine(rs)}`); for (const l of [...ruinsLine(rs), ...templeLines(rs)]) console.log(l); continue; }
   if (args.includes('--brief')) {
     console.log(`${name.padEnd(9)} ${criteria(rs)} | goals ${GOALS.map((_, i) => f(med(rs.map((r) => r.goalWeeks[i] ?? NaN)))).join(' ')}`);
     for (const l of materialLines(rs)) console.log(l);
@@ -238,6 +253,7 @@ for (const name of bots) {
     for (const l of b3Lines(rs)) console.log(l);
     for (const l of templeLines(rs)) console.log(l);
     console.log(squeezeLine(rs));
+    for (const l of ruinsLine(rs)) console.log(l);
     if (args.includes('--losses')) for (const r of rs.filter((x) => x.b3.loss)) console.log(`    loss seed ${r.seed} ${JSON.stringify(r.b3.loss)}`);
     continue;
   }
@@ -316,7 +332,7 @@ if (args.includes('--trace')) {
     const bands = bandCounts(s);
     const single = (sex: 'm' | 'f') => s.people.filter((p) => p.sex === sex && p.houseId !== null && p.spouseId === null && ageOf(p, s.week) >= RULES.people.marriageAges[0] && ageOf(p, s.week) <= RULES.people.marriageAges[1]).length;
     const ppl = `ppl ${bands.child}/${bands.adult}/${bands.elder} single ${single('m')}/${single('f')} wait ${waitingCouples(s).length}`;
-    console.log(`w${s.week} ${ppl} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) wood ${s.wood} (+${eco.wood}) stone ${s.stone} (+${eco.stone}) res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} res ${eco.residents} births ${birthBlock(s, eco) ?? 'open'} g${s.goalIndex + 1} T${s.temple.done}${s.temple.active ? `*${s.temple.progress} b${buildersAtWork(s)}` : ''} tg ${JSON.stringify(s.jobTargets)}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
+    console.log(`w${s.week} ${ppl} ${seasonOf(s.week).slice(0, 2)} $${f(s.silver)} (${eco.silverDelta >= 0 ? '+' : ''}${eco.silverDelta}) food ${s.food}/${foodCapacity(s)} (${eco.foodDelta}) wood ${s.wood} (+${eco.wood}) stone ${s.stone} (+${eco.stone}) herd ${s.livestock} (+${eco.livestock})${s.temple.done && !s.offered ? ' NO-OFFERING' : ''} gado ${s.livestock} (+${eco.livestock})${s.temple.done && !s.offered ? " NOOFFER" : ""} res ${eco.residents} wk ${eco.workers}/${eco.jobs} fc ${fc ? fc.weeks : '-'} res ${eco.residents} births ${birthBlock(s, eco) ?? 'open'} g${s.goalIndex + 1} T${s.temple.done}${s.temple.active ? `*${s.temple.progress} b${buildersAtWork(s)}` : ''} tg ${JSON.stringify(s.jobTargets)}${s.drought ? ' DRY' : ''}${s.famine ? ' FAMINE' : ''} ${bl !== prevB ? bl : ''}`);
     prevB = bl;
     stepWeek(s, rng);
   }

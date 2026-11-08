@@ -5,7 +5,7 @@ import { pitchFor } from '../../src/render3d/camera';
 import { FIT_COLOR, marksOf, type MarksInput } from '../../src/render3d/marks';
 import { emptyGame, put } from '../helpers';
 
-const input = (o: Partial<MarksInput>): MarksInput => ({ tool: 'view', hover: null, selected: null, rotated: false, ghostRoad: [], houseSpots: false, templeAreas: [], spots: null, doomed: null, ...o });
+const input = (o: Partial<MarksInput>): MarksInput => ({ tool: 'view', hover: null, selected: null, rotated: false, ghostRoad: [], houseSpots: false, spots: null, doomed: null, ...o });
 
 describe('3D ground marks (as the 2D overlay)', () => {
   it('Mover: only the tapped building is outlined, nothing else', () => {
@@ -50,13 +50,6 @@ describe('3D ground marks (as the 2D overlay)', () => {
     s.roads[indexOf(s, built.x, built.y)] = true;
     const m = marksOf(s, input({ ghostRoad: [free, built] }));
     expect(m.fills[0].cells).toEqual([free]);
-  });
-
-  it('temple areas: green when ready, yellow when a road is missing', () => {
-    const s = emptyGame();
-    const m = marksOf(s, input({ tool: 'temple', templeAreas: [{ x: 2, y: 2, ready: true }, { x: 8, y: 2, ready: false }] }));
-    expect(m.fills.filter((f) => f.color === C.fits).length).toBe(1);
-    expect(m.fills.filter((f) => f.color === C.needsRoad).length).toBe(1);
   });
 
   it('Demolir passes the doomed building on (drawn red)', () => {

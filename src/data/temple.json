@@ -1,7 +1,7 @@
 [
-  {"name": "Altar restaurado", "site": "altar", "cost": 40, "materials": {"stone": 20, "wood": 20}, "builders": 2, "work": 12, "sacredRadius": 6, "offering": 0.5},
-  {"name": "Alicerce", "site": "temple", "cost": 150, "materials": {"stone": 80}, "builders": 4, "work": 40, "sacredRadius": 7, "offering": 0.75},
-  {"name": "Paredes", "site": "temple", "cost": 200, "materials": {"stone": 120, "wood": 40}, "builders": 5, "work": 60, "sacredRadius": 8, "offering": 1.0},
-  {"name": "Pórtico e telhado", "site": "temple", "cost": 250, "materials": {"stone": 60, "wood": 120}, "builders": 6, "work": 72, "sacredRadius": 10, "offering": 1.25},
-  {"name": "Consagração", "site": "temple", "cost": 200, "materials": {"wood": 40}, "builders": 4, "work": 32, "sacredRadius": 10, "offering": 1.5}
+  {"name": "Altar restaurado", "site": "altar", "cost": 40, "materials": {"stone": 10, "wood": 20}, "builders": 2, "work": 12, "sacredRadius": 6, "offering": 0.75},
+  {"name": "Alicerce", "site": "temple", "cost": 150, "materials": {"stone": 80}, "builders": 4, "work": 40, "sacredRadius": 7, "offering": 1.0},
+  {"name": "Paredes", "site": "temple", "cost": 200, "materials": {"stone": 120, "wood": 40}, "builders": 5, "work": 60, "sacredRadius": 8, "offering": 1.25},
+  {"name": "Pórtico e telhado", "site": "temple", "cost": 250, "materials": {"stone": 60, "wood": 120}, "builders": 6, "work": 72, "sacredRadius": 10, "offering": 1.5},
+  {"name": "Consagração", "site": "temple", "cost": 200, "materials": {"wood": 40}, "builders": 4, "work": 32, "sacredRadius": 10, "offering": 1.75}
 ]

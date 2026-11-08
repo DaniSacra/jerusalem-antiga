@@ -24,8 +24,6 @@ import {
   RULES,
   spotsServing,
   stepWeek,
-  templeRoadSpot,
-  templeSpotsNear,
   upgradeBuilding,
   madeByCrew,
   setJob,
@@ -44,10 +42,8 @@ import {
   type GameState,
   type Rect,
   type Rng,
-  type TempleSpot,
   type TutorialStepId,
 } from '../core';
-import VISUAL from '../data/visual.json';
 import { T } from './strings';
 import { categoryKinds, DRAG_TOOLS, isPlaceTool, SPEEDS, type Speed, type Tool } from './tools';
 import { readEvents, type GameOut, type Tally } from './events';
@@ -135,9 +131,6 @@ export class Session {
   /** The tutorial step the camera last went to. */
   private pannedFor: string | null = null;
   readonly tally: Tally = { births: 0, weddings: 0 };
-  /** Where the temple fits while it is chosen (see updateTempleAreas), and the road to a far one. */
-  templeAreas: TempleSpot[] = [];
-  templeRoad: Cell[] = [];
   /** "Onde pôr um mercado": the places where this kind would reach the target are highlighted. */
   spots: { kind: BuildableKind; target: Building } | null = null;
   /** Inside a drag step: builds wait and the city refreshes once at the end. */
@@ -229,30 +222,8 @@ export class Session {
 
   refresh() {
     this.city = readCity(this.state);
-    this.updateTempleAreas();
     this.checkTutorial();
     this.view?.redraw();
-  }
-
-  /**
-   * While the temple is chosen: where it fits (nearest the altar first), at most
-   * `maxTempleSpots` areas that do not overlap. Redone on each refresh, never per frame.
-   */
-  private updateTempleAreas() {
-    const areas: TempleSpot[] = [];
-    if (this.tool === 'temple') {
-      const { w, h } = dimsOf('temple');
-      const apart = (a: Cell, b: Cell) => Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h;
-      for (const a of templeSpotsNear(this.state)) {
-        if (areas.length >= VISUAL.temple.maxTempleSpots) break;
-        if (areas.every((b) => apart(a, b))) areas.push(a);
-      }
-    }
-    // None near the roads: the free place a road can reach soonest, with that road marked.
-    const far = this.tool === 'temple' && !areas.length ? templeRoadSpot(this.state) : null;
-    if (far) areas.push(far);
-    this.templeAreas = areas;
-    this.templeRoad = far?.road ?? [];
   }
 
   /** The building the demolish tool would remove now (red under the cursor). */
@@ -292,11 +263,6 @@ export class Session {
     this.spots = null;
     this.drawSpots();
     this.refresh();
-    if (tool !== 'temple') return;
-    if (!this.templeAreas.some((a) => a.ready)) this.say(this.templeAreas.length ? T.noTempleSpotRoad : T.noTempleSpot, 'bad');
-    // The camera goes to the best area, so it is never off screen.
-    const first = this.templeAreas[0];
-    if (first) this.view?.glideTo({ x: first.x, y: first.y, ...dimsOf('temple') });
   }
 
   /** Turns the footprint of the current tool (only non-square buildings). */

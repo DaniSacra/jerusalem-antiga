@@ -37,6 +37,20 @@ describe('Profissões panel as data', () => {
     expect(lumber.missing).toBe(2);
   });
 
+  it('"Ninguém livre" shows on its own whenever a profession waits and nobody is free, and only then', () => {
+    const s = town();
+    // 4 adults, 6 jobs: the lumber camps wait for 2 and nobody is free.
+    expect(jobsView(s).note).toBe(T.nova.professions.nobodyFree);
+    // Two lumber targets lowered to their crew: nothing waits.
+    changeJobTarget(s, 'lumber', -1);
+    expect(jobsView(s).note).toBeNull();
+    // Someone free and a job waiting: no note (the free one takes it next week).
+    changeJobTarget(s, 'field', -1);
+    const v = jobsView(s);
+    expect(v.idle + v.rows.find((r) => r.kind === 'lumber')!.crew).toBeGreaterThan(0);
+    if (v.idle > 0) expect(v.note).toBeNull();
+  });
+
   it('− frees a worker into "Sem trabalho" and the target becomes a number; + on it can raise again', () => {
     const s = town();
     changeJobTarget(s, 'field', -1);

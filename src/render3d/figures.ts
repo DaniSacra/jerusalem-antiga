@@ -1,27 +1,30 @@
 import * as THREE from 'three';
-import { ageBand, type Cell, type GameState } from '../core';
+import { ageBand, familySpeed, type Cell, type GameState } from '../core';
 import { BAKED, bake, Herd } from './animals';
-import { betrothed, familyLead, figureLook, groupLength, groupSlots, HOLD_SLOTS, holdLoad, LOADS, memberAt, type FigureLook, type Load, type Slot } from './crowd';
+import { betrothed, familyHome, familyLead, figureLook, groupLength, groupSlots, HOLD_SLOTS, holdLoad, LOADS, memberAt, type FigureLook, type Load, type Slot } from './crowd';
 import { hash } from './plan';
 import type { Terrain } from './terrain';
 
 /**
- * Low-poly people, instanced: a robe with shoulders, a head, and a cap or mantle (four draw calls for
- * any number of them). Colours come from `FigureLook` (crowd.ts); each slot keeps its look and is
- * moved every frame with `place`. Feet on y = 0, about 0.45 tall for an adult, facing +z.
+ * Low-poly people, instanced: a robe with shoulders, a head, and a cap or mantle, all in one mesh
+ * (one draw call for any number of them, plus one per thing carried). Colours come from
+ * `FigureLook` (crowd.ts), per copy in the vertex shader; each slot keeps its look and is moved
+ * every frame with `place`. Feet on y = 0, about 0.45 tall for an adult, facing +z.
  */
 export class Figures {
   readonly objects: THREE.InstancedMesh[];
-  private body: THREE.InstancedMesh;
-  private head: THREE.InstancedMesh;
-  private cap: THREE.InstancedMesh;
-  private mantle: THREE.InstancedMesh;
+  private people: THREE.InstancedMesh;
+  /** Per copy: the robe, the skin, and the cover with w 1 for a mantle (0 a cap). */
+  private robe: THREE.InstancedBufferAttribute;
+  private skin: THREE.InstancedBufferAttribute;
+  private cover: THREE.InstancedBufferAttribute;
   private looks: FigureLook[] = [];
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
   private v = new THREE.Vector3();
   private sc = new THREE.Vector3();
+  private c = new THREE.Color();
   private static zero = new THREE.Matrix4().makeScale(0, 0, 0);
   /** One mesh per load kind (only when the figures carry things), and the load of each slot. */
   private loadMeshes: Partial<Record<Load, THREE.InstancedMesh>> = {};
@@ -29,12 +32,16 @@ export class Figures {
 
   constructor(capacity: number, shadows: boolean, carry: readonly Load[] = []) {
     const n = Math.max(1, capacity);
-    const mat = () => new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true });
-    this.body = new THREE.InstancedMesh(bodyGeometry(), mat(), n);
-    this.head = new THREE.InstancedMesh(headGeometry(), mat(), n);
-    this.cap = new THREE.InstancedMesh(capGeometry(), mat(), n);
-    this.mantle = new THREE.InstancedMesh(mantleGeometry(), new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true, side: THREE.DoubleSide }), n);
-    this.objects = [this.body, this.head, this.cap, this.mantle];
+    const g = personGeometry();
+    this.robe = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    this.skin = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    this.cover = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
+    g.setAttribute('iRobe', this.robe);
+    g.setAttribute('iSkin', this.skin);
+    g.setAttribute('iCover', this.cover);
+    this.people = new THREE.InstancedMesh(g, PERSON, n);
+    this.people.customDepthMaterial = PERSON_DEPTH;
+    this.objects = [this.people];
     for (const l of carry) {
       const mesh = new THREE.InstancedMesh(loadGeometry(l), BAKED, n);
       mesh.userData.shared = true;
@@ -53,12 +60,13 @@ export class Figures {
   /** Gives slot `i` its look (colours set once). */
   dress(i: number, look: FigureLook) {
     this.looks[i] = look;
-    const c = new THREE.Color();
-    this.body.setColorAt(i, c.setHex(look.robe));
-    this.head.setColorAt(i, c.setHex(look.skin));
-    this.cap.setColorAt(i, c.setHex(look.cover));
-    this.mantle.setColorAt(i, c.setHex(look.cover));
-    for (const o of this.objects) if (o.instanceColor) o.instanceColor.needsUpdate = true;
+    this.c.setHex(look.robe);
+    this.robe.setXYZ(i, this.c.r, this.c.g, this.c.b);
+    this.c.setHex(look.skin);
+    this.skin.setXYZ(i, this.c.r, this.c.g, this.c.b);
+    this.c.setHex(look.cover);
+    this.cover.setXYZW(i, this.c.r, this.c.g, this.c.b, look.mantle ? 1 : 0);
+    this.robe.needsUpdate = this.skin.needsUpdate = this.cover.needsUpdate = true;
   }
 
   /** What slot `i` carries (it rides the figure: the step, the lean and the size). */
@@ -89,10 +97,7 @@ export class Figures {
     const l = this.looks[i];
     this.q.setFromEuler(this.e.set(lean + l.stoop, yaw, roll, 'YXZ'));
     this.m.compose(this.v.set(x, y, z), this.q, this.sc.setScalar(l.size));
-    this.body.setMatrixAt(i, this.m);
-    this.head.setMatrixAt(i, this.m);
-    this.cap.setMatrixAt(i, l.mantle ? Figures.zero : this.m);
-    this.mantle.setMatrixAt(i, l.mantle ? this.m : Figures.zero);
+    this.people.setMatrixAt(i, this.m);
     const load = this.loads[i];
     if (load) this.loadMeshes[load]!.setMatrixAt(i, this.m);
   }
@@ -106,6 +111,42 @@ export class Figures {
   commit() {
     for (const o of this.objects) o.instanceMatrix.needsUpdate = true;
   }
+}
+
+/**
+ * The person's parts in its vertices (`aPart`: 0 robe, 1 head, 2 cap, 3 mantle): the head takes
+ * the copy's skin, the cap and the mantle its cover, and the one it does not wear folds to a point.
+ */
+const PERSON_VERTEX = `
+  float part = aPart;
+  if (part > 1.5 && (part > 2.5) != (iCover.w > 0.5)) transformed = vec3(0.0);`;
+function personShader(m: THREE.Material, colour: boolean): THREE.Material {
+  m.customProgramCacheKey = () => (colour ? 'person' : 'person-depth');
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>\nattribute float aPart; attribute vec3 iRobe; attribute vec3 iSkin; attribute vec4 iCover;${colour ? ' varying vec3 vPart;' : ''}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>${PERSON_VERTEX}${colour ? '\n  vPart = part < 0.5 ? iRobe : part < 1.5 ? iSkin : iCover.rgb;' : ''}`);
+    if (colour) sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vPart;').replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= vPart;');
+  };
+  return m;
+}
+/** Shared by every set of figures (materials are kept across builds). */
+const PERSON = personShader(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), true);
+const PERSON_DEPTH = personShader(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), false);
+
+/** The four parts of a person in one geometry, each vertex marked with its part. */
+function personGeometry(): THREE.BufferGeometry {
+  const parts = [bodyGeometry(), headGeometry(), capGeometry(), mantleGeometry()];
+  const g = merge(parts);
+  const tag = new Float32Array(g.attributes.position.count);
+  let o = 0;
+  parts.forEach((p, k) => {
+    const n = (p.index ? p.index.count : p.attributes.position.count);
+    tag.fill(k, o, o + n);
+    o += n;
+  });
+  g.setAttribute('aPart', new THREE.BufferAttribute(tag, 1));
+  return g;
 }
 
 type LoadPiece = { g: THREE.BufferGeometry; c: number };
@@ -205,7 +246,11 @@ function mantleGeometry(): THREE.BufferGeometry {
   cap.translate(0, 0.395, -0.008);
   const drape = new THREE.CylinderGeometry(0.06, 0.085, 0.2, 7, 1, true, Math.PI * 0.5, Math.PI);
   drape.translate(0, 0.3, -0.01);
-  return merge([cap, drape]);
+  // Its inside too (the figures are drawn front-sided): the drape turned inside out.
+  const inside = drape.clone();
+  const ix = inside.index!.array;
+  for (let i = 0; i < ix.length; i += 3) [ix[i + 1], ix[i + 2]] = [ix[i + 2], ix[i + 1]];
+  return merge([cap, drape, inside]);
 }
 
 function merge(gs: THREE.BufferGeometry[]): THREE.BufferGeometry {
@@ -239,62 +284,86 @@ export function along(path: Cell[], step: number): { x: number; z: number; dx: n
   return { x: a.x + 0.5 + (b.x - a.x) * t, z: a.y + 0.5 + (b.y - a.y) * t, dx, dz };
 }
 
-/** Cells per second the families walk in the 3D view, and seconds they rest at home before the stretch again. */
-const FAMILY_SPEED = 0.8;
-const FAMILY_REST = 5;
-
 interface Walking {
+  /** The family's id (`s.families`). */
+  id: number;
   path: Cell[];
-  from: number;
   last: number;
-  /** First figure slot of the family; its members follow in order. */
-  first: number;
+  /** Where the leader is along the path (`familyLead`); -Infinity until the first frame. */
+  lead: number;
+  /** All of them are in. */
+  home: boolean;
+  /** Each member's look and what they hold (a betrothed couple's hands). */
+  looks: FigureLook[];
+  loads: (Load | null)[];
   slots: Slot[];
   length: number;
-  /** Donkey slot (caravans), or -1. */
-  donkey: number;
+  /** A caravan family leads a pack donkey (its slot is the last one). */
+  pack: boolean;
   phase: number;
 }
 
 /**
- * Families and caravans walking home along the roads (`s.families`, read when the view opens) as a
- * group: adults in front, children in the middle, the old behind, and a pack donkey for a caravan
- * family (someone not yet housed); a betrothed couple on the way to marry walks side by side, hand in
- * hand. The game is paused meanwhile, so each group walks the rest of its way, goes in and walks it again.
+ * Families and caravans walking home along the roads (`s.families`) as a group: adults in front,
+ * children in the middle, the old behind, and a pack donkey for a caravan family (someone not yet
+ * housed); a betrothed couple on the way to marry walks side by side, hand in hand. They walk by the
+ * core's step (`f.step`, with the week's fraction: `familyLead`), once, from the entrance into the
+ * house, and the group arriving when the core moves it in walks on until the last one is in.
+ * A new part (a family set out or arrived) takes over the groups of the old one where they are.
  */
 export class Families {
   readonly figures: Figures;
   readonly donkeys: Herd;
   private list: Walking[] = [];
+  /** The game time of the last frame (weeks), for the groups still walking in after arriving. */
+  private pos = NaN;
 
-  constructor(s: GameState, private ground: Terrain, shadows: boolean) {
-    const fams = s.families.filter((f) => f.path.length > 1 && f.step < f.path.length - 1);
+  constructor(private s: GameState, private ground: Terrain, shadows: boolean, prev?: Families) {
     const people = new Map(s.people.map((p) => [p.id, p]));
-    const total = fams.reduce((n, f) => n + f.members.length, 0);
-    const groups = fams.map((f) => f.members.map((id) => people.get(id)).filter((p) => p !== undefined));
-    const couples = groups.map((m) => betrothed(s, m));
-    this.figures = new Figures(total, shadows, couples.includes(true) ? ['hold-r', 'hold-l'] : []);
-    let caravans = 0;
-    let slot = 0;
-    for (const [n, f] of fams.entries()) {
-      const members = groups[n];
-      const caravan = members.some((p) => p.houseId === null);
-      const slots = couples[n]
-        ? [...HOLD_SLOTS]
-        : groupSlots(
-            members.map((p) => ageBand(p, s.week)),
-            caravan,
-          );
-      members.forEach((p, j) => {
-        this.figures.dress(slot + j, figureLook(p.sex, ageBand(p, s.week), hash(p.id, 3)));
-        if (couples[n]) this.figures.carry(slot + j, holdLoad(slots[j]));
+    const old = new Map((prev?.list ?? []).map((w) => [w.id, w]));
+    this.pos = prev?.pos ?? NaN;
+    for (const f of s.families) {
+      if (f.path.length < 2) continue;
+      const kept = old.get(f.id);
+      old.delete(f.id);
+      if (kept) {
+        this.list.push(kept);
+        continue;
+      }
+      const members = f.members.map((id) => people.get(id)).filter((p) => p !== undefined);
+      if (!members.length) continue;
+      const couple = betrothed(s, members);
+      const pack = !couple && members.some((p) => p.houseId === null);
+      const slots = couple ? [...HOLD_SLOTS] : groupSlots(members.map((p) => ageBand(p, s.week)), pack);
+      this.list.push({
+        id: f.id,
+        path: f.path,
+        last: f.path.length - 1,
+        lead: -Infinity,
+        home: false,
+        looks: members.map((p) => figureLook(p.sex, ageBand(p, s.week), hash(p.id, 3))),
+        loads: members.map((_, j) => (couple ? holdLoad(slots[j]) : null)),
+        slots,
+        length: groupLength(slots),
+        pack,
+        phase: hash(f.id, 5) * 6,
       });
-      this.list.push({ path: f.path, from: f.step, last: f.path.length - 1, first: slot, slots, length: groupLength(slots), donkey: caravan ? caravans++ : -1, phase: hash(f.id, 5) * 6 });
-      slot += members.length;
     }
+    // The groups the core has moved in, still walking through the door.
+    for (const w of old.values()) if (!w.home) this.list.push(w);
+    const total = this.list.reduce((n, w) => n + w.looks.length, 0);
+    const holds = this.list.some((w) => w.loads.some((l) => l !== null));
+    this.figures = new Figures(total, shadows, holds ? ['hold-r', 'hold-l'] : []);
+    let slot = 0;
+    for (const w of this.list)
+      w.looks.forEach((look, j) => {
+        this.figures.dress(slot, look);
+        this.figures.carry(slot++, w.loads[j]);
+      });
     this.figures.count = slot;
-    this.donkeys = new Herd('donkey', caravans, shadows);
-    this.donkeys.count = caravans;
+    const packs = this.list.filter((w) => w.pack).length;
+    this.donkeys = new Herd('donkey', packs, shadows);
+    this.donkeys.count = packs;
   }
 
   get objects() {
@@ -303,16 +372,33 @@ export class Families {
 
   /** Families on the way now (for the tests). */
   get walking() {
-    return this.list.length;
+    return this.list.filter((w) => !w.home).length;
   }
 
-  update(time: number) {
+  /** `pos`: the game time in weeks (with the fraction); the families stand still in the pause. */
+  update(pos: number) {
+    const s = this.s;
+    const frac = pos - Math.floor(pos);
+    const dWeeks = Number.isNaN(this.pos) ? 0 : Math.min(1, Math.max(0, pos - this.pos));
+    this.pos = pos;
+    const perWeek = familySpeed();
+    let slot = 0;
+    let pack = 0;
     for (const w of this.list) {
-      const lead = familyLead(w.from, w.last, time, FAMILY_SPEED, FAMILY_REST, w.length);
-      w.slots.forEach((slot, j) => {
-        const isDonkey = j >= w.slots.length - (w.donkey >= 0 ? 1 : 0);
-        const step = memberAt(lead, slot.back, w.from, w.last);
-        const i = isDonkey ? w.donkey : w.first + j;
+      const f = s.families.find((o) => o.id === w.id);
+      // A new way (the roads changed under it): the group goes on from where the core puts it.
+      if (f && f.path !== w.path) [w.path, w.last, w.lead] = [f.path, f.path.length - 1, -Infinity];
+      if (!w.home) {
+        w.lead = familyLead(w.lead, f ? f.step : null, frac, dWeeks, perWeek);
+        w.home = familyHome(w.lead, w.length, w.last);
+      }
+      const first = slot;
+      slot += w.looks.length;
+      const donkey = w.pack ? pack++ : -1;
+      w.slots.forEach((place, j) => {
+        const isDonkey = j >= w.looks.length;
+        const i = isDonkey ? donkey : first + j;
+        const step = w.home ? null : memberAt(w.lead, place.back, 0, w.last);
         if (step === null) {
           if (isDonkey) this.donkeys.hide(i);
           else this.figures.hide(i);
@@ -320,8 +406,8 @@ export class Families {
         }
         const p = along(w.path, step);
         const len = Math.hypot(p.dx, p.dz) || 1;
-        const x = p.x - (p.dz / len) * slot.side;
-        const z = p.z + (p.dx / len) * slot.side;
+        const x = p.x - (p.dz / len) * place.side;
+        const z = p.z + (p.dx / len) * place.side;
         const yaw = Math.atan2(p.dx, p.dz);
         // Two steps per cell: a light bob and sway.
         const ph = step * Math.PI * 4 + w.phase + j;

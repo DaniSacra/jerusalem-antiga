@@ -1,4 +1,4 @@
-import { readCity, unemployed, type BuildableKind, type BuildingKind } from '../core';
+import { readCity, type BuildableKind } from '../core';
 import { jobsView } from '../game/model/jobs';
 import { alertsPanel, goalsPanel, STATS_TABS, statsPanel, type PanelSection, type StatsTab } from '../game/model/panels';
 import type { Session } from '../game/session';
@@ -21,8 +21,6 @@ export class Panels {
   private tab: StatsTab = 'now';
   /** The buildings' thumbnails: the Profissões rows show them. */
   private thumbs: Partial<Record<BuildableKind, string>> = {};
-  /** "Ninguém livre" was said since Profissões opened (once per opening). */
-  private toldNobody = false;
 
   constructor(
     private s: Session,
@@ -35,7 +33,6 @@ export class Panels {
     if (this.open === kind) this.close();
     else {
       this.open = kind;
-      this.toldNobody = false;
       resetKey(this.el);
     }
   }
@@ -43,15 +40,6 @@ export class Panels {
   setThumbs(urls: Partial<Record<BuildableKind, string>>) {
     this.thumbs = urls;
     resetKey(this.el);
-  }
-
-  /** − / + in Profissões; a + nobody is free to take says so in the panel's head (see `render`). */
-  private changeJob(kind: BuildingKind, delta: 1 | -1) {
-    const s = this.s;
-    // Set before the change: the change redraws the panel.
-    const was = this.toldNobody;
-    if (delta > 0 && unemployed(s.state) === 0) this.toldNobody = true;
-    if (!s.changeJobTarget(kind, delta)) this.toldNobody = was;
   }
 
   close(): boolean {
@@ -69,10 +57,8 @@ export class Panels {
     this.el.classList.toggle('jobs', kind === 'jobs');
     if (kind === 'jobs') {
       const v = jobsView(s.state);
-      // After a + nobody took: "Ninguém livre" while a profession still waits and nobody is free.
-      const note = this.toldNobody && v.idle === 0 && v.rows.some((r) => r.missing) ? T.nova.professions.nobodyFree : null;
-      keyed(this.el, JSON.stringify([kind, v, note, Object.keys(this.thumbs).length]), () =>
-        jobsContent(v, this.thumbs, note, { change: (k, d) => this.changeJob(k, d), auto: () => s.autoJobs(), close: () => this.onClose() }),
+      keyed(this.el, JSON.stringify([kind, v, Object.keys(this.thumbs).length]), () =>
+        jobsContent(v, this.thumbs, v.note, { change: (k, d) => s.changeJobTarget(k, d), auto: () => s.autoJobs(), close: () => this.onClose() }),
       );
       return this.el.classList.remove('hidden');
     }

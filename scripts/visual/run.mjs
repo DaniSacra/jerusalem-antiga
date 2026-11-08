@@ -1915,8 +1915,7 @@ async function street3dScenario(page, form) {
   await look({ day: 0.3, pos: summer, weather: { ...clear, wind: 1 } }, { x: 24.5, z: 36, dist: 10, ...above }, 'wind-a');
   await page.waitForTimeout(350);
   await shot(page, n('wind-b'));
-  // The couple walking hand in hand up the road (their walk loops while the game is paused).
-  // Wait until they are on the way (not resting at the end of their loop).
+  // The couple walking hand in hand up the road (they stand on their way while the game is paused).
   await page.waitForFunction(() => window.view3d.game.scene.stage.world.families.figures.objects[0].instanceMatrix.array[0] !== 0, null, { timeout: 20000 }).catch(() => {});
   const at = await page.evaluate(() => {
     const m = window.view3d.game.scene.stage.world.families.figures.objects[0].instanceMatrix.array;
@@ -1953,6 +1952,167 @@ async function street3dScenario(page, form) {
   // From far away the still life is gone (specks), the walkers stay.
   const far = await look({ day: 0.3, pos: summer, weather: clear }, { x: 25, z: 33, dist: 60 }, 'far');
   assert(far.idle === 0, `no still life from the farthest zoom (${far.idle})`);
+}
+
+/**
+ * People never vanish nor jump (playtest 2026-11-07, bugs 1 and 2): a paused town of walkers is
+ * sampled frame by frame while the network changes (a road built), more people move in (more
+ * walkers) and a harvest sends a carrier out (the workers' layer alone): every walker kept moves on
+ * smoothly and the count never drops at once. In the rain they walk to a door and go in a few at a
+ * time, and come out of doors after it. A family walks once from the entrance into its house with
+ * the game running, and stays in. Screenshots: the street by day, in the rain (people heading in),
+ * after the rain, the family on its way.
+ */
+async function walkers3dScenario(page, form) {
+  const n = (name) => `walkers3d-${form}-${name}`;
+  await open3dGame(page);
+  const clear = { rain: 0, wet: 0, overcast: 0, puddles: 0, wind: 0, snowing: false };
+  const setup = await page.evaluate(() => {
+    const { state: s, core } = window;
+    s.silver = s.wood = s.stone = 1e6;
+    s.feature = s.feature.map(() => null);
+    for (const b of s.buildings.filter((b) => b.kind !== 'altar')) core.clearCell(s, b.x, b.y);
+    s.people = [];
+    s.families = [];
+    s.unlocked.push('granary', 'market', 'workshop', 'plaza');
+    const put = (kind, x, y) => {
+      const r = core.place(s, kind, x, y);
+      if (!r.ok) throw new Error(`no ${kind} at ${x},${y}: ${r.reason}`);
+      return s.grid[y * s.cols + x];
+    };
+    const houses = [];
+    for (const y of [28, 30, 32, 34, 36]) for (const x of [22, 25]) houses.push(Object.assign(put('house', x, y), { level: 2 + (y % 4 ? 1 : 0), variant: 1 }));
+    put('market', 22, 38);
+    put('granary', 25, 38);
+    const field = put('field', 25, 42);
+    for (const h of houses.slice(0, 7))
+      for (let k = 0; k < 4; k++) core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 20 + k * 9, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5);
+    core.refreshCity(s);
+    s.food = core.foodCapacity(s) / 2;
+    window.session.refresh();
+    window.view3d.rig.set({ x: 24.5, z: 33, dist: 13, yaw: Math.PI / 4, pitch: 0.75 });
+    return { empty: houses.slice(7).map((h) => h.id), field: field.id };
+  });
+  // Frame by frame for `ms`: the walkers on the streets and how far each resident moved since the last frame.
+  const sample = (ms, change) =>
+    page.evaluate(
+      ([ms, change]) =>
+        new Promise((done) => {
+          const w = () => window.view3d.game.scene.stage.world.walkers;
+          const world = window.view3d.game.scene.stage.world;
+          const was = { walkers: world.walkers, haulers: world.haulers };
+          const out = { frames: 0, maxJump: 0, maxDrop: 0, counts: [], kept: 0, redrawn: [] };
+          let last = null;
+          let t0 = performance.now();
+          let tp = t0;
+          let changed = false;
+          const tick = () => {
+            const now = performance.now();
+            if (!changed && now - t0 > 300 && change) {
+              changed = true;
+              new Function(change)();
+              window.session.refresh();
+            }
+            const at = new Map([...w().residents()].map((p) => [p.id, p]));
+            const count = w().count;
+            if (last) {
+              const dt = (now - tp) / 1000;
+              for (const [id, p] of at) {
+                const q = last.at.get(id);
+                if (!q) continue;
+                out.kept++;
+                // Faster than any walker (cheering ones 1.3x of 1.4 cells/s), with room for a slow frame.
+                out.maxJump = Math.max(out.maxJump, Math.hypot(p.x - q.x, p.z - q.z) - dt * 2.5);
+              }
+              out.maxDrop = Math.max(out.maxDrop, last.count - count);
+            }
+            out.counts.push(count);
+            out.frames++;
+            last = { at, count };
+            tp = now;
+            if (now - t0 < ms) requestAnimationFrame(tick);
+            else done({ ...out, redrawn: Object.keys(was).filter((k) => world[k] !== was[k]) });
+          };
+          requestAnimationFrame(tick);
+        }),
+      [ms, change],
+    );
+  await page.evaluate((clear) => window.view3d.view({ day: 0.3, weather: clear }), clear);
+  await page.waitForFunction(() => window.view3d.settled, null, { timeout: 30000 });
+  await page.waitForTimeout(800);
+  await shot(page, n('day'));
+  // A road built off the street: the network changes, the walkers' layer is drawn again.
+  const road = await sample(3500, `const s = window.state; for (const x of [25, 26, 27, 28]) window.core.place(s, 'road', x, 40); window.core.refreshCity(s);`);
+  // More people move in: more walkers (they come out of doors).
+  const more = await sample(3500, `const s = window.state; for (const id of ${JSON.stringify(setup.empty)}) { const h = s.buildings.find((b) => b.id === id); for (let k = 0; k < 6; k++) window.core.addPerson(s, { sex: k % 2 ? 'f' : 'm', age: 22 + k * 7, houseId: h.id, caravan: 0, clan: h.id }, () => 0.5); } window.core.refreshCity(s);`);
+  // The harvest: a carrier sets out from the field (only the workers' layer changes).
+  const harvest = await sample(3000, `const s = window.state, c = window.core; let w = s.week; while (!c.harvestsIn(w)) w++; s.week = w; c.refreshCity(s);`);
+  // The walkers were drawn again for the road and the newcomers; the harvest redrew the workers alone.
+  assert(more.redrawn.includes('walkers'), `the walkers' layer was drawn again (${more.redrawn})`);
+  assert(harvest.redrawn.join() === 'haulers', `the harvest redraws the workers alone (${harvest.redrawn})`);
+  for (const [what, r] of Object.entries({ road, more, harvest })) {
+    assert(r.kept > 20 && r.maxJump < 0.35, `${what}: the walkers kept walk on smoothly (${r.kept} seen, largest jump ${r.maxJump.toFixed(2)} cells over their pace)`);
+    assert(r.maxDrop <= 2, `${what}: nobody vanishes at once (largest drop ${r.maxDrop} in a frame; ${r.counts.slice(0, 8).join(',')}…)`);
+  }
+  console.log(`  walkers3d: ${Object.entries({ road, more, harvest }).map(([k, r]) => `${k} ${r.frames} frames, jump ${r.maxJump.toFixed(2)}, drop ${r.maxDrop}`).join('; ')}`);
+  assert(more.counts[more.counts.length - 1] > more.counts[0], `more people, more walkers (${more.counts[0]} → ${more.counts[more.counts.length - 1]})`);
+  const haulers = await page.evaluate(() => window.view3d.info().haulers);
+  assert(haulers >= 1, `the harvest carrier is out (${haulers})`);
+  // Rain: the streets empty a few at a time, people walking in by the doors.
+  const before = await page.evaluate(() => window.view3d.info().walkers);
+  const rain = { rain: 1, wet: 1, overcast: 1, puddles: 1, wind: 0.4, snowing: false };
+  const wet = sample(9000, `window.view3d.view({ day: 0.3, weather: ${JSON.stringify(rain)} });`);
+  await page.waitForTimeout(2200);
+  await shot(page, n('rain'));
+  const inRain = await wet;
+  // On a slow machine (a few frames a second) the walk to the doors takes longer.
+  await page.waitForFunction((n) => window.view3d.info().walkers < n * 0.7, before, { timeout: 60000 }).catch(() => {});
+  const rainy = await page.evaluate(() => window.view3d.info().walkers);
+  assert(rainy < before * 0.7, `fewer people out in the rain (${before} → ${rainy})`);
+  // A slow machine draws a few frames a second: a few reach their doors in the same frame.
+  assert(inRain.maxDrop <= Math.max(3, before * 0.2) && inRain.maxJump < 0.35, `in the rain they walk in, not vanish (largest drop ${inRain.maxDrop} of ${before}, jump ${inRain.maxJump.toFixed(2)})`);
+  assert(new Set(inRain.counts.filter((c) => c < before)).size > 3, `they go in over many frames (${inRain.counts.join(',')})`);
+  // After the rain they come out of the doors again.
+  const after = await sample(7000, `window.view3d.view({ day: 0.3, weather: ${JSON.stringify(clear)} });`);
+  assert(after.counts[after.counts.length - 1] > rainy && after.maxJump < 0.35, `out again after the rain (${rainy} → ${after.counts[after.counts.length - 1]}, jump ${after.maxJump.toFixed(2)})`);
+  await shot(page, n('after-rain'));
+  // A family walks once from the entrance into its house with the game running, and stays in.
+  const fam = await page.evaluate((id) => {
+    const { state: s, core } = window;
+    const house = s.buildings.find((b) => b.id === id);
+    const members = [0, 1, 2].map((k) => core.addPerson(s, { sex: k ? 'f' : 'm', age: 30 - k * 12, houseId: null, caravan: 0, clan: 77 }, () => 0.5).id);
+    for (const p of s.people.filter((p) => p.houseId === house.id)) p.houseId = null;
+    s.people = s.people.filter((p) => p.houseId !== null || members.includes(p.id));
+    const start = s.network.findIndex((v, i) => v && Math.floor(i / s.cols) > 44);
+    const from = start >= 0 ? { x: start % s.cols, y: Math.floor(start / s.cols) } : { x: 24, y: 46 };
+    const path = core.findPath(s, from, core.doorsOf(s, house));
+    s.families.push({ id: s.nextId++, houseId: house.id, members, path: [...path, { x: house.x, y: house.y }], step: 0 });
+    core.refreshCity(s);
+    window.session.refresh();
+    window.session.setSpeed(1);
+    return { cells: path.length, x: house.x, y: house.y };
+  }, setup.empty[0]);
+  await page.waitForFunction(() => window.view3d.info().families === 1, null, { timeout: 20000 });
+  await page.evaluate((f) => window.view3d.rig.set({ x: f.x, z: f.y + 3, dist: 11 }), fam);
+  await page.waitForTimeout(900);
+  await shot(page, n('family'));
+  await page.waitForFunction(() => window.state.families.length === 0 && window.view3d.info().families === 0, null, { timeout: 60000 });
+  // Stays in: no loop out of the house again.
+  const again = await page.evaluate(
+    () =>
+      new Promise((done) => {
+        let seen = 0;
+        const t0 = performance.now();
+        const tick = () => {
+          seen = Math.max(seen, window.view3d.info().families);
+          if (performance.now() - t0 < 4000) requestAnimationFrame(tick);
+          else done(seen);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  await page.evaluate(() => window.session.setSpeed(0));
+  assert(again === 0, `the family is home and stays in (${again} walking again)`);
 }
 
 /**
@@ -2249,6 +2409,8 @@ const scenarios = {
   'night3d-phone': { context: PHONE, run: (page) => night3dScenario(page, 'phone') },
   'street3d-pc': { context: PC, run: (page) => street3dScenario(page, 'pc') },
   'street3d-phone': { context: PHONE, run: (page) => street3dScenario(page, 'phone') },
+  'walkers3d-pc': { context: PC, run: (page) => walkers3dScenario(page, 'pc') },
+  'walkers3d-phone': { context: PHONE, run: (page) => walkers3dScenario(page, 'phone') },
   'houses3d-pc': { context: PC, run: (page) => houses3dScenario(page, 'pc') },
   'river3d-pc': { context: PC, run: (page) => river3dScenario(page) },
   'maquete3d-pc': { context: PC, run: (page) => maquete3dScenario(page) },

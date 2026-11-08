@@ -118,10 +118,9 @@ export function noticeLines(list: Notice[]): PanelLine[] {
   return list.map((n) => ({ parts: [{ text: '⚠ ' + n.text, tone: n.bad ? 'bad' : 'warn' }], wrap: true, gap: 4 }));
 }
 
-/** Avisos: the title and the warnings, one section each (a long list flows into a second column). */
+/** Avisos: the title and the warnings in one column, one under another (a long list scrolls). */
 export function alertsPanel(list: Notice[]): PanelSection[] {
-  const [first, ...rest] = noticeLines(list);
-  return [[title(T.nova.buttons.alerts), first], ...rest.map((l) => [l])];
+  return [[title(T.nova.buttons.alerts), ...noticeLines(list)]];
 }
 
 export interface StatsData {

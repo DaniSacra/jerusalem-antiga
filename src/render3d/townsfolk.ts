@@ -11,7 +11,7 @@ const L = LOOK.street;
 
 /**
  * The still life of the streets (street.ts says who and where): neighbours at the doors, buyers at
- * the markets and olive pickers in autumn, one instanced crowd (four draw calls and one per thing
+ * the markets and olive pickers in autumn, one instanced crowd (one draw call and one per thing
  * held). Built with the city and with the people; per frame only their small motions.
  */
 export class Idlers {

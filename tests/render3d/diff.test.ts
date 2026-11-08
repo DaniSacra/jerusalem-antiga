@@ -7,7 +7,7 @@ describe('what changed in the drawn city', () => {
   it('everything the first time, nothing when the city is the same', () => {
     const s = emptyGame();
     const k = cityKeys(s);
-    expect(changedLayers(null, k)).toEqual(['buildings', 'props', 'people']);
+    expect(changedLayers(null, k)).toEqual(['buildings', 'props', 'walkers', 'families', 'haulers']);
     expect(changedLayers(k, cityKeys(s))).toEqual([]);
   });
 
@@ -48,7 +48,7 @@ describe('what changed in the drawn city', () => {
     const s = emptyGame();
     const a = cityKeys(s);
     road(s, [[24, 20]]);
-    expect(changedLayers(a, cityKeys(s))).toEqual(expect.arrayContaining(['props', 'people']));
+    expect(changedLayers(a, cityKeys(s))).toEqual(expect.arrayContaining(['props', 'walkers']));
     s.feature[indexOf(s, 5, 5)] = 'olive';
     const b = cityKeys(s);
     s.feature[indexOf(s, 5, 5)] = 'stump';
@@ -62,10 +62,23 @@ describe('what changed in the drawn city', () => {
     const a = cityKeys(s);
     hire(s, put(s, 'field', ROADSIDE, 30)); // someone works there: a carrier goes out
     refreshCity(s);
-    expect(changedLayers(a, cityKeys(s))).toContain('people');
+    expect(changedLayers(a, cityKeys(s))).toContain('haulers');
     const b = cityKeys(s);
     s.week = [...Array(52).keys()].find((w) => !harvestsIn(w))!;
-    expect(changedLayers(b, cityKeys(s))).toEqual(['people']);
+    // Only the workers change: the walkers and the families walk on undisturbed.
+    expect(changedLayers(b, cityKeys(s))).toEqual(['haulers']);
+  });
+
+  it('a family setting out or arriving changes the families alone, its steps along the way nothing', () => {
+    const s = emptyGame();
+    const a = cityKeys(s);
+    s.families.push({ id: 900, houseId: 1, members: [], path: [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }], step: 0 });
+    const b = cityKeys(s);
+    expect(changedLayers(a, b)).toEqual(['families']);
+    s.families[0].step = 1.5;
+    expect(changedLayers(b, cityKeys(s))).toEqual([]);
+    s.families = [];
+    expect(changedLayers(b, cityKeys(s))).toEqual(['families']);
   });
 
   it('a road losing or getting back its way to the altar changes the props layer (dashed or not)', () => {

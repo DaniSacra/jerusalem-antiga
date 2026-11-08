@@ -5,7 +5,7 @@
   "treeRegrowWeeks": 104,
   "goodGatherShare": 0.75,
   "materialStorage": 400,
-  "livestockStorage": 40,
+  "livestockStorage": 50,
   "weekSeconds": 3.2,
   "unemploymentAlert": 3,
   "jobPriority": ["fisher", "gatherer", "field", "lumber", "quarry", "pasture", "granary", "market", "workshop", "altar", "temple"],
@@ -29,7 +29,6 @@
   "debtWeeksToLose": 24,
   "debtCaravanWeeks": 52,
   "treeClearCost": 5,
-  "templeSpotRoadGap": 1,
   "roadCost": 2,
   "happiness": {
     "base": 50,
@@ -74,7 +73,7 @@
   "caravans": {
     "start": { "families": [3, 5], "foodWeeks": [18, 24] },
     "later": [
-      { "weeks": [52, 98], "families": [3, 3], "chance": 1, "engaged": 2 },
+      { "weeks": [30, 60], "families": [3, 3], "chance": 1, "engaged": 2 },
       { "weeks": [156, 260], "families": [2, 3], "chance": 1 },
       { "weeks": [312, 415], "families": [2, 3], "chance": 0.5 }
     ],

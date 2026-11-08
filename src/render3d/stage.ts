@@ -15,6 +15,8 @@ import { nightness } from './time/day';
 import { WeatherClock, type WeatherNow } from './time/weather';
 import LOOK from './look3d.json';
 import { MAX_HANDS, World, type CityLayer } from './world';
+import { PEOPLE } from './diff';
+import { farFade } from './crowd';
 import { smokeShare } from './plan';
 import { SMOKE_OPACITY } from './life';
 import { WATER_Y } from './terrain';
@@ -186,15 +188,15 @@ export class Stage {
     const city = p.has('buildings') || p.has('props');
     if (city && now - this.builtAt >= REBUILD_MS) {
       const t0 = performance.now();
-      this.world.sync([...p].filter((l) => l !== 'people'));
+      this.world.sync([...p].filter((l) => !PEOPLE.includes(l)));
       p.delete('buildings');
       p.delete('props');
       this.builtAt = now;
       this.lastRebuildMs = performance.now() - t0;
-    } else if (!city && p.has('people') && now - this.builtAt >= PEOPLE_QUIET_MS) {
+    } else if (!city && p.size && now - this.builtAt >= PEOPLE_QUIET_MS) {
       const t0 = performance.now();
-      this.world.sync(['people']);
-      p.delete('people');
+      this.world.sync([...p]);
+      p.clear();
       this.lastRebuildMs = performance.now() - t0;
     }
   }
@@ -234,6 +236,8 @@ export class Stage {
     this.rebuild(now);
     const { world, fx, atmo, renderer } = this;
     const o = this.override;
+    // The families walk by the game's own time (the core's steps), whatever week the tests show.
+    const gamePos = pos;
     pos = o?.pos ?? pos;
     const week = Math.floor(pos);
     const look = this.seasons.at(week, pos - week, this.s);
@@ -294,11 +298,11 @@ export class Stage {
 
     world.walkers.setShare(streetShare(L.night, w.rain));
     world.walkers.update(this.holdWalkers ? 0 : dt, time);
-    world.families.update(time);
+    world.families.update(gamePos);
     // The still life: like the walkers, fewer at night and in the rain; half at the low quality, none at
-    // the minimum or from far away (specks there); the olive pickers in autumn.
+    // the minimum, thinning out from far away (specks there); the olive pickers in autumn.
     const idle = this.level === 'high' ? 1 : this.level === 'low' ? LOOK.street.lowShare : 0;
-    world.idlers.update(time, rig.distance > LOOK.street.farDist ? 0 : streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn');
+    world.idlers.update(time, farFade(rig.distance, LOOK.street.farDist, LOOK.street.farBand) * streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn');
     world.leavers.update(time);
     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;

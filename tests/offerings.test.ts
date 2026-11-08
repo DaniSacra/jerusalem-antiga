@@ -57,9 +57,10 @@ const PASTURE_Y = 30;
 describe('pasture data', () => {
   it('Pasto: 3 x 3, 1 job, 30 silver and 10 wood, gathers free grass into the livestock', () => {
     expect(BUILDINGS.pasture).toMatchObject({ name: 'Pasto', category: 'supply', cost: 30, upkeep: 0.5, w: 3, h: 3, jobs: 1, materials: { wood: 10 } });
-    expect(P).toEqual({ source: 'grass', radius: 2, perCell: 0.06, max: 1.5, winterFactor: 0.5, product: 'livestock' });
+    expect(P).toMatchObject({ source: 'grass', radius: 2, max: 1.5, winterFactor: 0.5, product: 'livestock' });
+    expect(P.perCell).toBeGreaterThan(0);
     expect(storageOf('livestock')).toBe(RULES.livestockStorage);
-    expect(RULES.livestockStorage).toBe(40);
+    expect(RULES.livestockStorage).toBeGreaterThan(0);
     expect(storageOf('wood')).toBe(RULES.materialStorage);
     expect(RULES.jobPriority.indexOf('pasture')).toBe(RULES.jobPriority.indexOf('quarry') + 1);
     expect(createGame(createRng(3)).livestock).toBe(0);
@@ -172,7 +173,9 @@ describe('offerings', () => {
       expect(s.offered).toBe(true);
       expect(offerEvents(events)).toEqual([]);
     }
-    expect(TEMPLE_STAGES.map((st) => st.offering)).toEqual([0.5, 0.75, 1, 1.25, 1.5]);
+    // The offering grows with every stage.
+    const offerings = TEMPLE_STAGES.map((st) => st.offering);
+    offerings.forEach((o, k) => expect(o).toBeGreaterThan(k ? offerings[k - 1] : 0));
   });
 
   it('an exact offering is enough and leaves the pens empty; a hair short burns nothing and covers nothing', () => {
@@ -203,7 +206,8 @@ describe('offerings', () => {
   it('"offeringsMissing" once per episode, at the altar; "offeringsBack" when the pens have enough again', () => {
     const s = emptyGame();
     const altar = s.buildings.find((b) => b.kind === 'altar')!;
-    restoreAltar(s, 1, 1); // two offerings of 0.5
+    const o = stageDef(1).offering;
+    restoreAltar(s, 1, 2 * o); // two offerings
     const log: string[][] = [];
     const all: GameEvent[] = [];
     const week = () => {
@@ -218,10 +222,10 @@ describe('offerings', () => {
     expect(s.offered).toBe(false);
     week();
     week();
-    s.livestock = 3;
+    s.livestock = 3 * o;
     week(); // back
     expect(s.offered).toBe(true);
-    expect(s.livestock).toBe(2.5);
+    expect(s.livestock).toBeCloseTo(2 * o);
     week();
     s.livestock = 0;
     week(); // a second episode

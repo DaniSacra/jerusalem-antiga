@@ -1,4 +1,4 @@
-import { BUILDINGS, dimsOf, HOUSE_LEVELS, RULES, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
+import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf, unlockingGoal, WEEKS_PER_YEAR, type Alert, type BuildableKind, type BuildingCategory, type Craft, type FailReason, type BirthBlock, type AgeBand, type BuildingKind, type HouseBirths, type Sex, type Feature, type GatherSource, type Material, type Materials, type Product, type GoalDef, type Ground, type HappinessPart, type LeaveReason, type MilestoneId, type Mood, type NeedKind, type Placeable, type Season, type TutorialStepId } from '../core';
 import { toolName, type Tool } from './tools';
 
 /** Names of what gathering buildings bring (drafts for the copywriter). */
@@ -29,7 +29,7 @@ export const T = {
   howTo: [
     'Guarde comida para o inverno: pesque, colete e plante campos.',
     `Casais precisam de casa. Com madeira de um lenhador, tendas viram casas de barro; guarde lenha para o inverno. Sem celeiro, só cabem ${RULES.baseFoodStorage} de comida.`,
-    'Cumpra os objetivos e construa o Templo. Não deixe a cidade em dívida!',
+    'Cumpra os objetivos e restaure o Templo em ruínas, etapa por etapa. Não deixe a cidade em dívida!',
   ],
   controls: 'Mapa: arraste ou dois dedos  ·  Zoom: pinça ou roda  ·  Girar: ↺ ↻',
   install: 'Instalar app',
@@ -114,9 +114,6 @@ export const T = {
   serviceEmpty: (kind: BuildingKind) => `${BUILDINGS[kind].name} vazio: não atende as casas`,
   /** A workplace built with nobody free to work there. */
   noCrewBuilt: (kind: BuildingKind) => `Ninguém livre para ${FEMININE.has(kind) ? 'a' : 'o'} ${BUILDINGS[kind].name}: abra Profissões`,
-  noTempleSpot: `Sem espaço para o Templo: abra uma rua ao lado de um terreno livre ${dimsOf('temple').w} x ${dimsOf('temple').h}`,
-  /** Choosing the temple with no ready spot, but some a short road away (the yellow areas). */
-  noTempleSpotRoad: 'Sem lugar pronto: puxe uma rua ligada ao altar até uma área amarela',
   /** Preview of any building that fits but would not touch the road network. */
   needsRoad: 'Cabe aqui: falta ligar à rua',
   /** Preview that fits but the city has not the silver yet. */
@@ -128,7 +125,7 @@ export const T = {
     materials: 'Falta madeira ou pedra',
     debt: 'Em dívida: não dá para construir',
     invalid: 'Não dá para construir aqui',
-    noRoad: 'O Templo precisa encostar numa rua ligada ao altar',
+    noRoad: 'Obra sem rua: ligue o Templo a uma rua ligada ao altar',
     protected: 'O altar e o templo não podem ser demolidos',
     locked: 'Ainda bloqueado',
   } satisfies Record<FailReason, string>,
@@ -145,6 +142,7 @@ export const T = {
     plaza: 'Praça liberada: casas de barro perto dela viram casas de pedra',
     market: 'Mercado liberado: com oficina e campos, o povo tem o que trocar',
     quarry: 'Pedreira liberada: tira pedra das rochas para casas de pedra e o Templo',
+    pasture: 'Pasto liberado: dá gado do capim para as ofertas do altar',
   } as Partial<Record<Placeable, string>>,
   alert: (a: Alert): string => {
     if (a.kind === 'debt')
@@ -158,7 +156,7 @@ export const T = {
     if (a.kind === 'foodShort') return 'A comida não dura até a primavera: pesque, colete ou plante campos';
     if (a.kind === 'firewood')
       return a.cold ? 'Frio! Sem lenha, as casas esvaziam. Construa um lenhador' : `A lenha não dura o inverno: faltam ${a.missing} de madeira. Construa um lenhador`;
-    if (a.kind === 'storageFull') return `Estoque de ${PRODUCT[a.material]} cheio (${RULES.materialStorage}): ${a.material === 'wood' ? 'o lenhador parou' : 'a pedreira parou'}`;
+    if (a.kind === 'storageFull') return `Estoque de ${PRODUCT[a.material]} cheio (${storageOf(a.material)}): ${({ wood: 'o lenhador', stone: 'a pedreira', livestock: 'o pasto' } as const)[a.material]} parou`;
     if (a.kind === 'caravan') {
       const fam = `Caravana com ${a.families} ${a.families === 1 ? 'família' : 'famílias'} em ${weeks(a.weeks)}`;
       const also = a.couples ? ` (${a.couples} ${a.couples === 1 ? 'casal também espera' : 'casais também esperam'})` : '';
@@ -237,7 +235,7 @@ export const T = {
   } satisfies Record<Craft, string>,
   victoryTitle: 'Vitória!',
   victoryText: (played: number, residents: number) =>
-    `O Templo foi construído em ${duration(played)}, com ${residents} moradores.`,
+    `O Templo foi consagrado em ${duration(played)}, com ${residents} moradores.`,
   /** The "medals" under the victory and defeat text: a big number and what it counts. */
   medal: {
     residents: (n: number) => (n === 1 ? 'morador' : 'moradores'),
@@ -360,7 +358,7 @@ export const T = {
     noGatherSpot: (m: Material) => (m === 'wood' ? 'Nenhum lugar com árvores junto à rua: leve uma rua até o bosque' : 'Nenhum lugar com rochas junto à rua: leve uma rua até as rochas'),
     /** Fisher and gatherer rule in the chosen building balloon. */
     gatherRule: (source: GatherSource, perCell: number, radius: number, max: number, product: Product = 'food') =>
-      `${fmt(perCell)} ${PRODUCT[product]} por ${source === 'river' ? 'trecho de rio' : source === 'rock' ? 'rocha' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
+      `${fmt(perCell)} ${PRODUCT[product]} por ${source === 'river' ? 'trecho de rio' : source === 'rock' ? 'rocha' : source === 'grass' ? 'trecho de capim livre' : 'árvore'} no alcance ${radius}, até ${fmt(max)}/sem`,
     stores: (n: number) => `Guarda ${n} de comida`,
     /** The stat a service level changes, short ("guarda 600", "alcance 6", "+20% nos campos"). */
     levelStat: {
@@ -396,7 +394,7 @@ export const T = {
       /** Its workplaces are all off the road. */
       noRoad: 'sem rua',
       /** + with nobody free to take the job. */
-      nobodyFree: 'Ninguém livre: tire de outra profissão',
+      nobodyFree: 'Ninguém livre: use − em outra profissão',
       lower: (name: string) => `Menos ${name}`,
       raise: (name: string) => `Mais ${name}`,
       /** The profession of each workplace, plural (the row's name). */
@@ -406,6 +404,7 @@ export const T = {
         field: 'Lavradores',
         lumber: 'Lenhadores',
         quarry: 'Pedreiros',
+        pasture: 'Pastores',
         granary: 'Celeireiros',
         market: 'Mercadores',
         workshop: 'Artesãos',
@@ -423,8 +422,8 @@ export const T = {
     },
     /** The Temple's stage that is the goal now (see `stageStatus`). */
     stage: {
-      started: (name: string) => `Começou: ${name}. Ponha construtores em Profissões`,
-      done: (name: string) => `${name} pronto!`,
+      started: (name: string) => `Obra começou: ${name}`,
+      done: (name: string) => `Etapa pronta: ${name}`,
       start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} para começar`,
       lacking: (name: string, what: string) => `${name}: junte ${what}`,
       debt: (name: string) => `${name}: pague a dívida antes`,
@@ -448,13 +447,13 @@ export const T = {
       /** Not its goal yet: the goal that comes first. */
       first: (n: number, text: string) => `Antes: objetivo ${n}, ${text}`,
       /** A stage already built, on its site's balloon. */
-      built: (name: string) => `${name}: pronto`,
+      built: (name: string) => `${name}: etapa pronta`,
       /** The goals list: the stage goals' mark. */
       ofStages: (n: number, of: number) => `etapa ${n}/${of}`,
     },
     /** The restored altar's weekly offering of livestock. */
     offerings: {
-      missing: 'O altar ficou sem ofertas: as casas de pedra vão cair',
+      missing: 'Falta gado para o altar: construa um pasto',
       back: 'As ofertas voltaram',
       none: 'Sem ofertas',
       /** Altar balloon. */
@@ -473,11 +472,13 @@ export const T = {
       food: (w: number) => `Comida acaba em ${weeks(w)}: construa um pescador perto do rio`,
       cold: 'Frio! Sem lenha: construa um lenhador',
       offerings: 'O altar está sem ofertas: construa um pasto no capim',
+      /** A maker the crisis needs stands empty and nobody is free: move someone there. */
+      noCrew: (kind: BuildingKind) => `${BUILDINGS[kind].name} sem ninguém: mude alguém em Profissões`,
       livestock: (w: number) => `Gado acaba em ${weeks(w)}: construa um pasto no capim`,
       firewood: (n: number) => `Lenha não dura o inverno: faltam ${n}. Construa um lenhador`,
       gather: (name: string, what: 'silver' | Material, has: number, need: number) => `${name}: junte ${need} ${what === 'silver' ? 'prata' : PRODUCT[what]} · ${Math.floor(Math.max(0, has))}/${need}`,
       road: (name: string, site: 'altar' | 'temple') => `${name}: ligue ${site === 'altar' ? 'o altar' : 'o Templo'} à rua`,
-      start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} e comece`,
+      start: (name: string, site: 'altar' | 'temple') => `${name}: toque no ${site === 'altar' ? 'altar' : 'Templo'} para começar`,
       builders: (name: string, n: number, of: number) => `${name}: ponha construtores · ${n} de ${of}`,
       going: (name: string, p: number, work: number, left: number) => `${name} ${p}/${work} · pronto em ~${left} sem`,
       /** A built goal's building off the road ("Oficina: ligue à rua"). */
@@ -492,6 +493,9 @@ export const T = {
       material: (n: number, m: Material) => `Faltam ${n} de ${PRODUCT[m]} para as casas subirem`,
       moreHouses: (have: number, target: number) => `Construa mais casas: ${have} de ${target}`,
       climbing: (n: number) => `As casas sobem em ~${weeks(n)}`,
+      /** Houses goal short of families, an empty plot ready: who fills it, and when. */
+      familyByCaravan: (n: number) => `Terreno pronto: uma família vem com a caravana em ~${weeks(n)}`,
+      familyByWedding: 'Terreno pronto: espere o próximo casamento',
       couples: 'Construa uma casa: casais esperam casa',
       caravan: (missing: number, w: number) => (missing ? `Deixe ${missing === 1 ? '1 casa vazia' : `${missing} casas vazias`}: caravana em ${w} sem` : `Caravana em ${w} sem: há casa para todos`),
       caravanSoon: 'Deixe 1 casa vazia: a caravana vem logo',
@@ -678,7 +682,7 @@ export const T = {
       frozen: (weeks: number) => `Congelado no inverno: volta em ${weeks} sem`,
       droughtRiver: 'Ano seco: junto ao rio, colhe normal',
       droughtDry: 'Ano seco: longe do rio, colhe menos',
-      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra', grass: 'Pouco capim livre aqui' } satisfies Record<GatherSource, string>,
+      noSource: { river: 'Longe do rio: não pesca nada', tree: 'Sem árvores por perto: não colhe nada', rock: 'Sem rochas por perto: não tira pedra', grass: 'Sem capim livre por perto: não dá gado' } satisfies Record<GatherSource, string>,
       happiness: (value: number, mood: Mood, why: string) => `Alegria ${value}, ${T.mood[mood]}${why ? ` (${why})` : ''}`,
       serves: (n: number) => `Atende ${n} ${n === 1 ? 'casa' : 'casas'}`,
       upkeep: (n: number) => `${fmt2(n)} por semana`,
