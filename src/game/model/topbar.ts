@@ -57,7 +57,7 @@ const STOCK_SHOWN = 0.75;
 /**
  * The top bar as data. `phone`: short texts (no names, icons only); `fit` 0..5 shortens a PC bar
  * step by step when it does not fit (1 drops material names, 2 every name, 3 the materials' "+N/sem",
- * 4 the "/sem", 5 the food forecast's words).
+ * 4 the "/sem", 5 the food forecast's words, 6 the Alegria pill (still in Estatísticas)).
  */
 export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0): TopBar {
   const N = T.nova;
@@ -130,7 +130,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
     });
   }
   pills.push({ key: 'people', icon: 'people', alarm: false, parts: [...label(N.residents), { text: fmtInt(eco.residents), size: 'num' }] });
-  if (!phone) {
+  if (!phone && fit < 6) {
     const mood: Mood = moodOf(eco.happiness);
     pills.push({ key: 'joy', icon: `mood-${mood}`, alarm: false, parts: [...label(N.happiness), { text: String(eco.happiness), size: 'num', tone: mood === 'sad' ? 'bad' : mood === 'happy' ? 'good' : 'text' }] });
   }
@@ -161,7 +161,7 @@ export function goalParts(s: GameState, phone: boolean): Part[] {
 }
 
 /** The tightest step of `topBar`'s `fit`. */
-export const FIT_MAX = 5;
+export const FIT_MAX = 6;
 
 /** Widths of a pill in px, as in ui.css (read from the page): padding and border, icon, gaps. */
 export interface PillMetrics {

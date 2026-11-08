@@ -1411,6 +1411,8 @@ async function town3dScenario(page) {
   assert(walkers >= 12, `a lived-in street has walkers (${walkers})`);
   await page.evaluate(() => {
     window.session.setSpeed(1);
+    // Noon: people walking to the market (mid-morning the streets are calmer: the day's routine, D1).
+    window.view3d.view({ day: 0.27 });
     window.view3d.rig.set({ x: 24.5, z: 36, dist: 7 });
   });
   await page.waitForTimeout(2500);
@@ -1443,6 +1445,7 @@ async function town3dScenario(page) {
   assert(sheet && sheet.includes(name), `a click on a walker opens ${name}'s sheet (${sheet?.slice(0, 60)})`);
   await page.screenshot({ path: `${OUT}/town3d-pc-person.png` });
   await page.evaluate(() => window.view3d.holdWalkers(false));
+  await page.evaluate(() => window.view3d.view(null));
   // "Mudar" opens the short list of free jobs (and "Sem trabalho"); Esc closes the list, then the sheet.
   if (someone.adult) {
     await page.click('[data-spot="sheet-job"]');

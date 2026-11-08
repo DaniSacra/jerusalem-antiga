@@ -82,3 +82,14 @@ describe('top bar fit (PC)', () => {
     expect(fitPills(at, 10, measure, m)).toBe(FIT_MAX);
   });
 });
+
+describe('the Alegria pill on a tight PC bar', () => {
+  it('shows on PC until the tightest step, which drops it (Estatísticas keeps it)', () => {
+    const s = emptyGame();
+    const keys = (fit: number) => topBar(s, readCity(s), false, fit).pills.map((p) => p.key);
+    expect(keys(0)).toContain('joy');
+    expect(keys(FIT_MAX - 1)).toContain('joy');
+    expect(keys(FIT_MAX)).not.toContain('joy');
+  });
+});
+
