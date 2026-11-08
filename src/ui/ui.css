@@ -369,3 +369,9 @@
 /* "Começar: Alicerce" on one line: the stage's buttons wrap to a second row instead. */
 .balloon .acts { flex-wrap: wrap; }
 .balloon [data-spot='balloon-stage'] { white-space: nowrap; padding: 0 14px 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+
+/* Contemplate mode (D3): only the city and a faint button back to the game (Esc and C too); a victory or defeat still shows. */
+#hud .leave-contemplate { display: none; position: absolute; top: 14px; right: 14px; opacity: 0.55; z-index: 5; }
+#hud .leave-contemplate:hover { opacity: 1; }
+#hud.contemplate .leave-contemplate { display: flex; }
+#hud.contemplate > *:not(.leave-contemplate):not(.modal) { visibility: hidden !important; }

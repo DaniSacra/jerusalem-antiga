@@ -217,8 +217,16 @@ describe('keys (PC)', () => {
     expect(keyCommand('q')).toEqual({ turn: -1 });
     expect(keyCommand('Escape')).toEqual({ do: 'escape' });
     expect(keyCommand('P')).toEqual({ do: 'jobs' });
+    expect(keyCommand('c')).toEqual({ do: 'contemplate' });
     expect(keyCommand('w')).toBeNull();
     expect(keyCommand('w', true)).toHaveProperty('pan');
+  });
+
+  it('C toggles the contemplate mode of the view', () => {
+    const { s } = setup();
+    let on = false;
+    runKey({ do: 'contemplate' }, s, { closeTop: () => false, turnMap: () => {}, toggleContemplate: () => (on = !on) });
+    expect(on).toBe(true);
   });
 
   it('Esc closes a panel first, then the balloon, then goes back to Mover', () => {

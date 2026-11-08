@@ -36,6 +36,8 @@ export interface HudHost {
   glideTo(r: Rect): void;
   /** The camera slides so the map moves `dx` px sideways on screen. */
   nudge(dx: number): void;
+  /** Enters or leaves the contemplate mode (D3: no interface, a low slow orbit). */
+  toggleContemplate(): void;
 }
 
 /** Room (px) the phone needs beside the goal pill to put the "O que fazer agora" line there. */
@@ -62,6 +64,19 @@ export class Hud {
   /** Avisos (with the red selo of how many), Estatísticas and Profissões, under the turn buttons. */
   private sideButtons = new Map<PanelKind, HTMLButtonElement>();
   private badge = h('span.badge.hidden');
+  /** The only button shown in the contemplate mode. */
+  private leave: HTMLButtonElement;
+
+  /** Contemplate mode: the interface fades out (panels, balloon and the tapped building closed first). */
+  setContemplate(on: boolean) {
+    if (on) {
+      this.closePanels();
+      this.settings.close();
+      this.host.session.deselect();
+    }
+    this.root.classList.toggle('contemplate', on);
+  }
+
   /** Phone: Profissões as a labelled disc after the tools (five side buttons do not fit above them). */
   private jobsTool: HTMLButtonElement;
   /** The standing warnings, and the keys seen (a new one toasts once and the Avisos button pulses). */
@@ -107,6 +122,10 @@ export class Hud {
       this.sideButtons.set(kind, b);
       this.tools.turns.append(b);
     }
+    this.tools.turns.append(iconButton('eye', T.nova.buttons.contemplate, () => host.toggleContemplate(), 'contemplate'));
+    // In the contemplate mode only this stays: back to the game (Esc and C too).
+    this.leave = iconButton('eye', T.nova.buttons.leaveContemplate, () => host.toggleContemplate(), 'leave-contemplate');
+    this.leave.classList.add('leave-contemplate');
     const disc = h('span.disc');
     disc.innerHTML = ICONS.jobs;
     this.jobsTool = h('button.tool.jobs', { 'data-spot': 'jobs-button', 'aria-label': T.nova.buttons.jobs }, disc, h('span.label', {}, T.nova.buttons.jobs));
@@ -115,7 +134,7 @@ export class Hud {
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.next = new NextStepLine(this.anchors, (t) => this.tools.arrowFor(t), () => s.tool, (step) => this.actOn(step));
     this.modal = new Modal(root);
-    root.append(this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.next.el, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.next.arrow, this.settings.el);
+    root.append(this.leave, this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.next.el, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.next.arrow, this.settings.el);
     parent.append(root);
     this.toasts.setPhone(this.phone);
     addEventListener('resize', this.onResize);

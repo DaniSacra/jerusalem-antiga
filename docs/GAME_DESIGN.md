@@ -1078,7 +1078,10 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
     e o touchpad fica suave); dois dedos girando giram só depois de ~12° de torção (uma pinça de zoom
     não entorta o mapa); botão direito ou do meio arrasta o mapa no PC; WASD/setas movem; Q/E e os
     botões giram até a próxima das 4 vistas padrão (desfazem um giro livre); **P** abre e fecha
-    Profissões. Tocar no mapa com um
+    Profissões. **Contemplar** (D3, 2026-11-08): o botão de olho na lateral ou a tecla **C** escondem
+    toda a interface e as marcas no chão, a câmera desce para perto dos telhados (`contemplatePitch`)
+    e gira devagar (uma volta em ~5 min, para enquanto o dedo arrasta); o jogo segue correndo. Um olho
+    discreto no canto, Esc ou C voltam. Vitória e derrota aparecem mesmo assim. Tocar no mapa com um
     painel ou a ficha aberta só fecha o que está aberto. A
     inclinação acompanha o zoom (mais deitada de perto, mais de cima de longe).
   - Começa centrada no altar, na vista padrão.

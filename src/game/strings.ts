@@ -414,7 +414,7 @@ export const T = {
       `+${each}% de comida dos campos (total ${total}%, ${total >= max ? 'no teto' : `teto ${max}%`})`,
     /** Workshop balloon when the cap is already reached: it only adds jobs. */
     workshopFull: (max: number) => `Campos já no teto (+${max}%): esta oficina só dá vagas`,
-    buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', jobs: 'Profissões', settings: 'Configurações', speed: 'velocidade', paused: 'pausado' },
+    buttons: { goals: 'Objetivos', alerts: 'Avisos', stats: 'Estatísticas', jobs: 'Profissões', contemplate: 'Contemplar (C)', leaveContemplate: 'Voltar ao jogo (Esc)', settings: 'Configurações', speed: 'velocidade', paused: 'pausado' },
     /** The Profissões panel: one row per profession built, its crew, jobs and the target (− / +). */
     professions: {
       title: 'Profissões',

@@ -27,6 +27,8 @@ export interface Play3DOptions extends Scene3DOptions {
 
 /** The camera's slow turn behind the title screen (radians a second: a full circle in ~3 minutes). */
 const TITLE_ORBIT = 0.035;
+/** Radians a second the camera turns in the contemplate mode (D3): a full turn in about 5 minutes. */
+const CONTEMPLATE_ORBIT = 0.02;
 
 /**
  * The playable city in 3D: the Session drawn by `Scene3D` under the HTML interface. This owns the
@@ -126,7 +128,14 @@ export class Play3D implements SessionView, GestureView, HudHost {
       const c = keyCommand(e.key, true);
       if (!c) return;
       e.preventDefault();
-      runKey(c, this.session, { closeTop: () => this.hud.closeTop(), turnMap: (d) => this.turn(d), panBy: (dx, dy) => this.panBy(dx, dy), toggleJobs: () => this.hud.toggleJobs() });
+      runKey(c, this.session, {
+        // Esc leaves the contemplate mode first.
+        closeTop: () => (this.scene.rig.contemplate ? (this.toggleContemplate(), true) : this.hud.closeTop()),
+        turnMap: (d) => this.turn(d),
+        panBy: (dx, dy) => this.panBy(dx, dy),
+        toggleJobs: () => this.hud.toggleJobs(),
+        toggleContemplate: () => this.toggleContemplate(),
+      });
     });
     on<Event>(window, 'resize', () => this.resize());
     // Any input on the page (map or interface) wakes the frame rate up (see `loop`).
@@ -211,6 +220,14 @@ export class Play3D implements SessionView, GestureView, HudHost {
 
   turn(dir: 1 | -1) {
     this.scene.turn(dir);
+  }
+
+  /** Contemplate mode (D3): the interface fades out and the camera drops low and turns slowly. */
+  toggleContemplate() {
+    const on = !this.scene.rig.contemplate;
+    this.scene.rig.contemplate = on;
+    this.scene.marksShown = !on;
+    this.hud.setContemplate(on);
   }
 
   nudge(dx: number) {
@@ -303,6 +320,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.hud.frame(dt * 1000);
     // Behind the title the weeks wait but the town lives (people, smoke, water) under a turning camera.
     if (this.behind) this.scene.rig.turnBy(dt * TITLE_ORBIT);
+    else if (this.scene.rig.contemplate && !this.gestures.press) this.scene.rig.turnBy(dt * CONTEMPLATE_ORBIT);
     const speed = this.behind ? 1 : this.modalOpen ? 0 : s.speed;
     this.scene.frame(dt, (now - this.start) / 1000, s.state.week + s.weekFrac, speed, settings.dayNight, !!this.gestures.press);
   }

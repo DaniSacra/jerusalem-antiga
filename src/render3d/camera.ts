@@ -13,6 +13,11 @@ export function pitchFor(dist: number): number {
   return 0.62 + (1.22 - 0.62) * Math.sqrt(t);
 }
 
+/** Contemplate mode (D3): the view drops low over the roofs, near the horizon from afar. */
+export function contemplatePitch(dist: number): number {
+  return Math.max(0.26, pitchFor(dist) - 0.36);
+}
+
 /**
  * City-builder camera: looks down at a target point on the ground from a tilted angle that follows
  * the zoom. It reads no input itself: the game drives it through `panBy`, `zoomAt`, `turnBy` and
@@ -24,6 +29,10 @@ export class CameraRig {
   private yaw = -Math.PI / 4;
   private pitch = 0.9;
   private dist = DIST0;
+
+  /** Contemplate mode: the low tilt (`contemplatePitch`), eased in and out in `update`. */
+  private low = false;
+  private pitchOf = (dist: number) => (this.low ? contemplatePitch(dist) : pitchFor(dist));
 
   /** Yaw the view is turning to (the turn buttons), approached smoothly in `update`. */
   private yawGoal: number | null = null;
@@ -60,7 +69,7 @@ export class CameraRig {
   zoomAt(sx: number, sy: number, zoom: number) {
     const before = this.groundAt(sx, sy);
     this.dist = THREE.MathUtils.clamp(DIST0 / zoom, DIST_MIN, DIST_MAX);
-    this.pitch = pitchFor(this.dist);
+    this.pitch = this.pitchOf(this.dist);
     this.apply();
     const after = this.groundAt(sx, sy);
     if (before && after) {
@@ -118,7 +127,18 @@ export class CameraRig {
     this.target.z = THREE.MathUtils.clamp(this.target.z, this.bounds.min.y, this.bounds.max.y);
   }
 
+  /** Contemplate mode on or off: the tilt eases to the low view (or back) in `update`. */
+  set contemplate(on: boolean) {
+    this.low = on;
+  }
+
+  get contemplate(): boolean {
+    return this.low;
+  }
+
   update(dt: number) {
+    const goal = this.pitchOf(this.dist);
+    if (Math.abs(goal - this.pitch) > 1e-4) this.pitch += (goal - this.pitch) * Math.min(1, dt * 2.5);
     if (this.yawGoal !== null) {
       const d = this.yawGoal - this.yaw;
       this.yaw += d * Math.min(1, dt * 8);

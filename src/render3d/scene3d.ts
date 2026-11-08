@@ -215,6 +215,11 @@ export class Scene3D {
     this.keys = keys;
   }
 
+  /** Shows or hides the ground marks (off in the contemplate mode). */
+  set marksShown(on: boolean) {
+    this.overlay.group.visible = on;
+  }
+
   /** Draws the ground marks (preview, ghost, spots); returns them for the interface's tag. */
   drawMarks(input: MarksInput): Marks {
     const marks = marksOf(this.s, input);

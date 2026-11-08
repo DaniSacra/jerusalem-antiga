@@ -532,6 +532,26 @@ async function play3dScenario(page, suffix) {
   if (phone) await hitSpot('settings');
   else await page.keyboard.press('Escape');
   await page.waitForSelector('.settings.hidden', { state: 'attached', timeout: 5000 });
+
+  // Contemplate (D3): the eye hides the interface and drops the camera low; it turns slowly; the faint eye (or Esc) comes back.
+  const pitch0 = await page.evaluate(() => window.view3d.rig.camera.position.y);
+  const yaw0 = await page.evaluate(() => window.view3d.info().yaw);
+  await hitSpot('contemplate');
+  await page.waitForTimeout(2500);
+  const calm = await page.evaluate(() => ({
+    on: document.getElementById('hud').classList.contains('contemplate'),
+    bar: getComputedStyle(document.querySelector('[data-spot="settings"]')).visibility,
+    leave: getComputedStyle(document.querySelector('[data-spot="leave-contemplate"]')).display,
+    y: window.view3d.rig.camera.position.y,
+    yaw: window.view3d.info().yaw,
+  }));
+  await page.screenshot({ path: `${OUT}/play3d-${suffix}-contemplate.png` });
+  assert(calm.on && calm.bar === 'hidden' && calm.leave !== 'none', `contemplate hides the interface but the way back (${JSON.stringify(calm)})`);
+  assert(calm.y < pitch0 * 0.85, `the camera drops low (${pitch0.toFixed(1)} → ${calm.y.toFixed(1)})`);
+  assert(calm.yaw !== yaw0, `the camera turns slowly (${yaw0} → ${calm.yaw})`);
+  if (phone) await hitSpot('leave-contemplate');
+  else await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('hud').classList.contains('contemplate'), null, { timeout: 5000 });
 }
 
 /**
