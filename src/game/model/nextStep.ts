@@ -88,8 +88,14 @@ function crisis(s: GameState, city: CityReadout): NextStep | null {
     const left = net < 0 ? Math.floor(s.livestock / -net) : Infinity;
     if (left <= LIVESTOCK_WARN_WEEKS) return make(N().livestock(left), 'livestock', 'pasture');
   }
+  // Silver running out (under EMPTY_WARN_WEEKS of the loss) while workplaces stand empty and pay in full (plano-dificuldade B).
+  const empty = city.eco.silverDelta < 0 && s.silver < -city.eco.silverDelta * EMPTY_WARN_WEEKS ? alerts(s, city.eco).find((a) => a.kind === 'noCrew') : undefined;
+  if (empty?.kind === 'noCrew') return { kind: 'crisis', text: N().emptyCost(empty.count, empty.upkeep), tone: 'bad', icon: 'silver', aim: null, open: { panel: 'jobs' } };
   return null;
 }
+
+/** Weeks of silver left, at the week's loss, under which empty workplaces make the crisis line. */
+const EMPTY_WARN_WEEKS = 26;
 
 /** Weeks of livestock left for the offerings under which the line warns. */
 const LIVESTOCK_WARN_WEEKS = 8;

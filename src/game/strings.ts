@@ -174,7 +174,10 @@ export const T = {
         ? `O inverno está chegando: na tenda, crianças pequenas e idosos podem morrer de frio. Suba para barro (${HOUSE_LEVELS[2].materials?.wood ?? 0} de madeira)`
         : 'O inverno está chegando: guarde comida e lenha';
     if (a.kind === 'drought') return `Ano seco: campos longe do rio colhem ${Math.round(RULES.drought.harvestFactor * 100)}%. Construa pescador ou coletora`;
-    if (a.kind === 'noCrew') return `${BUILDINGS[a.building].name} sem trabalhadores: abra Profissões`;
+    if (a.kind === 'noCrew')
+      return a.count === 1
+        ? `${BUILDINGS[a.building].name} sem ninguém custa ${fmt2(a.upkeep)}/sem: ponha gente em Profissões ou demola`
+        : `${a.count} locais sem ninguém custam ${fmt2(a.upkeep)}/sem: ponha gente em Profissões ou demola`;
     return `${a.count} ${a.count === 1 ? 'pessoa' : 'pessoas'} sem trabalho: faltam vagas. Construa ${a.workshopsFull ? 'um lenhador ou uma pedreira' : 'um campo, lenhador ou oficina'}`;
   },
   debtStart: 'Cidade em dívida: toque na prata',
@@ -472,6 +475,8 @@ export const T = {
       food: (w: number) => `Comida acaba em ${weeks(w)}: construa um pescador perto do rio`,
       cold: 'Frio! Sem lenha: construa um lenhador',
       offerings: 'O altar está sem ofertas: construa um pasto no capim',
+      /** Silver going down and workplaces empty, paying their upkeep in full. */
+      emptyCost: (n: number, upkeep: number) => `${n === 1 ? '1 local vazio custa' : `${n} locais vazios custam`} ${fmt2(upkeep)}/sem: ponha gente ou demola`,
       /** A maker the crisis needs stands empty and nobody is free: move someone there. */
       noCrew: (kind: BuildingKind) => `${BUILDINGS[kind].name} sem ninguém: mude alguém em Profissões`,
       livestock: (w: number) => `Gado acaba em ${weeks(w)}: construa um pasto no capim`,
@@ -692,7 +697,7 @@ export const T = {
       /** An empty workplace when no adult can be moved (B2 measured). */
       noAdults: (children: number) => `Ninguém trabalha aqui: faltam adultos${children ? ` (${children} ${children === 1 ? 'criança' : 'crianças'} na cidade)` : ''}`,
       /** The upkeep of an empty workplace (it pays a share). */
-      upkeepEmpty: (n: number) => `${fmt2(n)} por semana (vazio: metade)`,
+      upkeepEmpty: (n: number) => `${fmt2(n)} por semana, mesmo vazio`,
       /** The crew of a workplace: who works there of its jobs. */
       crew: (n: number, seats: number) => `Trabalhadores ${n}/${seats}`,
       fewWorkers: (pct: number) => `Faltam trabalhadores: rende ${pct}%`,

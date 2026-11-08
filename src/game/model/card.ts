@@ -2,6 +2,7 @@ import {
   anyoneToMove,
   balanceAfter,
   bandCounts,
+  madeByCrew,
   upkeepPaid,
   BUILDINGS,
   computeEconomy,
@@ -188,8 +189,9 @@ export function cardOf(s: GameState, c: Cell, { births }: CityReadout, phone: bo
   }
   lines.push(...foodLines(s, b));
   const upkeep = statOf(b, 'upkeep');
-  const paid = upkeepPaid(b, crewCounts(s));
-  if (upkeep) lines.push({ text: paid < upkeep ? N.upkeepEmpty(paid) : N.upkeep(upkeep), tone: 'gold' });
+  // An empty workplace pays its upkeep all the same (plano-dificuldade B): said in red.
+  const idle = madeByCrew(b.kind) && !crewCounts(s).get(b.id);
+  if (upkeep) lines.push(idle ? { text: N.upkeepEmpty(upkeepPaid(b, crewCounts(s))), tone: 'bad' } : { text: N.upkeep(upkeep), tone: 'gold' });
   // Service levels: what the next one changes, and the gold Melhorar (grey without the silver).
   const levels: CardLine[] = [];
   if (def.levels) {

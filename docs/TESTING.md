@@ -231,6 +231,9 @@ Jogadores (perfis em `PROFILES`; o rng do jogador é separado do rng do jogo):
   a previsão nem sabe da época de plantar, mistura campo, pescador e coletora.
 - **distraido** — só percebe a comida na fome, fica parado 30% das vezes, lugares quase ao acaso;
   reage a uma casa parada só depois de ver o balão por `delay` semanas (`reactsToBalloons`).
+- **exagerado** — o Comum que, toda semana, ergue mais um local de trabalho até cada tipo liberado ter
+  dois, com ou sem gente (`overbuild`; peça B do `plano-dificuldade.md`). Mede se errar custa:
+  com o local vazio pagando cheio ele perde 74% (com metade, 64%).
 
 O Templo está em ruínas no mapa desde o começo (não há lugar a escolher). Toda etapa é paga assim
 que é o objetivo e dá (`checkStartStage`). `stageAhead` é quantos objetivos antes da etapa o jogador

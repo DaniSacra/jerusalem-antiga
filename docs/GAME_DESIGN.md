@@ -122,12 +122,16 @@ Os números abaixo são os valores atuais; a fonte da verdade são os arquivos e
   Não dá em dívida, sem prata, sem a pedra (`materials`) ou no topo. Toast "Celeiro subiu para o nível 2".
 - **Manutenção** (`upkeep` em `buildings.json`, pelo nível) é cobrada **desde a primeira semana**,
   toda semana, de toda construção, **mesmo desconectada**, e também depois da vitória. O preço na
-  coluna mostra custo e manutenção. **Local de trabalho vazio paga metade** (`emptyUpkeepFactor`
-  0,5 em `rules.json`, `upkeepPaid` em `work.ts`; decisão depois do B2 medido): vale para os locais
-  cujo trabalho aparece (pescador, coletora, campo, lenhador, pedreira, oficina, mercado), ligados ou
-  não, em qualquer nível, quando ninguém trabalha ali. Celeiro, praça e parque pagam cheio; o campo
+  coluna mostra custo e manutenção. **Local de trabalho vazio paga a manutenção inteira** (`emptyUpkeepFactor`
+  1 em `rules.json`, `upkeepPaid` em `work.ts`; era 0,5 até a peça B do `plano-dificuldade.md`, em
+  2026-11-08: errar tem que custar). Vale para os locais cujo trabalho aparece (pescador, coletora,
+  campo, lenhador, pedreira, pasto, oficina, mercado), ligados ou não, em qualquer nível, quando
+  ninguém trabalha ali. O aviso junta todos: "N locais sem ninguém custam X/sem: ponha gente em
+  Profissões ou demola" (um só: "Lenhador sem ninguém custa X/sem…"). Se a prata não dura 26 semanas
+  com a perda da semana, a linha "O que fazer agora" vira crise: "N locais vazios custam X/sem: ponha
+  gente ou demola" e o toque abre Profissões. Celeiro, praça e parque pagam cheio; o campo
   no inverno com os lavradores descansando também (tem equipe). `Economy.upkeep`, o saldo e
-  `costliestUpkeep` usam o valor pago. A ficha mostra "0,25 por semana (vazio: metade)".
+  `costliestUpkeep` usam o valor pago. A ficha do local vazio mostra em vermelho "0,75 por semana, mesmo vazio".
 
 ## Madeira e pedra (Pacote 3)
 

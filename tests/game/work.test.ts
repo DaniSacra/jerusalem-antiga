@@ -58,7 +58,7 @@ describe('work on screen (plan B2)', () => {
     expect(sheetOf(s, kid).choices).toBeNull();
   });
 
-  it('a workplace balloon says "Trabalhadores n/m" with the names; empty, it says how to staff it or that adults are missing, and the half upkeep', () => {
+  it('a workplace balloon says "Trabalhadores n/m" with the names; empty, it says how to staff it or that adults are missing, and that it pays its upkeep all the same', () => {
     const s = emptyGame();
     const lumber = put(s, 'lumber', EAST, 27);
     const texts = () => cardOf(s, lumber, readCity(s), false)!.lines.map((l) => l.text);
@@ -99,8 +99,11 @@ describe('work on screen (plan B2)', () => {
     expect(alerts(s).map((a) => a.kind)).not.toContain('noCrew');
     put(s, 'lumber', EAST, 27);
     put(s, 'fisher', besideRiver(s, 32), 32);
-    expect(alerts(s).filter((a) => a.kind === 'noCrew')).toEqual([{ kind: 'noCrew', building: 'lumber' }]);
-    expect(T.alert({ kind: 'noCrew', building: 'lumber' })).toBe(`${BUILDINGS.lumber.name} sem trabalhadores: abra Profissões`);
+    // One alert for all of them: how many, the first, and the upkeep they pay in full.
+    const cost = BUILDINGS.lumber.upkeep! + BUILDINGS.fisher.upkeep!;
+    expect(alerts(s).filter((a) => a.kind === 'noCrew')).toEqual([{ kind: 'noCrew', building: 'lumber', count: 2, upkeep: cost }]);
+    expect(T.alert({ kind: 'noCrew', building: 'lumber', count: 1, upkeep: 0.75 })).toBe(`${BUILDINGS.lumber.name} sem ninguém custa 0,75/sem: ponha gente em Profissões ou demola`);
+    expect(T.alert({ kind: 'noCrew', building: 'lumber', count: 2, upkeep: cost })).toMatch(/^2 locais sem ninguém custam .*\/sem: ponha gente em Profissões ou demola$/);
   });
 
   it('a market that loses its last worker says it covers nothing (week event and Mudar alike)', () => {

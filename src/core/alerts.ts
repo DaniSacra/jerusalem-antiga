@@ -1,5 +1,5 @@
 import { computeEconomy, costliestUpkeep, type Economy } from './economy';
-import { crewCounts, madeByCrew, unemploymentAlert } from './work';
+import { crewCounts, madeByCrew, unemploymentAlert, upkeepPaid } from './work';
 import { BUILDINGS, RULES } from './data';
 import { foodLastsToHarvest } from './forecast';
 import { fieldBonus, foodCapacity, isWorking } from './harvest';
@@ -43,7 +43,7 @@ export type Alert =
   /** `workshopsFull`: the workshops' field bonus is at its cap (another one only adds jobs). */
   | { kind: 'unemployed'; count: number; workshopsFull: boolean }
   /** The first connected workplace (at work this week) that makes something and has nobody: its kind. */
-  | { kind: 'noCrew'; building: BuildingKind };
+  | { kind: 'noCrew'; building: BuildingKind; count: number; upkeep: number };
 
 /** Last weeks of autumn that warn about the winter. */
 const lateAutumn = (week: number) => seasonOf(week) === 'autumn' && week % RULES.weeksPerSeason >= RULES.weeksPerSeason - RULES.winterWarningWeeks;
@@ -79,8 +79,9 @@ export function alerts(s: GameState, eco: Economy = computeEconomy(s)): Alert[] 
   const idle = unemploymentAlert(s);
   if (idle > 0) out.push({ kind: 'unemployed', count: idle, workshopsFull: fieldBonus(s) >= (BUILDINGS.workshop.fieldBonusMax ?? 0) });
   const crews = crewCounts(s);
-  const empty = s.buildings.find((b) => b.connected && BUILDINGS[b.kind].jobs > 0 && madeByCrew(b.kind) && isWorking(b, s.week) && !crews.get(b.id));
-  if (empty) out.push({ kind: 'noCrew', building: empty.kind });
+  // Empty workplaces pay their upkeep in full (plano-dificuldade B): say how many and what they cost.
+  const empty = s.buildings.filter((b) => b.connected && BUILDINGS[b.kind].jobs > 0 && madeByCrew(b.kind) && isWorking(b, s.week) && !crews.get(b.id));
+  if (empty.length) out.push({ kind: 'noCrew', building: empty[0].kind, count: empty.length, upkeep: Math.round(empty.reduce((a, b) => a + upkeepPaid(b, crews), 0) * 100) / 100 });
   for (const material of MATERIALS) {
     if (storageFull(s, material) && s.buildings.some((b) => b.connected && BUILDINGS[b.kind].gather?.product === material)) out.push({ kind: 'storageFull', material });
   }

@@ -116,7 +116,7 @@ describe('alerts', () => {
     expect(alerts(s)).toEqual([
       { kind: 'debt', weeksLeft: RULES.debtWeeksToLose - 5, famine: false },
       { kind: 'deficit', balance: -U, costliest: 'market', upkeep: U },
-      { kind: 'noCrew', building: 'market' }, // nobody lives here to work at it
+      { kind: 'noCrew', building: 'market', count: 1, upkeep: U }, // nobody lives here to work at it
     ]);
     s.unlocked.push('workshop');
     const second = put(s, 'market', EAST, 34); // upkeep U, 3 jobs

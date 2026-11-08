@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { GOALS, HOUSE_LEVELS, refreshCity, startStage, TEMPLE_STAGES, type BuildableKind, type GameState } from '../../src/core';
+import { BUILDINGS, GOALS, HOUSE_LEVELS, refreshCity, startStage, TEMPLE_STAGES, type BuildableKind, type GameState } from '../../src/core';
 import { nextStep } from '../../src/game/model/nextStep';
 import { T } from '../../src/game/strings';
-import { EAST, emptyGame, hire, person, put, ROADSIDE } from '../helpers';
+import { EAST, emptyGame, hire, person, put, ROADSIDE, westOf } from '../helpers';
 
 const N = T.nova.next;
 /** The index of the first goal matching. */
@@ -53,6 +53,17 @@ describe('nextStep: what to do now', () => {
       // Someone free: the fisher fills next week, the line goes back to the food.
       person(s, { houseId: put(s, 'house', ROADSIDE, 30, 1, false, 0).id, age: 30 });
       expect(nextStep(s)).toMatchObject({ text: N.famine, aim: { tool: 'fisher' } });
+    });
+
+    it('silver going down with empty workplaces: what they cost, and Profissões', () => {
+      const s = game({ food: 1e4, silver: 1000 });
+      put(s, 'market', westOf('market'), 31); // empty, paying its upkeep in full
+      refreshCity(s);
+      expect(nextStep(s).kind).not.toBe('crisis'); // plenty of silver: no alarm yet
+      s.silver = 20; // under half a year of the loss
+      const n = nextStep(s);
+      expect(n).toMatchObject({ kind: 'crisis', icon: 'silver', aim: null, open: { panel: 'jobs' } });
+      expect(n.text).toBe(N.emptyCost(1, BUILDINGS.market.upkeep!));
     });
 
     it('cold without firewood: the lumber camp', () => {

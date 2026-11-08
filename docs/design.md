@@ -204,6 +204,12 @@ Plano completo, com regra, números, telas, arte, testes, critérios, dono e hor
       Eficiente vence 81%;
     - os 0,75/1/× 0,75 do plano deram Comum 50% e 12% de derrotas, abaixo do alvo de 60–75%;
     - sem UI nova: tocar nas pílulas já abre Estatísticas com impostos, manutenção e saldo.
+  - **B. Errar custa** (2026-11-08):
+    - o local de trabalho vazio paga a manutenção inteira (`emptyUpkeepFactor` 0,5 → 1);
+    - o aviso junta os vazios com o custo deles, e a ficha mostra "mesmo vazio" em vermelho;
+    - crise na linha "O que fazer agora" quando a prata não dura 26 semanas;
+    - sim: Comum igual (65%, perde 8%); o bot novo Exagerado perde 74% (64% antes);
+    - o selo de poeira no local vazio ficou de fora (KISS: o balão e o aviso já dizem).
 
 ## Feito: plano "Beleza e calma" (2026-11-06, C1–C8 fechados em 2026-11-07)
 Plano completo, com dono, arquivos, horas e aceite de cada item: `docs/revisoes/2026-11-06/plano-beleza.md`.

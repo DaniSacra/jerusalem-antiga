@@ -152,6 +152,8 @@ export interface Profile {
    * less than 1.25 x the next stage's offering, and reacts after 4 weeks (the Eficiente).
    */
   pastures: 'goal' | 'react' | 'ahead';
+  /** Exagerado (plano-dificuldade B): one more workplace a week until each unlocked kind stands twice, workers or not. */
+  overbuild?: boolean;
 }
 
 export const PROFILES: Record<string, Profile> = {
@@ -159,6 +161,8 @@ export const PROFILES: Record<string, Profile> = {
   /** Expert that sows no fields; feeds the city with fishers and gatherers. */
   pescador: { name: 'pescador', actions: 2, idleChance: 0, delay: 0, planner: true, knowsAutumn: true, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 2, setsBuilders: true, foodMix: [1, 1, 0], staffAware: true, plotsAhead: 1, housesPerAction: 2, granaryEarly: false, planPlazas: true, noise: 0.2, roadReach: 30, houseDelayFactor: 1, caravanSkip: 0, materialWait: 4, materialReserve: true, movesJobs: true, emptyWait: 1, jobDonors: 'thin', pastures: 'ahead' },
   comum: { name: 'comum', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 0, setsBuilders: true, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true, movesJobs: true, emptyWait: 4, jobDonors: 'food', answersIdle: true, pastures: 'react' },
+  /** The Comum who builds each unlocked workplace twice without looking at the workers (plano-dificuldade B). */
+  exagerado: { name: 'exagerado', actions: 2, idleChance: 0.1, delay: 3, planner: false, knowsAutumn: false, foodOnlyInFamine: false, reactsToBalloons: false, stageAhead: 0, setsBuilders: true, foodMix: [0.4, 0.3, 0.3], staffAware: false, plotsAhead: 0, housesPerAction: 3, granaryEarly: false, planPlazas: false, noise: 1.5, roadReach: 14, houseDelayFactor: 1, caravanSkip: 0, materialWait: 13, materialReserve: true, movesJobs: true, emptyWait: 4, jobDonors: 'food', answersIdle: true, pastures: 'react', overbuild: true },
   distraido: { name: 'distraido', actions: 2, idleChance: 0.3, delay: 2, planner: false, knowsAutumn: false, foodOnlyInFamine: true, reactsToBalloons: true, stageAhead: -1, setsBuilders: false, foodMix: [0.2, 0.2, 0.6], staffAware: false, plotsAhead: 0, housesPerAction: 4, granaryEarly: false, planPlazas: false, noise: 4, roadReach: 10, houseDelayFactor: 2, caravanSkip: 0.5, materialWait: 26, materialReserve: false, movesJobs: false, emptyWait: Infinity, jobDonors: 'plan', pastures: 'goal' },
 };
 
@@ -429,6 +433,11 @@ export class SurvivalBot {
     this.empty = empty;
     if (this.p.tutorial && s.week === 0 && !this.tutored) this.playTutorial(s);
     if (this.rng() < this.p.idleChance) return;
+    if (this.p.overbuild) {
+      const count = (k: BuildableKind) => s.buildings.filter((b) => b.kind === k).length;
+      const more = (s.unlocked.filter((k) => k !== 'road' && k !== 'temple' && BUILDINGS[k].jobs > 0) as BuildableKind[]).find((k) => count(k) < 2);
+      if (more && this.place(s, more, true)) this.stats.actions++;
+    }
     for (let k = 0; k < this.p.actions; k++) {
       if (!this.step(s)) break;
       this.stats.actions++;
