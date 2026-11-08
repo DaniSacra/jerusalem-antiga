@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { balloonNeed, happinessOn, computeEconomy, birthFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, taxFactor } from '../src/core';
-import { GOALS, refreshCity, unlockingGoal } from '../src/core';
+import { balloonNeed, computeEconomy, birthFactor, houseHappiness, houseInfo, HOUSE_LEVELS, idleShare, moodOf, RULES, taxFactor } from '../src/core';
+import { refreshCity } from '../src/core';
 import { atHarvest, consecrate, EAST, emptyGame, put, restoreAltar, ROADSIDE, westOf } from './helpers';
 
 const H = RULES.happiness;
@@ -182,32 +182,33 @@ describe('happiness on screen (core data)', () => {
   });
 });
 
-describe('happiness before the park', () => {
-  it('is off until the park is unlocked: content, no reasons, plain tax and births', () => {
+describe('happiness from the start of the game (B4)', () => {
+  it('counts from week 0 with no park: famine and idleness make a tent sad, and it pays less tax', () => {
     const s = emptyGame({ famine: true });
     s.unlocked = s.unlocked.filter((k) => k !== 'park');
-    expect(happinessOn(s)).toBe(false);
-    const b = put(s, 'house', ROADSIDE, 40, 1); // famine and idle: would be sad
-    expect(houseHappiness(s, b, 1)).toEqual({ value: H.base, mood: 'neutral', parts: [] });
-    const e = computeEconomy(s);
-    expect(e.taxes).toBe(HOUSE_LEVELS[1].tax);
-    expect(birthFactor(e.happiness)).toBe(1);
-    expect(balloonNeed(s, b)).not.toBe('sad');
-    s.unlocked.push('park');
-    expect(happinessOn(s)).toBe(true);
+    const b = put(s, 'house', ROADSIDE, 40, 1);
     expect(houseHappiness(s, b, 1).mood).toBe('sad');
+    expect(computeEconomy(s).taxes).toBeLessThan(HOUSE_LEVELS[1].tax);
+    expect(balloonNeed(s, b)).toBe('sad');
   });
 
-  it('turns on with the goal that unlocks the park (goal 12), not before', () => {
-    const n = unlockingGoal('park')!;
-    expect(n).toBe(12);
-    expect(RULES.startUnlocked).not.toContain('park');
-    const s = emptyGame();
-    s.unlocked = [...RULES.startUnlocked];
-    for (const g of GOALS.slice(0, n - 1)) if (g.unlock) s.unlocked.push(g.unlock);
-    expect(happinessOn(s)).toBe(false);
-    s.unlocked.push(GOALS[n - 1].unlock!);
-    expect(happinessOn(s)).toBe(true);
+  it('winter: no firewood -20; with it, a tent -10 and a city without clothes -10; none out of winter', () => {
+    expect([H.cold, H.tentWinter, H.ragged]).toEqual([-20, -10, -10]);
+    const W = RULES.weeksPerSeason;
+    const s = emptyGame({ week: W });
+    const tent = put(s, 'house', ROADSIDE, 40, 1);
+    const mud = put(s, 'house', ROADSIDE, 42, 2);
+    const of = (b: typeof tent) => houseHappiness(s, b, 0);
+    expect(kinds(of(tent))).toEqual(['tentWinter']);
+    expect(kinds(of(mud))).toEqual([]);
+    s.ragged = true;
+    expect(kinds(of(tent))).toEqual(['tentWinter', 'ragged']);
+    expect(of(mud).value).toBe(H.base + H.ragged);
+    s.cold = true; // the cold replaces the tent and the clothes
+    expect(kinds(of(tent))).toEqual(['cold']);
+    expect(of(mud).value).toBe(H.base + H.cold);
+    s.week = 2 * W; // spring
+    expect(kinds(of(tent))).toEqual([]);
   });
 });
 

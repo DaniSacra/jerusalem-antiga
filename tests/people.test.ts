@@ -22,6 +22,9 @@ import {
   type GameEvent,
   type GameState,
   type Person,
+  houseHappiness,
+  idleShare,
+  taxFactor,
 } from '../src/core';
 import { constRng, EAST, emptyGame, LIFE_YEAR, person, put, ROADSIDE, restoreAltar } from './helpers';
 
@@ -495,9 +498,10 @@ describe('the people in the economy', () => {
 
   it('every house with people pays its level tax, however many live there', () => {
     const s = emptyGame();
-    s.unlocked = s.unlocked.filter((k) => k !== 'park'); // no happiness factor
-    put(s, 'house', ROADSIDE, 27, 2, false, 1);
-    put(s, 'house', ROADSIDE, 33, 2, false, 4);
-    expect(computeEconomy(s).taxes).toBe(2 * 1.75);
+    const one = put(s, 'house', ROADSIDE, 27, 2, false, 1);
+    const four = put(s, 'house', ROADSIDE, 33, 2, false, 4);
+    const tax = (b: typeof one) => 1.75 * taxFactor(houseHappiness(s, b, idleShare(s)).value);
+    expect(tax(one)).toBe(tax(four)); // the same mood, the same tax
+    expect(computeEconomy(s).taxes).toBeCloseTo(2 * tax(one));
   });
 });

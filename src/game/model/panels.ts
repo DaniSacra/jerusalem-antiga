@@ -12,7 +12,6 @@ import {
   goalProgress,
   GOALS,
   goalTarget,
-  happinessOn,
   HOUSE_LEVELS,
   householdsOf,
   housesByLevel,
@@ -188,16 +187,15 @@ function statsNow({ s, e, forecast: out, notices }: StatsData, phone: boolean): 
   ];
   const byLevel = housesByLevel(s);
   const houses: PanelSection = [title(st.houses), ...HOUSE_LEVELS.map((l, i) => row(l.name, fmtInt(byLevel[i])))];
-  const all: PanelSection[] = [silver, upkeep, food, mats, work, houses];
-  if (happinessOn(s))
-    all.push([
-      title(st.happiness),
-      row(st.happiness, String(e.happiness)),
-      row(T.mood.happy, fmtInt(e.moods.happy), 'good'),
-      row(T.mood.neutral, fmtInt(e.moods.neutral)),
-      row(T.mood.sad, fmtInt(e.moods.sad), e.moods.sad ? 'bad' : 'text'),
-      note(st.why),
-    ]);
+  const joy: PanelSection = [
+    title(st.happiness),
+    row(st.happiness, String(e.happiness)),
+    row(T.mood.happy, fmtInt(e.moods.happy), 'good'),
+    row(T.mood.neutral, fmtInt(e.moods.neutral)),
+    row(T.mood.sad, fmtInt(e.moods.sad), e.moods.sad ? 'bad' : 'text'),
+    note(st.why),
+  ];
+  const all: PanelSection[] = [silver, upkeep, food, mats, work, houses, joy];
   // Phone: the problems are left to the Avisos button (no room for them here).
   if (!phone) all.push([title(st.problems), ...(notices.length ? noticeLines(notices) : [row('', st.none, 'good')])]);
   return all;
@@ -259,7 +257,7 @@ function statsHistory(s: GameState): PanelSection[] {
       note(`- - ${st.capacity}`),
     ]);
     out.push(chart(st.residents, fmtInt(last((r) => r.residents)), h.map((r) => r.residents), 'residents'));
-    if (happinessOn(s)) out.push(chart(st.happiness, String(Math.round(last((r) => r.happiness))), h.map((r) => r.happiness), 'happiness'));
+    out.push(chart(st.happiness, String(Math.round(last((r) => r.happiness))), h.map((r) => r.happiness), 'happiness'));
   }
   const marks: PanelLine[] = [title(st.milestones)];
   if (!s.milestones.length) marks.push(note(st.noMilestones));

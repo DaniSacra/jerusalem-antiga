@@ -1,5 +1,6 @@
 import { RULES } from './data';
 import { cellsOf, indexOf } from './grid';
+import { seasonOf } from './seasons';
 import type { Building, GameState, ServiceKind } from './types';
 
 const H = RULES.happiness;
@@ -7,7 +8,7 @@ const H = RULES.happiness;
 export type Mood = 'happy' | 'neutral' | 'sad';
 /** One reason for a house's happiness, with its points (positive or negative). */
 export interface HappinessPart {
-  kind: 'sacred' | 'park' | 'plaza' | 'market' | 'famine' | 'idle';
+  kind: 'sacred' | 'park' | 'plaza' | 'market' | 'famine' | 'cold' | 'tentWinter' | 'ragged' | 'idle';
   value: number;
 }
 export interface Happiness {
@@ -19,21 +20,22 @@ export interface Happiness {
 
 const covered = (s: GameState, b: Building, k: ServiceKind) => cellsOf(b).some((c) => s.coverage[k][indexOf(s, c.x, c.y)]);
 
-/** Happiness is shown and has effects only once the park is unlocked. */
-export const happinessOn = (s: GameState) => s.unlocked.includes('park');
-
 export const moodOf = (value: number): Mood => (value >= H.happy ? 'happy' : value < H.sad ? 'sad' : 'neutral');
 
 /**
- * Happiness of a house: 50, plus being near the altar or temple, a park, a plaza and a market,
- * minus famine and the share of the city's workers without a job (`idleShare`, 0..1).
+ * Happiness of a house (from the start of the game, B4): 50, plus being near the altar or temple, a
+ * park, a plaza and a market, minus famine, a winter without firewood (or, with it, in a tent or
+ * without clothes) and the share of the city's workers without a job (`idleShare`, 0..1).
  */
 export function houseHappiness(s: GameState, b: Building, idleShare: number): Happiness {
   const parts: HappinessPart[] = [];
-  // Happiness only counts once the park (the way to raise it) is unlocked: content until then.
-  if (!happinessOn(s)) return { value: H.base, mood: moodOf(H.base), parts };
   for (const k of ['sacred', 'park', 'plaza', 'market'] as const) if (covered(s, b, k)) parts.push({ kind: k, value: H[k] });
   if (s.famine) parts.push({ kind: 'famine', value: H.famine });
+  if (seasonOf(s.week) === 'winter') {
+    if (s.cold) parts.push({ kind: 'cold', value: H.cold });
+    else if (b.level === 1) parts.push({ kind: 'tentWinter', value: H.tentWinter });
+    if (s.ragged && !s.cold) parts.push({ kind: 'ragged', value: H.ragged });
+  }
   const idle = Math.round(Math.min(H.idleMax, idleShare * H.idleScale));
   if (idle > 0) parts.push({ kind: 'idle', value: -idle });
   const value = Math.max(0, Math.min(100, H.base + parts.reduce((a, p) => a + p.value, 0)));

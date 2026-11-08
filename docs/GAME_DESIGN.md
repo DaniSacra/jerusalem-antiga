@@ -448,9 +448,8 @@ o objetivo que a libera, e o balão sobre a casa mostra o ícone dela com um cad
 
 ## Felicidade
 
-A felicidade (na tela, **Alegria**) só existe **depois que o Parque é liberado** (Objetivo 12, `happinessOn`). Antes disso toda casa fica
-contente (50, sem motivos), o imposto e a chance de nascer não mudam, a carinha não aparece na
-placa e não há balão de casa triste.
+A felicidade (na tela, **Alegria**) vale **desde o começo da partida** (B4, 2026-11-08; antes só
+depois do Parque): imposto, nascimentos, carinha na placa e balão de casa triste desde a semana 0.
 
 Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json`, código em
 `src/core/happiness.ts`), calculada toda semana:
@@ -463,7 +462,10 @@ Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json
 | no raio de uma praça | +5 |
 | no raio de um mercado | +5 |
 | fome na cidade | −30 |
-| desemprego: parte dos trabalhadores sem vaga × 40 | até −20 |
+| inverno sem lenha (frio) | −20 |
+| inverno numa tenda, com lenha | −10 |
+| inverno sem roupa, com lenha | −10 |
+| desemprego: parte dos trabalhadores sem vaga × 40 | até −10 (era −20 até o B4) |
 
 Só contam serviços **conectados**. O valor fica entre 0 e 100.
 
@@ -645,7 +647,7 @@ na lista das Estatísticas com o ano e a semana.
 ## Histórico
 
 O core guarda as últimas **52 semanas** (`historyWeeks`) de: prata, comida (com a capacidade do
-estoque), moradores e alegria (a alegria só aparece no gráfico depois de liberar o Parque). As
+estoque), moradores e alegria. As
 Estatísticas mostram um gráfico simples de linha para cada uma.
 
 Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derrota está aberta.
@@ -685,7 +687,7 @@ Velocidades: 1x, 3x e Pausa. O jogo pausa enquanto a tela de vitória ou de derr
 | 9 | Construa uma oficina | 1 | +35 | Mercado |
 | 10 | Chegue a 30 moradores | 30 | +40 | Lamparina |
 | 11 | **Ilumine o celeiro: 3 lamparinas** | 3 | +35 | – |
-| 12 | Tenha 6 casas de pedra | 6 | +50 | Parque (e a Alegria) |
+| 12 | Tenha 6 casas de pedra | 6 | +50 | Parque |
 | 13 | **Alicerce do Templo** | etapa 2 | +70 | Curtume |
 | 14 | **Construa um curtume** | 1 | +60 | – |
 | 15 | Uma criança da cidade virou adulta | marco | +70 | – |
@@ -905,7 +907,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - círculo **Nível** (= objetivos cumpridos + 1; só mostrador, não libera nada) com anel dourado
     do progresso do objetivo atual; 56 px no celular, 72 no PC;
   - pílulas **Prata** e **Comida** com a variação por semana (verde positiva, vermelha negativa) e
-    **Moradores**; no PC com rótulo, mais **Alegria** (só depois de liberar o Parque). A Comida
+    **Moradores**; no PC com rótulo, mais **Alegria**. A Comida
     mostra também "até a primavera" quando a previsão chega à próxima primavera, ou "acaba no <estação>"
     (a estação em que a comida acaba, pela previsão) em vermelho; no celular só aparece quando não
     chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Na fome,

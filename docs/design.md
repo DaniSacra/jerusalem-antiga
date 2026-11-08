@@ -253,6 +253,14 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
+## Feito: B4 "Alegria desde o começo" (2026-11-08)
+A Alegria vale desde a semana 0 (sai a ligação com o Parque). Motivos novos ligam o inverno à
+Alegria: sem lenha −20, tenda no inverno −10, sem roupa −10 (o frio substitui os outros dois).
+O desemprego tira no máximo 10 (era 20): no começo todos estão sem trabalho, e a cidade não deve
+abrir triste. Sim (100 sementes, Normal): Comum 47% vence / 20% perde (era ~48/17), Eficiente
+72/12, Distraído 0/90; Tranquilo Comum 91/1. Quase neutro: o imposto ±20% compensa pelos dois
+lados. Em aberto: o Normal ainda perde mais que o alvo (3–10%).
+
 ## Feito: D1 "Um dia na cidade" (2026-11-08, versão enxuta)
 Só desenho, sem mecânica: `src/render3d/time/routine.ts` dá, pela hora, a parte da rua de cada
 grupo (andarilhos na ida e volta do trabalho e ao meio-dia, compradores ao meio-dia, crianças até

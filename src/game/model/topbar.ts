@@ -10,7 +10,6 @@ import {
   goalFraction,
   goalProgress,
   goalTarget,
-  happinessOn,
   housesWaiting,
   lastsToHarvest,
   moodOf,
@@ -131,7 +130,7 @@ export function topBar(s: GameState, city: CityReadout, phone: boolean, fit = 0)
     });
   }
   pills.push({ key: 'people', icon: 'people', alarm: false, parts: [...label(N.residents), { text: fmtInt(eco.residents), size: 'num' }] });
-  if (!phone && happinessOn(s)) {
+  if (!phone) {
     const mood: Mood = moodOf(eco.happiness);
     pills.push({ key: 'joy', icon: `mood-${mood}`, alarm: false, parts: [...label(N.happiness), { text: String(eco.happiness), size: 'num', tone: mood === 'sad' ? 'bad' : mood === 'happy' ? 'good' : 'text' }] });
   }

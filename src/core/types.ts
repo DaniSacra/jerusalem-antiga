@@ -357,6 +357,10 @@ export interface Rules {
     plaza: number;
     market: number;
     famine: number;
+    /** Winter: a house without firewood; else a tent; else the city without clothes (B4). */
+    cold: number;
+    tentWinter: number;
+    ragged: number;
     /** Penalty = share of workers without a job x idleScale, at most idleMax. */
     idleScale: number;
     idleMax: number;

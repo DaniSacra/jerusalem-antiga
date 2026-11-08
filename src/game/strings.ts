@@ -237,6 +237,9 @@ export const T = {
     plaza: 'Praça',
     market: 'Mercado',
     famine: 'Fome',
+    cold: 'Frio',
+    tentWinter: 'Tenda no inverno',
+    ragged: 'Sem roupa',
     idle: 'Desemprego',
   } satisfies Record<HappinessPart['kind'], string>,
   craft: {
