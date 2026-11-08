@@ -72,8 +72,8 @@ function crisis(s: GameState, city: CityReadout): NextStep | null {
   // A maker on the road with nobody at it while nobody is free: building another would stay empty too
   // (playtest 2026-11-07: "1 pescador, 0 de 1 vaga"), so the line opens Profissões instead.
   const make = (text: string, icon: string, kind: BuildableKind): NextStep => {
-    const idle = unemployed(s) === 0 && s.buildings.some((b) => b.kind === kind && seatsOf(b) > 0 && !crewOf(s, b).length);
-    return idle ? { kind: 'crisis', text: N().noCrew(kind), tone: 'bad', icon, aim: null, open: { panel: 'jobs' } } : one(text, icon, toolAim(s, kind));
+    const stuck = unemployed(s) === 0 && s.buildings.some((b) => b.kind === kind && seatsOf(b) > 0 && !crewOf(s, b).length);
+    return stuck ? { kind: 'crisis', text: N().noCrew(kind), tone: 'bad', icon, aim: null, open: { panel: 'jobs' } } : one(text, icon, toolAim(s, kind));
   };
   for (const a of alerts(s, city.eco)) {
     if (a.kind === 'debt') return one(N().debt(a.weeksLeft), 'silver', { tool: 'clear' });
@@ -182,7 +182,7 @@ function housesStep(s: GameState, level: number, target: number, have: number, o
     // A plot alone makes no family (playtest 2026-11-07, stuck at "5 casas de barro"): with one empty, say who comes.
     const plot = s.buildings.find((b) => b.kind === 'house' && b.level === 0);
     if (!plot) return one(N().moreHouses(have, target), toolAim(s, 'house'));
-    const next = s.caravans.find((c) => c.status === 'planned' || c.status === 'announced');
+    const next = s.caravans.filter((c) => c.status === 'planned' || c.status === 'announced').sort((a, b) => a.week - b.week)[0];
     return one(next ? N().familyByCaravan(Math.max(1, next.week - s.week)) : N().familyByWedding, { rect: rectOf(plot) });
   }
   const climbing = below.map((h) => weeksToNextLevel(s, h.b)).filter((w): w is number => w !== null);

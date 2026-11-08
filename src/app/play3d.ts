@@ -327,13 +327,12 @@ export class Play3D implements SessionView, GestureView, HudHost {
   private drawMarks() {
     this.marksDirty = false;
     const s = this.session;
-    const ghostRoad = s.guideGhost;
     const marks = this.scene.drawMarks({
       tool: s.tool,
       hover: s.hover,
       selected: s.selected,
       rotated: s.rotated,
-      ghostRoad,
+      ghostRoad: s.guideGhost,
       houseSpots: s.guide?.step?.id === 'house',
       spots: s.spots ? s.spotRects() : null,
       doomed: s.doomed,

@@ -287,6 +287,8 @@ export function along(path: Cell[], step: number): { x: number; z: number; dx: n
 interface Walking {
   /** The family's id (`s.families`). */
   id: number;
+  /** Its people's ids: once the core drops the family, they tell moved in (housed) from gone. */
+  members: number[];
   path: Cell[];
   last: number;
   /** Where the leader is along the path (`familyLead`); -Infinity until the first frame. */
@@ -323,9 +325,9 @@ export class Families {
     const old = new Map((prev?.list ?? []).map((w) => [w.id, w]));
     this.pos = prev?.pos ?? NaN;
     for (const f of s.families) {
-      if (f.path.length < 2) continue;
       const kept = old.get(f.id);
       old.delete(f.id);
+      if (f.path.length < 2) continue;
       if (kept) {
         this.list.push(kept);
         continue;
@@ -337,6 +339,7 @@ export class Families {
       const slots = couple ? [...HOLD_SLOTS] : groupSlots(members.map((p) => ageBand(p, s.week)), pack);
       this.list.push({
         id: f.id,
+        members: f.members,
         path: f.path,
         last: f.path.length - 1,
         lead: -Infinity,
@@ -349,8 +352,10 @@ export class Families {
         phase: hash(f.id, 5) * 6,
       });
     }
-    // The groups the core has moved in, still walking through the door.
-    for (const w of old.values()) if (!w.home) this.list.push(w);
+    // The groups the core has moved in, still walking through the door; a family that gave up (its
+    // house gone, no way there) has left the city instead and is dropped.
+    const housed = (w: Walking) => w.members.some((id) => people.get(id)?.houseId != null);
+    for (const w of old.values()) if (!w.home && housed(w)) this.list.push(w);
     const total = this.list.reduce((n, w) => n + w.looks.length, 0);
     const holds = this.list.some((w) => w.loads.some((l) => l !== null));
     this.figures = new Figures(total, shadows, holds ? ['hold-r', 'hold-l'] : []);

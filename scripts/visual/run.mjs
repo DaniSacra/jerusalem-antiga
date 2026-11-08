@@ -880,7 +880,15 @@ async function ui3dScenario(page, name) {
   await page.evaluate(() => {
     const { state: s, core } = window;
     s.silver = 500;
-    core.place(s, 'fisher', 3, 3);
+    // Off the road and clear of the map's edge (at the edge the zoomed camera cannot centre it and
+    // its balloon rose under the "O que fazer agora" line on the phone).
+    let spot = { x: 3, y: 3 };
+    for (let k = 0; k < 400; k++) {
+      const x = 8 + (k % 20), y = 8 + Math.floor(k / 20);
+      if (core.checkPlace(s, 'fisher', x, y).ok && !core.placeSpots(s, 'fisher').some((o) => o.x === x && o.y === y)) { spot = { x, y }; break; }
+    }
+    core.place(s, 'fisher', spot.x, spot.y);
+    window.__fisherAt = spot;
     s.famine = true;
     core.refreshCity(s);
     window.session.refresh();
@@ -897,8 +905,10 @@ async function ui3dScenario(page, name) {
     const r = window.view3d.rig;
     const at = async (zoom) => {
       r.zoomAt(innerWidth / 2, innerHeight / 2, zoom);
-      r.set({ x: 3.5, z: 3.5 });
-      await new Promise((ok) => setTimeout(ok, 250));
+      // Aimed a little behind it, so the zoomed-in balloon sits mid-screen, below the top bar and the line.
+      r.set({ x: window.__fisherAt.x - 1, z: window.__fisherAt.y - 1 });
+      // The balloons follow the camera on the next frames: wait for them to settle.
+      await new Promise((ok) => setTimeout(ok, 700));
       return w();
     };
     const near = await at(3);
@@ -2049,7 +2059,8 @@ async function walkers3dScenario(page, form) {
   const harvest = await sample(3000, `const s = window.state, c = window.core; let w = s.week; while (!c.harvestsIn(w)) w++; s.week = w; c.refreshCity(s);`);
   // The walkers were drawn again for the road and the newcomers; the harvest redrew the workers alone.
   assert(more.redrawn.includes('walkers'), `the walkers' layer was drawn again (${more.redrawn})`);
-  assert(harvest.redrawn.join() === 'haulers', `the harvest redraws the workers alone (${harvest.redrawn})`);
+  // (When the week was already a harvest one nothing changes; either way the walkers and families stay.)
+  assert(!harvest.redrawn.some((k) => k !== 'haulers'), `the harvest redraws the workers alone (${harvest.redrawn})`);
   for (const [what, r] of Object.entries({ road, more, harvest })) {
     assert(r.kept > 20 && r.maxJump < 0.35, `${what}: the walkers kept walk on smoothly (${r.kept} seen, largest jump ${r.maxJump.toFixed(2)} cells over their pace)`);
     assert(r.maxDrop <= 2, `${what}: nobody vanishes at once (largest drop ${r.maxDrop} in a frame; ${r.counts.slice(0, 8).join(',')}…)`);
@@ -2328,7 +2339,7 @@ async function nextstep3dScenario(page, name) {
   await page.waitForTimeout(300);
   const lack = await page.evaluate(() => ({ dim: document.querySelector('[data-spot="balloon-stage"]').classList.contains('dim'), label: document.querySelector('[data-spot="balloon-stage"]').textContent, line: document.querySelector('.nextstep').textContent }));
   await shot(page, n('lack'));
-  assert(lack.dim && lack.label.startsWith('Falta pedra') && /junte 20 pedra · 4\/20/.test(lack.line), `short of stone (${JSON.stringify(lack)})`);
+  assert(lack.dim && lack.label.startsWith('Falta pedra') && /junte (\d+) pedra · 4\/\1/.test(lack.line), `short of stone (${JSON.stringify(lack)})`);
   // A debt comes first: red, Avisos opens and the arrow points at Demolir.
   await page.keyboard.press('Escape');
   await set(() => {

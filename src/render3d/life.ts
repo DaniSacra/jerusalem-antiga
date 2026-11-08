@@ -255,7 +255,7 @@ export class Walkers {
         const x = c.x + 0.5 + Math.sin(w.phase) * 0.3;
         const z = c.y + 0.5 + Math.cos(w.phase) * 0.3;
         const gy = this.ground.height(x, z);
-        this.at.set([x, gy, z], i * 3);
+        this.mark(i, x, gy, z);
         this.figures.place(i, x, gy + 0.04 + Math.abs(Math.sin(time * 8 + w.phase)) * 0.08, z, w.phase, 0, 0);
         if (w.beast >= 0) (w.type === 'donkeyMan' ? this.donkeys : this.sheep).hide(w.beast);
         if (!w.cheer) {
@@ -302,7 +302,7 @@ export class Walkers {
       const ph = time * 9 * w.speed + w.phase;
       const yaw = Math.atan2(dx, dz);
       const gy = this.ground.height(x, z);
-      this.at.set([x, gy, z], i * 3);
+      this.mark(i, x, gy, z);
       this.figures.place(i, x, gy + 0.04 + Math.abs(Math.sin(ph)) * 0.022, z, yaw, 0.04, Math.sin(ph) * 0.06);
       if (w.beast >= 0) {
         // The animal walks at the walker's right, a little behind.
@@ -317,6 +317,13 @@ export class Walkers {
     this.figures.commit();
     this.donkeys.commit();
     this.sheep.commit();
+  }
+
+  /** Where walker `i` stands now (no array per frame). */
+  private mark(i: number, x: number, y: number, z: number) {
+    this.at[i * 3] = x;
+    this.at[i * 3 + 1] = y;
+    this.at[i * 3 + 2] = z;
   }
 
   /** A walker indoors: hidden, with its animal. */
