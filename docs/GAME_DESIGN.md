@@ -914,7 +914,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
   - círculo **Nível** (= objetivos cumpridos + 1; só mostrador, não libera nada) com anel dourado
     do progresso do objetivo atual; 56 px no celular, 72 no PC;
   - pílulas **Prata** e **Comida** com a variação por semana (verde positiva, vermelha negativa) e
-    **Moradores**; no PC com rótulo, mais **Alegria**. A Comida
+    **Moradores**; no PC com rótulo, mais **Alegria** (com a barra cheia é a última a sair; fica em Estatísticas). A Comida
     mostra também "até a primavera" quando a previsão chega à próxima primavera, ou "acaba no <estação>"
     (a estação em que a comida acaba, pela previsão) em vermelho; no celular só aparece quando não
     chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Na fome,

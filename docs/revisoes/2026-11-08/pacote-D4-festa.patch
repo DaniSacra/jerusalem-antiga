@@ -1,0 +1,251 @@
+diff --git a/docs/GAME_DESIGN.md b/docs/GAME_DESIGN.md
+index e48b561..0d4c35d 100644
+--- a/docs/GAME_DESIGN.md
++++ b/docs/GAME_DESIGN.md
+@@ -914,7 +914,7 @@ Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte dese
+   - círculo **Nível** (= objetivos cumpridos + 1; só mostrador, não libera nada) com anel dourado
+     do progresso do objetivo atual; 56 px no celular, 72 no PC;
+   - pílulas **Prata** e **Comida** com a variação por semana (verde positiva, vermelha negativa) e
+-    **Moradores**; no PC com rótulo, mais **Alegria**. A Comida
++    **Moradores**; no PC com rótulo, mais **Alegria** (quando a barra não cabe numa linha, ela é a última a sair; continua em Estatísticas). A Comida
+     mostra também "até a primavera" quando a previsão chega à próxima primavera, ou "acaba no <estação>"
+     (a estação em que a comida acaba, pela previsão) em vermelho; no celular só aparece quando não
+     chega: "⚠ N sem" (semanas até acabar) em vermelho, e o resto fica nas Estatísticas. Na fome,
+diff --git a/scripts/visual/run.mjs b/scripts/visual/run.mjs
+index f17dd5f..8f108ab 100644
+--- a/scripts/visual/run.mjs
++++ b/scripts/visual/run.mjs
+@@ -1989,6 +1989,15 @@ async function street3dScenario(page, form) {
+   assert(early.idle < day.idle, `fewer at the doors and the market early in the morning (${early.idle} < ${day.idle})`);
+   const evening = await look({ day: 0.6, pos: summer, weather: clear }, { x: 24.5, z: 33, dist: 12, ...above }, 'evening');
+   assert(evening.idle < day.idle, `the children are in by the evening (${evening.idle} < ${day.idle})`);
++  // The spring festival (D4): a ring of people dancing round the altar in the first weeks of spring.
++  const fest = await page.evaluate(() => {
++    let w = 0;
++    while (window.core.calendar(w).season !== 'spring') w++;
++    const a = window.state.buildings.find((b) => b.kind === 'altar');
++    return { pos: w + 0.5, x: a.x + a.w / 2, z: a.y + a.h + 1.5 };
++  });
++  const festival = await look({ day: 0.3, pos: fest.pos, weather: clear }, { x: fest.x, z: fest.z, dist: 9, ...above }, 'festival');
++  assert(festival.idle >= day.idle + 4, `dancers round the altar at the spring festival (${festival.idle} vs ${day.idle})`);
+   await look({ day: 0.3, pos: summer, weather: clear }, { x: 23.5, z: 40, dist: 10, ...above }, 'market');
+   // Autumn: two pickers under the olive tree, one beating the branches with a pole.
+   await look({ day: 0.3, pos: autumn, weather: clear }, { x: 28, z: 31.5, dist: 9, ...above }, 'olives');
+diff --git a/src/game/strings.ts b/src/game/strings.ts
+index 19ab779..70bc2cb 100644
+--- a/src/game/strings.ts
++++ b/src/game/strings.ts
+@@ -40,7 +40,7 @@ export const T = {
+   season: { spring: 'primavera', summer: 'verão', autumn: 'outono', winter: 'inverno' } satisfies Record<Season, string>,
+   /** Toast when a season begins. */
+   seasonStart: {
+-    spring: 'Chegou a primavera: os campos voltam a dar comida',
++    spring: 'Chegou a primavera: festa da colheita no altar!',
+     summer: 'Chegou o verão: dias quentes e secos',
+     autumn: 'Chegou o outono: guarde comida para o inverno',
+     winter: 'Inverno: só pescador e coletora dão comida',
+diff --git a/src/render3d/look3d.json b/src/render3d/look3d.json
+index 7c06d78..f2246fa 100644
+--- a/src/render3d/look3d.json
++++ b/src/render3d/look3d.json
+@@ -69,7 +69,7 @@
+   "roads": { "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
+   "ambient": { "maxAnimals": 56, "pastureFlock": 8, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
+   "night": { "window": 2.3, "door": 0.7, "tentPool": 0.85, "doorRadius": [0, 0.75, 0.9, 1.0, 1.15], "workRadius": 1.5 },
+-  "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "farBand": 10, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
++  "street": { "dancers": 8, "danceRadius": 1.3, "danceAhead": 1.8, "festivalWeeks": 2, "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "farBand": 10, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
+   "wind": { "calm": 0, "trees": 0.06, "crops": 0.7 },
+   "wear": {
+     "res": 4, "trodden": "0x96734e",
+diff --git a/src/render3d/stage.ts b/src/render3d/stage.ts
+index 359dd5c..05b4c8b 100644
+--- a/src/render3d/stage.ts
++++ b/src/render3d/stage.ts
+@@ -10,6 +10,7 @@ import { Finish } from './finish';
+ import { setColor, U } from './shaders';
+ import { mixColor } from './time/color';
+ import { fieldHands, frameLight, streetShare } from './time/light';
++import { festivalOn } from './street';
+ import { routine } from './time/routine';
+ import { cropLook, isHarvest, isPlowing, season3d } from './time/season';
+ import { nightness } from './time/day';
+@@ -305,7 +306,7 @@ export class Stage {
+     // The still life: like the walkers, fewer at night and in the rain; half at the low quality, none at
+     // the minimum, thinning out from far away (specks there); the olive pickers in autumn.
+     const idle = this.level === 'high' ? 1 : this.level === 'low' ? LOOK.street.lowShare : 0;
+-    world.idlers.update(time, farFade(rig.distance, LOOK.street.farDist, LOOK.street.farBand) * streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn', day);
++    world.idlers.update(time, farFade(rig.distance, LOOK.street.farDist, LOOK.street.farBand) * streetShare(L.night, w.rain) * idle, calendar(week).season === 'autumn', day, festivalOn(week));
+     world.leavers.update(time);
+     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
+     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
+diff --git a/src/render3d/street.ts b/src/render3d/street.ts
+index 4b1e8b6..8aa79fe 100644
+--- a/src/render3d/street.ts
++++ b/src/render3d/street.ts
+@@ -1,4 +1,4 @@
+-import { ageBand, findPath, indexOf, type AgeBand, type Building, type Cell, type GameState, type Person, type Sex } from '../core';
++import { ageBand, findPath, indexOf, RULES, seasonOf, type AgeBand, type Building, type Cell, type GameState, type Person, type Sex } from '../core';
+ import type { Load } from './crowd';
+ import LOOK from './look3d.json';
+ import { hash, lookOf } from './plan';
+@@ -10,7 +10,7 @@ import { hash, lookOf } from './plan';
+  * under the trees near the town in autumn; and the walk out of town of a family that left.
+  * Deterministic from the state; tested in tests/render3d/street.test.ts. `townsfolk.ts` draws them.
+  */
+-export type IdleAct = 'talk' | 'play' | 'stand' | 'grind' | 'buy' | 'beat' | 'gather';
++export type IdleAct = 'talk' | 'play' | 'stand' | 'grind' | 'buy' | 'beat' | 'gather' | 'dance';
+ 
+ export interface IdleSpot {
+   act: IdleAct;
+@@ -32,6 +32,8 @@ export interface IdleSpot {
+   show: number;
+   /** Only in autumn (the olive harvest). */
+   autumn: boolean;
++  /** Only at the spring festival (`festivalOn`): a dancer in the ring around the altar. */
++  festival?: boolean;
+ }
+ 
+ /** A building where the world drew it: its centre and turn (front +z), as in `cityPlan`. */
+@@ -78,6 +80,7 @@ const WANT: Record<IdleAct, { n: number; band: AgeBand; sex?: Sex }> = {
+   buy: { n: 1, band: 'adult' },
+   beat: { n: 1, band: 'adult', sex: 'm' },
+   gather: { n: 1, band: 'adult', sex: 'f' },
++  dance: { n: 1, band: 'adult' },
+ };
+ 
+ /** The act someone of this age and sex does at the door when the planned one finds nobody. */
+@@ -230,10 +233,25 @@ export function streetPlan(s: GameState, placed: readonly Placed[], max: number
+       );
+     }
+   }
++  // The spring festival (D4): a ring of dancers before the altar's front, kept out of `max` (shown only then).
++  const altar = placed.find((p) => p.b.kind === 'altar');
++  if (altar && homes.length) {
++    const c = localToWorld(altar, 0, altar.b.h / 2 + L.danceAhead);
++    const ring = Array.from({ length: L.dancers }, (_, j) => (j / L.dancers) * Math.PI * 2);
++    const clear = ring.every((a) => standable(s, c.x + Math.cos(a) * L.danceRadius, c.z + Math.sin(a) * L.danceRadius, null, true));
++    if (clear)
++      ring.forEach((a, j) => {
++        const who = take(s, free, j % 3 === 2 ? 'child' : 'adult', j % 2 ? 'm' : 'f') ?? take(s, free, 'adult');
++        out.push({ ...figure('dance', c.x, c.z, a, who, hash(altar.b.id, j, 74)), festival: true, show: hash(altar.b.id, j, 75) * 0.3 });
++      });
++  }
+   // In show order: the first `n` are the ones on the streets when the share allows n.
+   return out.sort((a, c) => a.show - c.show);
+ }
+ 
++/** The spring festival (D4): the first `festivalWeeks` weeks of spring, when the harvest starts. */
++export const festivalOn = (week: number) => seasonOf(Math.floor(week)) === 'spring' && Math.floor(week) % RULES.weeksPerSeason < L.festivalWeeks;
++
+ /** How many of a plan (in show order) are out for a street `share` (0..1). */
+ export function idleShown(spots: readonly IdleSpot[], share: number): number {
+   let n = 0;
+@@ -279,6 +297,12 @@ export function idlePose(o: IdleSpot, time: number): IdlePose {
+       const step = Math.sin(time * 0.15 + ph) * 0.08;
+       return { ...still, x: o.x + Math.sin(o.yaw + Math.PI / 2) * step, z: o.z + Math.cos(o.yaw + Math.PI / 2) * step, yaw: o.yaw + Math.sin(time * 0.4 + ph) * 0.35, lean: Math.max(0, Math.sin(time * 1.1 + ph)) * 0.08 };
+     }
++    case 'dance': {
++      // Round the ring before the altar (x, z: its centre; yaw: the place in it), a hop and a sway to the beat.
++      const a = o.yaw + time * 0.45;
++      const beat = Math.sin(time * 5 + ph);
++      return { x: o.x + Math.cos(a) * L.danceRadius, z: o.z + Math.sin(a) * L.danceRadius, y: Math.abs(beat) * 0.06, yaw: Math.atan2(-Math.sin(a), Math.cos(a)), lean: 0.05, roll: beat * 0.08 };
++    }
+     case 'beat':
+       // The pole goes up (leaning back) and comes down on the branches, about once a second.
+       return { ...still, lean: -0.12 + Math.max(0, Math.sin(time * 4 + ph)) * 0.3 };
+diff --git a/src/render3d/townsfolk.ts b/src/render3d/townsfolk.ts
+index 6d220d2..0bf38cf 100644
+--- a/src/render3d/townsfolk.ts
++++ b/src/render3d/townsfolk.ts
+@@ -45,16 +45,17 @@ export class Idlers {
+   /**
+    * Moves the figures out for a street `share` (0..1: fewer at night, in the rain, at the lower
+    * qualities, none from far away); the olive pickers only in `autumn`; each act as the hour of the
+-   * `day` says (buyers at noon, children in before the dark, neighbours talking in the evening).
++   * `day` says (buyers at noon, children in before the dark, neighbours talking in the evening); the
++   * dancers round the altar only at the spring `festival`.
+    */
+-  update(time: number, share: number, autumn: boolean, day?: Routine) {
++  update(time: number, share: number, autumn: boolean, day?: Routine, festival = false) {
+     const n = idleShown(this.spots, share);
+     this.figures.count = n;
+     this.shown = 0;
+     if (!n) return;
+     for (let i = 0; i < n; i++) {
+       const o = this.spots[i];
+-      if ((o.autumn && !autumn) || (day && o.show >= share * actShare(day, o.act))) {
++      if ((o.autumn && !autumn) || (o.festival && !festival) || (day && o.show >= share * actShare(day, o.act))) {
+         this.figures.hide(i);
+         continue;
+       }
+diff --git a/tests/render3d/street.test.ts b/tests/render3d/street.test.ts
+index 417987f..de901e5 100644
+--- a/tests/render3d/street.test.ts
++++ b/tests/render3d/street.test.ts
+@@ -1,9 +1,9 @@
+ import { describe, expect, it } from 'vitest';
+-import { indexOf, leaveHouse, refreshCity, type GameState } from '../../src/core';
++import { indexOf, leaveHouse, refreshCity, RULES, type GameState } from '../../src/core';
+ import { betrothed, HOLD_SLOTS, holdLoad } from '../../src/render3d/crowd';
+ import LOOK from '../../src/render3d/look3d.json';
+ import { cityPlan } from '../../src/render3d/plan';
+-import { houseActs, idlePose, idleShown, leaveLead, leavePath, leavers, standable, streetPlan, type IdleSpot } from '../../src/render3d/street';
++import { festivalOn, houseActs, idlePose, idleShown, leaveLead, leavePath, leavers, standable, streetPlan, type IdleSpot } from '../../src/render3d/street';
+ import { emptyGame, hire, person, put } from '../helpers';
+ 
+ const plan = (s: GameState, max?: number) => streetPlan(s, cityPlan(s).buildings, max);
+@@ -54,7 +54,7 @@ describe('the still life of the streets', () => {
+       person(s, { houseId: h.id, age: 6 });
+       person(s, { houseId: h.id, age: 70, sex: 'f' });
+     }
+-    const spots = plan(s);
++    const spots = plan(s).filter((o) => !o.festival); // the festival's dancers: see below
+     const band = (o: IdleSpot) => o.band;
+     expect(spots.some((o) => o.act === 'talk')).toBe(true);
+     for (const o of spots) {
+@@ -69,9 +69,10 @@ describe('the still life of the streets', () => {
+     const s = emptyGame();
+     for (let y = 28; y <= 44; y += 2) for (const x of [20, 25]) put(s, 'house', x, y, 4);
+     refreshCity(s);
+-    expect(plan(s).length).toBeLessThanOrEqual(LOOK.street.max);
++    const daily = (max?: number) => plan(s, max).filter((o) => !o.festival); // the dancers come on top
++    expect(daily().length).toBeLessThanOrEqual(LOOK.street.max);
+     for (const max of [3, 5, 8]) {
+-      const spots = plan(s, max);
++      const spots = daily(max);
+       expect(spots.length).toBeLessThanOrEqual(max);
+       const talk = spots.filter((o) => o.act === 'talk');
+       for (const o of talk) expect(talk.filter((t) => t.show === o.show)).toHaveLength(2);
+@@ -200,3 +201,32 @@ describe('a betrothed couple walking to marry', () => {
+     expect(HOLD_SLOTS.map(holdLoad).sort()).toEqual(['hold-l', 'hold-r']);
+   });
+ });
++
++describe('the spring festival (D4)', () => {
++  it('a ring of dancers round the altar, only in the first weeks of spring', () => {
++    const s = emptyGame();
++    for (let y = 28; y <= 36; y += 2) put(s, 'house', 25, y, 2, false, 3);
++    refreshCity(s);
++    const dancers = plan(s).filter((o) => o.festival);
++    expect(dancers).toHaveLength(LOOK.street.dancers);
++    expect(dancers.every((o) => o.act === 'dance')).toBe(true);
++    const W = RULES.weeksPerSeason;
++    const spring = 2 * W; // the game starts in autumn
++    expect([spring, spring + LOOK.street.festivalWeeks - 1].map(festivalOn)).toEqual([true, true]);
++    expect([spring - 1, spring + LOOK.street.festivalWeeks, 0, 3 * W].map(festivalOn)).toEqual([false, false, false, false]);
++  });
++
++  it('they turn round the altar at the dance radius, hopping', () => {
++    const s = emptyGame();
++    put(s, 'house', 25, 30, 2, false, 3);
++    refreshCity(s);
++    const o = plan(s).find((x) => x.festival)!;
++    for (const t of [0, 1.3, 7]) {
++      const p = idlePose(o, t);
++      expect(Math.hypot(p.x - o.x, p.z - o.z)).toBeCloseTo(LOOK.street.danceRadius);
++      expect(p.y).toBeGreaterThanOrEqual(0);
++    }
++    expect(idlePose(o, 0).x).not.toBeCloseTo(idlePose(o, 3).x);
++  });
++});
++

@@ -253,6 +253,14 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
+## Estacionado: D4 "Festas" (2026-11-08)
+Tentado e não publicado (patch em `docs/revisoes/2026-11-08/pacote-D4-festa.patch`): roda de 8 a
+10 moradores dançando nas 2 primeiras semanas da primavera (início da colheita), com o toast
+"festa da colheita no altar". Em volta do altar a roda caía na borda do terraço e lia como gente
+andando; na frente dele, as casas e a rua inicial ocupam o lugar. Falta um lugar de festa próprio:
+a praça (quando existe) ou um terreiro reservado pelo map-designer ao lado do altar, mais as
+bandeirolas (sprite-artist). Precisa de escopo antes de voltar.
+
 ## Feito: G "Governo" (2026-11-08, versão enxuta)
 Imposto de 0 a 30% (20% de início) na linha Imposto do painel Profissões: cada 10% abaixo dá +8 de
 Alegria a todas as casas e tira um quarto do imposto; acima, o contrário. Dá destino à prata
