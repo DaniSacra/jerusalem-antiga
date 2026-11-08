@@ -2,7 +2,7 @@ import { difficultyOf, winterGrowth } from './difficulty';
 import { lampLit, theftTotal } from './theft';
 import { BUILDINGS, HOUSE_LEVELS, RULES, storageOf } from './data';
 import { fieldBonus, fieldHarvest, gatherYield, isWorking, productOf } from './harvest';
-import { houseHappiness, moodOf, taxFactor, type Mood } from './happiness';
+import { houseHappiness, moodOf, taxFactor, taxRateFactor, type Mood } from './happiness';
 import { ageBand, foodOf } from './people';
 import type { Building, BuildingKind, GameState, Material } from './types';
 import { crewCounts, idleShare, jobsAt, staffOf, upkeepPaid } from './work';
@@ -121,7 +121,7 @@ export function computeEconomy(s: GameState): Economy {
   for (const b of s.buildings) {
     if (b.kind !== 'house' || b.level === 0) continue;
     const h = houseHappiness(s, b, idle).value;
-    taxes += HOUSE_LEVELS[b.level].tax * taxFactor(h);
+    taxes += HOUSE_LEVELS[b.level].tax * taxFactor(h) * taxRateFactor(s);
     joy += h;
     families++;
     moods[moodOf(h)]++;

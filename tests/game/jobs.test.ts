@@ -91,3 +91,14 @@ describe('Profissões panel as data', () => {
     expect(jobsView(s).rows.every((r) => r.auto)).toBe(true);
   });
 });
+
+describe('the tax row (package G)', () => {
+  it('shows the rate and its effect; − and + dim at the ends', () => {
+    const s = town();
+    expect(jobsView(s).tax).toEqual({ rate: 20, label: 'sem efeito na Alegria', tone: 'muted', canLower: true, canRaise: true });
+    s.taxRate = 30;
+    expect(jobsView(s).tax).toMatchObject({ label: '−8 de Alegria', tone: 'warn', canRaise: false });
+    s.taxRate = 0;
+    expect(jobsView(s).tax).toMatchObject({ label: '+16 de Alegria', tone: 'good', canLower: false });
+  });
+});

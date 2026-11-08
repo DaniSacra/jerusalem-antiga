@@ -31,6 +31,7 @@
   "debtCaravanWeeks": 52,
   "treeClearCost": 5,
   "roadCost": 2,
+  "tax": { "default": 20, "min": 0, "max": 30, "step": 10, "joyPerStep": 8 },
   "happiness": {
     "base": 50,
     "sacred": 10,

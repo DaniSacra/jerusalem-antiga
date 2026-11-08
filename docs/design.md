@@ -253,6 +253,13 @@ celular simulado, ≤ 120 chamadas, ≤ 300 mil triângulos).
   C5 Interface bonita 1 (**feito 2026-11-06**: miniaturas 3D na coluna, ponto "novo", cadeado, setas nos balões, ícones pintados) → C6 Campo e árvores (**feito 2026-11-07**: campos por cultura com socalco e seca longe do rio, amendoeira e figueira, juncos e brilho no rio) → C7 Interface bonita 2 +
   título com a cidade (**feito 2026-11-07**: velocidades num grupo no PC, cursor de mão, entrada calma de balões, título sobre a cidade viva girando, vitória e derrota com ramos e medalhas) → C8 Maquete e prédios nobres (tilt-shift, Templo por código, oficinas; **feito 2026-11-07**: acabamento de maquete, sombra de contato, Templo por código, oficinas por ofício, produtos no mercado, obra no terreno vazio e poeira da pedreira)
 
+## Feito: G "Governo" (2026-11-08, versão enxuta)
+Imposto de 0 a 30% (20% de início) na linha Imposto do painel Profissões: cada 10% abaixo dá +8 de
+Alegria a todas as casas e tira um quarto do imposto; acima, o contrário. Dá destino à prata
+parada (W4) e um recurso na crise de dívida. Os bots do sim deixam em 20%: os números medidos não
+mudam. Em aberto: um bot que use o imposto (ex.: 30% em dívida, 10% com prata sobrando) para medir
+se o Normal fica fácil demais.
+
 ## Feito: D3 "Modo contemplar" (2026-11-08, versão enxuta)
 Olho na lateral ou tecla C: some a interface e as marcas, a câmera desce e gira devagar, o jogo
 segue. Fora desta versão: foto da cidade (precisa guardar o quadro do WebGL) e câmera livre em

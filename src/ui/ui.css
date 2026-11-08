@@ -345,7 +345,8 @@
 #hud[data-form='phone'] .jobrow .thumb { --disc: 34px; }
 /* Profissões: in the side column on PC, as a labelled disc after the tools on a phone (no room above them). */
 #hud[data-form='phone'] .side [data-spot='panel-jobs'], #hud[data-form='pc'] .tools .tool.jobs { display: none; }
-.tools .tool.jobs { margin-left: 8px; width: auto; }
+#hud[data-form='phone'] .side [data-spot='contemplate'], #hud[data-form='pc'] .tools .tool.eye { display: none; }
+.tools .tool.jobs, .tools .tool.eye { margin-left: 8px; width: auto; }
 
 /* ---------- "O que fazer agora" (nextStep.ts): one line under the top bar ---------- */
 /* PC: centred under the bar on one line; the phone: 28 px, cut with an ellipsis (its hit area is 44 px tall). */

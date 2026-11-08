@@ -7,6 +7,8 @@ import { iconEl } from './parts';
 /** What the Profissões panel asks of the game: − / + on a profession, Automático and close. */
 export interface JobsHost {
   change(kind: BuildingKind, delta: 1 | -1): void;
+  /** − / + on the tax rate (package G). */
+  tax(delta: 1 | -1): void;
   auto(): void;
   close(): void;
 }
@@ -58,7 +60,21 @@ export function jobsContent(v: JobsView, thumbs: Partial<Record<BuildableKind, s
     h('span.who', {}, h('b', {}, N.idle), h('span.sub.t-muted', {}, v.others)),
     h('span.count', { class: v.idle ? 't-warn' : null }, String(v.idle)),
   );
+  const t = v.tax;
+  const tax = h(
+    'div.jobrow.tax',
+    { 'data-job': 'tax' },
+    h('span.thumb.icon', {}, iconEl('silver')),
+    h('span.who', {}, h('b', {}, N.tax), h(`span.sub.t-${t.tone}`, {}, t.label)),
+    h(
+      'span.steps',
+      {},
+      stepButton('−', t.canLower, N.taxLower, 'tax-minus', () => host.tax(-1)),
+      h('span.target', {}, h('b', {}, `${t.rate}%`)),
+      stepButton('+', t.canRaise, N.taxRaise, 'tax-plus', () => host.tax(1)),
+    ),
+  );
   // A phone fills the first column, then the second (CSS reads the rows per column).
-  const rows = h('div.jobrows', { style: `--rows:${Math.ceil((v.rows.length + 1) / 2)}` }, idle, ...v.rows.map((r) => jobRow(r, thumbs[r.kind as BuildableKind], host)));
+  const rows = h('div.jobrows', { style: `--rows:${Math.ceil((v.rows.length + 2) / 2)}` }, idle, tax, ...v.rows.map((r) => jobRow(r, thumbs[r.kind as BuildableKind], host)));
   return [head, rows];
 }

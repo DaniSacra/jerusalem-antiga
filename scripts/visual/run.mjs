@@ -536,7 +536,9 @@ async function play3dScenario(page, suffix) {
   // Contemplate (D3): the eye hides the interface and drops the camera low; it turns slowly; the faint eye (or Esc) comes back.
   const pitch0 = await page.evaluate(() => window.view3d.rig.camera.position.y);
   const yaw0 = await page.evaluate(() => window.view3d.info().yaw);
-  await hitSpot('contemplate');
+  // (The phone's Contemplar disc waits for the end of the tutorial, open here: the key C does the same.)
+  if (phone) await page.keyboard.press('c');
+  else await hitSpot('contemplate');
   await page.waitForTimeout(2500);
   const calm = await page.evaluate(() => ({
     on: document.getElementById('hud').classList.contains('contemplate'),
@@ -2260,6 +2262,15 @@ async function jobs3dScenario(page, name) {
   assert(v.rows.length >= 6, `one row per profession built (${v.rows.map((r) => r.kind)})`);
   assert(v.rows.every((r) => r.h >= 44), 'rows of 44 px or more');
   assert(v.steps.every((n) => n >= 44), `− , + and Automático of 44 px or more (${v.steps})`);
+  // The tax row (package G) right after "Sem trabalho": + raises it to 30% and says what it costs in Alegria.
+  assert(v.rows[1].kind === 'tax' && v.rows[1].text.includes('20%'), `the tax row comes second, at 20% (${v.rows[1].text})`);
+  await page.click('[data-spot="tax-plus"]');
+  await page.waitForFunction(() => window.state.taxRate === 30, null, { timeout: 5000 });
+  const taxed = await page.evaluate(() => document.querySelector('.jobrow.tax').textContent);
+  assert(taxed.includes('30%') && taxed.includes('−8 de Alegria'), `the tax row says the new rate and its cost (${taxed})`);
+  await shot(page, `jobs3d-${name}-tax`);
+  await page.click('[data-spot="tax-minus"]');
+  await page.waitForFunction(() => window.state.taxRate === 20, null, { timeout: 5000 });
   assert(v.min >= 12, `no text under 12 px (${v.min})`);
   assert(new Set(v.rows.map((r) => r.x)).size === (phone ? 2 : 1), `${phone ? 'two columns' : 'one column'} of rows`);
   assert(v.scroll <= 1, `the panel fits without scrolling (${v.scroll} px over)`);

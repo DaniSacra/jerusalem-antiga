@@ -58,7 +58,7 @@ export class Panels {
     if (kind === 'jobs') {
       const v = jobsView(s.state);
       keyed(this.el, JSON.stringify([kind, v, Object.keys(this.thumbs).length]), () =>
-        jobsContent(v, this.thumbs, v.note, { change: (k, d) => s.changeJobTarget(k, d), auto: () => s.autoJobs(), close: () => this.onClose() }),
+        jobsContent(v, this.thumbs, v.note, { change: (k, d) => s.changeJobTarget(k, d), tax: (d) => s.changeTax(d), auto: () => s.autoJobs(), close: () => this.onClose() }),
       );
       return this.el.classList.remove('hidden');
     }

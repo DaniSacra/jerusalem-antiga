@@ -461,6 +461,7 @@ Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json
 | no raio de um parque | +20 |
 | no raio de uma praça | +5 |
 | no raio de um mercado | +5 |
+| imposto (Governo): +8 a cada 10% abaixo de 20%, −8 a cada 10% acima | 0% +16, 10% +8, 30% −8 |
 | fome na cidade | −30 |
 | inverno sem lenha (frio) | −20 |
 | inverno numa tenda, com lenha | −10 |
@@ -469,6 +470,12 @@ Cada casa com família tem uma felicidade de 0 a 100 (`happiness` em `rules.json
 
 Só contam serviços **conectados**. O valor fica entre 0 e 100.
 
+- **Imposto (Governo, G, 2026-11-08):** o jogador escolhe 0, 10, 20 ou 30% (começa em 20%,
+  `rules.json > tax`) na linha **Imposto** do painel Profissões (logo abaixo de "Sem trabalho", com
+  − / +, e o efeito na Alegria embaixo do nome). Cada casa paga o imposto do nível × taxa / 20 (0%:
+  nada; 30%: uma vez e meia). É o destino da prata parada: baixar o imposto deixa a cidade feliz
+  (mais nascimentos, e casas felizes pagam até +20%); subir dá prata numa crise, com a cidade mais
+  triste.
 - **Humor:** feliz com 65 ou mais; triste abaixo de 35; contente no meio.
 - **Imposto:** contente paga o imposto normal; feliz paga mais, subindo em linha reta até
   +20% com 100; triste paga menos, até −20% com 0.

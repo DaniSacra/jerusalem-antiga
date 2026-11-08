@@ -44,6 +44,7 @@ export function createGame(rng: Rng, difficulty: Difficulty = 'normal'): GameSta
     unlocked: [...RULES.startUnlocked],
     won: false,
     debtWeeks: 0,
+    taxRate: RULES.tax.default,
     peakPopulation: 0,
     lost: false,
     drought: false,

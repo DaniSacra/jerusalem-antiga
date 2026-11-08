@@ -64,6 +64,9 @@ export class Hud {
   /** Avisos (with the red selo of how many), Estatísticas and Profissões, under the turn buttons. */
   private sideButtons = new Map<PanelKind, HTMLButtonElement>();
   private badge = h('span.badge.hidden');
+  /** Phone: Contemplar after Profissões in the tools (hidden during the tutorial, as Profissões). */
+  private eyeTool: HTMLButtonElement;
+
   /** The only button shown in the contemplate mode. */
   private leave: HTMLButtonElement;
 
@@ -131,6 +134,12 @@ export class Hud {
     this.jobsTool = h('button.tool.jobs', { 'data-spot': 'jobs-button', 'aria-label': T.nova.buttons.jobs }, disc, h('span.label', {}, T.nova.buttons.jobs));
     onTap(this.jobsTool, () => this.togglePanel('jobs'));
     this.tools.tools.append(this.jobsTool);
+    // Phone: Contemplar as a labelled disc too (a fifth side button would reach the tools).
+    const eye = h('span.disc');
+    eye.innerHTML = ICONS.eye;
+    const eyeTool = (this.eyeTool = h('button.tool.eye', { 'data-spot': 'contemplate-tool', 'aria-label': T.nova.buttons.contemplate }, eye, h('span.label', {}, T.nova.buttons.contemplateShort)));
+    onTap(eyeTool, () => host.toggleContemplate());
+    this.tools.tools.append(eyeTool);
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.next = new NextStepLine(this.anchors, (t) => this.tools.arrowFor(t), () => s.tool, (step) => this.actOn(step));
     this.modal = new Modal(root);
@@ -230,6 +239,7 @@ export class Hud {
     this.jobsTool.classList.toggle('on', this.panels.open === 'jobs');
     // The tutorial's bubble sits right of the tools on a phone: the disc waits for it (the Moradores pill still opens the panel).
     this.jobsTool.classList.toggle('hidden', this.tutorial.open);
+    this.eyeTool.classList.toggle('hidden', this.tutorial.open);
     // The Profissões panel fills the phone's screen: the toasts wait until it closes.
     this.toasts.hold(this.phone && this.panels.open === 'jobs');
     this.toasts.update();

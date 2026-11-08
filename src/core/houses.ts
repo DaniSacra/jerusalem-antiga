@@ -1,6 +1,6 @@
 import { BUILDINGS, HOUSE_LEVELS, RULES } from './data';
 import { idleShare } from './work';
-import { houseHappiness, taxFactor, type Happiness } from './happiness';
+import { houseHappiness, taxFactor, taxRateFactor, type Happiness } from './happiness';
 import { cellsOf, indexOf } from './grid';
 import { gatherCells, isWorking } from './harvest';
 import { household } from './people';
@@ -49,7 +49,7 @@ export function houseInfo(s: GameState, b: Building): HouseInfo | null {
     name: cur.name,
     residents: household(s, b.id).length,
     capacity: cur.capacity,
-    tax: happiness ? cur.tax * taxFactor(happiness.value) : cur.tax,
+    tax: (happiness ? cur.tax * taxFactor(happiness.value) : cur.tax) * taxRateFactor(s),
     happiness,
     next: next ? { name: next.name, needs: next.needs.map((kind) => ({ kind, ok: needMet(s, b, kind) })), materials: next.materials ?? {} } : null,
     waiting: b.waiting ?? null,

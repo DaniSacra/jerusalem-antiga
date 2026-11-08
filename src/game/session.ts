@@ -28,6 +28,7 @@ import {
   madeByCrew,
   setJob,
   changeJobTarget,
+  changeTax,
   startStage,
   autoJobs,
   type ActionResult,
@@ -356,6 +357,13 @@ export class Session {
   /** − / + on a profession in the Profissões panel (see `changeJobTarget`). */
   changeJobTarget(kind: BuildingKind, delta: 1 | -1): boolean {
     if (!changeJobTarget(this.state, kind, delta)) return false;
+    this.refresh();
+    return true;
+  }
+
+  /** − / + on the tax rate in the Profissões panel (package G, `changeTax`). */
+  changeTax(delta: 1 | -1): boolean {
+    if (!changeTax(this.state, delta)) return false;
     this.refresh();
     return true;
   }

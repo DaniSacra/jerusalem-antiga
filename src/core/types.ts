@@ -349,6 +349,11 @@ export interface Rules {
   /** No defeat by debt while a later caravan (planned or announced) is due within these weeks. */
   debtCaravanWeeks: number;
   roadCost: number;
+  /**
+   * The tax rate (package G, %): each house pays its level's tax x rate / `default`; every `step`
+   * under the default adds `joyPerStep` happiness to every house, every step over takes it.
+   */
+  tax: { default: number; min: number; max: number; step: number; joyPerStep: number };
   /** House happiness 0..100 (see happiness.ts): bonuses, penalties and what it changes. */
   happiness: {
     base: number;
@@ -537,6 +542,8 @@ export interface GameState {
   goalIndex: number;
   unlocked: Placeable[];
   won: boolean;
+  /** The tax rate in % (package G, `rules.tax`; the player sets it in Profissões). */
+  taxRate: number;
   /** Consecutive weeks ended with negative silver (0 when out of debt). */
   debtWeeks: number;
   /** Most residents the city ever had (shown on the defeat screen). */

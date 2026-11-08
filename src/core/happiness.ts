@@ -8,7 +8,7 @@ const H = RULES.happiness;
 export type Mood = 'happy' | 'neutral' | 'sad';
 /** One reason for a house's happiness, with its points (positive or negative). */
 export interface HappinessPart {
-  kind: 'sacred' | 'park' | 'plaza' | 'market' | 'famine' | 'cold' | 'tentWinter' | 'ragged' | 'idle';
+  kind: 'sacred' | 'park' | 'plaza' | 'market' | 'tax' | 'famine' | 'cold' | 'tentWinter' | 'ragged' | 'idle';
   value: number;
 }
 export interface Happiness {
@@ -30,6 +30,8 @@ export const moodOf = (value: number): Mood => (value >= H.happy ? 'happy' : val
 export function houseHappiness(s: GameState, b: Building, idleShare: number): Happiness {
   const parts: HappinessPart[] = [];
   for (const k of ['sacred', 'park', 'plaza', 'market'] as const) if (covered(s, b, k)) parts.push({ kind: k, value: H[k] });
+  const tax = taxJoy(s);
+  if (tax) parts.push({ kind: 'tax', value: tax });
   if (s.famine) parts.push({ kind: 'famine', value: H.famine });
   if (seasonOf(s.week) === 'winter') {
     if (s.cold) parts.push({ kind: 'cold', value: H.cold });
@@ -48,6 +50,22 @@ export function houseHappiness(s: GameState, b: Building, idleShare: number): Ha
  */
 const scale = (value: number, min: number, max: number) =>
   value >= H.happy ? 1 + ((max - 1) * (value - H.happy)) / (100 - H.happy) : value < H.sad ? min + ((1 - min) * value) / H.sad : 1;
+
+const X = RULES.tax;
+
+/** Happiness the tax rate gives every house (package G): + under the default rate, − over it. */
+export const taxJoy = (s: Pick<GameState, 'taxRate'>) => Math.round(((X.default - s.taxRate) / X.step) * X.joyPerStep);
+
+/** What the tax rate does to every house's tax (1 at the default rate). */
+export const taxRateFactor = (s: Pick<GameState, 'taxRate'>) => s.taxRate / X.default;
+
+/** The tax rate one step lower or higher (within min..max); false when it cannot move. */
+export function changeTax(s: Pick<GameState, 'taxRate'>, delta: 1 | -1): boolean {
+  const next = Math.min(X.max, Math.max(X.min, s.taxRate + delta * X.step));
+  if (next === s.taxRate) return false;
+  s.taxRate = next;
+  return true;
+}
 
 /** Tax multiplier of a house (happy houses pay more). */
 export const taxFactor = (value: number) => scale(value, H.taxMin, H.taxMax);

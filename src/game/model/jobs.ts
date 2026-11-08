@@ -1,4 +1,4 @@
-import { bandCounts, BUILDINGS, crewByKind, jobsBuilt, loweredTarget, RULES, seatsOfKind, targetOf, unemployed, type BuildingKind, type GameState } from '../../core';
+import { bandCounts, BUILDINGS, crewByKind, jobsBuilt, loweredTarget, RULES, seatsOfKind, targetOf, taxJoy, unemployed, type BuildingKind, type GameState } from '../../core';
 import { T } from '../strings';
 
 /**
@@ -36,6 +36,8 @@ export interface JobsView {
   anyTarget: boolean;
   /** "Ninguém livre…" whenever a profession waits for workers and nobody is free (the game never moves a worker by itself). */
   note: string | null;
+  /** The tax row (package G): the rate, what it does to the Alegria, and whether − / + can move it. */
+  tax: { rate: number; label: string; tone: 'good' | 'warn' | 'muted'; canLower: boolean; canRaise: boolean };
 }
 
 const rank = (kind: BuildingKind) => {
@@ -68,5 +70,8 @@ export function jobsView(s: GameState): JobsView {
   const bands = bandCounts(s);
   const idle = unemployed(s);
   const note = idle === 0 && rows.some((r) => r.missing > 0) ? N.nobodyFree : null;
-  return { idle, others: N.others(bands.child, bands.elder), rows, anyTarget: rows.some((r) => !r.auto), note };
+  const joy = taxJoy(s);
+  const X = RULES.tax;
+  const tax = { rate: s.taxRate, label: N.taxEffect(joy), tone: joy > 0 ? ('good' as const) : joy < 0 ? ('warn' as const) : ('muted' as const), canLower: s.taxRate > X.min, canRaise: s.taxRate < X.max };
+  return { idle, others: N.others(bands.child, bands.elder), rows, anyTarget: rows.some((r) => !r.auto), note, tax };
 }
