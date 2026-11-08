@@ -73,9 +73,20 @@ export class Play3D implements SessionView, GestureView, HudHost {
     this.resize();
     session.attach(this);
     session.refresh();
-    scene.stage.renderer.setAnimationLoop(() => this.loop());
+    scene.stage.renderer.setAnimationLoop(() => {
+      // A bug in one frame must not freeze the game (an error here stops three.js's loop for good).
+      try {
+        this.loop();
+      } catch (e) {
+        if (!this.loopFailed) console.error(e);
+        this.loopFailed = true;
+      }
+    });
     if (import.meta.env.DEV) this.hooks();
   }
+
+  /** A frame threw once (logged once; the game goes on). */
+  private loopFailed = false;
 
   /** Opens the 3D game on a session; throws when the device cannot draw WebGL 2. */
   static async open(session: Session, opts: Play3DOptions): Promise<Play3D> {

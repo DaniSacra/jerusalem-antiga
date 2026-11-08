@@ -269,7 +269,8 @@ export class Walkers {
       w.t += dt * w.speed;
       while (w.t >= 1 && w.state !== 'in') {
         w.t -= 1;
-        w.seg++;
+        // Never past the last cell: a walker at the end of its way (a cheer, a mended way) sent home steps nowhere.
+        w.seg = Math.min(w.seg + 1, w.path.length - 1);
         const end = w.seg >= w.path.length - 1;
         if (w.state === 'door') {
           if (end) [w.state, w.wait, w.t] = ['in', this.rng() * OUT_SECONDS, 0];

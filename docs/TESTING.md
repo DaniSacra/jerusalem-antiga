@@ -336,6 +336,14 @@ em `public/sw.js` só para apagar caches velhos.
 Os ícones em `public/icons/` são gerados pelo próprio jogo (o templo sobre o céu):
 `node tools/icons/make-icons.mjs` regera todos.
 
+## Travamentos (`scripts/hitch-probe.mjs`)
+
+`node scripts/hitch-probe.mjs [segundos]` (padrão 240) joga a semente 5 na velocidade máxima e, a cada
+15 s, imprime a semana, os quadros desenhados e todo quadro acima de 200 ms; erros da página aparecem
+como `PAGE ERROR`. Se os quadros param de subir, o laço de desenho morreu. Foi assim que se achou o
+travamento de 2026-11-08 (um morador mandado para casa no fim do caminho passava da última casa).
+Desde então um erro num quadro só é registrado uma vez e o jogo segue.
+
 ## Desempenho da visão 3D (`scripts/view3d-perf.mjs`)
 
 `node scripts/view3d-perf.mjs` mede os quadros por segundo do jogo 3D num celular simulado
