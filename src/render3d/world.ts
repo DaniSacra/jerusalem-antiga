@@ -191,7 +191,7 @@ export class World {
     const detail = new Instancer(this.models);
     for (const d of groundDetail(s, wear)) detail.add(d.key, d.x, ground.height(d.x, d.z) - 0.01, d.z, d.rot, d.scale);
     const detailMeshes = detail.build(false);
-    this.flowerMeshes = detailMeshes.children.filter((m) => m.name === 'flowers' || m.name === 'flowers-b');
+    this.flowerMeshes = detailMeshes.children.filter((m) => m.name === 'flowers' || m.name === 'flowers-b' || m.name === 'pebbles' || m.name === 'tuft');
     this.detail.add(detailMeshes);
     this.placed = plan.buildings;
     for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (FLAT_PROPS.has(p.key) ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);

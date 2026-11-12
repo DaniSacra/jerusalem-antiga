@@ -311,8 +311,9 @@ export class Stage {
     world.leavers.update(time);
     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
-    world.showFarWoods(this.level === 'high');
-    for (const m of world.flowerMeshes) m.visible = s3.flowers >= LOOK.detail.flowerSeason;
+    world.showFarWoods(this.level === 'high' && L.night < 0.6);
+    // Flowers, pebbles and grass tufts are hardly seen in the dark: dropped at night (fewer draw calls when the scene is lit by fires).
+    for (const m of world.flowerMeshes) m.visible = (m.name === 'pebbles' || m.name === 'tuft' || s3.flowers >= LOOK.detail.flowerSeason) && L.night < 0.7;
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain) * Math.max(day.work, LOOK.routine.fieldsIdle), MAX_HANDS);
