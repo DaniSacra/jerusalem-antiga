@@ -8,7 +8,8 @@ import { DoorLights, FieldHands, type FireKind, Flames, Haulers, NightFires, Smo
 import LOOK from './look3d.json';
 import type { ModelKey, Prototype } from './models';
 import { cityPlan, CLOSED_AT, hash, houseSmokeKey, KILN, panesOf, residentsOf, walkerCount, YARD_AT } from './plan';
-import { SKIRT, Terrain, Water, WATER_Y } from './terrain';
+import { Terrain, Water, WATER_Y } from './terrain';
+import { woodland } from './rim';
 import type { Placed } from './street';
 import { Idlers, Leavers } from './townsfolk';
 import { groundDetail } from './detail';
@@ -61,6 +62,9 @@ export class World {
   houses = 0;
   fields = 0;
   private land = new THREE.Group();
+  /** The woods round the map: near the edge, and far (the stage hides it at the lower qualities). */
+  readonly nearWoods = new THREE.Group();
+  readonly farWoods = new THREE.Group();
   private city = new THREE.Group();
   private walking = new THREE.Group();
   private homing = new THREE.Group();
@@ -69,6 +73,8 @@ export class World {
   private leaving = new THREE.Group();
   /** Tufts and pebbles on the open ground (the stage hides them from far away and at the minimum quality). */
   readonly detail = new THREE.Group();
+  /** The wild flower patches among the detail (the stage shows them in the flowering seasons only). */
+  flowerMeshes: THREE.Object3D[] = [];
   /** Where the last city build drew each building (the still life stands by them). */
   private placed: Placed[] = [];
   /** The city's instances, and each building's copies in them (its hop, see `lift`). */
@@ -89,17 +95,16 @@ export class World {
     this.land.add(this.ground.mesh());
     this.water = new Water(s);
     this.land.add(this.water.mesh);
-    // Trees and bushes on the skirt around the map, so the haze has a countryside to fade.
-    const skirt = new Instancer(models);
-    for (let k = 0; k < 900; k++) {
-      const x = -SKIRT + hash(k, 1) * (s.cols + SKIRT * 2);
-      const z = -SKIRT + hash(k, 2) * (s.rows + SKIRT * 2);
-      if (x > -1 && z > -1 && x < s.cols + 1 && z < s.rows + 1) continue;
-      if (this.ground.isRiver(x, z)) continue;
-      const kind: ModelKey = hash(k, 3) < 0.45 ? 'olive' : hash(k, 3) < 0.6 ? 'palm' : hash(k, 3) < 0.75 ? 'rock' : 'shrub';
-      skirt.add(kind, x, this.ground.height(x, z), z, hash(k, 4) * 6.28, 0.8 + hash(k, 5) * 0.5);
+    // The woods around the map, on its hills, so the haze has a countryside to fade (no shadows: the
+    // sun's shadow map covers the city only). Near and far apart: the stage drops the far ring at low quality.
+    const woods = woodland(this.ground.frame, (x, z) => this.ground.height(x, z), (x, z) => this.ground.isRiver(x, z));
+    for (const far of [false, true]) {
+      const wood = new Instancer(models);
+      for (const w of woods) if (w.far === far) wood.add(w.key, w.x, this.ground.height(w.x, w.z) - 0.03, w.z, w.rot, w.scale);
+      const group = wood.build(false);
+      (far ? this.farWoods : this.nearWoods).add(group);
     }
-    this.land.add(skirt.build(shadows));
+    this.land.add(this.nearWoods, this.farWoods);
     this.leavers = new Leavers(s, this.ground, shadows);
     this.leaving.add(...this.leavers.objects);
     this.group.add(this.land, this.city, this.detail, this.walking, this.homing, this.working, this.idle, this.leaving);
@@ -175,7 +180,9 @@ export class World {
     free(this.detail, this.shared);
     const detail = new Instancer(this.models);
     for (const d of groundDetail(s, wear)) detail.add(d.key, d.x, ground.height(d.x, d.z) - 0.01, d.z, d.rot, d.scale);
-    this.detail.add(detail.build(false));
+    const detailMeshes = detail.build(false);
+    this.flowerMeshes = detailMeshes.children.filter((m) => m.name === 'flowers' || m.name === 'flowers-b');
+    this.detail.add(detailMeshes);
     this.placed = plan.buildings;
     for (const p of plan.props) inst.add(p.key, p.x, ground.height(p.x, p.z) - (FLAT_PROPS.has(p.key) ? 0.02 : 0), p.z, p.rot, p.scale, p.tint, p.sy);
     for (const { x, y } of plan.roads)

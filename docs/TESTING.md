@@ -344,6 +344,11 @@ como `PAGE ERROR`. Se os quadros param de subir, o laço de desenho morreu. Foi 
 travamento de 2026-11-08 (um morador mandado para casa no fim do caminho passava da última casa).
 Desde então um erro num quadro só é registrado uma vez e o jogo segue.
 
+Testes de aparência pura do estilo Foundation: `tests/render3d/rim.test.ts` (colinas, passagem da entrada,
+mata fora do mapa, densidade, pinheiros nas colinas), `detail.test.ts` (flores, capim alto na beira da
+rua, prado), `plan.test.ts` (carvalhos, pinheiros, arbustos junto às casas), `roads.test.ts` (bordas
+irregulares), `wear.test.ts` (cruzamentos gastos).
+
 ## Desempenho da visão 3D (`scripts/view3d-perf.mjs`)
 
 `node scripts/view3d-perf.mjs` mede os quadros por segundo do jogo 3D num celular simulado
@@ -357,3 +362,6 @@ pessimista). Capturas em `screenshots/view3d-perf` (`VIEW3D_OUT` muda a pasta; `
 `npm run dev` e abra no celular o endereço "Network" que o Vite mostra (mesma rede Wi-Fi). O
 teste visual de toque cobre os gestos, mas tamanho de texto e conforto dos botões só se avaliam
 no aparelho.
+
+
+Nota (2026-11-12, interface no estilo Foundation): o teste de sobreposição do `hud3d-*` agora inclui o painel `.clock` (data e velocidade, canto inferior esquerdo); o cartão do tutorial fica sob a barra do topo e o balão da ferramenta só precisa ficar fora dele (`tutorial3d-*`); em celular de 667 px de largura os nomes das ferramentas somem (só ícones).

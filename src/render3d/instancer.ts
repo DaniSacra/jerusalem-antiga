@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ModelKey, Prototype } from './models';
 
 /** Flat or glowing models that cast no shadow. */
-const NO_SHADOW = new Set<ModelKey>(['road', 'stump', 'loose', 'loose-arm', 'pane', 'kit-figs', 'kit-rug', 'kit-stripes', 'road-edge', 'ruts', 'road-stones', 'flags', 'tuft', 'pebbles']);
+const NO_SHADOW = new Set<ModelKey>(['road', 'stump', 'loose', 'loose-arm', 'pane', 'kit-figs', 'kit-rug', 'kit-stripes', 'road-edge', 'ruts', 'road-stones', 'flags', 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge']);
 
 /**
  * Collects every copy of every model, then draws each model part as one InstancedMesh: a city of

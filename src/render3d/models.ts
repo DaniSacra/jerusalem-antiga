@@ -64,6 +64,14 @@ export const COLORS = {
   /** Dates under the palm crown (sway with it). */
   dates: 0xc9902f,
   trunk: 0x7a5a3a,
+  /** Conifer needles (a crown part, see `crownMaterial`: darker than the broadleaf crowns, green all year). */
+  pine: 0x4a8a42,
+  /** Wild flower heads (they sway with the grass, see `flowers`). */
+  flowerBlue: 0x5f82ea,
+  flowerWhite: 0xf8f6ec,
+  flowerYellow: 0xf6d238,
+  flowerOrange: 0xf28a26,
+  flowerPink: 0xe880ac,
   /** Almond and fig crowns: recoloured by their state of the year (bloom, leaf, yellow; hidden bare, see the stage). */
   almondCrown: 0xf1dfe4,
   figCrown: 0x5e8a36,
@@ -101,7 +109,9 @@ export const COLORS = {
 } as const;
 
 /** Colours of the plants that sway in the wind (trunks too, so a crown never leaves its trunk). */
-const SWAYING: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.palm, COLORS.dates, COLORS.trunk, COLORS.tuft, COLORS.tuftDark];
+const SWAYING: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.palm, COLORS.dates, COLORS.trunk, COLORS.tuft, COLORS.tuftDark, COLORS.flowerBlue, COLORS.flowerWhite, COLORS.flowerYellow, COLORS.flowerOrange, COLORS.flowerPink];
+/** Plants of many tones: each copy a little yellower or bluer (`PatchOptions.hue`). */
+const HUED: number[] = [COLORS.leaf, COLORS.leafDark, COLORS.hedge, COLORS.palm, COLORS.tuft, COLORS.tuftDark];
 const WIND = LOOK.wind;
 
 /** Colours of the road surfaces (no snow settles on them). */
@@ -139,6 +149,7 @@ function mat(color: number, emissive = false, cloth = false): THREE.Material {
           // Plants sway in the wind: trees by their height (the trunk with the crown), crops in waves.
           wind: crop ? WIND.crops : SWAYING.includes(color) ? WIND.trees : 0,
           waves: crop,
+          hue: HUED.includes(color),
         });
     materials.set(key, m);
   }
@@ -160,7 +171,7 @@ type Piece = { geo: THREE.BufferGeometry; color: number; emissive?: boolean; clo
  * season in the stage) and differ by a shade in the vertices (`tone`, 1 light .. 0.7 dark), so a
  * two-tone crown is one draw call.
  */
-const lobe = (r: number, x: number, y: number, z: number, color: number, tone: number, sy = 1): Piece => ({ ...blob(r, x, y, z, color, sy), tone });
+const lobe = (r: number, x: number, y: number, z: number, color: number, tone: number, sy = 1, detail = 0): Piece => ({ ...blob(r, x, y, z, color, sy, detail), tone });
 
 const crowns = new Map<number, THREE.MeshStandardMaterial>();
 /** The material of the crowns of a colour (vertex shades times its colour; sways in the wind). */
@@ -168,7 +179,7 @@ export function crownMaterial(color: number): THREE.MeshStandardMaterial {
   let m = crowns.get(color);
   if (!m) {
     m = new THREE.MeshStandardMaterial({ color, vertexColors: true, roughness: 0.92, metalness: 0, flatShading: true });
-    patch(m, { snow: true, wind: WIND.trees });
+    patch(m, { snow: true, wind: WIND.trees, hue: true });
     crowns.set(color, m);
   }
   return m;
@@ -404,8 +415,27 @@ function field(crop: number): Piece[] {
   let seed = crop % 9973;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const out: Piece[] = [box(1.9, 0.05, 1.9, 0, 0, 0, COLORS.soil)];
+  // Barley and flax fields are fenced with wood (posts and two rails, a gap for the gate on the front),
+  // the others keep the terrace wall of stones: side by side the fields make a patchwork.
+  const fenced = crop === CROPS[1] || crop === CROPS[3];
+  if (fenced)
+    for (const side of [0, 1, 2, 3]) {
+      const rot = (side * Math.PI) / 2;
+      const at = (a: number, d: number) => [Math.cos(rot) * a - Math.sin(rot) * d, Math.sin(rot) * a + Math.cos(rot) * d] as const;
+      for (let k = 0; k < 5; k++) {
+        const [x, z] = at(-0.9 + k * 0.45, 0.94);
+        out.push(box(0.07, 0.3 + rnd() * 0.05, 0.07, x, 0, z, COLORS.wood));
+      }
+      // The front (+z, side 0) leaves a gate gap in the middle.
+      for (const h of [0.13, 0.24]) {
+        for (const [a0, a1] of side === 0 ? [[-0.9, -0.2], [0.2, 0.9]] : [[-0.9, 0.9]]) {
+          const [x, z] = at((a0 + a1) / 2, 0.94);
+          out.push(box(Math.abs(a1 - a0), 0.035, 0.035, x, h, z, COLORS.wood, rot));
+        }
+      }
+    }
   // The terrace wall: four stones a side, a little uneven, leaving the corners open.
-  for (const side of [0, 1, 2, 3]) {
+  for (const side of fenced ? [] : [0, 1, 2, 3]) {
     const rot = (side * Math.PI) / 2;
     for (let k = 0; k < 4; k++) {
       const a = -0.66 + k * 0.44 + (rnd() - 0.5) * 0.06;
@@ -965,17 +995,65 @@ function crooked(lean: [number, number], h: number, r: number): { pieces: Piece[
   return { pieces: [rod([0, 0, 0], mid, r, COLORS.trunk, 4), rod(mid, top, r * 0.8, COLORS.trunk, 4)], top };
 }
 
-/** Olive: a gnarled, leaning trunk and a crown of four lobes, light and dark (silvery leaves). */
+/** Olive: a thick gnarled, leaning trunk and a wide crown of five lobes, light and dark (silvery leaves). */
 function olive(): Piece[] {
-  const { pieces, top } = crooked([0.12, 0.04], 0.5, 0.075);
+  const { pieces, top } = crooked([0.14, 0.05], 0.55, 0.1);
   const [x, y, z] = top;
   return [
     ...pieces,
-    lobe(0.3, x - 0.08, y + 0.08, z, COLORS.leaf, 1, 0.7),
-    lobe(0.24, x + 0.17, y + 0.12, z + 0.06, COLORS.leaf, 0.76, 0.72),
-    lobe(0.22, x + 0.02, y + 0.2, z - 0.16, COLORS.leaf, 1, 0.7),
-    lobe(0.2, x - 0.02, y + 0.26, z + 0.14, COLORS.leaf, 0.76, 0.75),
+    lobe(0.4, x - 0.1, y + 0.1, z, COLORS.leaf, 1, 0.8, 1),
+    lobe(0.32, x + 0.25, y + 0.14, z + 0.1, COLORS.leaf, 0.78, 0.8, 1),
+    lobe(0.3, x + 0.0, y + 0.3, z - 0.24, COLORS.leaf, 1, 0.8, 1),
+    lobe(0.27, x - 0.04, y + 0.34, z + 0.22, COLORS.leaf, 0.8, 0.8, 1),
+    lobe(0.26, x - 0.3, y + 0.05, z - 0.18, COLORS.leaf, 0.7, 0.8, 0),
   ];
+}
+
+/**
+ * Oak (the broad round crown of the countryside): a thick trunk that forks, and a wide crown of five
+ * lobes (light on top, dark under), the tallest tree of the fields.
+ */
+function oak(): Piece[] {
+  const branches = [[0.2, 0.62, 0.05], [-0.18, 0.66, -0.08]].map(([dx, dy, dz]) => rod([0, 0.35, 0], [dx, dy, dz], 0.055, COLORS.trunk, 5));
+  return [
+    cyl(0.085, 0.14, 0.5, 6, 0, 0, 0, COLORS.trunk),
+    ...branches,
+    lobe(0.5, 0, 1.0, 0, COLORS.leaf, 1, 0.82, 1),
+    lobe(0.38, 0.36, 0.86, 0.16, COLORS.leaf, 0.78, 0.82, 1),
+    lobe(0.4, -0.34, 0.9, -0.12, COLORS.leaf, 0.84, 0.82, 1),
+    lobe(0.36, 0.04, 1.34, -0.04, COLORS.leaf, 1, 0.82, 0),
+    lobe(0.32, -0.1, 0.78, 0.36, COLORS.leaf, 0.7, 0.82, 0),
+  ];
+}
+
+/** A cone of a conifer's crown, open at the foot (it hides under the tier above), one shade in the vertices. */
+const tier = (r: number, h: number, y: number, tone: number): Piece => {
+  const g = new THREE.ConeGeometry(r, h, 6, 1, true);
+  g.translate(0, y + h / 2, 0);
+  return { geo: g, color: COLORS.pine, tone };
+};
+
+/** A thin trunk of a far tree: an open four-sided cone (4 triangles; the crown hides its top). */
+const stub = (r: number, h: number): Piece => {
+  const g = new THREE.ConeGeometry(r, h, 4, 1, true);
+  g.translate(0, h / 2, 0);
+  return { geo: g, color: COLORS.trunk };
+};
+
+/** Pine (or cypress of the hills): a slim trunk and four tiers of needles, dark green all year. */
+function pine(): Piece[] {
+  return [
+    stub(0.07, 0.5),
+    tier(0.52, 0.6, 0.28, 0.8),
+    tier(0.42, 0.55, 0.62, 0.9),
+    tier(0.3, 0.5, 0.95, 1),
+    tier(0.17, 0.42, 1.28, 1.08),
+  ];
+}
+
+/** A far tree for the woods around the map: two lobes and a stub of trunk (about 50 triangles). */
+function wood(): Piece[] {
+  return [stub(0.09, 0.5), lobe(0.45, 0, 0.8, 0, COLORS.leaf, 1, 0.9, 0), lobe(0.32, 0.22, 0.62, 0.1, COLORS.leaf, 0.75, 0.9, 0)];
 }
 
 /** Almond: a slim trunk, bare branches and a light airy crown (white-pink in bloom, green in leaf). */
@@ -1074,8 +1152,13 @@ function granary(): Piece[] {
   ];
 }
 
-const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6)];
-const shrub = (): Piece[] => [blob(0.16, 0, 0.1, 0, COLORS.leafDark, 0.7)];
+/** A rock with a cap of moss and a tuft at its foot (the Foundation's mossy stones). */
+const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6), blob(0.2, -0.04, 0.2, -0.02, COLORS.hedge, 0.4), cone(0.05, 0.16, 3, 0.3, 0, -0.12, COLORS.tuft)];
+/** A round bush: two lobes in two shades (one draw call with the crowns, recoloured by the season). */
+const shrub = (): Piece[] => [
+  lobe(0.24, 0, 0.17, 0, COLORS.leaf, 1, 0.82, 1),
+  lobe(0.17, 0.17, 0.1, 0.06, COLORS.leaf, 0.76, 0.82, 0),
+];
 const road = (): Piece[] => [box(1, 0.04, 1, 0, 0, 0, COLORS.road)];
 /** A trail: a narrow patch of trodden earth in the middle of the cell (the sand shows around it). */
 const trail = (): Piece[] => [box(0.4, 0.04, 0.4, 0, 0, 0, COLORS.road)];
@@ -1106,18 +1189,36 @@ const flags = (): Piece[] => {
     ...rows.flatMap(([z, xs]) => xs.map((x) => j(0.025, 0.33, x, z))),
   ];
 };
-/** A tuft of grass: a few blades leaning out (green of the season). */
+/** A tuft of grass: seven fat blades of different heights leaning out (green of the season, 3 triangles a blade). */
 const tuft = (): Piece[] =>
-  [0, 1, 2, 3, 4].map((k) => {
-    const a = k * 1.26;
-    // Open at the foot (no cap: it stands on the ground), 3 triangles a blade.
-    const g = new THREE.ConeGeometry(0.025, 0.16 + (k % 3) * 0.04, 3, 1, true);
-    g.translate(0, (0.16 + (k % 3) * 0.04) / 2, 0);
-    g.rotateZ(Math.cos(a) * 0.35);
-    g.rotateX(Math.sin(a) * 0.35);
-    g.translate(Math.cos(a) * 0.03, 0, Math.sin(a) * 0.03);
+  [0.26, 0.4, 0.22, 0.46, 0.3, 0.24, 0.36].map((h, k) => {
+    const a = k * 0.9 + 0.3;
+    const lean = 0.14 + (k % 3) * 0.09;
+    // Open at the foot (no cap: it stands on the ground).
+    const g = new THREE.ConeGeometry(0.05, h, 3, 1, true);
+    g.translate(0, h / 2, 0);
+    g.rotateZ(Math.cos(a) * lean);
+    g.rotateX(Math.sin(a) * lean);
+    g.translate(Math.cos(a) * 0.06, 0, Math.sin(a) * 0.06);
     return { geo: g, color: k % 2 ? COLORS.tuftDark : COLORS.tuft };
   });
+
+/** A patch of wild flowers: stems of the grass's green and heads of a few colours (they sway with it). */
+function flowerPatch(heads: [number, number, number][]): Piece[] {
+  return heads.flatMap(([x, z, color], k) => {
+    const h = 0.2 + (k % 3) * 0.05;
+    const stem = new THREE.ConeGeometry(0.014, h, 3, 1, true);
+    stem.translate(x, h / 2, z);
+    const head = new THREE.OctahedronGeometry(0.048, 0);
+    head.scale(1, 0.75, 1);
+    head.translate(x, h + 0.015, z);
+    return [{ geo: stem, color: COLORS.tuft }, { geo: head, color }];
+  });
+}
+const flowers = (): Piece[] =>
+  flowerPatch([[-0.13, 0.04, COLORS.flowerBlue], [0.1, -0.07, COLORS.flowerBlue], [0, 0.15, COLORS.flowerWhite], [0.17, 0.11, COLORS.flowerYellow], [-0.07, -0.13, COLORS.flowerBlue], [0.04, -0.02, COLORS.flowerPink], [-0.2, 0.17, COLORS.flowerWhite]]);
+const flowersB = (): Piece[] =>
+  flowerPatch([[0.12, 0.05, COLORS.flowerOrange], [-0.1, -0.06, COLORS.flowerYellow], [0.02, 0.14, COLORS.flowerOrange], [-0.17, 0.1, COLORS.flowerWhite], [0.15, -0.14, COLORS.flowerYellow], [0.0, -0.04, COLORS.flowerOrange]]);
 /** Pebbles half sunk in the sand (octahedra: 8 triangles each, there are hundreds). */
 const pebble = (r: number, x: number, y: number, z: number, color: number, sy: number): Piece => {
   const g = new THREE.OctahedronGeometry(r, 0);
@@ -1126,6 +1227,12 @@ const pebble = (r: number, x: number, y: number, z: number, color: number, sy: n
   g.translate(x, y, z);
   return { geo: g, color };
 };
+/** A ragged lump of the lawn creeping over a road's edge: three flat tufts of turf (two shades, 24 triangles). */
+const verge = (): Piece[] => [
+  pebble(0.13, 0, 0.03, 0, COLORS.hedge, 0.3),
+  pebble(0.09, 0.12, 0.025, 0.05, COLORS.tuftDark, 0.34),
+  pebble(0.08, -0.11, 0.025, -0.05, COLORS.hedge, 0.34),
+];
 const pebbles = (): Piece[] => [
   pebble(0.045, 0, 0.01, 0, COLORS.rock, 0.5),
   pebble(0.03, 0.09, 0.005, 0.05, COLORS.limestoneDark, 0.55),
@@ -1735,7 +1842,13 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   'road-stones': roadStones,
   flags,
   tuft,
+  flowers,
+  'flowers-b': flowersB,
   pebbles,
+  verge,
+  oak,
+  pine,
+  wood,
   trail,
   'trail-arm': trailArm,
   kerb,

@@ -91,7 +91,7 @@ const cellHash = (x: number, y: number, k: number) => {
 
 /** One piece of a road on the ground: its model, cell centre and turn. */
 export interface RoadPiece {
-  key: RoadKey;
+  key: RoadKey | 'verge';
   x: number;
   z: number;
   rot: number;
@@ -121,5 +121,29 @@ export function roadPieces(s: GameState, x: number, y: number, level: RoadLevel)
   if (level === 2) return [piece('flags', Math.floor(cellHash(x, y, 40) * 4) * (Math.PI / 2)), ...open.map(([dx, dy]) => piece('kerb', turnTo(dx, dy)))];
   const out = [piece('road'), ...open.map(([dx, dy]) => piece('road-edge', turnTo(dx, dy))), ...SIDES.filter(([dx, dy]) => road(dx, dy)).map(([dx, dy]) => piece('ruts', turnTo(dx, dy)))];
   if (cellHash(x, y, 41) < R.stoneShare) out.push(piece('road-stones', cellHash(x, y, 42) * 6.28));
+  return out;
+}
+
+/**
+ * Lumps of lawn over the edge of a road cell (look only): on every side with no road beside it and no
+ * building, a couple of flat tufts straddle the edge, so the road's silhouette is ragged and the grass
+ * seems to creep in (the model is `verge`; none on a stone road, whose kerb stays clean, nor off the network).
+ */
+export function vergePieces(s: GameState, x: number, y: number, level: RoadLevel): RoadPiece[] {
+  if (level === 2 || !s.network[indexOf(s, x, y)]) return [];
+  const out: RoadPiece[] = [];
+  for (const [dx, dy] of SIDES) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) continue;
+    const j = indexOf(s, nx, ny);
+    if (s.roads[j] || s.grid[j]) continue;
+    for (let k = 0; k < 2; k++) {
+      if (cellHash(x, y, 50 + k * 3 + dx + 2 * dy) >= R.vergeShare) continue;
+      const along = 0.1 + cellHash(x, y, 60 + k + dx * 5 + dy * 9) * 0.8;
+      const out0 = 0.5 + (cellHash(x, y, 70 + k) - 0.5) * 0.14;
+      out.push({ key: 'verge', x: x + 0.5 + dx * out0 + (dy !== 0 ? along - 0.5 : 0), z: y + 0.5 + dy * out0 + (dx !== 0 ? along - 0.5 : 0), rot: cellHash(x, y, 80 + k) * 6.28 });
+    }
+  }
   return out;
 }

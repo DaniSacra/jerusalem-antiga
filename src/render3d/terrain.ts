@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { indexOf, type GameState } from '../core';
+import { entranceCell, indexOf, type GameState } from '../core';
 import LOOK from './look3d.json';
 import { patch, U } from './shaders';
 import { moistMap } from './fields';
 import { WEAR_RES } from './wear';
+import { outside, rimLift, type Frame } from './rim';
 
 /** How far the ground extends around the map (cells), fading into the haze. */
 export const SKIRT = 48;
@@ -20,6 +21,11 @@ function relief(x: number, z: number, seed: number): number {
   const c = Math.sin(x * 0.7 - z * 0.53 + seed * 2.1) * 0.15;
   return (a + b + c + 1.6) / 3.2;
 }
+
+const smoothstep = (a: number, b: number, v: number) => {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 /** Cheap hash 0..1 for colour speckle. */
 const hash = (x: number, z: number) => {
@@ -44,6 +50,7 @@ export class Terrain {
   private flat: Float32Array;
 
   constructor(private s: GameState, private seed: number) {
+    this.frame = { cols: s.cols, rows: s.rows, entranceX: entranceCell().x + 0.5, seed: seed * 0.37 };
     this.flat = new Float32Array(s.cols * s.rows);
     this.flatten();
     this.setMoist();
@@ -100,6 +107,16 @@ export class Terrain {
     return this.riverAt(x, z) > 0;
   }
 
+  /** Where the map ends and the hills begin (see rim.ts). */
+  readonly frame: Frame;
+
+  /** How much river is near a point outside the map, 0..1 (the hills leave a valley for it). */
+  private riverNear(x: number, z: number) {
+    let n = 0;
+    for (let dz = -4; dz <= 4; dz += 2) for (let dx = -4; dx <= 4; dx += 2) if (this.s.ground[this.cell(x + dx, z + dz)] === 'river') n++;
+    return n / 25;
+  }
+
   private flatAt(x: number, z: number) {
     const inside = x >= 0 && z >= 0 && x < this.s.cols && z < this.s.rows;
     return inside ? this.flat[this.cell(x, z)] : 0;
@@ -108,7 +125,8 @@ export class Terrain {
   /** Ground height at a world point (x along columns, z along rows). */
   height(x: number, z: number): number {
     const river = this.riverAt(x, z);
-    const land = relief(x, z, this.seed) * RELIEF * (1 - this.flatAt(x, z)) * (1 - river);
+    const hills = outside(this.frame, x, z) > 0 ? rimLift(this.frame, x, z, this.riverNear(x, z)) : 0;
+    const land = (relief(x, z, this.seed) * RELIEF * (1 - this.flatAt(x, z)) + hills) * (1 - river);
     return land - river * RIVER_DEPTH;
   }
 
@@ -204,7 +222,9 @@ export class Terrain {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       pos.setY(i, this.height(x, z));
-      ground.set([this.grassAt(x, z), this.riverAt(x, z), hash(x, z)], i * 3);
+      // Past the map's edge the land turns to woodland floor: green, the meadow giving way to it.
+      const wood = smoothstep(0, 6, outside(this.frame, x, z));
+      ground.set([this.grassAt(x, z) + (1 - this.grassAt(x, z)) * wood, this.riverAt(x, z), hash(x, z)], i * 3);
     }
     g.setAttribute('aGround', new THREE.BufferAttribute(ground, 3));
     g.computeVertexNormals();

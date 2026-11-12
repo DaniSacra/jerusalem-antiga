@@ -3,14 +3,14 @@ import { snapTurn } from '../game/gestures';
 
 /** Opening distance, and how close and far the camera may go. */
 const DIST0 = 34;
-const DIST_MIN = 7;
+const DIST_MIN = 4.5;
 const DIST_MAX = 70;
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 /** The playable view's tilt follows the zoom: low over the roofs up close, steep from far. */
 export function pitchFor(dist: number): number {
   const t = THREE.MathUtils.clamp((dist - DIST_MIN) / (DIST_MAX - DIST_MIN), 0, 1);
-  return 0.62 + (1.22 - 0.62) * Math.sqrt(t);
+  return 0.5 + (1.22 - 0.5) * Math.sqrt(t);
 }
 
 /** Contemplate mode (D3): the view drops low over the roofs, near the horizon from afar. */

@@ -29,6 +29,7 @@ Veja a seção "Jogo em 3D" de `docs/GAME_DESIGN.md` e o plano em `docs/arquitet
 | `world.ts` | a cidade a partir do `plan`: chão, rio, construções e árvores instanciadas, fumaça, fogueiras, gente nos campos, moradores e famílias chegando |
 | `models.ts` | modelos low-poly feitos por código, por chave; carregador do pacote .glb |
 | `instancer.ts` | um `InstancedMesh` por parte de modelo: a cidade inteira em poucas dezenas de chamadas |
+| `rim.ts` | **puro e testado** (`tests/render3d/rim.test.ts`): o campo em volta do mapa (estilo Foundation): colinas que sobem além da borda (`rimLift`, com passagem na estrada de entrada e vale para o rio) e a mata (`woodland`: grade com jitter em manchas e clareiras, densa junto à borda e rala com a distância; carvalhos e oliveiras perto, pinheiros nas colinas, árvores baratas `wood` ao longe; nunca dentro do mapa). `World.nearWoods`/`farWoods` (o palco esconde a de longe abaixo da qualidade alta) |
 | `terrain.ts` | relevo (plano na cidade), areia e grama com transição, leito do rio, água animada |
 | `life.ts` | moradores andando pela rede (caminhos do core) com o que carregam e os bichos ao lado, a gente que se reúne num marco (`gather`), gente nos campos, fumaça macia (`Smoke`: bolas de fumaça na GPU, uma chamada; uma segunda, arenosa e baixa, é a poeira das pedreiras), fogo do altar em camadas e faíscas das tendas (`Flames`: uma chamada), luzes da noite (tendas apagadas no frio) e a poça de luz diante da porta de cada casa com gente, do mercado e da oficina (`DoorLights`, uma chamada) |
 | `shaders.ts` | efeitos nos materiais: neve, chão molhado, sombra de nuvens, janelas acesas (e o vidro aceso das casas .glb, `paneMaterial`), campos crescendo, vento nas plantas (vértice) e nos panos (`cloth`: roupa no varal pela barra, toldos pelo meio, peso `aFlap` assado em `models.ts`), cores do chão por estação com manchas e grão (desligados na qualidade mínima) e a margem de areia úmida do rio |
@@ -77,8 +78,8 @@ claras em dois tons, toldo de linho ocre sobre uma esteira, bancos e uma figueir
 No pacote hoje: `house-1..4`, `market`, `lumber`, `quarry`, `temple`, `workshop`, `fisher`,
 `gatherer`, `altar` (bloco de pedras brutas com chifres, rampa e brasas; `scale: 3.0` para não encher
 os 4x4, o fogo do código fica no topo dele) e `park` (gramado murado com oliveiras e fonte).
-`granary` e `plaza` foram tentados no Meshy e ficaram com o modelo por código (as tentativas saíram
-piores; ver CREDITS.md). Scripts em `scripts/meshy/` (gerar, empacotar a
+`granary` (celeiro) foi para o pacote Meshy depois; `plaza` ficou com o modelo por código (a tentativa no
+Meshy saiu pior; ver CREDITS.md). Scripts em `scripts/meshy/` (gerar, empacotar a
 1024 px, simplificar).
 
 Os acréscimos `up-granary-2/3`, `up-market-2/3` e `up-workshop-2/3` são sempre por código, por cima do
@@ -107,3 +108,24 @@ A câmera abre centrada no altar, na vista padrão (`yawOfRotation(0)`).
 ## Medir
 
 `node scripts/view3d-perf.mjs`: quadros por segundo num celular simulado (veja `docs/TESTING.md`).
+
+## Estilo Foundation (2026-11-12)
+
+Veja `docs/referencia-foundation.md`. O que mudou no visual (tudo em números de `look3d.json`):
+- **Chão**: o gramado é verde vivo e a "areia" do core vira prado seco amarelo-esverdeado (mesma célula,
+  outra cor); a borda gramado/prado é irregular (ruído), manchas largas de turfa amarelada ao sol e
+  sombreada, flores silvestres em manchas (azul, branco, amarelo, laranja; `uFlowers` por estação) e
+  rocha nua no alto das colinas (`uRock`). Sombras de nuvens sempre presentes (`cloudShadow`).
+- **Vegetação**: `tuft` (capim) em tufos agrupados, mais alto e cheio junto às estradas, casas, árvores
+  e pedras (`detail.ts`, `edgeShare`/`edgeScale`); `flowers`/`flowers-b` (canteiros de flores 3D, só nas
+  estações com flores); arbusto redondo `shrub` (2 lóbulos) espalhado e junto às casas
+  (`gardenBushes` em `plan.ts`); `oak` (carvalho de copa larga), `pine` (pinheiro) e `wood` (árvore barata
+  da mata de fora) como modelos novos; as células de oliveira viram uma parte de carvalhos e as de palmeira
+  uma parte de pinheiros (`countryTree`, só visual); rochas com musgo. Cada cópia de planta tem um tom
+  um pouco diferente (`PatchOptions.hue`).
+- **Caminhos**: manchas de gramado sobre a borda das ruas de terra (`verge`, `vergePieces` em `roads.ts`) e
+  cruzamentos mais gastos (`wear.junction`).
+- **Campos**: cevada e linho cercados de madeira, trigo e lentilha com o muro de pedra: colcha de retalhos.
+- **Luz**: sol mais baixo e quente (elevação por estação), céu azul mais forte, nuvens grandes e fofas
+  (sempre alguma, com lado iluminado), névoa azulada que começa mais perto (`fog`), rebote verde do chão.
+- **Câmera**: chega mais perto (`DIST_MIN` 4,5) e mais baixa (inclinação 0,5 rad de perto).

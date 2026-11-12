@@ -63,10 +63,10 @@ describe('3D ground marks (as the 2D overlay)', () => {
 
 describe('3D camera tilt follows the zoom', () => {
   it('low over the roofs up close, steeper from far, never past the limits', () => {
-    expect(pitchFor(7)).toBeCloseTo(0.62);
+    expect(pitchFor(4.5)).toBeCloseTo(0.5);
     expect(pitchFor(70)).toBeCloseTo(1.22);
     expect(pitchFor(20)).toBeGreaterThan(pitchFor(10));
-    expect(pitchFor(1)).toBeCloseTo(0.62);
+    expect(pitchFor(1)).toBeCloseTo(0.5);
     expect(pitchFor(200)).toBeCloseTo(1.22);
   });
 });

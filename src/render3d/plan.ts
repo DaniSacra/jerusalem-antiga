@@ -1,7 +1,8 @@
 import { BUILDINGS, borderCells, foodCapacity, indexOf, RULES, type BuildableKind, type Building, type BuildingKind, type GameState } from '../core';
-import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, type RoadKey } from './roads';
+import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, vergePieces, type RoadKey } from './roads';
 import VISUAL from '../data/visual.json';
-import { treeKind } from '../game/seasons';
+import { treeKind, type TreeKind } from '../game/seasons';
+import LOOK from './look3d.json';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
 import { SITE_KEYS, siteLook, type SiteKey, type SiteLook } from './works';
 
@@ -36,8 +37,12 @@ export type ModelKey =
   | 'closed'
   /** The pieces of the roads, by how busy they are (`roads.ts`). */
   | RoadKey
-  /** Ground detail (detail.ts): a tuft of grass, pebbles on the sand. */
-  | 'tuft' | 'pebbles'
+  /** Ground detail (detail.ts): a tuft of grass, two patches of wild flowers, pebbles on the sand. */
+  | 'tuft' | 'flowers' | 'flowers-b' | 'pebbles'
+  /** A lump of lawn over a road's edge (the verge is ragged, see `vergePieces`). */
+  | 'verge'
+  /** Trees of the countryside: oak, pine, and the cheap far tree of the woods around the map (look only). */
+  | 'oak' | 'pine' | 'wood'
   /** A lit window pane of a .glb house at night (see WINDOWS_AT). */
   | 'pane'
   /** Sacks and jars in the granary yard as the food store fills (`stockLevel`). */
@@ -107,7 +112,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'almond', 'fig', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
-  ...ROAD_KEYS, 'tuft', 'pebbles', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  ...ROAD_KEYS, 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge', 'oak', 'pine', 'wood', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...SITE_KEYS,
   ...EXTRA_KEYS,
@@ -292,6 +297,48 @@ export interface CityPlan {
 /** Share of the regrowth after which a sapling shows on a stump. */
 export const SAPLING_FROM = 0.3;
 
+const TREES = LOOK.trees;
+
+/**
+ * What a tree cell is drawn as: a share of the olive cells are oaks (the broad round crown of the
+ * countryside) and of the palm cells pines (the hills have them), stable per cell. Looks only: the
+ * core still sees an olive or a palm.
+ */
+export function countryTree(kind: TreeKind, x: number, y: number): ModelKey {
+  const u = hash(x, y, 12);
+  if (kind === 'olive') return u < TREES.oakShare ? 'oak' : 'olive';
+  if (kind === 'palm') return u < TREES.pineShare ? 'pine' : 'palm';
+  return kind;
+}
+
+const GARDEN = LOOK.garden;
+const SIDES4: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+
+/**
+ * Round bushes in the corners and along the sides of the buildings (a garden hedge growing wild): on
+ * free cells touching the footprint, never next to a road (the way to the door stays clear), more for
+ * the bigger houses. Stable per building; looks only.
+ */
+export function gardenBushes(s: GameState): Placement[] {
+  const out: Placement[] = [];
+  const free = (x: number, y: number) => x >= 0 && y >= 0 && x < s.cols && y < s.rows && !s.roads[indexOf(s, x, y)] && !s.grid[indexOf(s, x, y)] && !s.feature[indexOf(s, x, y)] && s.ground[indexOf(s, x, y)] !== 'river';
+  const nextToRoad = (x: number, y: number) => SIDES4.some(([dx, dy]) => x + dx >= 0 && y + dy >= 0 && x + dx < s.cols && y + dy < s.rows && s.roads[indexOf(s, x + dx, y + dy)]);
+  for (const b of s.buildings) {
+    if (!(GARDEN.kinds as string[]).includes(b.kind)) continue;
+    const ring: { x: number; y: number; k: number }[] = [];
+    for (let y = b.y - 1; y <= b.y + b.h; y++)
+      for (let x = b.x - 1; x <= b.x + b.w; x++) {
+        if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) continue;
+        if (free(x, y) && !nextToRoad(x, y)) ring.push({ x, y, k: hash(x, y, 40 + b.id) });
+      }
+    ring.sort((p, q) => p.k - q.k);
+    const n = (hash(b.x, b.y, 41) < GARDEN.share ? 1 : 0) + (b.kind === 'house' && b.level >= 3 && hash(b.x, b.y, 42) < GARDEN.share ? 1 : 0);
+    for (const c of ring.slice(0, n))
+      out.push({ key: 'shrub', x: c.x + 0.5 + (hash(c.x, c.y, 43) - 0.5) * 0.4, z: c.y + 0.5 + (hash(c.x, c.y, 44) - 0.5) * 0.4, rot: hash(c.x, c.y, 45) * 6.28, scale: 0.9 + hash(c.x, c.y, 46) * 0.5, sy: 1, tint: 0.9 + hash(c.x, c.y, 47) * 0.2 });
+  }
+  return out;
+}
+
 /** How far a stump has grown back (0 just cut .. 1 a tree again), from `s.stumps`. */
 export function regrowth(s: Pick<GameState, 'stumps' | 'week'>, i: number): number {
   const st = s.stumps.find((t) => t.i === i);
@@ -315,7 +362,9 @@ export function cityPlan(s: GameState): CityPlan {
       const cz = y + 0.5;
       if (s.roads[i]) {
         const tint = 0.92 + hash(x, y) * 0.12;
-        for (const r of roadPieces(s, x, y, roadLevel(s, traffic, x, y, sacred))) props.push({ key: r.key, x: r.x, z: r.z, rot: r.rot, scale: 1, sy: 1, tint });
+        const level = roadLevel(s, traffic, x, y, sacred);
+        for (const r of roadPieces(s, x, y, level)) props.push({ key: r.key, x: r.x, z: r.z, rot: r.rot, scale: 1, sy: 1, tint });
+        for (const r of vergePieces(s, x, y, level)) props.push({ key: r.key, x: r.x, z: r.z, rot: r.rot, scale: 0.6 + hash(x, y, 90) * 0.6, sy: 1, tint: 1 });
         roads.push({ x, y });
         continue;
       }
@@ -328,8 +377,10 @@ export function cityPlan(s: GameState): CityPlan {
         const g = regrowth(s, i);
         if (g >= SAPLING_FROM) props.push({ key: 'sapling', x: jx + 0.12, z: jz + 0.08, rot, scale: 0.35 + 0.65 * g, sy: 1, tint: 1 });
       } else if (f) {
-        props.push({ key: treeKind(f, x, y), x: jx, z: jz, rot, scale: 0.85 + hash(x, y, 4) * 0.4, sy: 1, tint: 0.9 + hash(x, y, 5) * 0.2 });
-      } else if (s.ground[i] === 'grass' && hash(x, y, 6) < 0.35) {
+        const key = countryTree(treeKind(f, x, y), x, y);
+        const [lo, hi] = TREES.scale[key as keyof typeof TREES.scale] ?? TREES.scale.other;
+        props.push({ key, x: jx, z: jz, rot, scale: lo + hash(x, y, 4) * (hi - lo), sy: 1, tint: 0.9 + hash(x, y, 5) * 0.2 });
+      } else if (s.ground[i] === 'grass' && hash(x, y, 6) < TREES.shrubShare) {
         const sx = cx + (hash(x, y, 7) - 0.5) * 0.7;
         const sz = cz + (hash(x, y, 8) - 0.5) * 0.7;
         props.push({ key: 'shrub', x: sx, z: sz, rot: 0, scale: 0.7 + hash(x, y, 9) * 0.8, sy: 1, tint: 0.85 + hash(x, y, 10) * 0.3 });
@@ -343,6 +394,7 @@ export function cityPlan(s: GameState): CityPlan {
     const full = b.kind === 'granary' && b.connected && stock ? (`stock-${stock}` as const) : null;
     buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint, stock: full, site });
   }
+  props.push(...gardenBushes(s));
   return { buildings, props, roads };
 }
 

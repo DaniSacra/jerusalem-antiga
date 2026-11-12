@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addPerson, indexOf, refreshCity } from '../../src/core';
 import { cityPlan, MODEL_KEYS } from '../../src/render3d/plan';
-import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, turnTo } from '../../src/render3d/roads';
+import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, turnTo, vergePieces } from '../../src/render3d/roads';
 import LOOK from '../../src/render3d/look3d.json';
 import { emptyGame, put, road } from '../helpers';
 
@@ -117,5 +117,27 @@ describe('stones on the common roads', () => {
     }
     expect(stones).toBeGreaterThan(0);
     expect(stones).toBeLessThan(roads);
+  });
+});
+
+describe('ragged road edges', () => {
+  it('puts lumps of lawn on the open sides of a road, never on a stone road or off the network', () => {
+    const s = emptyGame();
+    let n = 0;
+    // The starting road runs down x = 24, on the network.
+    for (let y = 32; y < 44; y++) {
+      for (const p of vergePieces(s, 24, y, 1)) {
+        expect(p.key).toBe('verge');
+        // Straddling the east or west edge of its cell, along the road's two open sides.
+        expect(Math.abs(p.x - 24.5)).toBeGreaterThan(0.38);
+        n++;
+      }
+      expect(vergePieces(s, 24, y, 2)).toEqual([]);
+    }
+    expect(n).toBeGreaterThan(6);
+    expect(vergePieces(s, 24, 40, 1)).toEqual(vergePieces(s, 24, 40, 1));
+    // A road off the network gets none.
+    s.roads[indexOf(s, 5, 5)] = true;
+    expect(vergePieces(s, 5, 5, 1)).toEqual([]);
   });
 });

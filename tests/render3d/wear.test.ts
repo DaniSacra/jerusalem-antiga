@@ -86,3 +86,16 @@ describe('stand map (contact shadow)', () => {
     expect(m[indexOf(s, altar.x, altar.y)]).toBe(1);
   });
 });
+
+describe('worn crossings', () => {
+  it('wears a crossing wider than a straight road', () => {
+    const s = emptyGame();
+    // The starting road down x = 24; a road crossing it at y = 35 and another cell touching it at y = 41 (a bend: not a crossing).
+    for (let x = 20; x <= 28; x++) s.roads[indexOf(s, x, 35)] = true;
+    for (let x = 25; x <= 28; x++) s.roads[indexOf(s, x, 41)] = true;
+    refreshCity(s);
+    const map = wearMap(s);
+    // Two cells from the centre of the crossing (diagonal, past the straight border's reach) it is worn; by the plain road it is not.
+    expect(wearAt(s, map, 25.6, 36.6)).toBeGreaterThan(wearAt(s, map, 25.6, 38.6) + 0.02);
+  });
+});

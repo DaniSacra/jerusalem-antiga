@@ -14,6 +14,7 @@ import { roadLevel, roadTraffic, sacredOf } from './roads';
  * - between houses 1 to 3 cells apart, a faint path (as the 2D drew them).
  */
 const W = LOOK.wear;
+const JUNCTION_SIDES: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 export const WEAR_RES = W.res;
 
 /** Kinds with no door patch: fields are soil, the altar, temple, plaza and park have their own ground. */
@@ -49,9 +50,12 @@ export function wearMap(s: GameState): Float32Array {
       if (!s.roads[i]) continue;
       const level = s.network[i] ? roadLevel(s, traffic, x, y, sacred) : -1;
       const k = level < 0 ? R.loose : level === 0 ? R.trail : level === 1 ? R.road : R.kerb;
-      stamp(x - R.reach, y - R.reach, x + 1 + R.reach, y + 1 + R.reach, (px, pz) => {
+      // A crossing (three or four roads meet) is worn wider: carts and feet cut the corners.
+      const arms = JUNCTION_SIDES.filter(([dx, dy]) => x + dx >= 0 && y + dy >= 0 && x + dx < s.cols && y + dy < s.rows && s.roads[indexOf(s, x + dx, y + dy)]).length;
+      const reach = arms >= 3 && level >= 0 ? R.reach + W.junction : R.reach;
+      stamp(x - reach, y - reach, x + 1 + reach, y + 1 + reach, (px, pz) => {
         const d = Math.hypot(Math.max(x - px, 0, px - x - 1), Math.max(y - pz, 0, pz - y - 1));
-        return k * Math.max(0, 1 - d / R.reach);
+        return k * Math.max(0, 1 - d / reach);
       });
     }
 

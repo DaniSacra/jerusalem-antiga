@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, indexOf, RULES, type BuildableKind, type BuildingKind } from '../../src/core';
-import { CLOSED_AT, cityPlan, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, thumbKey, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
+import { CLOSED_AT, cityPlan, countryTree, gardenBushes, HOUSE_SMOKE_FROM, houseSmokeKey, panesOf, smokeShare, WINDOWS_AT, EXTRA_KEYS, extraOf, facing, footprintOf, LEVELLED, lookOf, MODEL_KEYS, regrowth, residentsOf, SAPLING_FROM, MIRRORED_KEYS, mirrorOf, stockLevel, thumbKey, VACANT_TINT, walkerCount, yardOf } from '../../src/render3d/plan';
 import { foodCapacity } from '../../src/core';
 import { treeKind } from '../../src/game/seasons';
 import { emptyGame, put } from '../helpers';
@@ -221,16 +221,48 @@ describe('what the 3D view draws', () => {
     expect(thumbKey('house')).toBe('house-2');
   });
 
-  it('olive cells are drawn as olives, almonds and figs (the look of each cell, stable)', () => {
+  it('olive cells are drawn as olives, oaks, almonds and figs (the look of each cell, stable)', () => {
     const s = emptyGame();
     s.feature = s.feature.map(() => null);
     for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) s.feature[indexOf(s, x, y)] = 'olive';
-    const trees = cityPlan(s).props.filter((p) => ['olive', 'almond', 'fig'].includes(p.key));
+    const trees = cityPlan(s).props.filter((p) => ['olive', 'oak', 'almond', 'fig'].includes(p.key));
     expect(trees).toHaveLength(144);
-    for (const p of trees) expect(p.key).toBe(treeKind('olive', Math.floor(p.x), Math.floor(p.z)));
+    for (const p of trees) {
+      const kind = treeKind('olive', Math.floor(p.x), Math.floor(p.z));
+      expect(p.key).toBe(kind === 'olive' ? countryTree(kind, Math.floor(p.x), Math.floor(p.z)) : kind);
+    }
     const n = (k: string) => trees.filter((p) => p.key === k).length;
     expect(n('almond')).toBeGreaterThan(144 * 0.15);
     expect(n('fig')).toBeGreaterThan(144 * 0.07);
-    expect(n('olive')).toBeGreaterThan(144 * 0.3);
+    expect(n('olive')).toBeGreaterThan(144 * 0.12);
+    expect(n('oak')).toBeGreaterThan(144 * 0.07);
+  });
+
+  it('palm cells are palms and (a share) pines, and every tree model exists', () => {
+    const s = emptyGame();
+    s.feature = s.feature.map(() => null);
+    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) s.feature[indexOf(s, x, y)] = 'palm';
+    const trees = cityPlan(s).props.filter((p) => ['palm', 'pine'].includes(p.key));
+    expect(trees).toHaveLength(144);
+    expect(trees.filter((p) => p.key === 'pine').length).toBeGreaterThan(144 * 0.15);
+    expect(trees.filter((p) => p.key === 'palm').length).toBeGreaterThan(144 * 0.4);
+    for (const k of ['oak', 'pine', 'wood', 'shrub', 'flowers', 'flowers-b', 'verge'] as const) expect(MODEL_KEYS).toContain(k);
+  });
+
+  it('puts round bushes round the buildings, never on a road, a building, a tree or by a road', () => {
+    const s = emptyGame();
+    s.feature = s.feature.map(() => null);
+    for (let x = 18; x <= 34; x++) s.roads[indexOf(s, x, 30)] = true;
+    for (const x of [19, 22, 25, 28, 31]) for (const y of [32, 36]) put(s, 'house', x, y, 2);
+    const bushes = gardenBushes(s);
+    expect(bushes.length).toBeGreaterThan(3);
+    for (const b of bushes) {
+      const cx = Math.floor(b.x);
+      const cy = Math.floor(b.z);
+      const i = indexOf(s, cx, cy);
+      expect(s.roads[i] || s.grid[i] || s.feature[i]).toBeFalsy();
+      for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) expect(s.roads[indexOf(s, cx + dx, cy + dy)]).toBeFalsy();
+    }
+    expect(gardenBushes(s)).toEqual(bushes);
   });
 });

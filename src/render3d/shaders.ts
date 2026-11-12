@@ -34,6 +34,8 @@ export const U = {
   /** River banks: the water line height now (lower in a drought) and the wet and pale sand colours. */
   uWaterY: { value: -0.16 },
   uBank: { value: new THREE.Color(0xe8dab6) },
+  /** Bare rock on the tops of the hills round the map. */
+  uRock: { value: new THREE.Color(0xa09482) },
   uBankWet: { value: new THREE.Color(0xa89878) },
   /** Trodden ground (wear.ts): the map's wear, its size in cells and the colour of bare earth. */
   uWear: { value: blankWear() as THREE.Texture },
@@ -97,6 +99,8 @@ export interface PatchOptions {
   waves?: boolean;
   /** Cloth in the wind by its `aFlap` weights (models.ts): washing swings, awnings billow. */
   cloth?: boolean;
+  /** Each copy a little yellower or bluer than the next (by its place): trees and grass of many tones. */
+  hue?: boolean;
 }
 
 const patched = new WeakSet<THREE.Material>();
@@ -108,7 +112,7 @@ const patched = new WeakSet<THREE.Material>();
 export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THREE.Material {
   if (patched.has(m)) return m;
   patched.add(m);
-  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}${o.wind ? `i${o.wind}${o.waves ? 'v' : ''}` : ''}${o.cloth ? 'c' : ''}`;
+  const key = `w${o.snow ? 's' : ''}${o.grow ? 'g' : ''}${o.windows ? 'n' : ''}${o.terrain ? 't' : ''}${o.wind ? `i${o.wind}${o.waves ? 'v' : ''}` : ''}${o.cloth ? 'c' : ''}${o.hue ? 'h' : ''}`;
   m.customProgramCacheKey = () => key;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -165,7 +169,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
         uniform float uSnow; uniform vec3 uSnowColor; uniform float uWet; uniform float uCloud; uniform vec2 uCloudOffset;
         uniform float uWindows; uniform vec3 uWindowColor;
         ${o.grow ? 'varying float vDry; uniform vec3 uDryCrop;' : ''}
-        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden; uniform sampler2D uStand; uniform float uContact;' : ''}
+        ${o.terrain ? 'varying vec3 vGround; uniform vec3 uSand, uSandDark, uGrass, uGrassDark, uMud, uCrack, uBank, uBankWet, uRock; uniform float uFlowers, uDrought, uGrain, uWaterY; uniform sampler2D uWear; uniform vec2 uMapSize; uniform vec3 uTrodden; uniform sampler2D uStand; uniform float uContact;' : ''}
         ${NOISE}`,
       )
       .replace(
@@ -180,6 +184,7 @@ export function patch(m: THREE.Material, o: PatchOptions = { snow: true }): THRE
             diffuseColor.rgb = mix(base, vec3(lum) * vec3(1.02, 0.97, 0.88), 0.7) * 0.92 + vec3(0.04, 0.035, 0.025);
           }
         #endif
+        ${o.hue ? 'diffuseColor.rgb *= mix(vec3(0.86, 1.0, 0.95), vec3(1.1, 1.04, 0.8), vInst);' : ''}
         float up = smoothstep(0.55, 0.9, vUp);
         ${o.snow ? `float snowK = uSnow * up * smoothstep(0.25, 0.55, vnoise(vWorld.xz * 0.7) * 0.6 + uSnow * 0.7 - 0.15);
         diffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, snowK);` : 'float snowK = 0.0;'}
@@ -299,15 +304,23 @@ export function paneMaterial(): THREE.ShaderMaterial {
 /** Terrain colour: sand and grass of the season by the per-vertex share, river mud, drought cracks, spring flowers. */
 const TERRAIN_COLOR = /* glsl */ `
   float n = vGround.z;
-  vec3 g = mix(mix(uSand, uSandDark, n * 0.6), mix(uGrass, uGrassDark, n), vGround.x);
-  // Grain and patches (off at the minimum quality): broad patches two or three cells wide and a fine
-  // grain that fades with the distance (no shimmer far away).
+  // The lawn and the dry meadow meet in a ragged edge (noise on the share), not a smooth blur.
+  float gk = smoothstep(0.28, 0.72, vGround.x + (vnoise(vWorld.xz * 1.15 + 5.0) - 0.5) * 0.5);
+  vec3 g = mix(mix(uSand, uSandDark, smoothstep(0.25, 0.75, vnoise(vWorld.xz * 0.55 + 2.0)) * 0.8 + n * 0.2), mix(uGrass, uGrassDark, n), gk);
+  // Grain and patches (off at the minimum quality): broad patches of sun-yellowed and shaded turf, a
+  // finer mottling and a fine grain that fades with the distance (no shimmer far away).
   if (uGrain > 0.0) {
+    float broad = vnoise(vWorld.xz * 0.085 + 3.0);
     float patchK = vnoise(vWorld.xz * 0.38 + 7.0) * 0.65 + vnoise(vWorld.xz * 1.1 - 3.0) * 0.35;
     float near = 1.0 - smoothstep(18.0, 55.0, distance(vWorld, cameraPosition));
     float grain = vnoise(vWorld.xz * 11.0) - 0.5;
-    g *= 1.0 + uGrain * ((patchK - 0.5) * 0.2 + grain * 0.14 * near);
+    // Yellowed in the sun (warm, light), deep and cool in the shade, by a very large patch.
+    g *= mix(vec3(0.84, 0.95, 0.9), vec3(1.16, 1.1, 0.72), smoothstep(0.3, 0.7, broad));
+    g *= 1.0 + uGrain * ((patchK - 0.5) * 0.3 + grain * 0.15 * near);
   }
+  // The tops of the hills round the map are bare rock, its edge broken by noise (the hills stand over 3 units).
+  float alt = smoothstep(3.4, 5.6, vWorld.y + (vnoise(vWorld.xz * 0.35) - 0.5) * 1.8);
+  g = mix(g, uRock * (0.8 + 0.4 * vnoise(vWorld.xz * 2.1)), alt * 0.85);
   // Trodden earth (wear.ts): before the doors, along the roads, the paths between houses; its edge
   // broken by noise so the patches read as worn ground, not as painted shapes.
   vec2 wuv = vWorld.xz / uMapSize;
@@ -341,12 +354,18 @@ const TERRAIN_COLOR = /* glsl */ `
     float edge = 1.0 - smoothstep(0.03, 0.2, sqrt(d2) - sqrt(d1));
     g = mix(g, uCrack, uDrought * edge * 0.9 * (1.0 - vGround.x * 0.3));
   }
-  // Small flowers on the grass in spring: a few bright dots per cell.
-  vec2 fp = vWorld.xz * 7.0;
-  float fh = h21(floor(fp));
-  float dotK = uFlowers <= 0.0 ? 0.0 : step(1.0 - 0.07 * uFlowers * vGround.x, fh) * (1.0 - smoothstep(0.18, 0.32, length(fract(fp) - 0.5)));
-  vec3 fc = fh > 0.985 ? vec3(0.95, 0.85, 0.2) : fh > 0.975 ? vec3(0.95, 0.95, 0.95) : vec3(0.85, 0.15, 0.12);
-  g = mix(g, fc, dotK);
+  // Wild flowers on the lawn: scattered a little everywhere and thick in patches (blue, white, yellow, orange).
+  if (uFlowers > 0.0) {
+    vec2 fp = vWorld.xz * 5.0;
+    float fh = h21(floor(fp));
+    float patchF = smoothstep(0.55, 0.78, vnoise(vWorld.xz * 0.33 + 11.0));
+    float density = (0.012 + 0.2 * patchF) * uFlowers * gk;
+    float near = 1.0 - smoothstep(30.0, 65.0, distance(vWorld, cameraPosition));
+    float dotK = step(1.0 - density, fh) * (1.0 - smoothstep(0.2, 0.34, length(fract(fp) - 0.5))) * near;
+    float c4 = fract(fh * 91.7);
+    vec3 fc = c4 < 0.3 ? vec3(0.42, 0.55, 0.98) : c4 < 0.55 ? vec3(0.98, 0.98, 0.94) : c4 < 0.8 ? vec3(1.0, 0.86, 0.2) : vec3(1.0, 0.55, 0.14);
+    g = mix(g, fc, dotK);
+  }
   diffuseColor.rgb = g;
 `;
 

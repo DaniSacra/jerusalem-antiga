@@ -260,7 +260,8 @@ export class Stage {
     U.uWet.value = w.wet;
     this.cloudOffset.x += dt * (0.02 + 0.08 * w.wind);
     U.uCloudOffset.value.copy(this.cloudOffset);
-    U.uCloud.value = L.clouds * (1 - L.night) * (1 - w.rain * 0.6);
+    // Some clouds always drift over the land on a clear day: their big soft shadows sweep the fields.
+    U.uCloud.value = Math.max(L.clouds, LOOK.cloudShadow) * (1 - L.night) * (1 - w.rain * 0.6);
     U.uWindows.value = L.windows;
     U.uWindowColor.value.setHex(0xffa850).multiplyScalar(LOOK.night.window);
     U.uGrow.value = Math.max(0.02, crop.height);
@@ -281,6 +282,7 @@ export class Stage {
     crownMaterial(COLORS.leaf).color.setHex(s3.leaf);
     crownOf(COLORS.almondCrown, look.almond, 0xf2dde3, s3.leaf);
     crownOf(COLORS.figCrown, look.fig, 0xf2dde3, mixColor(0x5e8a36, s3.leaf, 0.3));
+    crownMaterial(COLORS.pine).color.setHex(mixColor(COLORS.pine, s3.leafDark, 0.2));
     materialOf(COLORS.grass).color.setHex(s3.grass);
     materialOf(COLORS.tuft).color.setHex(s3.grass);
     materialOf(COLORS.tuftDark).color.setHex(s3.grassDark);
@@ -309,6 +311,8 @@ export class Stage {
     world.leavers.update(time);
     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
+    world.farWoods.visible = this.level === 'high';
+    for (const m of world.flowerMeshes) m.visible = s3.flowers >= LOOK.detail.flowerSeason;
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
     world.hands.update(time, fieldHands(isHarvest(crop.stage), isPlowing(crop.stage), L.night, w.rain) * Math.max(day.work, LOOK.routine.fieldsIdle), MAX_HANDS);

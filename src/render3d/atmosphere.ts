@@ -38,10 +38,16 @@ void main() {
     c += vec3(st * uStars * (0.6 + 0.4 * sin(uTime * 3.0 + h21(floor(g) + 3.0) * 40.0)));
   }
   if (y > 0.0) {
-    vec2 cp = d.xz / (y + 0.15) * 1.6 + uWind * uTime * 0.02;
+    // Big fluffy clouds (always some, even on a clear day), lit from the sun's side, bluish-grey under.
+    vec2 cp = d.xz / (y + 0.2) * 1.05 + uWind * uTime * 0.012;
     float n = fbm(cp);
-    float cover = smoothstep(1.0 - uClouds * 0.75 - 0.15, 1.0 - uClouds * 0.75 + 0.2, n);
-    c = mix(c, uCloudColor * (0.85 + 0.25 * n), cover * smoothstep(0.0, 0.08, y) * 0.92);
+    float cov = max(uClouds, 0.36);
+    float t = 1.0 - cov * 0.7 - 0.12;
+    float cover = smoothstep(t, t + 0.14, n);
+    vec2 sd = normalize(uSunDir.xz + vec2(0.001)) * 0.07;
+    float lit = clamp((n - fbm(cp + sd)) * 7.0 + 0.55, 0.0, 1.0);
+    vec3 cc = mix(uCloudColor * vec3(0.76, 0.83, 0.95), uCloudColor * vec3(1.08, 1.05, 0.98), lit);
+    c = mix(c, cc, cover * smoothstep(0.0, 0.1, y) * 0.95);
   }
   gl_FragColor = vec4(c, 1.0);
   #include <colorspace_fragment>
