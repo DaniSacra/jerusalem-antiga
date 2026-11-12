@@ -1,4 +1,4 @@
-import { fitPills, topBar, type MeasureText, type Pill, type PillMetrics } from '../game/model/topbar';
+import { fitPills, topBar, upcomingGoals, type MeasureText, type Pill, type PillMetrics } from '../game/model/topbar';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
 import type { Speed } from '../game/tools';
@@ -24,6 +24,10 @@ export class TopBar {
   private pills = h('span.pillset');
   private level = h('div.level.hit', { 'data-spot': 'panel-goals', role: 'button', 'aria-label': T.nova.buttons.goals }, h('b'), h('small', {}, T.nova.level));
   private goal = h('div.pill.goal.hit', { role: 'button' });
+  /** PC: the next goals under the current one, dimmed (the side task list). */
+  private upcoming = h('ul.upcoming');
+  /** The goal and the list: a side panel on PC, just the goal pill (in flow) on the phone. */
+  readonly tasks = h('div.tasks', {}, this.goal, this.upcoming);
   private season = h('div.pill.season');
   private speed: HTMLButtonElement;
   /** PC: pause, 1x and 3x side by side, the one in use gold (as the 2D); the phone cycles one button. */
@@ -52,7 +56,7 @@ export class TopBar {
     }
     this.clock = h('div.clock.panel', { 'data-spot': 'clock' }, this.season, h('div.controls', {}, this.speed, group));
     const right = (this.right = h('div.right', {}, iconButton('gear', T.nova.buttons.settings, o.settings, 'settings')));
-    this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.goal)), right);
+    this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.tasks)), right);
   }
 
   update(phone: boolean) {
@@ -91,6 +95,7 @@ export class TopBar {
     this.goal.classList.toggle('done', bar.goalFraction >= 1);
     // PC: the goal is a task panel on the left (CSS by form); the phone keeps it under the capsules.
     this.goal.classList.toggle('aside', !phone);
+    if (!phone) keyed(this.upcoming, JSON.stringify(upcomingGoals(s.state)), () => upcomingGoals(s.state).map((t) => h('li', {}, h('i'), h('span', {}, t))));
     keyed(this.speed, String(s.speed), () => (s.speed === 0 ? [iconEl('pause')] : [`${s.speed}x`]));
     this.speed.setAttribute('aria-label', s.speed === 0 ? T.nova.buttons.paused : `${s.speed}x`);
     for (const [v, b] of this.speeds) b.classList.toggle('on', s.speed === v);

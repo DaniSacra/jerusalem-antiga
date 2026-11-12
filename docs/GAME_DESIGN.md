@@ -933,6 +933,14 @@ Casa com `docs/referencia-foundation.md` ("Interface"): desenho todo nosso, nada
   madeira e pergaminho. Os cartões de vitória e derrota levam o brasão e o filete.
 - **Movimento:** janelas e cartões abrem com um "pop" suave (0,2 s), botões sobem 1 px sob o mouse;
   `prefers-reduced-motion` desliga tudo (fechar ainda não tem animação).
+- **Rodada 2 (2026-11-12):** ícones novos "pintados" (contorno escuro, 2–3 tons e um brilho; `icons.ts`:
+  prata, comida, madeira, pedra, moradores, mão do Mover, estrada, martelo do Demolir, girar, bandeira,
+  aviso, olho, gráfico, Profissões, engrenagem). Os cartões da coluna de construções são madeira escura com
+  borda dourada, nome serifado e preço em ocre (vermelho quando falta; tracejado quando bloqueado). As janelas
+  fecham com um fade curto (`.hidden` fica 0,14 s em `visibility`), a ferramenta escolhida sobe 3 px e o
+  passar do mouse acende um brilho dourado. No celular, a barra de ferramentas e o relógio ficam escondidos
+  enquanto Profissões está aberta (ela ocupa a tela). O painel de tarefas (PC) mostra o Objetivo atual com
+  caixa e os **2 próximos** objetivos de `goals.json` apagados (`upcomingGoals`, com testes).
 - **Balões de problema sobre o mundo** (`.need`): redondos, disco creme com aro dourado e um biquinho
   para o prédio; o cadeado do que ainda está bloqueado continua no canto.
 - Não mudaram: regras, números, textos, gestos e tamanhos mínimos (toque 44 px, texto 12 px).

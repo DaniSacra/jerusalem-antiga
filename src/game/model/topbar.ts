@@ -9,6 +9,7 @@ import {
   goalCount,
   goalFraction,
   goalProgress,
+  GOALS,
   goalTarget,
   housesWaiting,
   lastsToHarvest,
@@ -158,6 +159,11 @@ export function goalParts(s: GameState, phone: boolean): Part[] {
     ...(phone ? [] : [{ bar: goalFraction(s) } as Part]),
     ...(progress ? [{ text: progress, tone: 'gold' } as Part] : []),
   ];
+}
+
+/** The goals after the current one (their texts, up to `n`): the side task list shows them dimmed. */
+export function upcomingGoals(s: GameState, n = 2): string[] {
+  return GOALS.slice(s.goalIndex + 1, s.goalIndex + 1 + n).map((g) => T.nova.goalText(g));
 }
 
 /** The tightest step of `topBar`'s `fit`. */

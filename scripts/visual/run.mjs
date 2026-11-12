@@ -2598,7 +2598,7 @@ for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
       // draws a few frames a second: shots would catch them half faded. Shown at once in the tests.
       await context.addInitScript(() => addEventListener('DOMContentLoaded', () => {
         const st = document.createElement('style');
-        st.textContent = '.balloon, .toolballoon, .panelbox, .sheet, .settings, .modal, .modal .card, .tutorial { animation: none !important; }';
+        st.textContent = '.balloon, .toolballoon, .panelbox, .sheet, .settings, .modal, .modal .card, .tutorial { animation: none !important; } .panelbox, .settings { transition: none !important; }';
         document.head.append(st);
       }));
       page = await context.newPage();

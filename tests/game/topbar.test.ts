@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readCity, TEMPLE_STAGES } from '../../src/core';
-import { FIT_MAX, fitPills, pillsWidth, topBar, type Part } from '../../src/game/model/topbar';
+import { GOALS, readCity, TEMPLE_STAGES } from '../../src/core';
+import { FIT_MAX, fitPills, pillsWidth, topBar, upcomingGoals, type Part } from '../../src/game/model/topbar';
 import { fmt, T } from '../../src/game/strings';
 import { emptyGame } from '../helpers';
 
@@ -93,3 +93,20 @@ describe('the Alegria pill on a tight PC bar', () => {
   });
 });
 
+
+describe('upcoming goals (the side task list)', () => {
+  it('the next goals after the current one, in order, as many as asked', () => {
+    const s = emptyGame();
+    s.goalIndex = 0;
+    expect(upcomingGoals(s, 2)).toEqual([T.nova.goalText(GOALS[1]), T.nova.goalText(GOALS[2])]);
+    expect(upcomingGoals(s)).toHaveLength(2);
+  });
+
+  it('fewer at the end of the list and none after the last goal', () => {
+    const s = emptyGame();
+    s.goalIndex = GOALS.length - 2;
+    expect(upcomingGoals(s, 3)).toHaveLength(1);
+    s.goalIndex = GOALS.length;
+    expect(upcomingGoals(s, 3)).toEqual([]);
+  });
+});

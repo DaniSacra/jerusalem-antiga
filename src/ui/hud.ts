@@ -86,7 +86,6 @@ export class Hud {
   private noticeKeys = new Set<string>();
   private toasts = new Toasts();
   private tutorial: Tutorial;
-  private goalPanel: Element | null = null;
   /** "O que fazer agora", under the top bar (hidden during the tutorial). */
   private next: NextStepLine;
   private modal: Modal;
@@ -173,7 +172,7 @@ export class Hud {
     // The map ends above the toolbar and the clock panel, whichever is taller (the phone's clock is a row as low as the tools).
     const clock = this.top.clock.getBoundingClientRect();
     const floor = Math.min(tools.height ? tools.top : innerHeight, clock.height ? clock.top : innerHeight);
-    const goal = this.top.el.querySelector('.goal.aside')?.getBoundingClientRect();
+    const goal = this.phone ? null : this.top.tasks.getBoundingClientRect();
     this.free = { left: Math.max(side.width ? side.right : 0, goal?.width ? goal.right : 0) + 8, top: top + 8, right: right - 8, bottom: floor - 8 };
     // Panels and the person sheet end above the tools too.
     const below = `${Math.round(innerHeight - this.free.bottom)}px`;
@@ -233,6 +232,7 @@ export class Hud {
     this.next.update(this.tutorial.open ? null : nextStep(s.state, s.city), !this.panels.open && !this.sheet.open);
     this.tools.update(this.phone);
     this.root.classList.toggle('tutoring', this.tutorial.open);
+    this.root.classList.toggle('jobsopen', this.phone && this.panels.open === 'jobs');
     this.measureFree();
     // The toasts end left of the tool balloon (its cost line explains a failure).
     const tip = this.tools.tip.classList.contains('hidden') ? null : this.tools.tip.getBoundingClientRect();
@@ -319,8 +319,7 @@ export class Hud {
   /** Per frame: time for the toasts, and what is pinned to the world follows the camera. */
   frame(dtMs: number) {
     // A window opens over the PC's side goal panel: the goal waits (its progress is in the window's list too).
-    this.goalPanel ??= this.top.el.querySelector('.goal');
-    this.goalPanel?.classList.toggle('hidden', this.goalPanel.classList.contains('aside') && (!!this.panels.open || this.sheet.open));
+    this.top.tasks.classList.toggle('hidden', !this.phone && (!!this.panels.open || this.sheet.open));
     this.toasts.frame(dtMs);
     this.next.frame(dtMs);
     this.anchors.frame(dtMs);

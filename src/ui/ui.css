@@ -103,7 +103,7 @@
 
 /* ---------- side, tools and column ---------- */
 .side { position: absolute; left: var(--margin); top: var(--margin); display: flex; flex-direction: column; gap: 10px; }
-#hud[data-form='phone'] .tools { gap: 4px; padding: 5px 8px 4px; }
+#hud[data-form='phone'] .tools { gap: 8px; padding: 5px 8px 4px; }
 #hud[data-form='phone'] .tool .label { padding: 0 2px; }
 /* A short phone (667 wide): icons only, the bar leans right (against the build column) to leave the clock its corner. */
 @media (max-width: 760px) {
@@ -438,14 +438,14 @@
 }
 .modal .card { border-width: calc(var(--frame) + 3px); }
 /* Dark glass panels: a faint light from above. */
-.panel, .pgroup, .tools { background-image: linear-gradient(rgba(255, 226, 160, 0.09), transparent 55%); }
+.panel:not(.panelbox), .pgroup, .tools { background-image: linear-gradient(rgba(255, 226, 160, 0.09), transparent 55%); }
 .pgroup .pill, .clock .pill { background-image: none; }
 /* Serif titles on the windows. */
 .panelbox .jobshead > b, .modal h2, .sheet .head b { font-family: var(--title-font); letter-spacing: 0.01em; }
 .panelbox .jobshead > b { color: var(--c-wood); }
 
 /* Goal as a task on the left (PC): a translucent panel under the side buttons with a check box, the goal and its bar. */
-#hud:not([data-form='phone']) .goal.aside { position: absolute; left: 0; top: calc(6 * var(--btn) + 6 * 10px + 8px); width: 224px; height: auto; white-space: normal; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 12px; border-radius: var(--r-panel); }
+#hud:not([data-form='phone']) .goal.aside { position: static; box-sizing: border-box; width: 100%; height: auto; white-space: normal; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 12px; border-radius: var(--r-panel); }
 #hud:not([data-form='phone']) .goal.aside > * { flex: none; }
 #hud:not([data-form='phone']) .goal.aside > :nth-child(1) { flex: 1; min-width: 0; color: var(--c-gold-bright); font-size: var(--small); }
 #hud:not([data-form='phone']) .goal.aside > :nth-child(2) { flex: 0 0 100%; overflow: visible; text-overflow: clip; font-size: var(--num); line-height: 1.2; }
@@ -500,3 +500,54 @@
   .act:hover, .tab:hover, .tutorial button:hover { transform: none; }
 }
 #hud:not([data-form='phone']) .panelbox.jobs { padding: 6px 12px 8px; }
+
+/* ---- Round 2 ---- */
+/* The side task list (PC): the goal with its box, then the next goals dimmed; on the phone only the goal pill (in flow). */
+.tasks { display: contents; }
+.upcoming { display: none; }
+#hud:not([data-form='phone']) .tasks { display: block; position: absolute; left: 0; top: calc(6 * var(--btn) + 6 * 10px + 8px); width: 224px; }
+#hud:not([data-form='phone']) .upcoming { display: flex; flex-direction: column; gap: 4px; margin: 6px 4px 0; padding: 0; list-style: none; pointer-events: none; }
+.upcoming:empty { display: none !important; }
+.upcoming li { display: flex; align-items: center; gap: 8px; font-size: var(--small); font-weight: 700; color: var(--c-text); opacity: 0.6; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }
+.upcoming li i { flex: none; box-sizing: border-box; width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--c-edge); background: rgba(0, 0, 0, 0.25); }
+.upcoming li:nth-child(2) { opacity: 0.4; }
+
+/* The build column's cards: dark wood, a gold edge, the thumbnail, the price in ochre. */
+.build { background: linear-gradient(rgba(255, 226, 160, 0.13), transparent 60%), var(--wood-grain), var(--c-wood); background-size: auto, 240px; color: var(--c-text); border: 1.5px solid var(--c-edge); box-shadow: 0 2px 0 var(--c-shadow), inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+.build b { font-family: var(--title-font); letter-spacing: 0.01em; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.build small { color: var(--c-ochre); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.build kbd { color: var(--c-muted); border-color: var(--c-edge-soft); }
+.build.on, .build.on:hover { background-image: linear-gradient(rgba(255, 226, 160, 0.3), transparent 70%), var(--wood-grain); box-shadow: 0 0 0 2.5px var(--c-gold), 0 0 14px var(--c-gold-light); }
+.build.locked { background: var(--c-wood-dark); border-style: dashed; color: var(--c-muted); box-shadow: none; }
+.build.locked small { color: var(--c-muted); }
+.build.short small { color: var(--c-bad); }
+.build:hover:not(.locked) { box-shadow: 0 0 0 2px var(--c-gold), 0 0 12px var(--c-gold-light); }
+#hud[data-form='phone'] .thumb { border-color: var(--c-edge); }
+#hud[data-form='phone'] .build.short .thumb { border-color: var(--c-bad); }
+#hud[data-form='phone'] .build.locked .thumb { background: #4a3a28; }
+
+/* Windows close as they open: hidden stays laid out for 0.14 s, fading and sinking, then it leaves (visibility). */
+.panelbox, .settings { animation: none; transition: opacity 0.18s ease-out, scale 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), translate 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s; }
+.panelbox.hidden, .settings.hidden { display: block !important; opacity: 0; scale: 0.96; translate: 0 6px; visibility: hidden; pointer-events: none; transition: opacity 0.14s ease-in, scale 0.14s ease-in, translate 0.14s ease-in, visibility 0s 0.14s; }
+@media (prefers-reduced-motion: reduce) { .panelbox, .settings, .panelbox.hidden, .settings.hidden { transition: none; } }
+/* The Profissões window fills the phone's screen: the toolbar and the clock wait under it. */
+#hud.jobsopen .tools, #hud.jobsopen .clock { visibility: hidden; }
+
+/* Hover and press: a gold glow; the chosen tool rises a little and the bar eases between tools. */
+.tool .disc { transition: filter 0.15s, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s, border-color 0.15s, color 0.15s; }
+.tool .label { transition: color 0.2s; }
+.tool.on .disc { transform: translateY(-3px) scale(1.07); }
+.tool.on:active .disc { transform: translateY(0) scale(1.02); }
+@media (hover: hover) {
+  .tool:hover .disc { box-shadow: 0 0 0 2px var(--c-gold-light), 0 0 14px rgba(255, 215, 122, 0.55), 0 2px 0 var(--c-shadow); }
+  .tool.on:hover .disc { box-shadow: 0 0 0 2.5px var(--c-gold), 0 0 0 6px var(--c-gold-light), 0 0 16px rgba(255, 215, 122, 0.6); }
+  .act:hover, .tab:hover, .tutorial button:hover { box-shadow: inset 0 1px 0 rgba(255, 244, 210, 0.55), 0 0 12px rgba(255, 215, 122, 0.55), 0 2px 0 var(--c-shadow); }
+  .side .round:hover { box-shadow: 0 0 12px rgba(255, 215, 122, 0.45), 0 2px 0 var(--c-shadow); }
+}
+@media (prefers-reduced-motion: reduce) { .tool .disc, .tool .label { transition: none; } .tool.on .disc { transform: none; } }
+
+/* Serif numbers and headings; an engraved inner line on the windows. */
+.pill .s-num, .level b, .jobrow .target b, .medal b, .line.big, .pline .big, .bhead .line { font-family: var(--title-font); }
+.panelbox, .modal .card { position: relative; }
+.panelbox::before, .modal .card::before { content: ''; position: absolute; inset: 3px; border: 1px solid rgba(138, 100, 32, 0.35); border-radius: calc(var(--r-window) - 6px); pointer-events: none; }
+.panelbox { position: absolute; }
