@@ -119,4 +119,20 @@ describe('the life around the town', () => {
       expect(o.range).toBeLessThan(0.2);
     }
   });
+
+  it('grazes a few small herds of cows on open grass and keeps geese by the river, on dry free ground', () => {
+    const s = emptyGame();
+    s.ground = s.ground.map((g) => (g === 'river' ? g : 'grass'));
+    const spots = ambientPlan(s);
+    const cows = spots.filter((o) => o.kind === 'cow');
+    const geese = spots.filter((o) => o.kind === 'goose');
+    expect(cows.length).toBeGreaterThan(0);
+    expect(cows.length).toBeLessThanOrEqual(A.cowHerds * A.cowHerd);
+    expect(geese.length).toBeGreaterThan(0);
+    for (const o of [...cows, ...geese]) {
+      const i = indexOf(s, Math.floor(o.x), Math.floor(o.z));
+      expect(s.roads[i] || s.grid[i] || s.ground[i] === 'river').toBeFalsy();
+    }
+    expect(ambientCounts(spots).cow).toBe(cows.length);
+  });
 });

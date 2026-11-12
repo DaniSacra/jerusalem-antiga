@@ -131,6 +131,15 @@ export function ambientPlan(s: GameState): AmbientSpot[] {
     for (let k = 0; k < A.flockSize; k++) add({ kind: 'sheep', x: g.x + 0.5 + (hash(g.x, k, 48) - 0.5), z: g.y + 0.5 + (hash(g.y, k, 49) - 0.5), range: 1, yaw: hash(g.x, k, 50) * 6.28, k: hash(g.y, k, 51) });
   }
 
+  // Cows grazing in a few small herds on the open grass farther out, and geese in the grass by the water.
+  const cowGrass = grass.filter((g) => g.d > 8);
+  const herds: { x: number; y: number }[] = [];
+  for (const g of cowGrass) {
+    if (herds.length >= A.cowHerds) break;
+    if (herds.some((f) => Math.hypot(f.x - g.x, f.y - g.y) < 8) || flocks.some((f) => Math.hypot(f.x - g.x, f.y - g.y) < 4)) continue;
+    herds.push(g);
+    for (let k = 0; k < A.cowHerd; k++) add({ kind: 'cow', x: g.x + 0.5 + (hash(g.x, k, 140) - 0.5) * 1.1, z: g.y + 0.5 + (hash(g.y, k, 141) - 0.5) * 1.1, range: 0.5, yaw: hash(g.x, k, 142) * 6.28, k: hash(g.y, k, 143) });
+  }
   // The river nearest the town: boats on the water, washerwomen kneeling on the bank, facing it.
   const water: { x: number; y: number; d: number }[] = [];
   const bank: { x: number; y: number; d: number; yaw: number }[] = [];
@@ -154,6 +163,8 @@ export function ambientPlan(s: GameState): AmbientSpot[] {
     return got;
   };
   for (const w of spaced(water, A.boats, 5)) out.push({ kind: 'boat', x: w.x + 0.5, z: w.y + 0.5, range: 0.6, yaw: hash(w.x, w.y, 52) * 6.28, k: hash(w.x, w.y, 53) });
+  for (const [j, b] of spaced(bank, A.gooseFlocks, 6).entries())
+    for (let k = 0; k < A.gooseFlock; k++) add({ kind: 'goose', x: b.x + 0.5 + (hash(b.x, k + j, 144) - 0.5) * 0.5, z: b.y + 0.5 + (hash(b.y, k + j, 145) - 0.5) * 0.5, range: 0.2, yaw: hash(b.x, k, 146) * 6.28, k: hash(b.y, k, 147) });
   for (const b of spaced(bank, A.washers, 2)) out.push({ kind: 'washer', x: b.x + 0.5, z: b.y + 0.5, range: 0, yaw: b.yaw, k: hash(b.x, b.y, 54) });
   return out;
 }
@@ -169,7 +180,7 @@ function besideOf(s: GameState, b: { x: number; y: number; w: number; h: number 
 
 /** How many of each kind (for the meshes' sizes). */
 export function ambientCounts(spots: AmbientSpot[]): Record<AmbientKind, number> {
-  const out = { donkey: 0, sheep: 0, goat: 0, chicken: 0, pigeon: 0, boat: 0, washer: 0, shepherd: 0 } as Record<AmbientKind, number>;
+  const out = { donkey: 0, sheep: 0, goat: 0, chicken: 0, pigeon: 0, cow: 0, goose: 0, boat: 0, washer: 0, shepherd: 0 } as Record<AmbientKind, number>;
   for (const o of spots) out[o.kind]++;
   return out;
 }
@@ -186,7 +197,7 @@ export interface AmbientPose {
 }
 
 /** Wander speed (radians a second along its loop) of the grazing kinds. */
-const WANDER: Partial<Record<AmbientKind, number>> = { sheep: 0.07, goat: 0.12, chicken: 0.25, pigeon: 0.3, shepherd: 0.05 };
+const WANDER: Partial<Record<AmbientKind, number>> = { sheep: 0.07, goat: 0.12, chicken: 0.25, pigeon: 0.3, shepherd: 0.05, cow: 0.05, goose: 0.15 };
 
 /**
  * The motion of each spot: grazers walk a slow loop around their place, heads down now and then

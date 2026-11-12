@@ -3,6 +3,7 @@ import { ROAD_KEYS, roadLevel, roadPieces, roadTraffic, sacredOf, vergePieces, t
 import VISUAL from '../data/visual.json';
 import { treeKind, type TreeKind } from '../game/seasons';
 import LOOK from './look3d.json';
+import { dressing } from './dressing';
 import { KIT_KEYS, kitOf, type KitKey, type KitPiece } from './kits';
 import { SITE_KEYS, siteLook, type SiteKey, type SiteLook } from './works';
 
@@ -41,6 +42,8 @@ export type ModelKey =
   | 'tuft' | 'flowers' | 'flowers-b' | 'pebbles'
   /** A lump of lawn over a road's edge (the verge is ragged, see `vergePieces`). */
   | 'verge'
+  /** Dressing of the countryside by the houses and roads (dressing.ts): a fallen log, firewood, a short fence, hay, a field shed. */
+  | 'log' | 'woodpile' | 'fence' | 'hay' | 'shed'
   /** Trees of the countryside: oak, pine, and the cheap far tree of the woods around the map (look only). */
   | 'oak' | 'pine' | 'wood'
   /** A lit window pane of a .glb house at night (see WINDOWS_AT). */
@@ -112,7 +115,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'almond', 'fig', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
-  ...ROAD_KEYS, 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge', 'oak', 'pine', 'wood', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  ...ROAD_KEYS, 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge', 'log', 'woodpile', 'fence', 'hay', 'shed', 'oak', 'pine', 'wood', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...SITE_KEYS,
   ...EXTRA_KEYS,
@@ -394,7 +397,8 @@ export function cityPlan(s: GameState): CityPlan {
     const full = b.kind === 'granary' && b.connected && stock ? (`stock-${stock}` as const) : null;
     buildings.push({ b, look, key: look.key, x: b.x + b.w / 2, z: b.y + b.h / 2, rot: facing(s, b), scale: 1, sy: look.sy, tint, stock: full, site });
   }
-  props.push(...gardenBushes(s));
+  const bushes = gardenBushes(s);
+  props.push(...bushes, ...dressing(s, new Set(bushes.map((b) => indexOf(s, Math.floor(b.x), Math.floor(b.z))))));
   return { buildings, props, roads };
 }
 

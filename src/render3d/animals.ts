@@ -4,7 +4,7 @@ import * as THREE from 'three';
  * Low-poly animals and boats, instanced: one mesh per kind with the colours baked in the vertices
  * (one draw call per kind for any number of them). Feet (or the keel) on y = 0, facing +z.
  */
-export const HERD_KINDS = ['donkey', 'sheep', 'goat', 'chicken', 'pigeon', 'boat'] as const;
+export const HERD_KINDS = ['donkey', 'sheep', 'goat', 'chicken', 'pigeon', 'cow', 'goose', 'boat'] as const;
 export type HerdKind = (typeof HERD_KINDS)[number];
 
 type Piece = { g: THREE.BufferGeometry; c: number };
@@ -46,6 +46,26 @@ const MAKERS: Record<HerdKind, () => Piece[]> = {
     boxAt(0.012, 0.06, 0.012, 0.015, 0.3, 0.1, 0xc4ab82, 0.5),
   ],
   chicken: () => [blobAt(0.04, 0, 0.06, 0, 0xc8862c, 0.9, 1.3), blobAt(0.022, 0, 0.1, 0.04, 0xc8862c), boxAt(0.012, 0.018, 0.012, 0, 0.125, 0.045, 0xb5462f), boxAt(0.01, 0.04, 0.01, 0, 0.02, 0, 0xd29a3a)],
+  // A brown and white cow: barrel body with a dark patch, four legs, a head with horns and pink muzzle.
+  cow: () => [
+    boxAt(0.17, 0.17, 0.36, 0, 0.26, 0, 0xf2ece0),
+    boxAt(0.175, 0.1, 0.16, 0, 0.29, -0.06, 0x7a4a2c),
+    ...legs(0.055, 0.12, 0.17, 0.045, 0xe6dcc8),
+    boxAt(0.1, 0.11, 0.12, 0, 0.32, 0.23, 0xf2ece0, -0.2),
+    boxAt(0.07, 0.05, 0.05, 0, 0.29, 0.31, 0xd89a98),
+    boxAt(0.012, 0.05, 0.012, -0.05, 0.4, 0.22, 0xe8dcc0),
+    boxAt(0.012, 0.05, 0.012, 0.05, 0.4, 0.22, 0xe8dcc0),
+    boxAt(0.015, 0.1, 0.015, 0, 0.27, -0.2, 0x7a4a2c, 0.3),
+  ],
+  // A white goose: plump body, long neck, orange bill and feet.
+  goose: () => [
+    blobAt(0.06, 0, 0.1, 0, 0xf4f1ea, 0.8, 1.4),
+    boxAt(0.025, 0.12, 0.025, 0, 0.19, 0.07, 0xf4f1ea, -0.25),
+    blobAt(0.03, 0, 0.26, 0.1, 0xf4f1ea),
+    boxAt(0.02, 0.015, 0.045, 0, 0.255, 0.14, 0xe8902c),
+    boxAt(0.015, 0.05, 0.015, -0.025, 0.025, 0, 0xe8902c),
+    boxAt(0.015, 0.05, 0.015, 0.025, 0.025, 0, 0xe8902c),
+  ],
   // A little larger than life, so it reads from the usual zoom.
   pigeon: () => [blobAt(0.045, 0, 0.055, 0, 0xc4c8d0, 0.85, 1.4), blobAt(0.026, 0, 0.095, 0.05, 0x7a8494), boxAt(0.1, 0.008, 0.045, 0, 0.07, -0.008, 0x9aa0aa)],
   boat: () => [

@@ -1153,7 +1153,7 @@ function granary(): Piece[] {
 }
 
 /** A rock with a cap of moss and a tuft at its foot (the Foundation's mossy stones). */
-const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6), blob(0.2, -0.04, 0.2, -0.02, COLORS.hedge, 0.4), cone(0.05, 0.16, 3, 0.3, 0, -0.12, COLORS.tuft)];
+const rock = (): Piece[] => [blob(0.32, 0, 0.1, 0, COLORS.rock, 0.55), blob(0.18, 0.25, 0.05, 0.2, COLORS.limestoneDark, 0.6), blob(0.26, -0.03, 0.15, -0.02, COLORS.hedge, 0.3)];
 /** A round bush: two lobes in two shades (one draw call with the crowns, recoloured by the season). */
 const shrub = (): Piece[] => [
   lobe(0.24, 0, 0.17, 0, COLORS.leaf, 1, 0.82, 1),
@@ -1189,6 +1189,65 @@ const flags = (): Piece[] => {
     ...rows.flatMap(([z, xs]) => xs.map((x) => j(0.025, 0.33, x, z))),
   ];
 };
+/** A fallen log lying in the grass (8-sided, a short branch stub on it). */
+const log = (): Piece[] => {
+  const g = new THREE.CylinderGeometry(0.075, 0.09, 0.85, 8);
+  g.rotateZ(Math.PI / 2);
+  g.translate(0, 0.08, 0);
+  const b = new THREE.CylinderGeometry(0.025, 0.035, 0.18, 5);
+  b.rotateZ(0.9);
+  b.translate(0.12, 0.18, 0.03);
+  return [{ geo: g, color: COLORS.wood }, { geo: b, color: COLORS.wood }, { geo: new THREE.CircleGeometry(0.075, 8).rotateY(Math.PI / 2).translate(0.43, 0.08, 0), color: 0xc9a46a }];
+};
+/** A pile of firewood: three rows of cut logs (3, 2 and 1 high), a pale cut face on the front. */
+const woodpile = (): Piece[] => {
+  const out: Piece[] = [];
+  for (let row = 0; row < 3; row++)
+    for (let k = 0; k < 4 - row; k++) {
+      const x = -0.3 + row * 0.1 + k * 0.2;
+      out.push(box(0.17, 0.17, 0.5, x, 0.01 + row * 0.16, 0, (k + row) % 2 ? COLORS.wood : 0x8a6440), box(0.12, 0.12, 0.01, x, 0.035 + row * 0.16, 0.255, 0xd2b47a));
+    }
+  return out;
+};
+/** A short wooden fence, one cell long along x: two posts and two rails. */
+const fence = (): Piece[] => [
+  box(0.07, 0.34, 0.07, -0.46, 0, 0, COLORS.wood),
+  box(0.07, 0.34, 0.07, 0.46, 0, 0, COLORS.wood),
+  box(0.07, 0.3, 0.07, 0, 0, 0, COLORS.wood),
+  box(1, 0.045, 0.04, 0, 0.12, 0, 0x8a6440),
+  box(1, 0.045, 0.04, 0, 0.25, 0, 0x8a6440),
+];
+/** Hay: a stack of three square bales and a round one beside it. */
+const hay = (): Piece[] => {
+  const round = new THREE.CylinderGeometry(0.17, 0.17, 0.26, 10);
+  round.rotateZ(Math.PI / 2);
+  round.translate(0.32, 0.17, 0.12);
+  return [
+    box(0.34, 0.18, 0.24, -0.1, 0, 0, COLORS.reed),
+    box(0.34, 0.18, 0.24, -0.1, 0.18, 0.02, 0xd6b878, 0.15),
+    box(0.34, 0.18, 0.24, -0.2, 0, 0.26, 0xd6b878, 0.1),
+    { geo: round, color: COLORS.reed },
+    box(0.4, 0.015, 0.015, -0.1, 0.1, 0.125, 0x8a6440),
+  ];
+};
+/** A small field shed: plank walls, a door, a thatched roof sloping to the front and a stack of crates beside it. */
+const shed = (): Piece[] => {
+  const roofL = new THREE.BoxGeometry(0.55, 0.05, 0.8);
+  roofL.rotateZ(0.5);
+  roofL.translate(-0.16, 0.6, 0);
+  const roofR = new THREE.BoxGeometry(0.55, 0.05, 0.8);
+  roofR.rotateZ(-0.5);
+  roofR.translate(0.16, 0.6, 0);
+  return [
+    box(0.62, 0.42, 0.66, 0, 0, -0.05, COLORS.wood),
+    box(0.22, 0.3, 0.02, 0.1, 0, 0.29, 0x2a1c14),
+    { geo: roofL, color: COLORS.reed },
+    { geo: roofR, color: COLORS.reed },
+    box(0.2, 0.16, 0.2, 0.46, 0, 0.1, 0x8a6440),
+    box(0.16, 0.14, 0.16, 0.46, 0.16, 0.1, COLORS.wood, 0.4),
+  ];
+};
+
 /** A tuft of grass: seven fat blades of different heights leaning out (green of the season, 3 triangles a blade). */
 const tuft = (): Piece[] =>
   [0.26, 0.4, 0.22, 0.46, 0.3, 0.24, 0.36].map((h, k) => {
@@ -1230,7 +1289,7 @@ const pebble = (r: number, x: number, y: number, z: number, color: number, sy: n
 /** A ragged lump of the lawn creeping over a road's edge: three flat tufts of turf (two shades, 24 triangles). */
 const verge = (): Piece[] => [
   pebble(0.13, 0, 0.03, 0, COLORS.hedge, 0.3),
-  pebble(0.09, 0.12, 0.025, 0.05, COLORS.tuftDark, 0.34),
+  pebble(0.09, 0.12, 0.025, 0.05, COLORS.hedge, 0.34),
   pebble(0.08, -0.11, 0.025, -0.05, COLORS.hedge, 0.34),
 ];
 const pebbles = (): Piece[] => [
@@ -1842,6 +1901,11 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   'road-stones': roadStones,
   flags,
   tuft,
+  log,
+  woodpile,
+  fence,
+  hay,
+  shed,
   flowers,
   'flowers-b': flowersB,
   pebbles,
