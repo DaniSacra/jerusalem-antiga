@@ -311,7 +311,7 @@ export class Stage {
     world.leavers.update(time);
     // Tufts and pebbles: specks from far away, and skipped at the minimum quality.
     world.detail.visible = this.level !== 'min' && rig.distance <= LOOK.detail.farDist;
-    world.farWoods.visible = this.level === 'high';
+    world.showFarWoods(this.level === 'high');
     for (const m of world.flowerMeshes) m.visible = s3.flowers >= LOOK.detail.flowerSeason;
     world.pasture.update(time);
     world.haulers.update(dt, time, this.speed);
@@ -373,6 +373,25 @@ export class Stage {
   info() {
     const r = this.renderer;
     return { fps: this.fps(), level: this.level, calls: this.drawn.calls, finish: this.level !== 'min', triangles: this.drawn.triangles, pixelRatio: r.getPixelRatio(), canvas: [this.el.width, this.el.height], walkers: this.world?.walkers.count ?? 0, families: this.world?.families.walking ?? 0, haulers: this.world?.haulers.count ?? 0, ambient: this.world?.pasture.count ?? 0, idle: this.world?.idlers.shown ?? 0, idlePlanned: this.world?.idlers.planned ?? 0, leaving: this.world?.leavers.walking ?? 0, label: this.label(), rebuildMs: this.lastRebuildMs };
+  }
+
+  /** Draw census (a debugging aid for `scripts/view3d-perf.mjs`): the drawn meshes by name, with how many cast a shadow. */
+  census(): Record<string, { meshes: number; shadow: number; instances: number; tris: number }> {
+    const out: Record<string, { meshes: number; shadow: number; instances: number; tris: number }> = {};
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) if (!a.visible) return;
+      if ((m as THREE.InstancedMesh).isInstancedMesh && (m as THREE.InstancedMesh).count === 0) return;
+      const n = (m as THREE.InstancedMesh).count ?? 1;
+      const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+      const c = (out[(o.name || '') + ' ' + mat.type.slice(4, 9) + ':' + mat.uuid.slice(0, 4) + (mat.vertexColors ? 'v' : '') + ' ' + `${o.parent?.name || o.parent?.type}>${m.geometry.type}:${m.geometry.attributes.position.count}${(m as THREE.InstancedMesh).isInstancedMesh ? 'i' : ''}${m.castShadow ? 's' : ''}`] ??= { meshes: 0, shadow: 0, instances: 0, tris: 0 });
+      c.meshes++;
+      if (m.castShadow) c.shadow++;
+      c.instances += n;
+      c.tris += n * ((m.geometry.index?.count ?? m.geometry.attributes.position.count) / 3);
+    });
+    return out;
   }
 
   /** Stops drawing and frees the GPU (the model prototypes are kept for the next opening). */

@@ -51,7 +51,7 @@ function saveTask(key, data) {
 }
 
 async function generate(key, spec, style, rawDir) {
-  const prompt = `${spec.prompt} ${style}`;
+  const prompt = `${spec.prompt} ${spec.style ?? style}`;
   if (prompt.length > 800) throw new Error(`${key}: prompt has ${prompt.length} chars`);
   const previewId = (await call('POST', '/v2/text-to-3d', {
     mode: 'preview', prompt, model_type: 'smart-topology', ai_model: 'meshy-t2.5',

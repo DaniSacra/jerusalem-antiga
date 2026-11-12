@@ -1248,6 +1248,64 @@ const shed = (): Piece[] => {
   ];
 };
 
+/** Windmill (stand-in for the Meshy one): a tapering white tower, a brown cap and four sails on the front. */
+const windmill = (): Piece[] => {
+  const tower = new THREE.CylinderGeometry(0.25, 0.36, 0.8, 8);
+  tower.translate(0, 0.4, 0);
+  const cap = new THREE.ConeGeometry(0.3, 0.3, 8);
+  cap.translate(0, 0.95, 0);
+  const out: Piece[] = [{ geo: tower, color: 0xf2ece0 }, { geo: cap, color: 0x7a4a30 }, box(0.14, 0.26, 0.02, 0, 0, 0.36, COLORS.wood)];
+  for (let k = 0; k < 4; k++) {
+    const sailG = new THREE.BoxGeometry(0.09, 0.62, 0.015);
+    sailG.translate(0, 0.34, 0);
+    sailG.rotateZ((k * Math.PI) / 2 + 0.4);
+    sailG.translate(0, 0.78, 0.3);
+    out.push({ geo: sailG, color: COLORS.cloth });
+  }
+  return out;
+};
+/** A well with a little roof: a round stone wall, two posts and a pitched roof of red tiles. */
+const wellroof = (): Piece[] => {
+  const roofL = new THREE.BoxGeometry(0.42, 0.04, 0.6);
+  roofL.rotateZ(0.5);
+  roofL.translate(-0.17, 0.9, 0);
+  const roofR = new THREE.BoxGeometry(0.42, 0.04, 0.6);
+  roofR.rotateZ(-0.5);
+  roofR.translate(0.17, 0.9, 0);
+  return [
+    cyl(0.3, 0.32, 0.38, 10, 0, 0, 0, 0xcfc6b2),
+    box(0.06, 0.62, 0.06, -0.27, 0.3, 0, COLORS.wood),
+    box(0.06, 0.62, 0.06, 0.27, 0.3, 0, COLORS.wood),
+    { geo: roofL, color: COLORS.red },
+    { geo: roofR, color: COLORS.red },
+    box(0.14, 0.12, 0.14, 0.12, 0.38, 0.14, COLORS.wood),
+  ];
+};
+/** A hay cart: a plank bed on two wheels, a heap of hay and shafts on the ground. */
+const haycart = (): Piece[] => {
+  const wheel = (z: number) => {
+    const g = new THREE.CylinderGeometry(0.2, 0.2, 0.04, 10);
+    g.rotateZ(Math.PI / 2);
+    g.translate(0, 0.2, z);
+    return { geo: g, color: COLORS.wood } as Piece;
+  };
+  return [
+    box(0.5, 0.06, 0.8, 0, 0.2, 0, COLORS.wood),
+    wheel(0.42),
+    wheel(-0.42),
+    blob(0.34, 0, 0.42, 0, COLORS.reed, 0.7, 1),
+    box(0.05, 0.04, 0.5, -0.18, 0.12, 0.66, COLORS.wood),
+    box(0.05, 0.04, 0.5, 0.18, 0.12, 0.66, COLORS.wood),
+  ];
+};
+/** A fountain: a round pale stone basin with water, a short column and a small bowl above. */
+const fountain = (): Piece[] => [
+  cyl(0.42, 0.44, 0.22, 12, 0, 0, 0, 0xe0d8c4),
+  cyl(0.36, 0.36, 0.02, 12, 0, 0.2, 0, COLORS.blue),
+  cyl(0.07, 0.09, 0.4, 8, 0, 0.2, 0, 0xe0d8c4),
+  cyl(0.2, 0.08, 0.1, 10, 0, 0.55, 0, 0xe0d8c4),
+];
+
 /** A tuft of grass: seven fat blades of different heights leaning out (green of the season, 3 triangles a blade). */
 const tuft = (): Piece[] =>
   [0.26, 0.4, 0.22, 0.46, 0.3, 0.24, 0.36].map((h, k) => {
@@ -1906,6 +1964,10 @@ const MAKERS: Record<Exclude<ModelKey, ExtraKey | KitKey | `house-${number}-m`>,
   fence,
   hay,
   shed,
+  windmill,
+  wellroof,
+  haycart,
+  fountain,
   flowers,
   'flowers-b': flowersB,
   pebbles,

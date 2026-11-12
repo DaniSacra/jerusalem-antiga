@@ -398,3 +398,17 @@ Não gerados por falta de chave no jogo: poço, carroça, lenha com serrote, cer
 moinho (o carregador só aceita chaves que a cena desenha) e o curtume (é `craft-5`, por código). `yOffset`
 das casas, fisher e gatherer mantidos dos modelos anteriores. Capturas conferidas: `houses3d-pc`
 e `town3d-pc` (dia e noite). Fisher, gatherer e lenhador só vistos nos ícones do menu e em miniatura.
+
+## Rodada 4 (adereços: moinho, poço com telhado, carroça de feno, chafariz)
+
+Texto no prompt (mistura europeia aprovada), estilo "bright warm saturated colors"; sem Retexture nem imagem de estilo (a cor saiu viva).
+Chaves novas em `MODEL_KEYS` (`windmill`, `wellroof`, `haycart`, `fountain`), com modelo por código como reserva; desenhadas em `src/render3d/dressing.ts`.
+
+| Chave | Tentativa | Preview | Refine | Créditos | Triângulos | Resultado |
+|---|---|---|---|---|---|---|
+| `windmill` | 1 | 01a1d1a8-9557-73c7-9d74-537c0bc1020e | 01a1d1a8-f3e2-74f2-9f9e-f0d2b6dfe356 | 15 | 3 002 | **em uso** (torre branca, capelo marrom, velas; junto aos campos, 1 a cada 3) |
+| `wellroof` | 1 | 01a1d1a8-9555-7112-8cfe-c0fef0ad8a6a | 01a1d1a9-1f7c-7299-b00a-58947706fc06 | 15 | 2 448 | **em uso** (poço de pedra com telhadinho de telha vermelha; nas praças e junto de casas grandes) |
+| `haycart` | 1 | 01a1d1b2-fd7c-75bf-8356-e30aaa39f395 | 01a1d1b3-8535-752c-bc58-954cff011c6e | 15 | 2 346 | **em uso** (carroça com feno; o feno saiu escuro e espetado, sem nova tentativa por causa do piso de créditos; junto de celeiros e coletores) |
+| `fountain` | 1 | 01a1d1b2-fd7c-7424-9ba5-81800cec7c8c | 01a1d1b3-af2e-7573-8149-35cce825accf | 15 | 3 081 | **em uso** (chafariz de dois andares com água azul; junto dos parques) |
+
+Total da rodada: 60 créditos (saldo 111 -> 51).

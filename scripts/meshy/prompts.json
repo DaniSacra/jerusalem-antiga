@@ -112,6 +112,26 @@
     "granary@3": {
       "polycount": 4000,
       "prompt": "Granary of ancient Jerusalem about 500 BC on a square packed-earth base: across the back third a long low flat-roofed storehouse of beige mud brick with one wooden door facing the front. In front of it three big round mud-brick grain silos with smooth domed tops in one straight row, as tall as the storehouse. A low mud wall runs around the edges of the base. Big simple solid shapes, walls parallel to the base sides, no arches, no towers, no thatch."
+    },
+    "windmill": {
+      "polycount": 3000,
+      "style": "Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+      "prompt": "Charming windmill of a medieval village, a round tapering tower of white plastered stone with a brown wooden cap roof, four large wooden sails with cream cloth on the front, a small wooden door and a little window, a few grain sacks at the foot, on a small round grassy stone base."
+    },
+    "wellroof": {
+      "polycount": 2500,
+      "style": "Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+      "prompt": "Village stone well with a little roof, round wall of pale gray limestone blocks, two wooden posts holding a small pitched roof of red clay tiles, a crank with a rope and a wooden bucket, a second wooden bucket on the rim, on a small square stone base."
+    },
+    "haycart": {
+      "polycount": 2500,
+      "style": "Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+      "prompt": "Old wooden farm cart piled high with golden hay, two big spoked wooden wheels, wooden shafts resting on the ground, a pitchfork stuck in the hay, a couple of hay bales beside it, on a small square base."
+    },
+    "fountain": {
+      "polycount": 3000,
+      "style": "Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+      "prompt": "Village square fountain, round pale limestone basin with clear blue water, a short central stone column with a small upper bowl and a splash of water, low rim, on a small round stone base."
     }
   }
 }

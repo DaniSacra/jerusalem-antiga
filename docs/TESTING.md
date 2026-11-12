@@ -142,7 +142,7 @@ Só no modo dev (`npm run dev`, e é o que o script usa), o jogo expõe no `wind
 - `window.core` — todas as funções do core (`core.place`, `core.clearCell`, `core.stepWeek`...);
 - `window.view3d` — o jogo em 3D: `game` (o `Play3D`, com `scene` e `hud`), `ready` (o pacote de
   modelos chegou, falhou ou não foi pedido: os testes esperam por ele), `frames` (quadros já
-  desenhados), `fps()`, `info()` (qualidade, chamadas da cena — o passe de acabamento soma uma, fora da conta —, `finish` ligado ou não, triângulos, moradores, figuras paradas `idle`/`idlePlanned`, famílias indo embora `leaving`, rótulo, giro e foco),
+  desenhados), `fps()`, `census()` (malhas desenhadas por nome e material, para achar onde vão as chamadas de desenho), `info()` (qualidade, chamadas da cena — o passe de acabamento soma uma, fora da conta —, `finish` ligado ou não, triângulos, moradores, figuras paradas `idle`/`idlePlanned`, famílias indo embora `leaving`, rótulo, giro e foco),
   `cellPoint(x, y)` (ponto da tela do centro de uma célula), `cellAt(sx, sy)`, `rig` (câmera:
   `rig.set({ yaw, pitch, dist, x, z })`, `heading`, `zoom`, `distance`, `focus`),
   `quality('high'|'low'|'min')` e `view({ pos, day, weather, force } | null)`: mostra outra semana

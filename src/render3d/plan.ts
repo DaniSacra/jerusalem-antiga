@@ -44,6 +44,8 @@ export type ModelKey =
   | 'verge'
   /** Dressing of the countryside by the houses and roads (dressing.ts): a fallen log, firewood, a short fence, hay, a field shed. */
   | 'log' | 'woodpile' | 'fence' | 'hay' | 'shed'
+  /** Props of the Meshy pack with a code stand-in: a windmill by the fields, a well with a roof, a hay cart, a fountain (dressing.ts). */
+  | 'windmill' | 'wellroof' | 'haycart' | 'fountain'
   /** Trees of the countryside: oak, pine, and the cheap far tree of the woods around the map (look only). */
   | 'oak' | 'pine' | 'wood'
   /** A lit window pane of a .glb house at night (see WINDOWS_AT). */
@@ -115,7 +117,7 @@ export const MODEL_KEYS: ModelKey[] = [
   ...([0, 1, 2, 3] as const).map((v) => `field-${v}` as const),
   ...(Object.keys(BUILDINGS) as BuildingKind[]).filter((k): k is KindKey => k !== 'house' && k !== 'field'),
   'olive', 'almond', 'fig', 'palm', 'rock', 'shrub', 'stump', 'sapling', 'closed',
-  ...ROAD_KEYS, 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge', 'log', 'woodpile', 'fence', 'hay', 'shed', 'oak', 'pine', 'wood', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
+  ...ROAD_KEYS, 'tuft', 'flowers', 'flowers-b', 'pebbles', 'verge', 'log', 'woodpile', 'fence', 'hay', 'shed', 'windmill', 'wellroof', 'haycart', 'fountain', 'oak', 'pine', 'wood', 'pane', 'stock-1', 'stock-2', 'stock-3', 'yard-1', 'yard-2',
   'craft-1', 'craft-2', 'craft-3', 'craft-4', 'craft-5',
   ...SITE_KEYS,
   ...EXTRA_KEYS,

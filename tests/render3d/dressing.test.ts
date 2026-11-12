@@ -42,6 +42,20 @@ describe('the dressing of the countryside', () => {
     }
   });
 
+  it('puts a windmill by the first field and a well, cart and fountain by the plaza, granary and park', () => {
+    const s = town();
+    put(s, 'plaza', 36, 33);
+    put(s, 'park', 36, 37);
+    const d = dressing(s);
+    for (const k of ['windmill', 'wellroof', 'haycart', 'fountain'] as const) expect(MODEL_KEYS).toContain(k);
+    expect(d.filter((p) => p.key === 'windmill')).toHaveLength(1);
+    expect(d.filter((p) => p.key === 'wellroof').length).toBeGreaterThanOrEqual(1);
+    expect(d.filter((p) => p.key === 'fountain')).toHaveLength(1);
+    const plaza = s.buildings.find((b) => b.kind === 'plaza')!;
+    const well = d.filter((p) => p.key === 'wellroof').find((p) => Math.abs(p.x - (plaza.x + 1)) < 2 && Math.abs(p.z - (plaza.y + 1)) < 2);
+    expect(well).toBeDefined();
+  });
+
   it('is stable', () => {
     const s = town();
     expect(dressing(s)).toEqual(dressing(s));

@@ -64,7 +64,7 @@ export class World {
   private land = new THREE.Group();
   /** The woods round the map: near the edge, and far (the stage hides it at the lower qualities). */
   readonly nearWoods = new THREE.Group();
-  readonly farWoods = new THREE.Group();
+  private woodMeshes: { mesh: THREE.InstancedMesh; all: number; near: number }[] = [];
   private city = new THREE.Group();
   private walking = new THREE.Group();
   private homing = new THREE.Group();
@@ -98,13 +98,18 @@ export class World {
     // The woods around the map, on its hills, so the haze has a countryside to fade (no shadows: the
     // sun's shadow map covers the city only). Near and far apart: the stage drops the far ring at low quality.
     const woods = woodland(this.ground.frame, (x, z) => this.ground.height(x, z), (x, z) => this.ground.isRiver(x, z));
+    // One instancer for both rings (fewer draw calls): the near ring's copies come first, so the low
+    // qualities draw only those (`showFarWoods` shortens each mesh's count).
+    const wood = new Instancer(models);
+    const nearCount = new Map<string, number>();
     for (const far of [false, true]) {
-      const wood = new Instancer(models);
       for (const w of woods) if (w.far === far) wood.add(w.key, w.x, this.ground.height(w.x, w.z) - 0.03, w.z, w.rot, w.scale);
-      const group = wood.build(false);
-      (far ? this.farWoods : this.nearWoods).add(group);
+      if (!far) for (const w of woods) nearCount.set(w.key, wood.count(w.key));
     }
-    this.land.add(this.nearWoods, this.farWoods);
+    const group = wood.build(false);
+    this.nearWoods.add(group);
+    this.woodMeshes = group.children.filter((m): m is THREE.InstancedMesh => (m as THREE.InstancedMesh).isInstancedMesh).map((mesh) => ({ mesh, all: mesh.count, near: nearCount.get(mesh.name) ?? 0 }));
+    this.land.add(this.nearWoods);
     this.leavers = new Leavers(s, this.ground, shadows);
     this.leaving.add(...this.leavers.objects);
     this.group.add(this.land, this.city, this.detail, this.walking, this.homing, this.working, this.idle, this.leaving);
@@ -115,6 +120,11 @@ export class World {
   /** The family of the house on cell (x, y) left the city: they walk out of town. */
   leave(x: number, y: number) {
     this.leavers.leave(x, y);
+  }
+
+  /** Draws the far ring of the woods too (or only the near ring: the lower qualities). */
+  showFarWoods(on: boolean) {
+    for (const w of this.woodMeshes) w.mesh.count = on ? w.all : w.near;
   }
 
   /** Other models for the city (the .glb pack arrived): its buildings and props are drawn again. */

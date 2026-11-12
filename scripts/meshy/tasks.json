@@ -400,5 +400,45 @@
     "refineCredits": 10,
     "rawBytes": 2608144,
     "status": "rejected: a long thin strip (silos in a row before a thin back wall) that leaves most of the 3x3 square empty; the level 2-3 storey floats behind it"
+  },
+  "windmill": {
+    "prompt": "Charming windmill of a medieval village, a round tapering tower of white plastered stone with a brown wooden cap roof, four large wooden sails with cream cloth on the front, a small wooden door and a little window, a few grain sacks at the foot, on a small round grassy stone base. Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+    "polycount": 3000,
+    "previewId": "01a1d1a8-9557-73c7-9d74-537c0bc1020e",
+    "attempt": 1,
+    "refineId": "01a1d1a8-f3e2-74f2-9f9e-f0d2b6dfe356",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 3375452
+  },
+  "wellroof": {
+    "prompt": "Village stone well with a little roof, round wall of pale gray limestone blocks, two wooden posts holding a small pitched roof of red clay tiles, a crank with a rope and a wooden bucket, a second wooden bucket on the rim, on a small square stone base. Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+    "polycount": 2500,
+    "previewId": "01a1d1a8-9555-7112-8cfe-c0fef0ad8a6a",
+    "attempt": 1,
+    "refineId": "01a1d1a9-1f7c-7299-b00a-58947706fc06",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2649920
+  },
+  "fountain": {
+    "prompt": "Village square fountain, round pale limestone basin with clear blue water, a short central stone column with a small upper bowl and a splash of water, low rim, on a small round stone base. Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+    "polycount": 3000,
+    "previewId": "01a1d1b2-fd7c-7424-9ba5-81800cec7c8c",
+    "attempt": 1,
+    "refineId": "01a1d1b3-af2e-7573-8149-35cce825accf",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 2822340
+  },
+  "haycart": {
+    "prompt": "Old wooden farm cart piled high with golden hay, two big spoked wooden wheels, wooden shafts resting on the ground, a pitchfork stuck in the hay, a couple of hay bales beside it, on a small square base. Stylized low-poly game asset, chunky friendly proportions, bright warm saturated colors, soft neutral lighting, flat square base, single centered object, no ground beyond the base.",
+    "polycount": 2500,
+    "previewId": "01a1d1b2-fd7c-75bf-8356-e30aaa39f395",
+    "attempt": 1,
+    "refineId": "01a1d1b3-8535-752c-bc58-954cff011c6e",
+    "previewCredits": 5,
+    "refineCredits": 10,
+    "rawBytes": 1951324
   }
 }
