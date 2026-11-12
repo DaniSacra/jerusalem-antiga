@@ -2,6 +2,7 @@ import { ageBand, findPath, indexOf, type AgeBand, type Building, type Cell, typ
 import type { Load } from './crowd';
 import LOOK from './look3d.json';
 import { hash, lookOf } from './plan';
+import { buildersAtWork, stageSite } from '../core';
 
 /**
  * The still life of the streets, as plain data (no Three.js): who stands where and what they do.
@@ -10,7 +11,7 @@ import { hash, lookOf } from './plan';
  * under the trees near the town in autumn; and the walk out of town of a family that left.
  * Deterministic from the state; tested in tests/render3d/street.test.ts. `townsfolk.ts` draws them.
  */
-export type IdleAct = 'talk' | 'play' | 'stand' | 'grind' | 'buy' | 'beat' | 'gather';
+export type IdleAct = 'talk' | 'play' | 'stand' | 'grind' | 'buy' | 'beat' | 'gather' | 'hammer' | 'chop';
 
 export interface IdleSpot {
   act: IdleAct;
@@ -78,6 +79,8 @@ const WANT: Record<IdleAct, { n: number; band: AgeBand; sex?: Sex }> = {
   buy: { n: 1, band: 'adult' },
   beat: { n: 1, band: 'adult', sex: 'm' },
   gather: { n: 1, band: 'adult', sex: 'f' },
+  hammer: { n: 1, band: 'adult', sex: 'm' },
+  chop: { n: 1, band: 'adult', sex: 'm' },
 };
 
 /** The act someone of this age and sex does at the door when the planned one finds nobody. */
@@ -86,6 +89,7 @@ const fallbackAct = (band: AgeBand, sex: Sex): IdleAct => (band === 'child' ? 'p
 /** What a figure holds: the old a staff, the pickers a pole or a basket, a buyer woman a basket. */
 export function idleLoad(act: IdleAct, band: AgeBand, sex: Sex): Load | null {
   if (act === 'beat') return 'pole';
+  if (act === 'hammer' || act === 'chop') return 'hammer';
   if (act === 'gather' || (act === 'buy' && sex === 'f')) return 'basket';
   return band === 'elder' ? 'staff' : null;
 }
@@ -195,6 +199,55 @@ export function streetPlan(s: GameState, placed: readonly Placed[], max: number 
     }
   }
 
+  // Gatherings (the town alive): talkers in a ring round the altar's fire and round each plaza, the
+  // builders hammering round the Temple's stage in work, a woodcutter by each lumber camp and a gatherer
+  // kneeling by each gatherer's hut. The people are residents when there are free ones (nobody named otherwise).
+  const ring = (cx: number, cz: number, r: number, n: number, turn: number, seed: number, own: Building | null = null) => {
+    const group: Omit<IdleSpot, 'show'>[] = [];
+    for (let j = 0; j < n; j++) {
+      const a = turn + (j / n) * Math.PI * 2 + (hash(seed, j, 74) - 0.5) * 0.3;
+      const x = cx + Math.sin(a) * r;
+      const z = cz + Math.cos(a) * r;
+      if (!standable(s, x, z, own)) continue;
+      group.push(figure('talk', x, z, a + Math.PI, take(s, free, 'adult', j % 2 ? 'm' : 'f') ?? take(s, free, 'adult'), hash(seed, j, 75)));
+    }
+    add(group, hash(seed, 3, 76));
+  };
+  const altar = s.buildings.find((b) => b.kind === 'altar');
+  if (altar && s.people.length >= 6) ring(altar.x + altar.w / 2, altar.y + altar.h / 2, altar.w / 2 + 1.0, 5, 0.5, altar.x * 7 + altar.y);
+  for (const p of placed) if (p.b.kind === 'plaza') ring(p.x, p.z, 0.55, 4, p.rot, p.b.x * 13 + p.b.y, p.b);
+  const site = stageSite(s);
+  if (site && buildersAtWork(s) > 0) {
+    const n = Math.min(4, buildersAtWork(s));
+    const group: Omit<IdleSpot, 'show'>[] = [];
+    for (let j = 0; j < n; j++) {
+      const x = site.x + ((j + 1) * site.w) / (n + 1);
+      const z = site.y + site.h + 0.55;
+      if (standable(s, x, z)) group.push(figure('hammer', x, z, Math.PI, take(s, free, 'adult', 'm') ?? take(s, free, 'adult'), hash(site.x, j, 77)));
+    }
+    add(group, 0.05);
+  }
+  // A free cell beside a building, the way to it: where the worker stands (never on a road).
+  const beside = (b: Building) => {
+    const cells: { x: number; z: number }[] = [];
+    for (let x = b.x - 1; x <= b.x + b.w; x++) for (const z of [b.y - 1, b.y + b.h]) cells.push({ x, z });
+    for (let z = b.y; z < b.y + b.h; z++) for (const x of [b.x - 1, b.x + b.w]) cells.push({ x, z });
+    cells.sort((u, v) => hash(u.x, u.z, 78) - hash(v.x, v.z, 78));
+    const c = cells.find((q) => q.x >= 0 && q.z >= 0 && q.x < s.cols && q.z < s.rows && standable(s, q.x + 0.5, q.z + 0.5) && !s.roads[indexOf(s, q.x, q.z)]);
+    if (!c) return null;
+    const x = c.x + 0.5;
+    const z = c.z + 0.5;
+    return { x, z, yaw: Math.atan2(b.x + b.w / 2 - x, b.y + b.h / 2 - z) };
+  };
+  for (const b of s.buildings) {
+    if ((b.kind !== 'lumber' && b.kind !== 'gatherer') || !b.connected || !s.people.some((o) => o.jobId === b.id)) continue;
+    const at = beside(b);
+    if (!at) continue;
+    const act: IdleAct = b.kind === 'lumber' ? 'chop' : 'gather';
+    const want = WANT[act];
+    add([figure(act, at.x, at.z, at.yaw, take(s, free, want.band, want.sex) ?? take(s, free, 'adult'), hash(b.x, b.y, 79))], hash(b.x, b.y, 80));
+  }
+
   // Neighbours at the doors: more people the higher the house; the richest streets first.
   const houses = placed.filter((p) => p.b.kind === 'house' && p.b.level >= 1).sort((a, c) => c.b.level - a.b.level || hash(a.b.x, a.b.y, 71) - hash(c.b.x, c.b.y, 71));
   for (const p of houses) {
@@ -279,6 +332,12 @@ export function idlePose(o: IdleSpot, time: number): IdlePose {
       const step = Math.sin(time * 0.15 + ph) * 0.08;
       return { ...still, x: o.x + Math.sin(o.yaw + Math.PI / 2) * step, z: o.z + Math.cos(o.yaw + Math.PI / 2) * step, yaw: o.yaw + Math.sin(time * 0.4 + ph) * 0.35, lean: Math.max(0, Math.sin(time * 1.1 + ph)) * 0.08 };
     }
+    case 'hammer':
+      // Hammering: the arm up (leaning back) and down, twice a second.
+      return { ...still, lean: -0.1 + Math.max(0, Math.sin(time * 7 + ph)) * 0.38 };
+    case 'chop':
+      // The axe swings in a slower, deeper stroke.
+      return { ...still, y: -0.02, lean: -0.15 + Math.max(0, Math.sin(time * 3.2 + ph)) * 0.55 };
     case 'beat':
       // The pole goes up (leaning back) and comes down on the branches, about once a second.
       return { ...still, lean: -0.12 + Math.max(0, Math.sin(time * 4 + ph)) * 0.3 };

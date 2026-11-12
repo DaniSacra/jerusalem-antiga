@@ -45,5 +45,5 @@ export function routine(t: number): Routine {
 
 /** The routine factor of a still-life act (street.ts acts; the others stand as the street share says). */
 export function actShare(r: Routine, act: string): number {
-  return act === 'buy' ? r.market : act === 'play' ? r.play : act === 'talk' ? r.talk : 1;
+  return act === 'buy' ? r.market : act === 'play' ? r.play : act === 'talk' ? r.talk : act === 'hammer' || act === 'chop' ? r.work : 1;
 }

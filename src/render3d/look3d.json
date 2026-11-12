@@ -69,7 +69,7 @@
   "roads": { "vergeShare": 0.7, "pavedNear": 2, "road": 6, "kerb": 30, "serviceTraffic": 2, "stoneShare": 0.35 },
   "ambient": { "maxAnimals": 80, "cowHerds": 2, "cowHerd": 3, "gooseFlocks": 2, "gooseFlock": 4, "pastureFlock": 8, "pigeons": 6, "pigeonFlight": 14, "tentShare": 0.5, "flocks": 3, "flockSize": 4, "flockRadius": 16, "boats": 2, "washers": 3 },
   "night": { "window": 2.3, "door": 0.7, "tentPool": 0.85, "doorRadius": [0, 0.75, 0.9, 1.0, 1.15], "workRadius": 1.5 },
-  "street": { "max": 40, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "farBand": 10, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
+  "street": { "max": 56, "tentShare": 0.6, "pickerTrees": 4, "pickerReach": 5, "lowShare": 0.5, "farDist": 48, "farBand": 10, "leaveSpeed": 0.8, "leaveGroups": 2, "leaveSize": 6 },
   "dressing": { "woodpileShare": 0.55, "fenceShare": 0.6, "hayShare": 0.8, "reach": 4, "logShare": 0.012, "stumpShare": 0.012, "stoneShare": 0.025 },
   "garden": { "kinds": ["house", "market", "workshop", "granary", "fisher", "gatherer", "lumber", "quarry"], "share": 0.7 },
   "rim": { "start": 1.5, "full": 26, "height": 8, "passWidth": 9, "edge": 0.6, "reach": 46, "nearReach": 28, "nearStep": 2.3, "richFrom": 3, "richTo": 9, "richShare": 0.5, "farStep": 4, "nearDensity": 0.95, "farDensity": 0.85, "thinFrom": 20, "pineFrom": 2.6, "farScale": 2.2 },

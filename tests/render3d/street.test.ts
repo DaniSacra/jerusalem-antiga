@@ -7,6 +7,11 @@ import { houseActs, idlePose, idleShown, leaveLead, leavePath, leavers, standabl
 import { emptyGame, hire, person, put } from '../helpers';
 
 const plan = (s: GameState, max?: number) => streetPlan(s, cityPlan(s).buildings, max);
+/** The plan without the gatherings round the altar's fire (the tests below look at the houses' doors). */
+const doors = (s: GameState, max?: number) => {
+  const a = s.buildings.find((b) => b.kind === 'altar')!;
+  return plan(s, max).filter((o) => Math.hypot(o.x - a.x - a.w / 2, o.z - a.y - a.h / 2) > a.w / 2 + 1.6);
+};
 /** The spots standing by the house on (x, y) (2x2) among `all` houses: the nearest centre is its. */
 const by = (spots: IdleSpot[], x: number, y: number, all: { x: number; y: number }[]) => {
   const d = (o: IdleSpot, h: { x: number; y: number }) => Math.hypot(o.x - h.x - 1, o.z - h.y - 1);
@@ -32,7 +37,7 @@ describe('the still life of the streets', () => {
     const s = emptyGame();
     // East of the starting road (x = 24): the houses face it.
     const houses = [28, 30, 32, 34].map((y, k) => put(s, 'house', 25, y, k + 1));
-    const spots = plan(s);
+    const spots = doors(s);
     const counts = houses.map((h) => by(spots, h.x, h.y, houses).length);
     expect(counts[0]).toBeLessThanOrEqual(1);
     expect(counts.slice(1)).toEqual([1, 2, 3]);
@@ -54,7 +59,7 @@ describe('the still life of the streets', () => {
       person(s, { houseId: h.id, age: 6 });
       person(s, { houseId: h.id, age: 70, sex: 'f' });
     }
-    const spots = plan(s);
+    const spots = doors(s);
     const band = (o: IdleSpot) => o.band;
     expect(spots.some((o) => o.act === 'talk')).toBe(true);
     for (const o of spots) {
@@ -71,7 +76,7 @@ describe('the still life of the streets', () => {
     refreshCity(s);
     expect(plan(s).length).toBeLessThanOrEqual(LOOK.street.max);
     for (const max of [3, 5, 8]) {
-      const spots = plan(s, max);
+      const spots = doors(s, max);
       expect(spots.length).toBeLessThanOrEqual(max);
       const talk = spots.filter((o) => o.act === 'talk');
       for (const o of talk) expect(talk.filter((t) => t.show === o.show)).toHaveLength(2);
@@ -81,7 +86,7 @@ describe('the still life of the streets', () => {
   it('shows fewer at a lower street share, whole groups first in the order of the plan', () => {
     const s = emptyGame();
     for (let y = 28; y <= 40; y += 2) put(s, 'house', 25, y, 4);
-    const spots = plan(s);
+    const spots = doors(s);
     expect(idleShown(spots, 0)).toBe(0);
     expect(idleShown(spots, 1)).toBe(spots.length);
     let last = 0;
@@ -198,5 +203,52 @@ describe('a betrothed couple walking to marry', () => {
     expect(HOLD_SLOTS.map((o) => o.back)).toEqual([0, 0]);
     expect(HOLD_SLOTS[0].side).toBe(-HOLD_SLOTS[1].side);
     expect(HOLD_SLOTS.map(holdLoad).sort()).toEqual(['hold-l', 'hold-r']);
+  });
+
+  it('gathers people in a ring round the altar fire and round a plaza, facing the middle', () => {
+    const s = emptyGame();
+    for (let k = 0; k < 8; k++) person(s, { houseId: null, age: 30 + k });
+    const altar = s.buildings.find((b) => b.kind === 'altar')!;
+    const cx = altar.x + altar.w / 2;
+    const cz = altar.y + altar.h / 2;
+    const ring = plan(s).filter((o) => Math.hypot(o.x - cx, o.z - cz) < altar.w / 2 + 1.7);
+    expect(ring.length).toBeGreaterThanOrEqual(3);
+    for (const o of ring) {
+      expect(o.act).toBe('talk');
+      // Facing the fire: the heading points at the middle.
+      expect(Math.cos(o.yaw - Math.atan2(cx - o.x, cz - o.z))).toBeGreaterThan(0.9);
+    }
+    const p = put(s, 'plaza', 30, 32);
+    const round = plan(s).filter((o) => Math.hypot(o.x - p.x - 1, o.z - p.y - 1) < 0.9);
+    expect(round.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('puts a woodcutter chopping and a gatherer kneeling beside a staffed camp, none without a crew', () => {
+    const s = emptyGame();
+    const l = put(s, 'lumber', 25, 32);
+    const g = put(s, 'gatherer', 25, 36);
+    const work = () => plan(s).filter((o) => o.act === 'chop' || (o.act === 'gather' && !o.autumn));
+    expect(work()).toHaveLength(0);
+    hire(s, l);
+    hire(s, g);
+    const spots = work();
+    expect(spots.map((o) => o.act).sort()).toEqual(['chop', 'gather']);
+    for (const o of spots) expect(standable(s, o.x, o.z)).toBe(true);
+    // The woodcutter's hammer-stroke moves him (leaning back and forward).
+    const chop = spots.find((o) => o.act === 'chop')!;
+    const leans = [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2].map((t) => idlePose(chop, t).lean);
+    expect(Math.max(...leans) - Math.min(...leans)).toBeGreaterThan(0.2);
+  });
+
+  it('puts builders hammering round the first stage in work (at the altar), only with builders at it', () => {
+    const s = emptyGame();
+    const site = s.buildings.find((b) => b.kind === 'altar')!;
+    const hammers = () => plan(s).filter((o) => o.act === 'hammer');
+    expect(hammers()).toHaveLength(0);
+    s.temple = { done: 0, active: true, progress: 0 };
+    site.builders = 3;
+    hire(s, site, 3);
+    expect(hammers().length).toBeGreaterThan(0);
+    for (const o of hammers()) expect(o.load).toBe('hammer');
   });
 });
