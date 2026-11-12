@@ -50,6 +50,9 @@ While building:
   altar, starting road, entrance). Use when touching any of these.
 - `test-reviewer` — makes sure every `src/core` rule has good, seeded tests; may write missing
   tests, never production code. Use after creating or changing a game rule.
+- `music-director` — music in mp3 made with PixelLab's music tools (needs the `pixellab` MCP server in this
+  project) and wired into `src/app/music.ts`, by season and day/night; keeps `docs/musica.md`. The code-made
+  music stays as the fallback.
 - `copywriter` — on-screen texts only (goals, tool hints, info line, balloons, toasts, alerts,
   title/victory/defeat screens) in `src/game/strings.ts` and `goals.json`. No story or verses.
 - `code-reviewer` — reviews architecture rules, DRY/KISS, typing, strings/palette and per-frame
