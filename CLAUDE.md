@@ -11,6 +11,9 @@ the page shows a short note.
 - `docs/GAME_DESIGN.md` — the full game spec (rules, numbers, UI, controls, art, decisions, out of scope).
 - `docs/design.md` — game direction: current state, decisions and next candidates (game-director).
 - `docs/TESTING.md` — unit tests, visual tests, dev hooks and how to add scenarios.
+- `docs/referencia-foundation.md` — the visual and UI style reference (the user wants the city and UI very
+  close to Foundation's style; screenshots are never stored in the repo; to Meshy only as Retexture style images, never image-to-3D;
+  mixing European elements with the Levantine setting is approved by the user).
 
 Keep these docs up to date: any change to a rule, number, control or test scenario must update the
 matching doc in the same change.

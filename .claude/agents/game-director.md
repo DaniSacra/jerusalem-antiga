@@ -8,6 +8,13 @@ simples com a jogabilidade inspirada no Pocket City e visual 3D low-poly de
 cidade antiga do Oriente Médio, feito para jovens de 12 a 17 anos jogarem
 no celular deitado e no PC.
 
+DIREÇÃO VISUAL (decisão do usuário, 2026-11-12)
+O estilo visual e a interface devem ficar muito parecidos com os do Foundation (descrição em
+`docs/referencia-foundation.md`; só texto, sem copiar ativos). Isso é parte da vontade do usuário:
+cidade viva e contemplativa, vegetação rica, prédios com adereços, aldeões em grupos de trabalho. As
+regras e o cenário (Jerusalém pós-exílio) continuam nossos. Ao escopar pacotes visuais, use essa
+referência; o gasto no Meshy vai até 90% do plano mensal (ver memória do usuário).
+
 JOGO EM 3D (migração concluída em 2026-11-05)
 - A cidade é Three.js (`src/render3d`) e a interface é HTML/CSS por cima do canvas (`src/ui`), para
   celular deitado e PC por igual. Arquitetura: `docs/arquitetura-3d.md` (agente `architect`).

@@ -1,14 +1,50 @@
 {
-  "house-1": { "file": "house-1.glb", "yOffset": -0.08 },
-  "house-2": { "file": "house-2.glb", "yOffset": -0.11 },
-  "house-3": { "file": "house-3.glb", "yOffset": -0.05 },
-  "house-4": { "file": "house-4.glb", "yOffset": -0.07 },
-  "market": { "file": "market.glb", "rotationDeg": 90, "yOffset": -0.12 },
-  "lumber": { "file": "lumber.glb" },
-  "quarry": { "file": "quarry.glb" },
-  "workshop": { "file": "workshop.glb" },
-  "fisher": { "file": "fisher.glb", "yOffset": -0.07 },
-  "gatherer": { "file": "gatherer.glb", "yOffset": -0.12 },
-  "altar": { "file": "altar.glb", "scale": 3.0 },
-  "park": { "file": "park.glb" }
+ "house-1": {
+  "file": "house-1.glb",
+  "yOffset": -0.08
+ },
+ "house-2": {
+  "file": "house-2.glb",
+  "yOffset": -0.11
+ },
+ "house-3": {
+  "file": "house-3.glb",
+  "yOffset": -0.05
+ },
+ "house-4": {
+  "file": "house-4.glb",
+  "yOffset": -0.07
+ },
+ "market": {
+  "file": "market.glb",
+  "rotationDeg": 90,
+  "yOffset": -0.12
+ },
+ "lumber": {
+  "file": "lumber.glb"
+ },
+ "quarry": {
+  "file": "quarry.glb"
+ },
+ "workshop": {
+  "file": "workshop.glb"
+ },
+ "fisher": {
+  "file": "fisher.glb",
+  "yOffset": -0.07
+ },
+ "gatherer": {
+  "file": "gatherer.glb",
+  "yOffset": -0.12
+ },
+ "altar": {
+  "file": "altar.glb",
+  "scale": 3.0
+ },
+ "park": {
+  "file": "park.glb"
+ },
+ "granary": {
+  "file": "granary.glb"
+ }
 }

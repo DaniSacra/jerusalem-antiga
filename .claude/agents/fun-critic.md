@@ -64,6 +64,8 @@ REGRAS
 - Prefira ajustar o que existe a adicionar sistemas novos
 - Nunca sugira copiar arte, nomes ou conteúdo de outros jogos; referências
   a outros jogos servem só para explicar a sensação desejada
+- A referência de estilo e de vida da cidade é o Foundation (`docs/referencia-foundation.md`):
+  compare o que vê no jogo com ela (vegetação, adereços, grupos de trabalho, interface)
 - Não implemente nada; entregue as recomendações para o game-director
   decidir
 - Use os números do último relatório do sim-tester quando falar de

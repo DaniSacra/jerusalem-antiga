@@ -356,3 +356,45 @@ textura 1024 px com `pack.mjs` (`NORMAL=0`). Scripts desta leva ficaram fora do 
 
 5.ª leva: 9 gerações (135 créditos) + 3 retextures (30) = **165 créditos**. Saldo: 486 antes,
 **321 depois** (limite do usuário: 152). Total gasto em todas as levas: 745.
+
+## 6.ª leva (estilo Foundation, 2026-11-12)
+
+Guia: `docs/referencia-foundation.md`. Só texto nos prompts (nenhuma imagem de jogo usada; nenhum
+Retexture com imagem de estilo nesta leva). Saldo: **321 antes, 111 depois** (210 gastos; parada
+em ~37 não foi necessária). Mesma configuração (`smart-topology`, `meshy-t2.5`, alvo 2 500, refine 2k sem
+PBR, 15 créditos por modelo); textura 1024 px com `pack.mjs` (`NORMAL=0`); todos já saíram com
+≤ 2 500 triângulos (o `simplify.mjs` não reduziu nada). Fim comum dos prompts: "Stylized low-poly
+city-builder game asset seen from a high tilted camera, chunky friendly proportions, warm saturated
+but harmonious colors, soft baked shading, hand-painted look, small props around it (barrels, baskets,
+ladder, jars), sits directly on a thin flat ground footprint, no raised platform, single centered object."
+
+| Chave | Tentativa | Preview | Refine | Créditos | Triângulos | Resultado |
+|---|---|---|---|---|---|---|
+| `house-1` tenda | 1 | 01a1d16a-b080-7273-99e1-568cb643f446 | 01a1d16b-3832-72af-a0ee-71aad6a5d9cb | 15 | 2 333 | **em uso** (tenda de pano com tapete, jarros, lenha, escada) |
+| `house-2` | 1 | 01a1d16a-b07d-75b0-af68-0acd7a36a221 | 01a1d16b-0dfd-72dd-9cd8-8e29030b22d3 | 15 | 2 477 | **em uso** (caixa ocre-laranja viva, escada de mão, barris e jarros) |
+| `house-3` | 1 | 01a1d16a-b095-7759-bb51-f80bc72cdd76 | 01a1d16b-61b2-749f-8f84-9acc2102e61b | 15 | 2 294 | **em uso** (calcário embaixo, reboco ocre em cima, varal colorido, venezianas azuis, lenha) |
+| `house-4` | 1 | 01a1d16a-b09c-742b-beb8-aee17ae46892 | 01a1d16b-382c-738e-aaf1-c89cc5d4c391 | 15 | — | descartado: uma árvore e uma viga comprida, a casa nem aparecia |
+| `house-4` | 2 | 01a1d16c-b8b3-7764-a647-579ba7679eb9 | 01a1d16d-1688-73dc-831f-f6edfb2dd17e | 15 | 2 332 | **em uso** (dois andares, toldo azul, escada; tem ameias baixas no parapeito) |
+| `market` | 1 | 01a1d16c-b8c7-74fe-a540-9e5b14ea22df | 01a1d16d-3fa7-7590-bd28-26ca766d3f65 | 15 | — | descartado: pátio murado e escuro, só dois toldos |
+| `market` | 2 | 01a1d16e-add9-7004-9bee-307f3faef28a | 01a1d16f-0cda-72ad-ad38-980c347c34c4 | 15 | 2 190 | **em uso** (três barracas de toldo listrado, poço, cestos; `rotationDeg: 90`) |
+| `lumber` | 1 | 01a1d16c-b8b8-72f8-a6ad-76613b18dd9c | 01a1d16d-40c9-7677-b9da-f61b70d7970e | 15 | 2 204 | **em uso** (cabana de reboco com telhado inclinado, pilha de toras, serra, carrinho) |
+| `fisher` | 1 | 01a1d16c-b8d1-7431-a4ed-27b00cbce0e7 | 01a1d16d-4087-7265-848e-2ac862cbca5e | 15 | 2 296 | **em uso** (barco azul, rede, barris) |
+| `gatherer` | 1 | 01a1d16c-b8ee-7319-977e-6a817415617a | 01a1d16d-41f3-74c8-8c11-b6da3c0c905d | 15 | 2 284 | **em uso** (abrigo com figueira, cestos de frutas, jarros) |
+| `granary` | 1 | 01a1d16c-b8e7-75af-9cc0-41054f47c296 | 01a1d16d-3f8a-7638-8169-2f6a91b658c9 | 15 | 2 329 | **em uso, primeira vez no pacote** (armazém ocre, porta em arco, dois silos redondos, sacos e barris) |
+| `workshop` | 1 | 01a1d16c-b8c0-76e7-8fec-3654f5a47be4 | 01a1d16d-4111-70d8-a7f7-a9f857eb2cf9 | 15 | — | descartado: base preta e só ocre; o layout também mudou e o quarto/forno por código (`KILN`, `CRAFT_FLOOR`) não encaixaria |
+| `quarry` | 1 | 01a1d16c-b8d2-773a-b392-815ab5c0409f | 01a1d16d-1758-7561-a92b-5bd5d4a834b7 | 15 | — | descartado: degraus de lajes brancas chapadas, mal lê pedreira |
+| `quarry` | 2 | 01a1d16e-ade4-75c9-aecc-c58d81adfb1a | 01a1d16f-0c3a-70b5-8173-6cddead9a885 | 15 | — | descartado: um bloco alto sem degraus, com pedaço preto no topo |
+
+Prompts (antes do fim comum): `house-1` Nomad tent of ancient Judea, a wide low tent of dark brown striped
+goat-hair cloth over wooden poles with ropes and pegs, one side open showing a woven rug and cushions, a
+clay water jar, a basket, a small fire ring with a cooking pot, a stack of firewood beside it. `house-2`
+Small one-room mud-brick house of ancient Jerusalem, a chunky box wider than tall, warm ochre plastered
+walls, flat roof with a low parapet, big wooden door and one window, a wooden ladder leaning to the roof,
+two barrels and baskets by the door, clay jars on the roof, a round clay bread oven. `house-3`, `house-4`
+(tentativa 2), `market` (2), `lumber`, `fisher`, `gatherer` e `granary`, `workshop` e `quarry` (1 e 2): ver
+o rascunho do agente; os textos acompanham o resumo da tabela. Ids acima.
+
+Não gerados por falta de chave no jogo: poço, carroça, lenha com serrote, cercado, galpão de campo e
+moinho (o carregador só aceita chaves que a cena desenha) e o curtume (é `craft-5`, por código). `yOffset`
+das casas, fisher e gatherer mantidos dos modelos anteriores. Capturas conferidas: `houses3d-pc`
+e `town3d-pc` (dia e noite). Fisher, gatherer e lenhador só vistos nos ícones do menu e em miniatura.

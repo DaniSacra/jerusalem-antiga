@@ -13,17 +13,23 @@ JOGO EM 3D (migração concluída em 2026-11-05)
 - `src/core` e `src/data` guardam regras e números, puros (sem Three.js, sem DOM). Lógica pura de
   tela fica em `src/game`; textos da tela em `src/game/strings.ts`, cores em `src/game/palette.ts`.
 
-REFERÊNCIA DE CLIMA VISUAL
-A referência de clima é o jogo Nebuchadnezzar, um construtor de cidades da
-Mesopotâmia antiga. Use-o apenas como inspiração de estilo geral, nos
-pontos abaixo:
-- câmera alta, de cima, com construções que parecem maquetes detalhadas
-- paleta quente de deserto, com luz suave de fim de tarde
-- cidade densa e viva, cheia de gente andando, plantações e água em movimento
-- sensação de ordem: bairros organizados em volta de construções importantes
-
-Nunca copie construções, sprites, ícones, interface ou composição de cenas
-de nenhum jogo existente. Nosso jogo deve ser reconhecível como arte própria.
+REFERÊNCIA DE ESTILO PRINCIPAL: FOUNDATION (decisão do usuário, 2026-11-12)
+O usuário quer a cidade MUITO PARECIDA com o estilo do jogo Foundation. Leia
+`docs/referencia-foundation.md` antes de qualquer trabalho visual: ele descreve o estilo em
+palavras (câmera inclinada que chega perto das pessoas, proporções gordinhas, gramado vivo com capim
+alto e flores, floresta densa na borda, caminhos orgânicos, campos cercados em patchwork, prédios
+com adereços, telhados variados e girados, sol baixo com nuvens e névoa, grupos de aldeões
+trabalhando). Em resumo: prédio + adereços, vegetação rica, vida em todo lugar.
+- O usuário aprovou MISTURAR elementos europeus do Foundation (telhado inclinado de palha ou telha,
+  madeira aparente, torres, moinhos, chafarizes) com o Levante: o jogo é para crianças e o que vale é
+  ficar bonito e coerente. As formas do Levante (abaixo) continuam como base e para o templo e o altar;
+  o ESTILO (luz, cor viva e harmoniosa, vegetação, adereços, vida) segue o Foundation. `docs/arte-3d-referencia.md` (Banished) continua valendo para
+  escala e legibilidade, mas onde pedir cor apagada, vale o Foundation (cor viva).
+- As capturas do Foundation NÃO entram no repositório. Ao Meshy vão só como imagem de estilo do
+  Retexture (`image_style_url`, recortes sem logotipo, autorizado pelo usuário em 2026-11-12), NUNCA
+  em image-to-3D; a geometria é sempre nossa e os prompts continuam em texto. Nunca copie construções, modelos, ícones, interface ou composição de cenas de nenhum
+  jogo: pegue o jeito, não os ativos. O resultado precisa ser reconhecível como arte própria.
+- O Nebuchadnezzar e o Banished ficam como referências secundárias (ordem dos bairros, escala).
 
 REFERÊNCIA DE ARQUITETURA (o que torna a arte nossa)
 A cidade é Jerusalém após a volta do exílio, não a Babilônia. Baseie as

@@ -8,6 +8,11 @@ Você desenha o mapa do jogo (grade lógica 48 x 48 em src/core, desenhada em 3D
 Os números atuais ficam em src/data (rules.json > map e buildings.json);
 confira lá antes de mudar qualquer coisa.
 
+REFERÊNCIA DE ESTILO (2026-11-12): o mapa deve lembrar o Foundation (`docs/referencia-foundation.md`):
+clareiras de gramado vivo com capim alto e manchas de flores, floresta densa e variada na borda
+(nunca um corte reto), colinas, rochedos com musgo, lago ou rio com praia de areia, caminhos
+orgânicos, campos cercados em patchwork. Só texto de referência; nada copiado.
+
 JOGO EM 3D (migração concluída em 2026-11-05)
 - A cidade é Three.js (`src/render3d`) e a interface é HTML/CSS por cima do canvas (`src/ui`), para
   celular deitado e PC por igual. Arquitetura: `docs/arquitetura-3d.md` (agente `architect`).
