@@ -45,6 +45,8 @@ export const NOVA_CSS = {
   text: '#fff4dc',
   muted: '#d2c09a',
   gold: '#e2a93b',
+  /** Gold of the chosen tool and the highlights on dark. */
+  goldBright: '#ffd77a',
   good: '#8fd17f',
   bad: '#ff8a7a',
   warn: '#ffb15c',
@@ -60,6 +62,32 @@ export const NOVA_CSS = {
   vignette: 'rgba(28, 18, 8, 0.32)',
   /** Behind the map while it loads (the earth brown). */
   bg: hex(C.bg),
+  // ---- Foundation-style surfaces (2026-11-12): dark brown glass with a thin gold edge; wood and parchment windows ----
+  /** Pills, side panels, the tool discs: translucent dark brown. */
+  panel: 'rgba(38, 26, 14, 0.8)',
+  /** Balloons and menus that must read over any ground. */
+  panelDeep: 'rgba(30, 20, 10, 0.95)',
+  /** The thin gold edge of every panel (and its softer inner line). */
+  edge: 'rgba(226, 169, 59, 0.72)',
+  edgeSoft: 'rgba(226, 169, 59, 0.28)',
+  /** The round tool buttons: dark, a little more solid than a pill. */
+  disc: 'rgba(44, 30, 16, 0.9)',
+  /** Wood of the window frames (dark to light) and the cream-orange parchment inside. */
+  wood: '#5b3a1c',
+  woodDark: '#34200d',
+  woodLight: '#7d5330',
+  paper: '#f3dcab',
+  paperDeep: '#e6c286',
+  /** Ochre buttons of the windows (light to dark) and their ink. */
+  ochre: '#e0a043',
+  ochreDark: '#b8741d',
+  ochreInk: '#3b2a1a',
+  /** Ink on the parchment: muted, good, bad and warn tones that read on cream. */
+  paperMuted: '#7a6446',
+  paperGood: '#2f6f26',
+  paperBad: '#a52a1c',
+  paperWarn: '#9a5a0c',
+  paperGold: '#a8710f',
 };
 
 /** Rounded and readable, system fonts only (the game is an offline app): falls back to the classic font. */

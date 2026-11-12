@@ -26,6 +26,8 @@ export const T = {
   /** Residents lost when a house goes down (with famine, the cause). */
   houseDown: (delta: number, famine: boolean, cold = false) => (cold ? `Frio ${delta}` : famine ? `Fome ${delta}` : `${delta}`),
   title: 'Jerusalém Antiga',
+  /** Under the name on the title screen. */
+  subtitle: 'Reerga a cidade, casa por casa',
   /** No WebGL 2 in this browser: the game cannot draw. */
   noWebGL: 'Este navegador não consegue desenhar o jogo em 3D. Atualize o navegador ou abra em outro aparelho.',
   start: 'Começar',

@@ -903,6 +903,40 @@ código continuam `goal` e `happiness`; o passo passou a ser `week`.
   da caravana: "A caravana chegou com N famílias, comida para N semanas e 40 de madeira" (a madeira
   lida de `startMaterials`).
 
+**Estilo Foundation (2026-11-12, só visual; vale sobre o que está abaixo quando houver diferença).**
+Casa com `docs/referencia-foundation.md` ("Interface"): desenho todo nosso, nada copiado. Cores em
+`palette.ts` (`NOVA_CSS`, que `applyPalette` de `src/ui/dom.ts` põe como `--c-*`), formas em tokens
+`--r-panel`, `--r-window`, `--frame` de `ui.css`.
+- **Barra do topo no centro:** medalhão do Nível e **cápsulas por tema** (`div.pgroup`, uma borda só):
+  Prata + Comida, materiais (madeira, pedra, gado, roupas) e Moradores + Alegria; o Objetivo vem logo
+  abaixo, como tarefa com caixa de marcar (`.goal`, com ✓ quando a barra enche); a engrenagem fica no
+  canto direito. Painéis marrom-escuros translúcidos, borda fina dourada, texto creme.
+- **Barra de ferramentas no centro de baixo** (`nav.tools`): discos redondos escuros com ícone claro e
+  o nome embaixo; o escolhido ganha aro dourado. Os botões de girar, Avisos, Estatísticas, Profissões
+  e Contemplar ficam em discos escuros na lateral esquerda, agora desde o topo (o medalhão saiu do canto).
+- **Canto inferior esquerdo:** o painel **Data e velocidade** (`div.clock`, montado por `TopBar`): a
+  pílula da estação e os botões de velocidade (celular: uma fileira com o botão que alterna; PC: duas
+  fileiras com pausa, 1x e 3x). O mapa livre termina acima dele e da barra de ferramentas.
+- **Tutorial:** o cartão do passo (pergaminho com moldura de madeira e botão ocre) fica logo abaixo da
+  barra do topo, no lugar de "O que fazer agora"; a seta continua sobre o botão e os toasts sobem acima
+  dela enquanto o tutorial fala.
+- **Janelas:** Objetivos, Avisos, Estatísticas, Profissões, a ficha e os cartões de vitória, derrota e
+  início são **madeira e pergaminho**: moldura de madeira com linha dourada, página creme-alaranjada, texto
+  tinta (as cores bom/ruim/aviso trocam para tons que leem no creme), botões **ocre**, cantos redondos.
+  Balões de célula e de ferramenta seguem escuros com borda dourada (são painéis sobre o mapa).
+- **Objetivo como tarefa lateral (PC):** o `.goal` sai da barra e vira um painel translúcido na lateral
+  esquerda, sob os botões redondos (caixa de marcar, "Objetivo N de 24", o texto, a barra e o progresso);
+  o mapa livre começa à direita dele. No celular o Objetivo continua sob as cápsulas.
+- **Tela de início:** bloco da marca ao lado do cartão, sobre a cidade: brasão desenhado por nós
+  (`ICONS.crest`: escudo, altar com chama e dois ramos de oliveira), o nome em dourado com letra serifada,
+  um filete com losango e o subtítulo (`T.subtitle`). O cartão (como jogar, dificuldade, Começar) é
+  madeira e pergaminho. Os cartões de vitória e derrota levam o brasão e o filete.
+- **Movimento:** janelas e cartões abrem com um "pop" suave (0,2 s), botões sobem 1 px sob o mouse;
+  `prefers-reduced-motion` desliga tudo (fechar ainda não tem animação).
+- **Balões de problema sobre o mundo** (`.need`): redondos, disco creme com aro dourado e um biquinho
+  para o prédio; o cadeado do que ainda está bloqueado continua no canto.
+- Não mudaram: regras, números, textos, gestos e tamanhos mínimos (toque 44 px, texto 12 px).
+
 Mockups do usuário de 2026-11-03 (celular 844 x 390 e PC 1366 x 768). Arte desenhada em código.
 
 - **Estilo:** painéis marrom escuro `#24190E` a 75%, borda clara a 20%, cantos arredondados; botões
@@ -1628,6 +1662,10 @@ Só desenho (`src/render3d`); números em `src/render3d/look3d.json` e `src/data
   de modelos .glb gerados no Meshy (`public/models/meshy`, créditos em `CREDITS.md`), trocados por
   chave. O jogo abre com os modelos de código e troca pelos .glb quando chegam. A cidade inteira
   cabe em poucas dezenas de chamadas de desenho, porque cada parte de modelo é instanciada.
+- **Estilo Foundation (2026-11-12):** campo vivo (gramado verde vivo, prado dourado, capim alto, flores
+  em manchas, arbustos redondos, carvalhos e pinheiros, colinas e mata densa em volta do mapa, ruas com
+  grama invadindo, campos cercados), sol baixo e quente, nuvens grandes e névoa azulada, câmera que chega
+  mais perto. Detalhes em `src/render3d/README.md` (seção "Estilo Foundation").
 - **Paleta quente:** areia, ocre, tijolo de barro, pedra calcária clara, com o verde das palmeiras e
   oliveiras e o azul do rio de contraste (`COLORS` em `models.ts`; cores da interface em
   `src/game/palette.ts`).

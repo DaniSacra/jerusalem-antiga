@@ -47,7 +47,7 @@ export class Tools {
     }
   }
 
-  /** `bottom`: the tool balloon stays above it (the tutorial bubble's top when it shows). */
+  /** `bottom`: the tool balloon stays above it. */
   update(phone: boolean, bottom = innerHeight - 8) {
     const s = this.s;
     for (const [t, el] of this.toolEls) {
@@ -109,6 +109,6 @@ export class Tools {
       else if (b.top < c.top + 6) this.column.scrollTop -= c.top - b.top + 12;
     }
     const r = el.getBoundingClientRect();
-    return build ? { x: r.left - 4, y: r.top + r.height / 2, dir: 'right' } : { x: r.left + r.width / 2, y: r.top - 4, dir: 'down' };
+    return build ? { x: r.left - 4, y: r.top + r.height / 2, dir: 'right' } : { x: r.left + r.width / 2, y: r.top - 10, dir: 'down' };
   }
 }

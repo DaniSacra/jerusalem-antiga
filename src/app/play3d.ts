@@ -406,6 +406,7 @@ export class Play3D implements SessionView, GestureView, HudHost {
           return g.scene.ready;
         },
         fps: () => stage.fps(),
+        census: () => stage.census(),
         rig,
         game: g,
         view: (o: ViewOverride | null) => stage.view(o),

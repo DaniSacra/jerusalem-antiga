@@ -1,3 +1,5 @@
+import { NOVA_CSS, NOVA_FONT, TITLE_FONT } from '../game/palette';
+
 /** A tiny DOM helper (no framework): the interface is small and comes as data from src/game/model. */
 
 type Attrs = Record<string, string | number | boolean | null | undefined | ((e: Event) => void)>;
@@ -66,3 +68,10 @@ export function onTap(el: HTMLElement, fn: (e: PointerEvent) => void) {
 
 /** Phone or PC, decided on the real screen (short, or a touch-first pointer), as `layout.ts > IS_PHONE`. */
 export const formOf = () => (innerHeight < 500 || matchMedia('(pointer: coarse)').matches ? 'phone' : 'pc');
+
+/** Every palette colour (and the fonts) as CSS variables on the interface's root: `inkBad` -> `--c-ink-bad`. */
+export function applyPalette(root: HTMLElement) {
+  for (const [k, v] of Object.entries(NOVA_CSS)) root.style.setProperty(`--c-${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`, v);
+  root.style.setProperty('--font', NOVA_FONT);
+  root.style.setProperty('--title-font', TITLE_FONT);
+}

@@ -28,9 +28,11 @@ export class Modal {
       el.innerHTML = ICONS.branch;
       return el;
     };
+    const crest = h('span.crest');
+    crest.innerHTML = ICONS.crest;
     const head = h('div.crown', {}, branch('left'), h('h2', {}, title), branch('right'));
     const row = h('div.medals', {}, ...medals.map(([n, label]) => h('div.medal', {}, h('b', {}, String(n)), h('span', {}, label))));
-    this.el = h('div.modal.end', {}, h('div.card', {}, head, h('p', {}, text), ...(medals.length ? [row] : []), acts));
+    this.el = h('div.modal.end', {}, h('div.card', {}, crest, head, h('div.orn'), h('p', {}, text), ...(medals.length ? [row] : []), acts));
     this.parent.append(this.el);
   }
 

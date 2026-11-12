@@ -4,6 +4,8 @@
 #hud {
   --margin: 10px; --gap: 8px; --num: 17px; --text: 14px; --small: 13px; --big: 26px;
   --level: 72px; --pill: 36px; --btn: 48px; --tool: 56px; --col: 190px;
+  /* Shapes shared by the surfaces (colours are the palette's --c-*). */
+  --r-panel: 16px; --r-window: 20px; --frame: 5px;
   position: fixed; inset: 0; z-index: 6; pointer-events: none; overflow: hidden;
   font-family: var(--font); color: var(--c-text); user-select: none; -webkit-user-select: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -12,6 +14,7 @@
 #hud[data-form='phone'] {
   --margin: 8px; --gap: 6px; --num: 15px; --text: 13px; --small: 12px; --big: 20px;
   --level: 56px; --pill: 30px; --btn: 44px; --tool: 44px; --col: 132px;
+  --r-panel: 14px; --r-window: 16px; --frame: 4px;
 }
 @media (max-width: 700px) { #hud[data-form='phone'] { --level: 48px; } }
 :where(#hud button) { font: inherit; color: inherit; }
@@ -20,25 +23,31 @@
 /* Lists that scroll (the column, panels, balloons, the sheet): a finger sliding on a button scrolls them. */
 #hud .column button, #hud .panelbox button, #hud .balloon button, #hud .sheet button { touch-action: pan-y; }
 
-.panel, .pill { background: rgba(36, 25, 14, 0.78); border: 1.5px solid var(--c-filet); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); }
+.panel, .pill { background: var(--c-panel); border: 1.5px solid var(--c-edge); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 /* A thin gold filet inside the edge of the dark panels (not the pills: they are small). */
-.panel { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(226, 169, 59, 0.22); }
+.panel { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--c-edge-soft); }
 /* A very light paper grain on the parchment (SVG noise, no image file). */
-#hud { --parchment-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.12 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"); --c-filet: rgba(255, 244, 220, 0.2); }
-.tool .disc, .act:not(.gold):not(.red), .chip.family, .modal .card { background-image: var(--parchment-grain); }
+#hud { --parchment-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.12 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"); --c-filet: var(--c-edge); }
+.chip.family, .modal .card, .tutorial, .panelbox { background-image: var(--parchment-grain), linear-gradient(var(--c-paper), var(--c-paper-deep)); }
 .t-good { color: var(--c-good); } .t-bad { color: var(--c-bad); } .t-warn { color: var(--c-warn); }
 .t-muted { color: var(--c-muted); } .t-gold { color: var(--c-gold); }
 .s-num { font-size: var(--num); font-weight: 800; } .s-text { font-size: var(--text); } .s-small { font-size: var(--small); }
 
 /* ---------- top bar ---------- */
-.top { position: absolute; left: var(--margin); right: var(--margin); top: var(--margin); display: flex; justify-content: space-between; gap: var(--gap); align-items: flex-start; }
-.top .left { display: flex; gap: var(--gap); align-items: flex-start; min-width: 0; }
-.top .pills { display: flex; gap: calc(var(--gap) * 0.7) var(--gap); flex-wrap: wrap; min-width: 0; }
+/* Centred: the level medallion and the themed capsules in the middle, the gear at the right edge. */
+.top { position: absolute; left: var(--margin); right: var(--margin); top: var(--margin); display: grid; grid-template-columns: minmax(var(--btn), 1fr) auto minmax(var(--btn), 1fr); gap: var(--gap); align-items: flex-start; }
+.top .left { grid-column: 2; display: flex; gap: var(--gap); align-items: flex-start; min-width: 0; max-width: 100%; }
+.top .pills { display: flex; gap: calc(var(--gap) * 0.7) var(--gap); flex-wrap: wrap; justify-content: center; min-width: 0; }
 .top .pillset { display: contents; }
+/* A capsule: pills of one theme side by side (coin and bread, materials, people) under one edge. */
+.pgroup { display: flex; background: var(--c-panel); border: 1.5px solid var(--c-edge); border-radius: calc(var(--pill) / 2); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); overflow: hidden; pointer-events: auto; }
+.pgroup .pill { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0 10px; height: calc(var(--pill) - 3px); }
+.pgroup .pill + .pill { border-left: 1px solid var(--c-edge-soft); }
+.pgroup .pill.alarm { background: rgba(176, 48, 42, 0.38); box-shadow: inset 0 0 0 1.5px var(--c-bad); }
 .level, .goal { cursor: pointer; }
 .level { width: var(--level); height: var(--level); border-radius: 50%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: conic-gradient(var(--c-gold) calc(var(--f, 0) * 1turn), #5a4630 0); position: relative; }
-.level::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(36, 25, 14, 0.92); }
+  background: conic-gradient(var(--c-gold) calc(var(--f, 0) * 1turn), #5a4630 0); position: relative; box-shadow: 0 0 0 1.5px var(--c-edge), 0 2px 8px rgba(0, 0, 0, 0.4); }
+.level::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--c-panel-deep); box-shadow: inset 0 0 0 1px var(--c-edge-soft); }
 .level b, .level small { position: relative; }
 .level b { font-size: calc(var(--level) * 0.42); line-height: 1; font-weight: 800; }
 .level small { font-size: var(--small); color: var(--c-gold); font-weight: 700; letter-spacing: 0.04em; }
@@ -50,6 +59,9 @@
 .pill.alarm .parts { animation: hud-blink 1.6s ease-in-out infinite; }
 @keyframes hud-blink { 50% { opacity: 0.35; } }
 .goal { max-width: 100%; min-width: 0; }
+/* The goal as a task with a check box (ticked when its bar is full). */
+.goal::before { content: ''; flex: none; box-sizing: border-box; width: 16px; height: 16px; border-radius: 5px; border: 2px solid var(--c-gold); background: rgba(0, 0, 0, 0.25); color: var(--c-ink); font-size: 12px; line-height: 12px; font-weight: 800; text-align: center; }
+.goal.done::before { content: '\2713'; background: var(--c-gold); }
 /* Only the goal's text is cut short: its label and progress ("0/1") always show. */
 .goal > * { flex: none; }
 .goal > :nth-child(2) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -58,33 +70,54 @@
 .pill .parts { display: inline-flex; align-items: baseline; gap: 4px; }
 .bar { width: 80px; height: 8px; border-radius: 4px; background: #5a4630; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--c-gold); }
-.top .right { display: flex; gap: var(--gap); align-items: flex-start; flex: none; }
+.top .right { grid-column: 3; justify-self: end; display: flex; gap: var(--gap); align-items: flex-start; flex: none; }
+/* Bottom left: the date and the speed in one small panel (a row on the phone, two rows on PC). */
+.clock { position: absolute; left: var(--margin); bottom: var(--margin); display: flex; align-items: center; gap: 6px; padding: 5px 8px 5px 5px; border-radius: calc(var(--btn) / 2 + 5px); pointer-events: auto; }
+.clock .pill { background: none; border: 0; box-shadow: none; height: var(--pill); padding: 0 4px; }
+.clock .controls { display: flex; align-items: center; gap: 6px; }
+.clock .speeds { background: none; border: 0; padding: 0; }
+#hud[data-form='phone'] .clock { gap: 4px; padding: 4px 6px 4px 4px; }
+#hud[data-form='phone'] .clock .pill { font-size: var(--small); gap: 4px; padding: 0 2px; }
+#hud[data-form='phone'] .clock .pill svg { width: 18px; height: 18px; }
+#hud:not([data-form='phone']) .clock { flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 10px 8px; border-radius: var(--r-panel); }
+#hud:not([data-form='phone']) .clock .pill { padding: 0 2px; }
+#hud:not([data-form='phone']) .clock .controls { justify-content: center; }
 /* Speed: the phone cycles one gold button; the PC shows pause, 1x and 3x side by side, the one in use gold. */
-.speeds { display: flex; gap: 4px; padding: 3px; border-radius: calc(var(--btn) / 2 + 3px); background: rgba(36, 25, 14, 0.78); border: 1.5px solid var(--c-filet); }
-.speedbtn { width: calc(var(--btn) - 6px); height: calc(var(--btn) - 6px); background: var(--c-parchment); background-image: var(--parchment-grain); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); font-size: var(--text); }
+.speeds { display: flex; gap: 4px; padding: 3px; border-radius: calc(var(--btn) / 2 + 3px); background: var(--c-panel); border: 1.5px solid var(--c-edge); }
+.speedbtn { width: calc(var(--btn) - 6px); height: calc(var(--btn) - 6px); background: var(--c-disc); color: var(--c-text); border: 1.5px solid var(--c-edge); font-size: var(--text); }
 .speedbtn svg { width: 50%; height: 50%; }
-.speedbtn.on { background: var(--c-gold); background-image: none; box-shadow: 0 0 0 3px var(--c-gold-light); }
+.speedbtn.on { background: var(--c-gold); color: var(--c-ink); box-shadow: 0 0 0 3px var(--c-gold-light); }
 #hud[data-form='phone'] .speeds, #hud:not([data-form='phone']) [data-spot='speed'] { display: none; }
 /* PC: the tool's label carries its key ("Mover · 1"), wider than the disc. */
 #hud:not([data-form='phone']) .tool { width: auto; min-width: var(--tool); }
 .round { width: var(--btn); height: var(--btn); border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; font-weight: 800; font-size: var(--num); }
-.round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid rgba(59, 42, 26, 0.7); box-shadow: 0 2px 0 var(--c-shadow); }
+.round.gold { background: var(--c-gold); color: var(--c-ink); border: 2px solid var(--c-wood-dark); box-shadow: 0 2px 0 var(--c-shadow); }
 /* Relief (as the 2D's buttons): parchment and gold buttons sit on an offset shadow and sink 2 px when pressed. */
-.tool .disc, .build, .act, .chip.family, .tutorial button { box-shadow: 0 2px 0 var(--c-shadow); }
+.build, .act, .chip.family, .tutorial button { box-shadow: 0 2px 0 var(--c-shadow); }
 .round:active, .tool:active .disc, .build:active:not(.locked), .act:active, .chip.family:active, .tutorial button:active { transform: translateY(2px); box-shadow: none; }
 @media (hover: hover) {
   .round:hover, .top .pill:hover { filter: brightness(1.15); }
-  .tool:hover .disc, .build:hover:not(.locked) { filter: brightness(1.06); box-shadow: 0 0 0 2px var(--c-gold), 0 2px 0 var(--c-shadow); }
+  .tool:hover .disc { filter: brightness(1.2); border-color: var(--c-gold); }
+  .build:hover:not(.locked) { filter: brightness(1.06); box-shadow: 0 0 0 2px var(--c-gold), 0 2px 0 var(--c-shadow); }
 }
 
 /* ---------- side, tools and column ---------- */
-.side { position: absolute; left: var(--margin); top: calc(var(--margin) + var(--level) + var(--gap) * 2); display: flex; flex-direction: column; gap: 10px; }
-.tools { position: absolute; left: var(--margin); bottom: var(--margin); display: flex; gap: 10px; }
+.side { position: absolute; left: var(--margin); top: var(--margin); display: flex; flex-direction: column; gap: 10px; }
+#hud[data-form='phone'] .tools { gap: 4px; padding: 5px 8px 4px; }
+#hud[data-form='phone'] .tool .label { padding: 0 2px; }
+/* A short phone (667 wide): icons only, the bar leans right (against the build column) to leave the clock its corner. */
+@media (max-width: 760px) {
+  #hud[data-form='phone'] .tool .label { display: none; }
+  #hud[data-form='phone'] .tools { left: auto; right: calc(var(--margin) * 2 + 52px); transform: none; }
+}
+/* Small and round in the middle of the bottom: dark discs, light icons, the chosen one ringed in gold. */
+.tools { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--margin); display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px 5px; border-radius: calc(var(--tool) / 2 + 6px); background: var(--c-panel); border: 1.5px solid var(--c-edge); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); pointer-events: auto; }
 .tool { width: var(--tool); display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 0; }
-.tool .disc { box-sizing: border-box; flex: none; width: var(--tool); height: var(--tool); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); }
+.tool .disc { box-sizing: border-box; flex: none; width: var(--tool); height: var(--tool); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 30%, var(--c-wood-light), var(--c-disc) 70%); color: var(--c-text); border: 1.5px solid var(--c-edge); box-shadow: 0 2px 0 var(--c-shadow); }
 .tool .disc svg { width: 55%; height: 55%; }
-.tool.on .disc, .tool.on:hover .disc { box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 8px var(--c-gold-light); }
-.tool .label { font-size: var(--small); font-weight: 700; background: rgba(36, 25, 14, 0.78); padding: 1px 8px; border-radius: 9px; }
+.tool.on .disc, .tool.on:hover .disc { border-color: var(--c-gold); color: var(--c-gold-bright); background: radial-gradient(circle at 50% 30%, #8a5d2c, var(--c-disc) 75%); box-shadow: 0 0 0 2.5px var(--c-gold), 0 0 0 6px var(--c-gold-light); }
+.tool .label { font-size: var(--small); font-weight: 700; color: var(--c-text); padding: 0 4px; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.tool.on .label { color: var(--c-gold-bright); }
 /* As tall as its buttons (scrolls when they do not fit). */
 .column { position: absolute; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); max-height: calc(100% - var(--margin) * 2 - var(--btn) - var(--gap) - 12px); width: var(--col); display: flex; flex-direction: column; gap: 5px;
   overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 18px; pointer-events: auto; }
@@ -127,7 +160,7 @@
 .tag { padding: 4px 10px; border-radius: 10px; font-size: var(--text); font-weight: 700; text-align: center; white-space: pre-line; transform: translate(-50%, -100%); }
 .tag.bad { background: rgba(142, 42, 31, 0.92); }
 /* The tapped cell's balloon: the card's lines; on the phone a second column (the level) with the buttons under it. */
-.balloon { box-sizing: border-box; max-width: 300px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; pointer-events: auto; background: rgba(36, 25, 14, 0.94); }
+.balloon { box-sizing: border-box; max-width: 300px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; pointer-events: auto; background: var(--c-panel-deep); }
 /* Its lines scroll inside (the arrow stands outside the box). */
 .balloon .body { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 /* The arrow of a balloon, toward its building or button (anchors.ts arrowOf: side and --ay). */
@@ -138,7 +171,7 @@
 #hud[data-form='phone'] .balloon .aside { width: 250px; }
 .balloon .main, .balloon .aside { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .balloon .cols { display: flex; gap: 14px; }
-.balloon .aside { width: 190px; padding-left: 12px; border-left: 1px solid rgba(255, 244, 220, 0.25); }
+.balloon .aside { width: 190px; padding-left: 12px; border-left: 1px solid var(--c-edge-soft); }
 .balloon .acts, .panelbox .acts { display: flex; gap: 8px; margin-top: 6px; }
 .line { font-weight: 700; white-space: pre-line; }
 .line.big { font-size: var(--num); }
@@ -171,43 +204,54 @@
 .famine { position: absolute; inset: 0; background: #c0392b; opacity: 0; transition: opacity 0.6s; pointer-events: none; mix-blend-mode: multiply; }
 .famine.on { opacity: 0.22; }
 /* Problem balloons over the buildings (pinned to the world; under every control). */
-.need { width: 34px; height: 40px; padding: 4px 4px 10px; background: var(--c-parchment); border: 2px solid #3b2a1a; border-radius: 12px 12px 12px 12px; clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 50% 100%, 38% 78%, 0 78%); pointer-events: none; transform-origin: 0 0; }
-.need svg { width: 26px; height: 26px; display: block; }
-.need .lock { position: absolute; right: -2px; top: 14px; width: 14px; height: 14px; }
-.need .lock svg { width: 14px; height: 14px; }
+/* Round, in the family of the panels: a cream disc in a gold ring on a dark rim, a small tail down to the building. */
+.need { box-sizing: border-box; width: 40px; height: 40px; padding: 5px; background: radial-gradient(circle at 50% 35%, #fff6df, var(--c-paper-deep)); border: 3px solid var(--c-gold); border-radius: 50%; box-shadow: 0 0 0 1.5px var(--c-wood-dark), 0 3px 6px rgba(0, 0, 0, 0.4); pointer-events: none; transform-origin: 0 0; margin-top: -9px; }
+.need::after { content: ''; position: absolute; left: 50%; bottom: -10px; width: 12px; height: 12px; background: var(--c-gold); border: 1.5px solid var(--c-wood-dark); border-top: 0; border-left: 0; transform: translateX(-50%) rotate(45deg) scale(0.8); z-index: -1; }
+.need svg { width: 28px; height: 28px; display: block; }
+.need .lock { position: absolute; right: -6px; top: 20px; width: 16px; height: 16px; background: var(--c-paper); border: 1.5px solid var(--c-wood-dark); border-radius: 50%; display: grid; place-items: center; }
+.need .lock svg { width: 11px; height: 11px; }
 /* The chosen building's balloon, left of the column. */
-.toolballoon { position: absolute; left: 0; top: 0; width: 260px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; background: rgba(36, 25, 14, 0.94); pointer-events: none; }
+.toolballoon { position: absolute; left: 0; top: 0; width: 260px; padding: 10px 12px; border-radius: 14px; font-size: var(--text); display: flex; flex-direction: column; gap: 3px; background: var(--c-panel-deep); pointer-events: none; }
 .toolballoon.aside { opacity: 0; }
 #hud[data-form='phone'] .toolballoon { width: 220px; }
 /* Side buttons: Objetivos, Avisos (with the red selo), Estatísticas under the turns. */
 .side button { position: relative; }
 /* Parchment with an ink rim, as the 2D (they read as things to tap, as the tools below). */
-.side .round { background: var(--c-parchment); background-image: var(--parchment-grain); color: var(--c-ink); border: 2px solid var(--c-ink); box-shadow: 0 2px 0 var(--c-shadow); }
+.side .round { background: radial-gradient(circle at 50% 30%, var(--c-wood-light), var(--c-disc) 70%); color: var(--c-text); border: 1.5px solid var(--c-edge); box-shadow: 0 2px 0 var(--c-shadow); }
 .badge { position: absolute; right: -10px; top: -10px; min-width: 20px; height: 22px; padding: 0 5px; border-radius: 11px; background: #b0302a; border: 1.5px solid var(--c-text); color: var(--c-text); font-size: 12px; font-weight: 800; line-height: 19px; }
 .side button.pulse { animation: hud-pulse 0.52s ease-in-out 4; }
 @keyframes hud-pulse { 50% { transform: scale(1.18); } }
-.side button.on { background: var(--c-gold); color: var(--c-ink); box-shadow: 0 0 0 3px var(--c-gold), 0 0 0 7px var(--c-gold-light); }
-/* A panel (Objetivos, Avisos, Estatísticas) or the person sheet: right of the side buttons, above the tools. */
-.panelbox { box-sizing: border-box; position: absolute; left: calc(var(--margin) + var(--btn) + var(--gap) * 2); top: calc(var(--margin) + var(--level) + var(--gap) * 2); right: calc(var(--margin) * 2 + var(--col)); max-height: calc(100% - var(--margin) - var(--level) - var(--gap) * 2 - var(--free-bottom, 90px)); overflow: auto; padding: 12px 14px; border-radius: 16px; pointer-events: auto; background: rgba(36, 25, 14, 0.96); font-size: var(--text); z-index: 1; width: fit-content; max-width: calc(100% - var(--btn) - var(--col) - var(--margin) * 4 - var(--gap) * 2); }
+.side button.on { background: radial-gradient(circle at 50% 30%, #8a5d2c, var(--c-disc) 75%); color: var(--c-gold-bright); border-color: var(--c-gold); box-shadow: 0 0 0 2.5px var(--c-gold), 0 0 0 6px var(--c-gold-light); }
+/* A panel (Objetivos, Avisos, Estatísticas, Profissões) or the person sheet: a wooden frame with a gold line and a
+   cream-orange parchment page, right of the side buttons, above the tools; its text is ink (the --c-* tones are re-set
+   for the cream). */
+.panelbox { box-sizing: border-box; position: absolute; left: calc(var(--margin) + var(--btn) + var(--gap) * 2); top: calc(var(--margin) + var(--level) + var(--gap) * 2); right: calc(var(--margin) * 2 + var(--col)); max-height: calc(100% - var(--margin) - var(--level) - var(--gap) * 2 - var(--free-bottom, 90px)); overflow: auto; padding: 12px 14px; border-radius: var(--r-window); pointer-events: auto; background-color: var(--c-paper); font-size: var(--text); z-index: 1;
+  border: var(--frame) solid var(--c-wood); box-shadow: inset 0 0 0 1.5px var(--c-edge), 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--c-ink); --c-text: var(--c-ink); --c-muted: var(--c-paper-muted); --c-good: var(--c-paper-good); --c-bad: var(--c-paper-bad); --c-warn: var(--c-paper-warn); --c-gold: var(--c-paper-gold); width: fit-content; max-width: calc(100% - var(--btn) - var(--col) - var(--margin) * 4 - var(--gap) * 2); }
 .sections { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: flex-start; }
 .section { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
 .sections.goals .section { min-width: 0; }
+.panelbox .chip { background: rgba(255, 250, 235, 0.55); border-color: rgba(59, 42, 26, 0.3); }
+.panelbox .bar, .panelbox .jobrow .thumb { --dummy: 0; }
+.panelbox .bar { background: rgba(59, 42, 26, 0.25); }
+.panelbox .bar i { background: var(--c-ochre-dark); }
 .pline { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; font-weight: 700; }
 .pline.wrap { max-width: 340px; }
 .pline .big { font-size: var(--num); }
 .pline .small { font-size: var(--small); }
 .chart svg { width: 200px; height: 60px; display: block; }
 .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
-.tab { min-height: 44px; padding: 0 16px; border-radius: 22px; font-weight: 800; background: var(--c-parchment); background-image: var(--parchment-grain); color: var(--c-ink); border: 2px solid var(--c-ink); box-shadow: 0 2px 0 var(--c-shadow); }
+.tab { min-height: 44px; padding: 0 16px; border-radius: 22px; font-weight: 800; background: var(--parchment-grain), linear-gradient(var(--c-ochre), var(--c-ochre-dark)); color: var(--c-ochre-ink); border: 2px solid var(--c-wood-dark); box-shadow: 0 2px 0 var(--c-shadow); opacity: 0.78; }
 .tab:active:not(.on) { transform: translateY(2px); box-shadow: none; }
-.tab.on { background: var(--c-gold); background-image: none; color: var(--c-ink); box-shadow: 0 2px 0 var(--c-shadow), 0 0 0 4px var(--c-gold-light); }
+.tab.on { background: linear-gradient(#f6c862, #dd9a2e); opacity: 1; box-shadow: 0 2px 0 var(--c-shadow), 0 0 0 3px var(--c-wood); }
 .sheet { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
 .sheet .head { display: flex; gap: 10px; align-items: center; }
 .sheet .fig.big { width: 56px; height: 56px; flex: none; }
 .sheet .kin { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-.act { flex: 1; min-height: 44px; border-radius: 22px; font-weight: 800; border: 2px solid var(--c-ink); background: var(--c-parchment); color: var(--c-ink); }
-.act.gold { background: var(--c-gold); }
+.act { flex: 1; min-height: 44px; border-radius: 22px; font-weight: 800; border: 2px solid var(--c-wood-dark); background: var(--parchment-grain), linear-gradient(var(--c-ochre), var(--c-ochre-dark)); color: var(--c-ochre-ink); box-shadow: inset 0 1px 0 rgba(255, 244, 210, 0.45), 0 2px 0 var(--c-shadow); }
+.act.gold { background: linear-gradient(#f6c862, #dd9a2e); }
 .act.red { background: #8e2a1f; color: var(--c-text); border-color: #4a120c; }
+.act:disabled { opacity: 0.6; }
 /* The balloon's buttons: the building's thumbnail (or the road) on the main action, the hammer on Demolir. */
 .act:has(.pic, .icon) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 14px 0 4px; }
 .act .pic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: radial-gradient(circle at 50% 38%, #fbf3df 0, #e6d6b3 70%); border: 1.5px solid rgba(59, 42, 26, 0.6); }
@@ -218,18 +262,20 @@
 @keyframes hud-bob { to { transform: translateY(-12px); } }
 
 /* ---------- toasts, tutorial, modal ---------- */
-/* In the map's free width: clear of the tools (and the tutorial arrow over them) on the left and the
-   build column on the right, centred in what is left. */
-.toasts { position: absolute; left: calc(var(--margin) * 2 + (var(--tool) + 14px) * 3); right: calc(var(--margin) * 2 + var(--col)); bottom: calc(var(--margin) + var(--tool) + 30px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; pointer-events: none; }
+/* In the map's free width: above the toolbar (and the tutorial arrow over it), clear of the build column on the
+   right, centred in what is left. */
+.toasts { position: absolute; left: calc(var(--margin) * 2 + var(--btn)); right: calc(var(--margin) * 2 + var(--col)); bottom: calc(var(--margin) + var(--tool) + 36px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; pointer-events: none; }
 .toast { max-width: min(560px, 100%); padding: 7px 14px; border-radius: 16px; font-size: var(--num); font-weight: 700; text-align: center; animation: hud-in 0.15s ease; }
 /* Leaving: fades where it was (toasts.ts takes it out of the flow); the others slide into place. */
 .toast.out { opacity: 0; transition: opacity 0.25s ease; }
 .toast.slide { transition: transform 0.15s ease; }
 /* Phone: two at most (toastQueue), smaller and kept below the middle of the map. */
+/* The tutorial's arrow stands over the toolbar: the toasts rise above it. */
+#hud.tutoring .toasts { bottom: calc(var(--margin) + var(--tool) + 36px + 58px); }
 #hud[data-form='phone'] .toasts { top: 50%; overflow: hidden; justify-content: flex-start; gap: 4px; z-index: 3; }
 #hud[data-form='phone'] .toast { font-size: var(--text); padding: 5px 12px; border-radius: 13px; max-width: min(460px, 100%); }
 #hud[data-form='phone'] .toast.big { font-size: var(--num); }
-.toast.bad { background: rgba(142, 42, 31, 0.94); } .toast.good { background: rgba(46, 94, 34, 0.94); }
+.toast.bad { background: rgba(142, 42, 31, 0.94); border-color: #e08a6a; } .toast.good { background: rgba(46, 94, 34, 0.94); border-color: #9fd18a; }
 .toast.quiet { color: var(--c-muted); font-weight: 400; } .toast.big { font-size: calc(var(--num) * 1.2); border: 2px solid var(--c-gold); }
 @keyframes hud-in { from { opacity: 0; } }
 /* Balloons, panels and the person sheet come in calmly: a fade and 4 px of rise (the CSS translate, apart from their transform). */
@@ -238,13 +284,14 @@
 /* A pill that appears (stone, happiness) glows gold three times. */
 .pill.new { animation: hud-glow 0.7s ease-in-out 3; }
 @keyframes hud-glow { 50% { box-shadow: 0 0 0 3px var(--c-gold), 0 0 14px var(--c-gold); } }
-.tutorial { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--margin); display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 20px; border-radius: 16px;
-  background: var(--c-parchment); color: var(--c-ink); border: 2px solid var(--c-ink); font-size: var(--big); font-weight: 700; max-width: min(760px, calc(100vw - 2 * var(--tool) - 3 * 10px - var(--col) - 4 * var(--margin))); pointer-events: auto; }
-#hud[data-form='phone'] .tutorial { font-size: var(--num); }
-.tutorial button { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 2px solid var(--c-ink); background: #fff8e4; color: var(--c-ink); font-weight: 700; white-space: nowrap; }
+/* A parchment card with a wooden frame right under the bar (the toolbar owns the bottom; the free map starts below it, see Hud.measureFree). */
+.tutorial { position: absolute; left: 50%; transform: translateX(-50%); top: 90px; box-sizing: border-box; display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 18px; border-radius: var(--r-panel);
+  background-color: var(--c-paper); color: var(--c-ink); border: var(--frame) solid var(--c-wood); box-shadow: inset 0 0 0 1.5px var(--c-edge), 0 6px 16px rgba(0, 0, 0, 0.4); font-size: calc(var(--big) * 0.85); font-weight: 700; max-width: min(760px, calc(100vw - 2 * (var(--col) + var(--margin) * 2))); pointer-events: auto; }
+#hud[data-form='phone'] .tutorial { font-size: var(--text); gap: 10px; padding: 4px 6px 4px 12px; }
+.tutorial button { min-height: 44px; padding: 0 16px; border-radius: 22px; border: 2px solid var(--c-wood-dark); background: linear-gradient(var(--c-ochre), var(--c-ochre-dark)); color: var(--c-ochre-ink); font-weight: 800; white-space: nowrap; }
 .modal { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); pointer-events: auto; }
-.modal .card { width: min(640px, 90vw); padding: 24px; border-radius: 18px; background: var(--c-parchment); color: var(--c-ink); border: 3px solid var(--c-ink); text-align: center; }
-.modal h2 { margin: 0 0 10px; font-size: calc(var(--big) * 1.4); }
+.modal .card { box-sizing: border-box; width: min(640px, 90vw); padding: 24px; border-radius: var(--r-window); background-color: var(--c-paper); color: var(--c-ink); border: calc(var(--frame) + 2px) solid var(--c-wood); box-shadow: inset 0 0 0 2px var(--c-edge), 0 12px 40px rgba(0, 0, 0, 0.45); text-align: center; }
+.modal h2 { margin: 0 0 10px; font-size: calc(var(--big) * 1.4); color: var(--c-wood); }
 .modal p { font-size: var(--num); white-space: pre-line; }
 .modal .acts { display: flex; gap: 14px; justify-content: center; }
 .modal .act { max-width: 290px; min-height: 56px; font-size: var(--num); }
@@ -261,7 +308,7 @@
 .g3d.behind > :not(canvas) { visibility: hidden; }
 /* Victory and defeat: the city blurred behind, gold branches around the title, number medals. */
 .modal.end { background: rgba(30, 20, 10, 0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
-.modal.end .card { box-shadow: inset 0 0 0 5px var(--c-parchment), inset 0 0 0 6px var(--c-gold), 0 12px 40px rgba(0, 0, 0, 0.4); }
+.modal.end .card { box-shadow: inset 0 0 0 5px var(--c-paper), inset 0 0 0 6.5px var(--c-edge), 0 12px 40px rgba(0, 0, 0, 0.4); }
 .crown { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 6px; }
 .crown h2 { margin: 0; }
 .crown .branch { width: 72px; height: 31px; flex: none; }
@@ -293,7 +340,7 @@
 #hud[data-form='phone'].title-screen ol { font-size: var(--text); }
 
 /* ---------- settings (gear) ---------- */
-.settings { position: absolute; z-index: 5; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); width: 280px; background: rgba(36, 25, 14, 0.97); padding: 12px 14px; border-radius: 16px; pointer-events: auto; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
+.settings { position: absolute; z-index: 5; right: var(--margin); top: calc(var(--margin) + var(--btn) + var(--gap)); width: 280px; background: var(--c-panel-deep); padding: 12px 14px; border-radius: 16px; pointer-events: auto; z-index: 2; display: flex; flex-direction: column; gap: 8px; }
 .settings h3 { margin: 0 0 4px; font-size: var(--num); }
 .settings .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; font-size: var(--text); font-weight: 700; }
 .settings .row .act { flex: none; min-width: 120px; padding: 0 12px; }
@@ -333,9 +380,10 @@
 .jobrow .target { width: 34px; display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
 .jobrow .target b { font-size: var(--num); }
 .jobrow .target.auto b { color: var(--c-muted); }
-.jobrow .target small { font-size: 12px; font-weight: 700; color: var(--c-muted); border: 1px solid rgba(255, 244, 220, 0.35); border-radius: 6px; padding: 0 4px; }
+.jobrow .target small { font-size: 12px; font-weight: 700; color: var(--c-muted); border: 1px solid rgba(59, 42, 26, 0.4); border-radius: 6px; padding: 0 4px; }
 /* "Sem trabalho": its number where the targets are, the row a little apart. */
-.jobrow.idle { border-bottom: 1px solid rgba(255, 244, 220, 0.18); }
+.jobrow.idle { border-bottom: 1px solid rgba(59, 42, 26, 0.25); }
+.jobrow + .jobrow { border-top: 1px solid rgba(59, 42, 26, 0.1); }
 .jobrow.idle .count { width: 130px; flex: none; text-align: center; font-size: var(--num); font-weight: 800; }
 #hud[data-form='pc'] .panelbox.jobs { min-width: 380px; }
 /* Phone: two columns that fill top to bottom, the panel down to the screen's edge so 6 rows fit without scrolling. */
@@ -376,3 +424,79 @@
 #hud .leave-contemplate:hover { opacity: 1; }
 #hud.contemplate .leave-contemplate { display: flex; }
 #hud.contemplate > *:not(.leave-contemplate):not(.modal) { visibility: hidden !important; }
+
+/* ======================================================================================================
+   Foundation-style pass (2026-11-12): wood and parchment frames, the goal as a side task panel, the title
+   screen's brand block, ornaments, and calm open/hover motion. All drawn here (no image files).
+   ====================================================================================================== */
+/* Wood: a brown with long dark streaks (SVG noise stretched along the grain). */
+#hud { --wood-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.42' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.09 0 0 0 0 0.03 0 0 0 -1.4 1.05'/%3E%3C/filter%3E%3Crect width='240' height='240' fill='%236a4423'/%3E%3Crect width='240' height='240' filter='url(%23w)'/%3E%3C/svg%3E"); }
+/* The windows: a wooden frame (the border) around the cream-orange page, a gold line between them. */
+.panelbox, .modal .card, .tutorial {
+  border: var(--frame) solid transparent;
+  background: var(--parchment-grain) padding-box, radial-gradient(ellipse at 50% 0%, #fbeccb, var(--c-paper) 45%, var(--c-paper-deep)) padding-box, var(--wood-grain) border-box, var(--c-wood);
+}
+.modal .card { border-width: calc(var(--frame) + 3px); }
+/* Dark glass panels: a faint light from above. */
+.panel, .pgroup, .tools { background-image: linear-gradient(rgba(255, 226, 160, 0.09), transparent 55%); }
+.pgroup .pill, .clock .pill { background-image: none; }
+/* Serif titles on the windows. */
+.panelbox .jobshead > b, .modal h2, .sheet .head b { font-family: var(--title-font); letter-spacing: 0.01em; }
+.panelbox .jobshead > b { color: var(--c-wood); }
+
+/* Goal as a task on the left (PC): a translucent panel under the side buttons with a check box, the goal and its bar. */
+#hud:not([data-form='phone']) .goal.aside { position: absolute; left: 0; top: calc(6 * var(--btn) + 6 * 10px + 8px); width: 224px; height: auto; white-space: normal; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 12px; border-radius: var(--r-panel); }
+#hud:not([data-form='phone']) .goal.aside > * { flex: none; }
+#hud:not([data-form='phone']) .goal.aside > :nth-child(1) { flex: 1; min-width: 0; color: var(--c-gold-bright); font-size: var(--small); }
+#hud:not([data-form='phone']) .goal.aside > :nth-child(2) { flex: 0 0 100%; overflow: visible; text-overflow: clip; font-size: var(--num); line-height: 1.2; }
+#hud:not([data-form='phone']) .goal.aside > .bar { flex: 1; width: auto; }
+#hud:not([data-form='phone']) .goal.aside { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px var(--c-edge-soft); }
+/* A roomy PC window: date and speed in one row. */
+@media (min-width: 1200px) {
+  #hud:not([data-form='phone']) .clock { flex-direction: row; align-items: center; padding: 5px 12px 5px 12px; border-radius: calc(var(--btn) / 2 + 5px); }
+}
+
+/* Ornament: a gold line with a diamond, under the titles. The crest sits above the end cards' title. */
+.orn { position: relative; height: 12px; width: min(260px, 70%); margin: 2px auto 8px; background: linear-gradient(90deg, transparent, var(--c-paper-gold) 25%, var(--c-paper-gold) 75%, transparent) center / 100% 1.5px no-repeat; }
+.orn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; background: var(--c-gold); border: 1.5px solid var(--c-wood-dark); transform: translate(-50%, -50%) rotate(45deg); }
+.crest { display: block; width: 40px; height: 47px; margin: -4px auto 2px; }
+.crest svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)); }
+.modal.end .crest { width: 34px; height: 40px; }
+#hud[data-form='phone'] .modal.end .crest { display: none; }
+
+/* Title screen: the brand (crest, name in gold, a line and the subtitle) beside the card, over the city. */
+.title-screen .title-bg { gap: clamp(16px, 4vw, 56px); padding: 12px; box-sizing: border-box; }
+.title-screen .brand { flex: 0 1 300px; text-align: center; color: var(--c-text); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7); }
+.title-screen .brand .crest { width: 72px; height: 84px; margin: 0 auto 6px; }
+.title-screen .brand h1 { margin: 0 0 6px; font-family: var(--title-font); font-size: calc(var(--big) * 1.9); line-height: 1.05; text-align: center;
+  background: linear-gradient(#fff0b8, #e8a93a 70%, #c07a1c); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 2px 0 var(--c-wood-dark)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6)); }
+.title-screen .brand .orn { --c-paper-gold: var(--c-gold); }
+.title-screen .brand p { margin: 0; font-size: var(--num); font-weight: 700; color: var(--c-text); }
+.title-screen .card { flex: 0 1 min(560px, 60vw); width: auto; }
+#hud[data-form='phone'].title-screen .brand { flex-basis: 200px; }
+#hud[data-form='phone'].title-screen .brand .crest { width: 44px; height: 52px; }
+#hud[data-form='phone'].title-screen .brand h1 { font-size: calc(var(--big) * 1.5); }
+@media (max-width: 640px) and (orientation: portrait) { .title-screen .title-bg { flex-direction: column; } }
+.title-screen .diff { background: rgba(255, 250, 235, 0.5); border-color: rgba(59, 42, 26, 0.35); }
+.title-screen .diff[aria-pressed='true'] { background: linear-gradient(#fff3cf, #f6d58a); border-color: var(--c-wood); box-shadow: 0 0 0 2px var(--c-gold); }
+.title-screen .acts .act { min-height: 52px; font-size: var(--num); }
+
+/* Motion: windows and cards open with a soft pop; buttons lift under the mouse. */
+@keyframes hud-pop { from { opacity: 0; scale: 0.96; translate: 0 6px; } }
+@keyframes hud-fade { from { opacity: 0; } }
+.panelbox, .sheet, .settings { animation: hud-pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.modal { animation: hud-fade 0.2s ease-out; }
+.modal .card { animation: hud-pop 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tutorial { animation: hud-pop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (hover: hover) {
+  .act:hover, .tab:hover, .tutorial button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .act:active, .tab:active, .tutorial button:active { transform: translateY(1px); filter: none; }
+  .side .round:hover, .speedbtn:hover:not(.on) { border-color: var(--c-gold); filter: brightness(1.2); }
+}
+.round, .tool .disc, .act, .tab { transition: filter 0.12s, transform 0.12s, box-shadow 0.15s, border-color 0.12s; }
+@media (prefers-reduced-motion: reduce) {
+  .panelbox, .sheet, .settings, .modal, .modal .card, .tutorial { animation: none; }
+  .round, .tool .disc, .act, .tab { transition: none; }
+  .act:hover, .tab:hover, .tutorial button:hover { transform: none; }
+}
+#hud:not([data-form='phone']) .panelbox.jobs { padding: 6px 12px 8px; }

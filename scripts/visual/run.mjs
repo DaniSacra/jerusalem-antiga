@@ -1151,9 +1151,9 @@ async function tutorial3dScenario(page, name) {
   const tipOver = await page.evaluate(() => {
     const a = document.querySelector('.toolballoon').getBoundingClientRect();
     const b = document.querySelector('.tutorial').getBoundingClientRect();
-    return a.bottom > b.top + 1 && a.right > b.left && b.right > a.left;
+    return a.bottom > b.top + 1 && a.top < b.bottom - 1 && a.right > b.left && b.right > a.left;
   });
-  assert(!tipOver, 'the chosen building\'s balloon stays above the tutorial bubble');
+  assert(!tipOver, 'the chosen building\'s balloon stays clear of the tutorial card (under the bar)');
   const lb = await build(lumberRect);
   // The new lumber goes up inside a scaffold for a moment.
   await page.waitForTimeout(450);
@@ -1290,9 +1290,9 @@ async function hud3dScenario(page, name) {
       const W = innerWidth;
       const H = innerHeight;
       // Each control (button, pill, toast, the tutorial bubble) by its group; two groups must not overlap.
-      const GROUPS = ['header.top', 'nav.side', 'nav.tools', 'nav.column', '.toasts', '.tutorial', '.balloon', '.settings', '.arrow', '.nextstep'];
+      const GROUPS = ['header.top', 'nav.side', 'nav.tools', 'nav.column', '.toasts', '.tutorial', '.balloon', '.settings', '.arrow', '.nextstep', '.clock'];
       const items = [];
-      for (const el of hud.querySelectorAll('button, .pill, .level, .toast, .tutorial, .balloon, .settings, .arrow, .nextstep')) {
+      for (const el of hud.querySelectorAll('button, .pill, .level, .toast, .tutorial, .balloon, .settings, .arrow, .nextstep, .clock')) {
         if (!shown(el)) continue;
         const g = GROUPS.find((q) => el.closest(q));
         if (!g) continue;
@@ -2347,7 +2347,7 @@ async function nextstep3dScenario(page, name) {
     page.evaluate(() => {
       const el = document.querySelector('.nextstep');
       const r = el.getBoundingClientRect();
-      const bar = [...document.querySelectorAll('header.top .pill, header.top .level, header.top button')].map((e) => e.getBoundingClientRect());
+      const bar = [...document.querySelectorAll('header.top .pill:not(.aside), header.top .level, header.top button')].map((e) => e.getBoundingClientRect());
       const top = Math.max(...bar.map((b) => b.bottom));
       const hits = bar.filter((b) => r.left < b.right - 1 && b.left < r.right - 1 && r.top < b.bottom - 1 && b.top < r.bottom - 1).length;
       const txt = el.querySelector('.txt');
@@ -2598,7 +2598,7 @@ for (const [k, [name, def]] of Object.entries(scenarios).entries()) {
       // draws a few frames a second: shots would catch them half faded. Shown at once in the tests.
       await context.addInitScript(() => addEventListener('DOMContentLoaded', () => {
         const st = document.createElement('style');
-        st.textContent = '.balloon, .toolballoon, .panelbox, .sheet { animation: none !important; }';
+        st.textContent = '.balloon, .toolballoon, .panelbox, .sheet, .settings, .modal, .modal .card, .tutorial { animation: none !important; }';
         document.head.append(st);
       }));
       page = await context.newPage();

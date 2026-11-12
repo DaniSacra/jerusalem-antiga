@@ -1,7 +1,6 @@
 import type { BuildableKind, Difficulty, Rect } from '../core';
 import type { Session } from '../game/session';
 import type { ToastOptions, Tone } from '../game/toastQueue';
-import { NOVA_CSS, NOVA_FONT, TITLE_FONT } from '../game/palette';
 import { T } from '../game/strings';
 import { Anchors, type Free } from './anchors';
 import { CardBalloon } from './cardBalloon';
@@ -10,7 +9,7 @@ import { PersonSheet } from './sheet';
 import { ProblemLabels } from './labels';
 import { notices, type Notice } from '../game/notices';
 import { iconButton } from './parts';
-import { formOf, h, onTap, setText } from './dom';
+import { applyPalette, formOf, h, onTap, setText } from './dom';
 import { ICONS } from './icons';
 import { Modal } from './modal';
 import { SettingsPanel } from './settings';
@@ -87,6 +86,7 @@ export class Hud {
   private noticeKeys = new Set<string>();
   private toasts = new Toasts();
   private tutorial: Tutorial;
+  private goalPanel: Element | null = null;
   /** "O que fazer agora", under the top bar (hidden during the tutorial). */
   private next: NextStepLine;
   private modal: Modal;
@@ -102,10 +102,7 @@ export class Hud {
 
   constructor(parent: HTMLElement, private host: HudHost) {
     const root = (this.root = h('div', { id: 'hud', 'data-form': formOf() }));
-    for (const [k, v] of Object.entries({ text: NOVA_CSS.text, muted: NOVA_CSS.muted, gold: NOVA_CSS.gold, good: NOVA_CSS.good, bad: NOVA_CSS.bad, warn: NOVA_CSS.warn, ink: NOVA_CSS.ink, 'ink-bad': NOVA_CSS.inkBad, parchment: NOVA_CSS.parchment, 'gold-light': NOVA_CSS.goldLight, shadow: NOVA_CSS.shadow, vignette: NOVA_CSS.vignette }))
-      root.style.setProperty(`--c-${k}`, v);
-    root.style.setProperty('--font', NOVA_FONT);
-    root.style.setProperty('--title-font', TITLE_FONT);
+    applyPalette(root);
     const s = host.session;
     this.anchors = new Anchors((r, top) => host.screenOf(r, top));
     this.settings = new SettingsPanel();
@@ -143,7 +140,7 @@ export class Hud {
     this.tutorial = new Tutorial(s, this.anchors, (t) => this.tools.arrowFor(t));
     this.next = new NextStepLine(this.anchors, (t) => this.tools.arrowFor(t), () => s.tool, (step) => this.actOn(step));
     this.modal = new Modal(root);
-    root.append(this.leave, this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.next.el, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.next.arrow, this.settings.el);
+    root.append(this.leave, this.vignette, this.famine, this.labels.el, this.tag, this.balloon.el, this.panels.el, this.sheet.el, this.top.el, this.top.clock, this.tools.turns, this.tools.tools, this.tools.column, this.tools.tip, this.next.el, this.toasts.el, this.tutorial.bubble, this.tutorial.arrow, this.next.arrow, this.settings.el);
     parent.append(root);
     this.toasts.setPhone(this.phone);
     addEventListener('resize', this.onResize);
@@ -159,14 +156,25 @@ export class Hud {
   /** Below the top bar (and the "O que fazer agora" line), left of the column, above the tools (8 px clear of each). */
   private measureFree() {
     const bottomOf = (els: Iterable<Element>) => Math.max(0, ...[...els].map((e) => e.getBoundingClientRect().bottom));
-    let top = bottomOf(this.top.el.querySelectorAll('.pill, .level, button'));
+    // The PC's goal panel stands on the left side, not in the bar: it does not push the map down.
+    let top = bottomOf(this.top.el.querySelectorAll('.pill:not(.aside), .level, button'));
     const col = this.tools.column.getBoundingClientRect();
     const tools = this.tools.tools.getBoundingClientRect();
     const right = col.width ? col.left : innerWidth;
     this.placeNext(top, right);
     if (this.next.shown) top = Math.max(top, this.next.el.getBoundingClientRect().bottom);
+    // The tutorial card sits under the bar too (the toolbar owns the bottom): the free map starts below it.
+    if (this.tutorial.open) {
+      const bubble = this.tutorial.bubble;
+      bubble.style.top = `${Math.round(top + 4)}px`;
+      top = bubble.getBoundingClientRect().bottom;
+    }
     const side = this.tools.turns.getBoundingClientRect();
-    this.free = { left: (side.width ? side.right : 0) + 8, top: top + 8, right: right - 8, bottom: (tools.height ? tools.top : innerHeight) - 8 };
+    // The map ends above the toolbar and the clock panel, whichever is taller (the phone's clock is a row as low as the tools).
+    const clock = this.top.clock.getBoundingClientRect();
+    const floor = Math.min(tools.height ? tools.top : innerHeight, clock.height ? clock.top : innerHeight);
+    const goal = this.top.el.querySelector('.goal.aside')?.getBoundingClientRect();
+    this.free = { left: Math.max(side.width ? side.right : 0, goal?.width ? goal.right : 0) + 8, top: top + 8, right: right - 8, bottom: floor - 8 };
     // Panels and the person sheet end above the tools too.
     const below = `${Math.round(innerHeight - this.free.bottom)}px`;
     if (below !== this.below) this.root.style.setProperty('--free-bottom', (this.below = below));
@@ -223,7 +231,8 @@ export class Hud {
     const s = this.host.session;
     // It waits while the tutorial speaks, or a panel or the person sheet covers the map (they open from it).
     this.next.update(this.tutorial.open ? null : nextStep(s.state, s.city), !this.panels.open && !this.sheet.open);
-    this.tools.update(this.phone, this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : innerHeight - 8);
+    this.tools.update(this.phone);
+    this.root.classList.toggle('tutoring', this.tutorial.open);
     this.measureFree();
     // The toasts end left of the tool balloon (its cost line explains a failure).
     const tip = this.tools.tip.classList.contains('hidden') ? null : this.tools.tip.getBoundingClientRect();
@@ -309,6 +318,9 @@ export class Hud {
 
   /** Per frame: time for the toasts, and what is pinned to the world follows the camera. */
   frame(dtMs: number) {
+    // A window opens over the PC's side goal panel: the goal waits (its progress is in the window's list too).
+    this.goalPanel ??= this.top.el.querySelector('.goal');
+    this.goalPanel?.classList.toggle('hidden', this.goalPanel.classList.contains('aside') && (!!this.panels.open || this.sheet.open));
     this.toasts.frame(dtMs);
     this.next.frame(dtMs);
     this.anchors.frame(dtMs);
@@ -340,13 +352,11 @@ export class Hud {
   }
 
   /**
-   * Where the camera brings a place: the middle of the free map, above the tutorial bubble when it
-   * shows, and `lift` px higher so a point that far below it stays free too (the finger on touch).
+   * Where the camera brings a place: the middle of the free map (the tutorial card is above it), and `lift` px higher so a point that far below it stays free too (the finger on touch).
    */
   focusPoint(lift = 0): { x: number; y: number } {
     const f = this.free;
-    const bubble = this.tutorial.open ? this.tutorial.bubble.getBoundingClientRect().top - 8 : f.bottom;
-    const bottom = Math.min(f.bottom, bubble) - lift;
+    const bottom = f.bottom - lift;
     return { x: (f.left + f.right) / 2, y: Math.max(f.top + 20, (f.top + bottom) / 2) };
   }
 

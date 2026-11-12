@@ -1,15 +1,19 @@
-import { fitPills, topBar, type MeasureText, type PillMetrics } from '../game/model/topbar';
+import { fitPills, topBar, type MeasureText, type Pill, type PillMetrics } from '../game/model/topbar';
 import type { Session } from '../game/session';
 import { T } from '../game/strings';
 import type { Speed } from '../game/tools';
 import { h, keyed, onTap, setText } from './dom';
 import { iconButton, iconEl, partsTo } from './parts';
 
+/** Which capsule of the bar each pill sits in (theme: wealth, materials, people). */
+const PILL_GROUP: Record<Pill['key'], string> = { silver: 'wealth', food: 'wealth', wood: 'stock', stone: 'stock', livestock: 'stock', clothes: 'stock', people: 'folk', joy: 'folk' };
+
 /** Room left beside the pills (px): the text measure is an estimate. */
 const FIT_SLACK = 10;
 
 /**
- * The top bar: level ring, resource pills, the goal, the season, speed and the gear. The
+ * The top bar: level ring, resource pills in themed capsules, the goal and the gear (centred, as a
+ * medallion and its capsules); the date and speed live in the `clock` panel (bottom left). The
  * level ring and the goal open Objetivos (as in the 2D), Moradores opens Profissões, the other
  * pills Estatísticas; the goal
  * follows the pills on their row when it fits, else on the next one. On PC the pills shorten
@@ -25,6 +29,8 @@ export class TopBar {
   /** PC: pause, 1x and 3x side by side, the one in use gold (as the 2D); the phone cycles one button. */
   private speeds = new Map<Speed, HTMLButtonElement>();
   private right: HTMLElement;
+  /** Bottom left corner: the date (season pill) and the speed buttons in one small panel (placed by the Hud). */
+  readonly clock: HTMLElement;
   /** The pills shown so far: a pill that appears (stone, happiness) glows gold three times. */
   private seen: Set<string> | null = null;
   /** The page's sizes for `fitPills`, read again when the window changes. */
@@ -44,8 +50,8 @@ export class TopBar {
       this.speeds.set(v, b);
       group.append(b);
     }
-    const right = (this.right = h('div.right', {}, this.season, this.speed, group));
-    right.append(iconButton('gear', T.nova.buttons.settings, o.settings, 'settings'));
+    this.clock = h('div.clock.panel', { 'data-spot': 'clock' }, this.season, h('div.controls', {}, this.speed, group));
+    const right = (this.right = h('div.right', {}, iconButton('gear', T.nova.buttons.settings, o.settings, 'settings')));
     this.el = h('header.top', {}, h('div.left', {}, this.level, h('div.pills', {}, this.pills, this.goal)), right);
   }
 
@@ -56,13 +62,23 @@ export class TopBar {
     partsTo(this.season.querySelector<HTMLElement>('.parts')!, bar.season);
     if (!phone && this.el.isConnected) {
       const { m, measure } = this.measures();
-      const room = this.el.clientWidth - this.level.offsetWidth - this.right.offsetWidth - 2 * m.gap - FIT_SLACK;
+      // The capsules sit in the middle: the same room is kept free on both sides (the gear's side).
+      const room = this.el.clientWidth - this.level.offsetWidth - 2 * this.right.offsetWidth - 3 * m.gap - FIT_SLACK;
       const fit = fitPills((f) => topBar(s.state, s.city, false, f).pills, room, measure, m);
       if (fit) bar = topBar(s.state, s.city, false, fit);
     }
     setText(this.level.querySelector('b')!, String(bar.level));
     this.level.style.setProperty('--f', String(bar.goalFraction));
-    keyed(this.pills, bar.pills.map((p) => p.key).join(), () => bar.pills.map((p) => h('div.pill', { 'data-pill': p.key }, iconEl(p.icon), h('span.parts'))));
+    keyed(this.pills, bar.pills.map((p) => p.key).join(), () => {
+      // Pills of one theme share a capsule: coin and bread, materials and herds, the people.
+      const groups = new Map<string, HTMLElement>();
+      for (const p of bar.pills) {
+        const g = PILL_GROUP[p.key];
+        if (!groups.has(g)) groups.set(g, h('div.pgroup', { 'data-group': g }));
+        groups.get(g)!.append(h('div.pill', { 'data-pill': p.key }, iconEl(p.icon), h('span.parts')));
+      }
+      return [...groups.values()];
+    });
     const seen = this.seen;
     this.seen = new Set(bar.pills.map((p) => p.key));
     for (const p of bar.pills) {
@@ -72,6 +88,9 @@ export class TopBar {
       partsTo(el.querySelector('.parts')!, p.parts);
     }
     partsTo(this.goal, bar.goal);
+    this.goal.classList.toggle('done', bar.goalFraction >= 1);
+    // PC: the goal is a task panel on the left (CSS by form); the phone keeps it under the capsules.
+    this.goal.classList.toggle('aside', !phone);
     keyed(this.speed, String(s.speed), () => (s.speed === 0 ? [iconEl('pause')] : [`${s.speed}x`]));
     this.speed.setAttribute('aria-label', s.speed === 0 ? T.nova.buttons.paused : `${s.speed}x`);
     for (const [v, b] of this.speeds) b.classList.toggle('on', s.speed === v);

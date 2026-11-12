@@ -2,8 +2,8 @@ import { install, installOffer, onInstallChange } from '../app/install';
 import { DIFFICULTIES, type Difficulty } from '../core';
 import { T } from '../game/strings';
 import { tutorialSeen } from '../game/tutorialStore';
-import { formOf, h, onTap } from './dom';
-import { NOVA_CSS, NOVA_FONT, TITLE_FONT } from '../game/palette';
+import { ICONS } from './icons';
+import { applyPalette, formOf, h, onTap } from './dom';
 import './ui.css';
 
 /** The open title screen: what the player chose, and `reveal` once the city is drawn behind it. */
@@ -23,12 +23,7 @@ export function showTitle(last: Difficulty = 'normal', parent: HTMLElement = doc
   let reveal = () => {};
   const chosen = new Promise<{ tutorial: boolean; difficulty: Difficulty }>((resolve) => {
     const root = h('div', { id: 'hud', class: 'title-screen', 'data-form': formOf() });
-    root.style.setProperty('--c-ink', NOVA_CSS.ink);
-    root.style.setProperty('--c-muted', NOVA_CSS.muted);
-    root.style.setProperty('--c-gold', NOVA_CSS.gold);
-    root.style.setProperty('--c-parchment', NOVA_CSS.parchment);
-    root.style.setProperty('--font', NOVA_FONT);
-    root.style.setProperty('--title-font', TITLE_FONT);
+    applyPalette(root);
     const done = (tutorial: boolean) => {
       removeEventListener('keydown', onKey);
       offInstall();
@@ -59,7 +54,7 @@ export function showTitle(last: Difficulty = 'normal', parent: HTMLElement = doc
       return [d, b] as const;
     });
     const levels = h('div.diffs', {}, ...cards.map(([, b]) => b));
-    const card = h('div.card', {}, h('h1', {}, T.title), list, h('p.controls', {}, T.controls), levels, acts);
+    const card = h('div.card', {}, list, h('p.controls', {}, T.controls), levels, acts);
     const corner = h('div.install');
     const paint = () => {
       corner.replaceChildren();
@@ -72,7 +67,11 @@ export function showTitle(last: Difficulty = 'normal', parent: HTMLElement = doc
     };
     paint();
     const offInstall = onInstallChange(paint);
-    root.append(h('div.modal.title-bg', {}, card), corner);
+    const crest = h('span.crest');
+    crest.innerHTML = ICONS.crest;
+    // The name beside the card, over the city: the crest, the name in gold, a line and the subtitle.
+    const brand = h('div.brand', {}, crest, h('h1', {}, T.title), h('div.orn'), h('p', {}, T.subtitle));
+    root.append(h('div.modal.title-bg', {}, brand, card), corner);
     parent.append(root);
     addEventListener('keydown', onKey);
     reveal = () => root.classList.add('live');
